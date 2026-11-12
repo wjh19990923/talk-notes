@@ -86,7 +86,7 @@ for (const t of talks) {
       <img src="${esc(s.src || "")}" alt="${esc(tr(`slides.${i}.alt`, s.alt))}" loading="lazy" data-lb="${i}" data-cap="${esc(tr(`slides.${i}.title`, s.title))}" referrerpolicy="no-referrer" />
       <div class="body">
         <h3>${esc(tr(`slides.${i}.title`, s.title))}</h3>
-        <p>${esc(tr(`slides.${i}.alt`, s.alt))}</p>
+        ${zh[`slides.${i}.alt`] ? `<p>${esc(zh[`slides.${i}.alt`])}</p>` : ""}
         ${s.text ? `<details><summary>幻灯片原文</summary><pre>${esc(s.text)}</pre></details>` : ""}
         ${s.t != null ? `<button class="ts" data-t="${s.t}">▶ ${s.ts}</button>` : ""}
       </div></article>`)

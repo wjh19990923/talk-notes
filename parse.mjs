@@ -75,14 +75,16 @@ export function parseTalk(md) {
 
   const slides = splitBy(byName["Slides"] || [], /^### (.+)$/).out.map((s) => {
     const ps = paragraphs(s.body);
-    const m = (ps[0] || "").match(slideRe);
+    // newer pages put a description paragraph before the "[ts](yt) [alt](img)" line
+    const mi = ps.findIndex((p) => slideRe.test(p));
+    const m = mi >= 0 ? ps[mi].match(slideRe) : null;
     return {
       title: s.title,
       ts: m ? m[1] : null,
       t: m ? +m[2] : null,
       alt: m ? m[3] : "",
       src: m ? m[4] : null,
-      text: (m ? ps.slice(1) : ps).join("\n\n"),
+      text: (m ? ps.filter((_, i) => i !== mi) : ps).join("\n\n"),
     };
   });
 
