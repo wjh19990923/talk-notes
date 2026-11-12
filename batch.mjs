@@ -25,11 +25,14 @@ if (cmd === "next") {
   const max = +a1 || 12000, re = a2 && a2 !== "-" ? new RegExp(a2) : null;
   const map = {}, out = [];
   let n = 0, chars = 0;
+  const seen = new Map();
   for (const [talk, k, v] of pending(re, a3)) {
     const urls = [];
     const masked = v.replace(/\]\((https?:[^)\s]+)\)/g, (_, u) => `](@${urls.push(u) - 1})`);
+    if (!urls.length && seen.has(masked)) { (map[seen.get(masked)][3] ||= []).push([talk, k]); continue; }
     if (chars + masked.length > max && n) break;
-    map[n] = urls.length ? [talk, k, urls] : [talk, k];
+    map[n] = [talk, k, urls.length ? urls : null];
+    if (!urls.length) seen.set(masked, n);
     out.push(`${n}|${masked.replace(/\n/g, "\\n")}`);
     chars += masked.length; n++;
   }
@@ -44,13 +47,13 @@ if (cmd === "next") {
   for (const l of lines) {
     const i = l.indexOf("|"), id = l.slice(0, i), zh = l.slice(i + 1).replace(/\\n/g, "\n").trim();
     if (!map[id] || !zh) { bad++; continue; }
-    const [talk, k, urls] = map[id];
+    const [talk, k, urls, extras] = map[id];
     let out = zh;
     if (urls) {
       out = zh.replace(/\]\(@(\d+)\)/g, (m, j) => (urls[+j] ? `](${urls[+j]})` : m));
       if (/\]\(@\d+\)/.test(out)) { bad++; continue; }
     }
-    (byTalk[talk] ||= {})[k] = out;
+    for (const [t2, k2] of [[talk, k], ...(extras || [])]) (byTalk[t2] ||= {})[k2] = out;
   }
   for (const [talk, kv] of Object.entries(byTalk)) {
     const zf = path.join(ZH, talk + ".json"), tf = path.join(TODO, talk + ".json");
