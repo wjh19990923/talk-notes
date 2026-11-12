@@ -80,6 +80,12 @@ if (cmd === "sync") {
     const k = line.slice(0, i).trim(), v = line.slice(i + 1).trim().replace(/\\n/g, "\n");
     const en = m[k];
     if (en === undefined) { if (!zh[k]) bad.push(`${k}: not a pending key`); continue; }
+    // Code blocks are kept verbatim, so an unchanged code-like paragraph is a valid "translation".
+    // "Code-like": a fence, or code punctuation with no run of 5+ plain words once string literals are removed.
+    const bare = en.replace(/"[^"\n]*"|'[^'\n]*'/g, '""');
+    // Compare after the same \n decoding, since code may itself contain a literal "\n"; store the original then.
+    const keptCode = v === en.trim().replace(/\\n/g, "\n") && (/```/.test(en) || (/[{}();=<>]/.test(bare) && !/([A-Za-z]+[ ,]+){5}/.test(bare)));
+    if (keptCode) { zh[k] = en; ok++; continue; }
     if (!/[一-鿿]/.test(v) && en.length > 20) { bad.push(`${k}: no Chinese`); continue; }
     if (urls(v) !== urls(en)) { bad.push(`${k}: links changed`); continue; }
     if (ticks(v) !== ticks(en)) { bad.push(`${k}: backticks changed`); continue; }
