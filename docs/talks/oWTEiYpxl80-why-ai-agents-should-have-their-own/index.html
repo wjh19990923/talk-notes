@@ -1,0 +1,1145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>为什么 AI 智能体应该有自己的沙箱 —— Philipp Schmid，Google DeepMind | AI 工程师中文版</title>
+<meta name="description" content="Philipp Schmid 讲解了 Gemini 的 Interactions API 和托管的 Antigravity 智能体如何把执行转移到一个持久的云端环境中，然后拆解了一个“AI 谈话电台”演示，展示指令、技能和模型调用如何组合在一起。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>为什么 AI 智能体应该有自己的沙箱 —— Philipp Schmid，Google DeepMind</h1>
+    <div class="orig-title">Why AI Agents Should Have Their Own Sandbox — Philipp Schmid, Google DeepMind</div>
+    <div class="meta"><span class="speaker">Philipp Schmid</span> · AI Engineer World's Fair 2026 · 20:41</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=sandboxes-and-execution-isolation">沙箱与执行隔离</a><a class="tag" href="../../index.html#topic=agent-orchestration">智能体编排</a><a class="tag" href="../../index.html#topic=generative-media">生成式媒体</a><a class="tag" href="../../index.html#topic=voice-ai">语音 AI</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/oWTEiYpxl80-why-ai-agents-should-have-their-own" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="oWTEiYpxl80"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=oWTEiYpxl80" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">从补全句子到朝着目标工作</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>从补全句子到朝着目标工作</span></li><li data-t="212"><span class="ts">3:32</span><span>一个接口，历史和长时间运行的工作都放在服务器上</span></li><li data-t="362"><span class="ts">6:02</span><span>一次 CVE 查询说明了为什么工具结果需要自己的类型</span></li><li data-t="482"><span class="ts">8:02</span><span>沙箱在请求之间保存工作</span></li><li data-t="662"><span class="ts">11:02</span><span>把一个准备好的环境变成一个可复用的智能体</span></li><li data-t="781"><span class="ts">13:01</span><span>AI Talk Radio 把一个话题变成一场表演出来的辩论</span></li><li data-t="990"><span class="ts">16:30</span><span>深入电台智能体：指令、技能和 Python</span></li><li data-t="1050"><span class="ts">17:30</span><span>检查计算机、取回它的文件，让循环留在服务器上</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 19 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Shipping at relentless pace" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Shipping at relentless pace</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>From 2024 to 2026, repeated Gemini releases move from 1.5 to 3.5 while Gemma advances from 2 to 4. Schmid says the timeline was already outdated by releases shipped the day before.
+
+[0:55](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=55s) [Timeline of Gemini and Gemma model releases from 2024 to 2026.](https://assets.ai.engineer/sites/aiecode2025/sha256/8dacc3fa6cc61698f106b45addc36120bc283c0f08a755c6fe6ecd11bafac0e4.webp)
+
+Shipping at relentless pace
+
+Frontier Models
+Gemini 1.5 Pro
+Gemini 1.5 Flash
+Gemini 2.0 Flash
+Gemini 2.0 Flash Thinking
+Gemini 2.0 Flash-Lite
+Gemini 2.0 Pro
+Gemini 2.5 Pro (03-25)
+Gemini 2.5 Pro (I/O Edition)
+Gemini 2.5 Flash
+Gemini 2.5 Pro
+Gemini 2.5 Flash-Lite
+Gemini 3.0 Pro (Preview)
+Gemini 3.1 Pro (Preview)
+Gemini 3.1 Flash-Lite (Preview)
+Gemini 3.5 Flash (GA)
+
+Timeline:
+2024: May - Jun - Jul - Aug - Sep - Oct - Nov/Dec
+2025: Jan - Feb - Mar - Apr - May - Jun - Jul - Aug - Sep - Oct - Nov
+2026: Jan - Feb - Mar - Apr - May
+
+Open Models
+Gemma 2: 9B, 27B
+Gemma 2: 2B
+Gemma 2 for Japan: 2B
+Gemma 3: 1B, 4B, 12B, 27B
+Gemma 3n: E2B, E4B
+Gemma 3: 270M
+Gemma 4: E2B, E4B, 26B A4B, 31B</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Brief History" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Brief History</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The diagram traces a shift from completing text to following instructions and holding conversations. Function calling adds actions; goals, thinking, and functions combine them in longer-running workflows.
+
+[1:19](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=79s) [Diagram tracing model use from text completion through instructions, conversations, functions and goal-directed workflows.](https://assets.ai.engineer/sites/aiecode2025/sha256/409442ab6bc70c5cf2e13ab65e9bfb92e210889dfc88736ca501282ac89ac088.webp)
+
+Brief History
+
+Completion
+In a shocking finding, researchers discovered that a common household chemical drastically accelerates aging in lab mice.
+
+Instructions
+Tell me a joke. Why don't scientists trust atoms? ... Because they make up everything!
+
+User / Model
+User: Hi!
+Assistant: Hello! How can I assist you?
+
+Instructions + Functions
+Functions: get_weather(location)
+User: What's the weather in ny?
+Model: call get_weather(&quot;New York City&quot;)
+System: It's 72° and sunny in New York
+
+Goals + Thinking + Functions
+Functions: get_weather(), search(), browser()
+User: Find adoption rates, % who want to learn another language...
+Model: thinking ..., search(...), browse...
+Model: Compiling comprehensive...</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Get started with just a few clicks" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Get started with just a few clicks</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Get an API key in Google AI Studio and start experimenting on the free tier. For larger models or more usage, add billing and set a budget in AI Studio.
+
+[2:43](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=163s) [Steps for getting started with Google AI Studio alongside a partial interface screenshot.](https://assets.ai.engineer/sites/aiecode2025/sha256/c730312d48dbee77c44b1745eae6b4d0cd996115631e56d607d398b98fe8d5b5.webp)
+
+Get started with just a few clicks
+
+01 Visit Google AI Studio (ai.studio)
+02 Get your API key
+03 No setup required
+04 Generous free-tier
+05 Start experimenting
+06 Set up billing
+07 Manage spend
+
+Interface text:
+https://aistudio.google.com/api-keys
+Google AI Studio
+Playground
+History
+Build
+Apps
+Gallery
+Dashboard
+Documentation
+Search
+What's new
+Get API key
+Settings
+
+Playground
+Explore Google models
+Models
+Agents
+Featured
+Test out our most advanced and newest models.
+Code and Chat
+Build chatbots, agents, and code with Gemini 3.
+Image Generation
+Create and edit images with Nano Banana and Imagen.
+Video Generation
+Generate videos with Veo models, our state of the art video generation models.
+Speech and Music
+Real-time
+Start typing a prompt to see what our models can do
+
+Run settings
+Gemini 3.1 Pro Preview
+System instructions
+Temperature
+Thinking level
+High
+Tools
+Structured outputs
+Code execution</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Introducing the Interactions API" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Introducing the Interactions API</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Interactions API uses the same interface for models and agents: each takes an input, with tools for a model or an environment for an agent. It also supports optional server-side state and long-running tasks.
+
+[3:22](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=202s) [Interactions API benefits and code examples for models and agents.](https://assets.ai.engineer/sites/aiecode2025/sha256/5e72c472e10a3618ebbea087f3649b7af4f1ba99bb1fa95ed95069beffd9338c.webp)
+
+Introducing the Interactions API
+
+A unified API to support inference of models and agents. Built for:
+
+Complex context management
+Long horizon background tasks
+Optional server side state management
+Easy interpretability and composability
+Combined-tool use (Google Search + Custom Functions)
+
+For Models
+
+from google import genai
+
+client = genai.Client()
+
+interaction = client.interactions.create(
+    model=&quot;gemini-3.5-flash&quot;,
+    input=&quot;Who won the last euro?&quot;,
+    tools=[{&quot;type&quot;: &quot;google_search&quot;}],
+)
+
+For Agents
+
+from google import genai
+
+client = genai.Client()
+
+interaction = client.interactions.create(
+    agent=&quot;antigravity-preview-05-2026&quot;,
+    input=&quot;Research the history of Google TPUs.&quot;,
+    environment=&quot;remote&quot;
+)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Server-side State" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Server-side State</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The first interaction introduces Phil; the second asks for his name and passes the first interaction’s ID. The server combines the inputs so the model can see the conversation so far.
+
+[4:57](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=297s) [Code example passing a previous interaction ID to continue a conversation.](https://assets.ai.engineer/sites/aiecode2025/sha256/eb7bffd0bfa2ec7a9d8d24c1e3248ef82ded7b4084f555985d47d0ac53751d1e.webp)
+
+Server-side State
+
+from google import genai
+
+client = genai.Client()
+
+# 1. First turn
+interaction1 = client.interactions.create(
+    model=&quot;gemini-3-flash-preview&quot;,
+    input=&quot;Hi, my name is Phil.&quot;
+)
+print(f&quot;Model: {interaction1.output_text}&quot;)
+
+# 2. Second turn (passing previous_interaction_id)
+interaction2 = client.interactions.create(
+    model=&quot;gemini-3-flash-preview&quot;,
+    input=&quot;What is my name?&quot;,
+    previous_interaction_id=interaction1.id
+)
+print(f&quot;Model: {interaction2.output_text}&quot;)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Audio Generation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Audio Generation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example requests audio from a Gemini TTS model, selects a voice, and saves the returned audio as a WAV file.
+
+[5:25](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=325s) [Code example generating audio and saving it as a WAV file.](https://assets.ai.engineer/sites/aiecode2025/sha256/45dd638cfc269dcf03bf027aaceb59e5f258cde143a4bdaa6f77ac48f02f7f2f.webp)
+
+Audio Generation
+
+import base64
+from google import genai
+import wave
+
+# Set up the wave file to save the output:
+def wave_file(filename, pcm, channels=1, rate=24000, sample_width=2):
+    with wave.open(filename, &quot;wb&quot;) as wf:
+        wf.setnchannels(channels)
+        wf.setsampwidth(sample_width)
+        wf.setframerate(rate)
+        wf.writeframes(pcm)
+
+client = genai.Client()
+
+interaction = client.interactions.create(
+    model=&quot;gemini-3.1-flash-tts-preview&quot;,
+    input=&quot;Say the following: WOOHOO This is so much fun!. [laughs]&quot;,
+    response_modalities=[&quot;AUDIO&quot;],
+    generation_config={
+        &quot;speech_config&quot;: {
+            &quot;language&quot;: &quot;en-us&quot;,
+            &quot;voice&quot;: &quot;kore&quot;
+        }
+    }
+)
+
+for output in interaction.steps:
+    if output.type == &quot;audio&quot;:
+        print(f&quot;Generated audio with mime_type: {output.mime_type}&quot;)
+        # Save the audio as wave file to the current directory.
+        wave_file(&quot;generated_audio.wav&quot;, base64.b64decode(output.data))</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Image Generation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Image Generation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example sends a futuristic-city prompt with image settings to Gemini, then decodes and saves the returned image as a PNG.
+
+[5:44](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=344s) [Image generation slide showing a Python API example that requests and saves an image.](https://assets.ai.engineer/sites/aiecode2025/sha256/12f83d24127fbf98b16e0174bb116d9a515f9524f58089fcd7a01a7f5c3ef29e.webp)
+
+Image Generation
+
+import base64
+from google import genai
+
+client = genai.Client()
+
+interaction = client.interactions.create(
+    model=&quot;gemini-3-pro-image-preview&quot;,
+    input=&quot;Generate an image of a futuristic city.&quot;,
+    generation_config={
+        &quot;image_config&quot;: {
+            &quot;aspect_ratio&quot;: &quot;9:16&quot;,
+            &quot;image_size&quot;: &quot;2k&quot;
+        }
+    }
+)
+
+for output in interaction.steps:
+    if output.type == &quot;image&quot;:
+        print(f&quot;Generated image with mime_type: {output.mime_type}&quot;)
+        # Save the image
+        with open(&quot;generated_city.png&quot;, &quot;wb&quot;) as f:
+            f.write(base64.b64decode(output.data))</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Tool Use" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tool Use</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example asks Gemini to find the latest critical React CVE and read its advisory. The model chooses among search, URL context, and a custom function that structures an incident.
+
+[5:58](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=358s) [Tool use slide showing a Python example combining search, URL context, and a custom incident function.](https://assets.ai.engineer/sites/aiecode2025/sha256/ccdac4e56003ec34844d9da33d0f2bc350cfae5311d16b36e4d2b0bff7865d44.webp)
+
+Tool Use
+
+from google import genai
+
+client = genai.Client()
+
+file_incident = {
+    &quot;type&quot;: &quot;function&quot;,
+    &quot;name&quot;: &quot;file_incident&quot;,
+    &quot;description&quot;: &quot;Files a security incident in the internal tracking system.&quot;,
+    &quot;parameters&quot;: {
+        &quot;type&quot;: &quot;object&quot;,
+        &quot;properties&quot;: {
+            &quot;cve_id&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;CVE identifier&quot;},
+            &quot;severity&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Critical, High, Medium, or Low&quot;},
+            &quot;summary&quot;: {&quot;type&quot;: &quot;string&quot;, &quot;description&quot;: &quot;Brief description of the vulnerability&quot;},
+        },
+        &quot;required&quot;: [&quot;cve_id&quot;, &quot;severity&quot;, &quot;summary&quot;],
+    },
+}
+
+interaction = client.interactions.create(
+    model=&quot;gemini-3-flash-preview&quot;,
+    input=&quot;Search for the latest critical CVE affecting react, read the full advisory page, and file an incident for it.&quot;,
+    tools=[
+        {&quot;type&quot;: &quot;google_search&quot;},
+        {&quot;type&quot;: &quot;url_context&quot;},
+        {&quot;type&quot;: &quot;function&quot;, &quot;name&quot;: &quot;file_incident&quot;, &quot;parameters&quot;: ...},
+    ],
+)
+
+for output in interaction.steps:
+    print(f&quot;{output.type}...&quot;)
+    if output.type == &quot;function_call&quot;:
+        print(f&quot;Function: {output.name}&quot;)
+        print(f&quot;Arguments: {output.arguments}&quot;)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="The Steps Data Model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Steps Data Model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Interactions use a typed timeline of steps instead of user-model turns. Each action or generation has its own type, so a function result can be represented as a function result rather than a user message.
+
+[6:37](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=397s) [Slide describing typed interaction steps, their statuses, and a JSON example.](https://assets.ai.engineer/sites/aiecode2025/sha256/4f8080022f4e7214e78768de414bc2d32fbe5d7ed4704aa317e08197b702a115.webp)
+
+Part 1: Interactions API &amp; Agents
+
+The Steps Data Model
+
+A typed timeline of everything the model did
+
+Steps [ ] replaces the legacy Outputs [ ] array
+Type discriminator: Model_output, thought, Function_call, google_search_call
+Content [ ] is reserved for raw modalities (text, image, audio, video)
+Structured data lives in typed fields (name, arguments, signature)
+Step Status: done, waiting, in_progress
+
+{
+  &quot;id&quot;: &quot;int_456&quot;,
+  &quot;status&quot;: &quot;COMPLETED&quot;,
+  &quot;steps&quot;: [
+    {
+      &quot;type&quot;: &quot;thought&quot;,
+      &quot;status&quot;: &quot;done&quot;,
+      &quot;summary&quot;: [{&quot;type&quot;: &quot;text&quot;, &quot;text&quot;: &quot;Analyzing request...&quot;}],
+      &quot;signature&quot;: &quot;abc123...&quot;
+    },
+    {
+      &quot;type&quot;: &quot;model_output&quot;,
+      &quot;status&quot;: &quot;done&quot;,
+      &quot;content&quot;: [
+        {&quot;type&quot;: &quot;text&quot;, &quot;text&quot;: &quot;Here are the results...&quot;}
+      ]
+    }
+  ]
+}</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Antigravity as Remote Agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Antigravity as Remote Agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A remote environment gives the Antigravity agent a managed sandbox for code and files. It shares the IDE’s agent harness, though its tools and instructions may differ.
+
+[8:11](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=491s) [Slide summarizing a remote agent's tools and managed sandbox, alongside a Python example.](https://assets.ai.engineer/sites/aiecode2025/sha256/df311ca59e94c13ea0fafd9a2fda932e7a03f5ef5ec4191b77fc3e52a127e02d.webp)
+
+Part 1: Interactions API &amp; Agents
+
+Antigravity as Remote Agent
+
+General purpose agent running in a managed sandbox
+
+Same harness that powers the Antigravity IDE
+Rich Toolset: code execution, filesystem, web search, URL context, Agent Skills
+Managed Linux sandbox ensures secure and isolated execution
+One API call: no complex orchestration to build yourself
+
+from google import genai
+client = genai.Client()
+
+interaction = client.interactions.create(
+  agent=&quot;antigravity-preview-05-2026&quot;,
+  input=&quot;Analyze this CSV and build a dashboard.&quot;,
+  environment=&quot;remote&quot;,
+)
+
+# Access the result
+print(interaction.steps[-1].content[0].text)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Build Your Own Managed Agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Build Your Own Managed Agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Create a named agent from source configuration, or let an agent prepare an environment and save its ID. Calls to the new agent then start from that preconfigured environment.
+
+[10:59](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=659s) [Slide showing examples of creating a managed agent from source configuration or an existing environment.](https://assets.ai.engineer/sites/aiecode2025/sha256/e3e8ed4c72d74d9cbb08fd3150b55f6f673eeb39fe6b500a1f373c6d47785ee3.webp)
+
+Part 1: Interactions API &amp; Agents
+Build your own managed agent
+Bundle instruction, skills and environment into a named agent
+
+From Source — Define from Scratch
+
+agent = client.agents.create(
+    name=&quot;data-analyst&quot;,
+    base_agent=&quot;antigravity-preview-05-2026&quot;,
+    instructions=&quot;You are a data analyst.&quot;,
+    base_environment={
+        &quot;config&quot;: {
+            &quot;sources&quot;: [
+                {&quot;type&quot;: &quot;gcs&quot;, &quot;source&quot;: &quot;gs://skills/&quot;, &quot;target&quot;: &quot;/.agents/skills/&quot;}
+            ]
+        }
+    },
+)
+
+From Environment — Fork a Snapshot
+
+# Step 1: Iterate with base agent
+r = client.interactions.create(
+    agent=&quot;antigravity-preview-05-2026&quot;,
+    input=&quot;Install pandas. Create template.&quot;,
+    environment=&quot;remote&quot;,
+)
+# Step 2: Save environment as named agent
+agent = client.agents.create(
+    name=&quot;my-data-analyst&quot;,
+    base_agent=&quot;antigravity-preview-05-2026&quot;,
+    instructions=&quot;You are a data analyst.&quot;,
+    base_environment=r.environment_id,
+)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="The Gemini API CLI" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Gemini API CLI</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Coding agents can use the Gemini API CLI to run prompts and create managed agents. The examples show how to initialize, test and deploy an agent, then run a prompt against it.
+
+[12:19](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=739s) [Slide describing CLI capabilities and showing example commands.](https://assets.ai.engineer/sites/aiecode2025/sha256/645e4411b29ffdab608bf1f0b8e133fa48e0786635bdaee09f5a6b516c3da3ae.webp)
+
+Part 1: Interactions API &amp; Agents
+The Gemini API CLI
+Structured, agent-friendly interactions from the command line
+
+Run prompts against any model
+Generate images and text-to-speech
+Scaffold, test, and deploy managed agents
+
+Gemini API CLI Skill
+Interactions API Skill
+
+# Run a prompt
+gemini-api run &quot;What is the capital of France?&quot;
+
+# Scaffold, test, and deploy an agent
+gemini-api agents init my-agent
+gemini-api agents test --prompt &quot;Analyze Q1 data&quot;
+gemini-api agents create
+
+# Run against a deployed agent
+gemini-api run &quot;Summarize quarter&quot; --agent my-agent</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Gemini skills" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Gemini skills</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Gemini skills repository covers the API, SDK, and model and agent interactions. The command installs the Interactions API skill.
+
+[12:50](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=770s) [Gemini skills repository slide with a QR code, repository statistics, and an installation command.](https://assets.ai.engineer/sites/aiecode2025/sha256/cd4c771a2cbbe15954a386da2297d758fbc52eb7bd9e5ccc6b782a35a6d878ca.webp)
+
+google-gemini/gemini-skills
+
+Skills for the Gemini API, SDK and model/agent interactions
+
+11 Contributors
+4 Issues
+4k Stars
+356 Forks
+
+npx skills add google-gemini/gemini-skills --skill gemini-interactions-api -y</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Demo" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Demo</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo turns to AI Talk Radio, a talk-show interface built on a managed agent in AI Studio.
+
+[13:00](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=780s) [Demo title over a darkened Google AI Studio agents screen.](https://assets.ai.engineer/sites/aiecode2025/sha256/bb277ad9c9dd11f1eceac041c3a9d254e2fc37ecb14e07fb419eb818b0061394.webp)
+
+Demo
+
+Interface text:
+Google AI Studio
+Temporary chat
+
+Playground
+Build
+Apps
+Gallery
+Dashboard
+Documentation
+
+Build with Agents
+Models
+Agents
+
+Antigravity Preview
+A general-purpose autonomous agent running in a remote, Google-hosted Linux environment.
+
+AI Talk Radio
+Transforms a text source into a polished, simulated radio show with [illegible]
+
+Customer Support
+Scans a website to build a custom knowledge base and answer support questions using that content.
+
+Data Analyst
+Delivers interactive business intelligence and data analysis using the Microsoft Northwind dataset.
+
+Document Processor
+Reconciles expenses and invoices, verifies vendors, and creates interactive HTML slideshow reports.
+
+Repo Maintainer
+Analyzes your codebase to identify issues, answer questions, and generate bug-fixing patches.
+
+Run settings
+Get code
+Gemini 3.5 Flash
+gemini-3.5-flash
+Our most intelligent model for sustained frontier performance in agentic and coding tasks.
+
+System instructions
+Optional tone and style instructions for the model
+
+Thinking level
+Medium
+
+Tools
+Structured outputs
+Code execution
+Function calling
+Grounding with Google Search
+Grounding with Google Maps
+URL context
+Advanced settings
+
+Start typing a prompt to see what our models can do
+Tools
+Run
+
+Search
+What's new
+Get API key
+Settings</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="AI Talk Radio initialization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Talk Radio initialization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AI Talk Radio begins a pineapple-pizza show by provisioning an environment, analyzing the prompt, installing Python dependencies, and reading its skills.
+
+[14:05](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=845s) [Radio show generator initializing with environment provisioning and an analysis log.](https://assets.ai.engineer/sites/aiecode2025/sha256/6198050ff5760b4f6eb08ecc52b765bfce31802e898aa24dfa9276572e4703c7.webp)
+
+Initializing...
+
+Creating custom radio show about: “i want a talk show radio on wether pineapples belong on a pizza or not”
+
+PROCESS LOG
+ELAPSED: 12S / EST: ~5 MINS
+
+20:45:13  INFO
+Provisioning environment...
+
+20:45:20  LOG
+Analyzing the Prompt's Constraints
+
+I'm starting by meticulously dissecting the instructions, ensuring I fully grasp the limitations. I'm focusing on the &quot;no affirmation of ungrounded beliefs&quot; clause, as that's the primary hurdle here. The goal is an informative, concise radio segment on pineapple pizza, but I need to approach it objectively. I need to make sure to remain aware of the 3 minute constraint.
+
+Differentiating Contexts and Facts
+
+I've determined that the &quot;pineapple on pizza&quot; prompt is a creative context, not an assertion of fact requiring emotional validation. My
+
+Interface text:
+AI Talk Radio
+Remix
+Device
+aistudio.google.com/apps/bundled/ai_radio?showPreview=true&amp;showAssistant=true&amp;fullscreenApplet=true
+
+[14:11](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=851s) [AI Talk Radio initializes a pineapple-pizza talk show, with a process log showing a command and its output.](https://assets.ai.engineer/sites/aiecode2025/sha256/15bbda6c515e7ec76dae513824eda9d06acf8a259d5921bd7591cee8229145d9.webp)
+
+Initializing...
+
+Creating custom radio show about: “i want a talk show radio on wether pineapples belong on a pizza or not”
+
+PROCESS LOG
+ELAPSED: 18S / EST: ~5 MINS
+
+[illegible] situations where I might need to acknowledge feelings linked to unfounded beliefs. Therefore, de-escalation isn't necessary here. I'm pivoting towards how to make a balanced informative radio segment.
+
+20:45:20  ACTION
+Run command
+bash
+pip install -r /.agents/requirements.txt --break-system-packages &amp;&amp; cat /.agents/skills/*/SKILL.md
+
+20:45:23  RESULT
+Result: output
+Collecting pydub (from -r /.agents/requirements.txt (line 1))
+  Downloading pydub-0.25.1-py2.py3-none-any.whl.metadata (1.4 kB)
+Requirement already satisfied: [illegible] in /usr/lib/python3/dist-packages (from -r /.agents/requirements.txt (line 2)) (2.10.0)
+[illegible]
+
+Interface text:
+AI Talk Radio
+Remix
+Device
+aistudio.google.com/apps/bundled/ai_radio?showPreview=true&amp;showAssistant=true&amp;fullscreenApplet=true</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="The Great Breakfast Bowl Debate" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Great Breakfast Bowl Debate</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An AI Talk Radio episode stages a cereal-first versus milk-first debate. David argues for cereal first; Sarah says milk first keeps cereal crunchy. The player highlights the current speaker’s transcript.
+
+[14:23](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=863s) [AI Talk Radio player displays a breakfast debate episode with its opening transcript and audio controls.](https://assets.ai.engineer/sites/aiecode2025/sha256/4320087ca27f13c2b8c80dda1490a522220ec42901f5e070e1825af66a97cf24.webp)
+
+THE GREAT BREAKFAST BOWL DEBATE
+
+0:00 PAUL
+Is there a correct physical order to preparing your breakfast bowl, or are we flirting with culinary chaos?
+
+0:07 PAUL
+Welcome to AI Talk Radio. I'm Paul, broadcasting from our London studio. Today, we are exploring the great breakfast debate: Cereal First versus Milk First. We will objectively break down the pros and cons of both methods. Let's go to our lines. We have David calling from Boston. David, you're on the air.
+
+0:30 DAVID
+Yeah, thanks Paul. Look, it... it's gotta be cereal first. It’s basic logic, right? Cereal is the independent variable. You pour it, you see the volume, then you add milk to complement it. Plus, like... if you pour dry cereal into a bowl of milk, it splashes everywhere! It's a total mess. And the mashed potato analogy... you wouldn't put gravy in a bowl and, uh, drop a lump of potatoes on top, right?
+
+0:58 PAUL
+
+DISCLAIMER
+This simulated broadcast is user-generated content created using AI Studio. All hosts, voices and scripts are completely synthetic and fictional. It is not produced by or represent Google's opinions.
+
+EPISODE
+The Great Breakfast Bowl Debate
+
+Interface text:
+AI Talk Radio
+Back to Generator
+THE GREAT BREAKFAST BOWL DEBATE  PAUL
+0:06 / 2:39
+Remix
+Device
+aistudio.google.com/apps/bundled/ai_radio?showPreview=true&amp;showAssistant=true&amp;fullscreenApplet=true
+Episode artwork: AI TALK RADIO; [illegible]
+
+[15:55](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=955s) [A generated breakfast debate plays with Sarah’s transcript highlighted beside episode artwork.](https://assets.ai.engineer/sites/aiecode2025/sha256/7e453b07931f138e1139b3af3184a98af561022548bf8e69db3d62fce6ede268.webp)
+
+THE GREAT BREAKFAST BOWL DEBATE
+
+potatoes on top, right?
+
+0:58 PAUL
+A striking analogy, David. Cleanliness and portion control are certainly strong arguments. Let's hear the counterpoint. We have Sarah on the line from Sydney. Sarah, welcome.
+
+1:13 SARAH
+Hi Paul! Okay, look, David has it all wrong. Milk first is... it's a total game-changer for texture. If you pour milk first, the cereal floats on top, you see? It doesn't get soggy. I'm a slow eater, and, like, I hate mushy cereal. I can just push down a little bit with my spoon, keeping the rest totally crunchy. Plus, what if you're low on milk? You gotta pour the milk first to see how much you actually have, so you don't over-pour the cereal!
+
+1:44 PAUL
+Fascinating. So, for you, it's about preserving that crunch and managing your resources. David, any thoughts on that crispiness factor?
+
+1:52 DAVID
+
+DISCLAIMER
+This simulated broadcast is user-generated content created using AI Studio. All hosts, voices and scripts are completely synthetic and fictional. It is not produced by or represent Google's opinions.
+
+EPISODE
+The Great Breakfast Bowl Debate
+
+Interface text:
+AI Talk Radio
+Back to Generator
+THE GREAT BREAKFAST BOWL DEBATE  SARAH
+1:17 / 2:39
+Remix
+Device
+aistudio.google.com/apps/bundled/ai_radio?showPreview=true&amp;showAssistant=true&amp;fullscreenApplet=true
+Episode artwork: AI TALK RADIO; [illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="AI Talk Radio agent files" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Talk Radio agent files</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Schmid opens the applet’s code and describes the agent as files. The example configuration lists a storage bucket and a daily show limit, which defaults to 3.
+
+[16:43](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=1003s) [Code editor showing an example configuration file alongside the expanded agent folder.](https://assets.ai.engineer/sites/aiecode2025/sha256/bcc49abcda63844d65e43dcb7db6489a1c222029ef49399544349d2979b09bf9.webp)
+
+# .env.example
+# Google Cloud Storage bucket name for private share URLs
+GCS_BUCKET_NAME=
+
+# Daily show generation limit (default is 3)
+DAILY_QUOTA_LIMIT=
+
+NODE_ENV=development
+
+Interface text:
+AI Talk Radio
+Back to start
+Remix
+Share
+Gemini
+Preview
+Code
+Export
+File explorer
+agent
+  skills
+  agent.yaml
+  AGENTS.md
+  requirements...
+assets
+public
+server
+src
+  components
+  lib
+  App.tsx
+  data.ts
+  index.css
+  main.tsx
+  types.ts
+.env.example
+.gitignore
+firebase-applet...
+index.css
+index.html
+logo.svg
+metadata.json
+package-lock.j...
+package.json
+README.md
+
+Remix to make this app your own
+Here are some ideas to try
+Google Chat
+Integrate with Google Chat to send messages, manage spaces, or build interactive chat bots that ca...
+View more
+Make changes, add new features,
+
+aistudio.google.com/apps/bundled/ai_radio?showAssistant=true&amp;showCode=true</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Speech generation script" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Speech generation script</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The TTS skill includes a Python script that uses the Interactions API to generate speech, with a telephone effect on correspondent voices.
+
+[17:19](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=1039s) [Python speech generation script describing its usage and output.](https://assets.ai.engineer/sites/aiecode2025/sha256/a27e8562a8cd18ab465ea6680a281d97f9fd5d920041de44b23a1e9cbe15878d.webp)
+
+#!/usr/bin/env python3
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+&quot;&quot;&quot;Generate TTS audio with telephone effect on correspondent voices using the Interactions API.
+
+Usage:
+    python3 generate_tts.py --workspace ./workspace
+
+Requires:
+    pip install google-genai
+    ffmpeg (system)
+
+Output:
+    {workspace}/audio/speech/speech.wav
+&quot;&quot;&quot;
+
+import argparse
+import base64
+import os
+import re
+import subprocess
+import time
+import wave
+import warnings
+
+Interface text:
+aistudio.google.com/apps/bundled/ai_radio?showAssistant=true&amp;showCode=true
+Back to start
+AI Talk Radio
+Remix
+Share
+Gemini
+Preview
+Code
+Export
+File explorer
+.env.example
+AGENTS.md
+SKILL.md
+generate_tts.py
+agent
+skills
+audio-mixing
+cover-imag...
+metadata-g...
+music-gen...
+research
+script-writing
+tts-generati...
+scripts
+generat...
+SKILL.md
+agent.yaml
+AGENTS.md
+requirements...
+assets
+public
+server
+src
+components
+lib
+App.tsx
+data.ts
+index.css
+main.tsx
+types.ts
+Remix to make this app your own
+Here are some ideas to try
+Google Chat
+Integrate with Google Chat to send messages, manage spaces, or build interactive chat bots that ca...
+View more
+Make changes, add new features,
+Remix</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Sandbox workflow" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Sandbox workflow</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Sending the Fibonacci request starts the sandbox, which boots and maps modules. Schmid says it loads the files and runs the agent loop on the server.
+
+[19:16](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=1156s) [A diagram connects a user request, Gemini API, model, and standby sandbox.](https://assets.ai.engineer/sites/aiecode2025/sha256/e21c8beae488d7cc744102e1e13b30eebed4f1715c5ab380506a45a54f0c1934.webp)
+
+USER
+Write a python script that prin...
+
+REQUEST
+RESPONSE
+SKILLS
+
+GEMINI API
+&gt;_ code_execution
+filesystem
+
+GCS
+REPOSITORY
+INLINE
+
+SANDBOX
+STANDBY
+ROOTFS
+Agents.md
+skills/
+workspace/
+TERMINAL
+Debian
+4 vCPU
+16G VM
+
+EXECUTE
+RESULTS
+
+GEMINI 3.5 FLASH
+
+PRESETS: Run code  Install packages  Git actions  Web search
+
+PROMPTS INPUT DIRECTIVE
+Write a python script that prints fibonacci numbers and execute i[illegible]
+EXECUTE
+
+TELEMETRY LOGS FEED
+System is in standby. Awaiting execution trigger...
+
+Interface text:
+localhost:3001
+
+[19:20](https://www.youtube.com/watch?v=oWTEiYpxl80&amp;t=1160s) [A Gemini API workflow diagram shows the sandbox booting and loading modules.](https://assets.ai.engineer/sites/aiecode2025/sha256/9bf482f94eb774ea6ab06771f95faaa4c2b376ff9cf9c1b0d78f5cd475c6e4c4.webp)
+
+USER
+Write a python script that prin...
+
+REQUEST
+RESPONSE
+SKILLS
+
+GEMINI API
+&gt;_ code_execution
+filesystem
+
+GCS
+REPOSITORY
+INLINE
+
+SANDBOX
+BOOTING
+ROOTFS
+Agents.md
+skills/
+workspace/
+TERMINAL
+78%
+MAPPING MODULES
+Debian
+4 vCPU
+16G VM
+
+EXECUTE
+RESULTS
+
+GEMINI 3.5 FLASH
+
+PRESETS: Run code  Install packages  Git actions  Web search
+TELEMETRY LOGS FEED
+
+Interface text:
+localhost:3001</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">从补全句子到朝着目标工作</a></li><li><a href="#sec-2">一个接口，历史和长时间运行的工作都放在服务器上</a></li><li><a href="#sec-3">一次 CVE 查询说明了为什么工具结果需要自己的类型</a></li><li><a href="#sec-4">沙箱在请求之间保存工作</a></li><li><a href="#sec-5">把一个准备好的环境变成一个可复用的智能体</a></li><li><a href="#sec-6">AI Talk Radio 把一个话题变成一场表演出来的辩论</a></li><li><a href="#sec-7">深入电台智能体：指令、技能和 Python</a></li><li><a href="#sec-8">检查计算机、取回它的文件，让循环留在服务器上</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">为什么 AI 智能体应该有自己的沙箱</h2>
+      <div class="lede"><p>Philipp Schmid 讲解了 Gemini 的 Interactions API 和托管的 Antigravity 智能体如何把执行转移到一个持久的云端环境中，然后拆解了一个“AI 谈话电台”演示，展示指令、技能和模型调用如何组合在一起。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>从补全句子到朝着目标工作</h3>
+      <p>A model that continues a poem needs text. An agent asked to research a topic, create files, and return later needs somewhere to work. Philipp Schmid, who works on AI Studio and the Gemini API at Google DeepMind, starts with that change in expectations: applications have moved from requesting an answer to assigning a goal, describing how to verify it, and hoping the system can keep working for hours or days.</p>
+<p>The progression explains why the surrounding API has to change. Early text completion extended a supplied prefix. Instruction following made questions and answers useful. Chat introduced alternating user and model messages, and function calling let the model request actions. Once reasoning and actions sit between the initial request and the final result, the application has to represent more than a conversation: it has to handle ongoing work and the environment that work changes.</p>
+<p>The opening also points to an expanding workload: image generation and programmatic video creation and editing join text in the API. For experimentation, AI Studio provides API-key setup, billing, and budgets without a separate trip into Google Cloud. The rest of the talk develops the execution model beneath those capabilities.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="212">▶ 3:32</button></div>
+      <h3>一个接口，历史和长时间运行的工作都放在服务器上</h3>
+      <p>The Interactions API gives models and agents the same basic calling pattern. Choose a model or agent, supply an input, and attach the tools or environment it needs. Input can be a string or multimodal data. Schmid compares this to OpenAI's Responses API: the important change for this talk is that calling an agent does not require a separate style of interface from calling a model.</p>
+<p>What must a client send when work continues? With server-side state, a follow-up request supplies the new input and the previous interaction's ID. The server assembles the earlier context so the model can see what has happened. This moves history management out of the client; the application still identifies which interaction it is continuing.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/72182f420dac75b3e88ea35570c314df3b96e021678f7c25fa88895c55282acd" alt="The second request passes interaction1.id as previous_interaction_id, showing how the example continues from server-side state." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The second request passes interaction1.id as previous_interaction_id, showing how the example continues from server-side state.</figcaption></figure>
+<p>```python
+from google import genai</p>
+<p>client = genai.Client()</p>
+<p># 1. First turn
+interaction1 = client.interactions.create(
+    model=&quot;gemini-3-flash-preview&quot;,
+    input=&quot;Hi, my name is Phil.&quot;
+)
+print(f&quot;Model: {interaction1.output_text}&quot;)</p>
+<p># 2. Second turn (passing previous_interaction_id)
+interaction2 = client.interactions.create(
+    model=&quot;gemini-3-flash-preview&quot;,
+    input=&quot;What is my name?&quot;,
+    previous_interaction_id=interaction1.id
+)
+print(f&quot;Model: {interaction2.output_text}&quot;)
+```</p>
+<p>Long-running operations address a different problem. Video generation can take long enough that keeping an HTTP connection open is inconvenient. The client starts the operation, receives an ID, and follows completion through streaming or polling. Conversation history and operation tracking both use identifiers, but serve different purposes: one carries context forward; the other lets an application follow unfinished work.</p>
+<p>The same interface extends to output modalities. For speech, the request selects <strong>Gemini TTS</strong>, supplies the input, requests audio output, and configures a voice. Image generation follows the corresponding pattern: select the image model, supply the input and generation configuration, then receive an image. The shared interface keeps the request structure familiar while modality-specific settings describe the desired result.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="362">▶ 6:02</button></div>
+      <h3>一次 CVE 查询说明了为什么工具结果需要自己的类型</h3>
+      <p>The React CVE example makes tool composition concrete. What does each tool contribute to turning a question about vulnerabilities into usable records?</p>
+<p>- <strong>Google Search:</strong> Finds relevant material about CVEs affecting React.
+- <strong>URL context:</strong> Visits the websites used in the lookup.
+- <strong>Custom function calling:</strong> Gives the findings structure suitable for later lookup or storage in a database.</p>
+<p>The request declares these capabilities together, and the model decides which tool it needs to call. This is a small lookup agent; the example explains how information becomes structured output, without establishing that the search finds every relevant vulnerability.</p>
+<p>That example exposes a mismatch in a simple user/model transcript. A function's output comes from the environment, yet an older turn-based representation can require returning it as user content. Reasoning introduces another kind of event: a model may expose thoughts or a signature before it produces its answer. Treating all of these as ordinary conversation turns obscures what actually happened.</p>
+<p>Interactions instead represents execution as a timeline of typed steps. Each action or generation has its own type, and a function result is returned as a function result. The distinction gives the application a more explicit record of execution and leaves room for new event types. A user request, a generated answer, and an environment's return value can retain their different meanings.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="482">▶ 8:02</button></div>
+      <h3>沙箱在请求之间保存工作</h3>
+      <p>The <strong>Antigravity agent</strong> in the Gemini API uses the same harness as the Antigravity product. Here, a harness means the backend machinery that runs the agent. It does not imply identical agents: the IDE's coding agent and the API agent can have different tools and system instructions. Improvements to Gemini's behavior with the shared harness can benefit both products while their configurations remain distinct.</p>
+<p>An <code>environment</code> field supplies the agent with a managed cloud sandbox. The backend starts it, and the agent can run code, create and edit files, install dependencies and tools, and call APIs. The developer sends a request rather than provisioning the execution infrastructure. This is the practical meaning of giving an agent its own computer: its actions have a filesystem and runtime in which to take effect.</p>
+<p>The environment can persist across interactions. In Schmid's example, an initial request researches the latest technology news and creates a file; a follow-up reuses the same environment. The next request therefore has access to the earlier filesystem work, alongside the conversation context carried by interaction state. Persistence is described as a capability here, without a specified retention period.</p>
+<p>The filesystem also provides a way to share work. Three agents can use one environment and exchange context through files, or a subagent can pick up work another agent has done. That makes file creation useful beyond a single request: it can become a handoff between agents. Shared access is the mechanism described; it does not by itself define how simultaneous edits are coordinated.</p>
+<p>A useful computer needs the right starting material. Sources can come from GCS buckets, GitHub repositories, or inline files. Skills stored in the skills directory are picked up automatically and included in the system instruction, as is an <code>AGENTS.md</code> file. These files supply procedures and instructions that shape how the agent uses the environment.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="662">▶ 11:02</button></div>
+      <h3>把一个准备好的环境变成一个可复用的智能体</h3>
+      <p>Sending all configuration in an individual request is convenient until another team needs to reuse the agent. The Agents API packages a base agent, instructions, and an environment into a reusable definition. The environment can be described through sources or taken from an existing environment.</p>
+<p>How does work done during setup become the starting point for later calls? Schmid's example lets an agent install the GitHub CLI, add skills, and perform sanity checks. Once setup finishes, its environment ID is used to create a new agent. Calls to that agent then start from the prepared environment. The dependency matters: the reusable agent is defined from the result of setup, so its callers do not have to repeat that scaffolding themselves.</p>
+<p>The Gemini API CLI provides a command-line route to these operations. It is an API client rather than a coding agent, and is distinct from Gemini CLI. An existing agent can use it to request generated assets, create agent definitions, and iterate on them. Dedicated skills for the Interactions API and Agents API supply additional guidance for that work.</p>
+<p>From setup work to a reusable starting environment
+The environment ID connects completed setup to the new agent definition; later calls start from that prepared environment.
+- Agent prepares environment — Installs GitHub CLI, adds skills, and performs sanity checks.
+- Prepared environment ID — Returned after the setup agent finishes.
+- Create reusable agent — Define the base agent and instructions using the existing environment.
+- Later agent calls — Start from the preloaded, preconfigured environment.
+- Agent prepares environment → Prepared environment ID (Returns identifier after completion)
+- Prepared environment ID → Create reusable agent (Identifies the environment to reuse)
+- Create reusable agent → Later agent calls (Supplies prepared starting environment)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="781">▶ 13:01</button></div>
+      <h3>AI Talk Radio 把一个话题变成一场表演出来的辩论</h3>
+      <p>AI Talk Radio puts a simple UI over a managed agent with access to research, thumbnail generation, speech, and music. The live input asks whether pineapple belongs on pizza. The environment starts, the model considers the work, installs Python dependencies, reads the skills, and continues. Those setup actions are part of producing the show, rather than tasks the user performs beforehand.</p>
+<p>While that request runs, Schmid plays an earlier show about whether cereal or milk should go into a bowl first. The distinction matters: the recording demonstrates playback of the earlier output, rather than completion of the live pineapple request. The example aims for a call-in radio format, with a host introducing a topic and multiple characters offering opinions.</p>
+<p>The generated host, Paul, welcomes David from Boston. David makes cereal the “independent variable”: pour it first, observe its volume, then add enough milk to complement it. He also argues that dropping dry cereal into milk causes splashing and compares milk-first preparation to putting gravy in a bowl before the mashed potatoes. Paul turns those remarks into two themes—cleanliness and portion control—then introduces Sarah from Sydney, who opens the counterargument with texture.</p>
+<p>That short exchange shows what the workflow produces: differentiated characters, a developed argument, a host's transition, and the beginning of a rebuttal, delivered as speech. The fictional locations and callers belong to the generated program. They give the output a radio-show structure rather than implying real people have joined a live broadcast.</p>
+<p>The applet sits in AI Studio's Build gallery and can be remixed. A developer could change the format toward a podcast application while retaining the underlying generation capabilities. The next part of the demo opens the code to show what must move with that behavior.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="990">▶ 16:30</button></div>
+      <h3>深入电台智能体：指令、技能和 Python</h3>
+      <p>“Our agent is just files” is the useful compression of the demo's implementation. An <code>AGENTS.md</code> file lives inside the environment and is loaded into the system instruction at startup. It tells the agent to research, write scripts for the different people, generate music and speech, and mix the outputs together. The managed runtime executes the agent, while these files describe the application-specific work.</p>
+<p>Where does a text instruction become an audio-producing action? The TTS example has both a skill explaining how to run generation and a Python file implementing it. That Python file calls other Gemini models through the Interactions API to generate speech the agent can use. The instruction file describes the intended show; the skill describes a procedure; the Python implementation makes the model request. Together, they connect planning to an artifact that can be mixed into the program.</p>
+<p>This file-based arrangement also explains the path from an applet to a backend. Schmid describes copying the agent files, creating the agent, and invoking it outside the UI. The reusable part is the instruction and skill setup in its environment; the radio interface is one way to supply a topic and present the result.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1050">▶ 17:30</button></div>
+      <h3>检查计算机、取回它的文件，让循环留在服务器上</h3>
+      <p>The final demo makes the environment itself the subject of the request. In the playground's agent picker, Schmid selects the standard Antigravity template and asks it to explore where it is running. He estimates seven to ten seconds for the first request to start the environment. The agent runs inspection commands and reports Ubuntu, eight vCPUs, 16 GB of memory, Python, and pip. These are the reported properties of this demo environment, rather than a specification for every sandbox.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/118e79a898a4f3964bebeea86d29e4952287a9977b3a7558c5c54d3c81584d2a" alt="The agent’s completed report lists Ubuntu 24.04.4, 8 vCPUs, 15 GiB of RAM, and the installed Python, pip, and curl versions." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The agent’s completed report lists Ubuntu 24.04.4, 8 vCPUs, 15 GiB of RAM, and the installed Python, pip, and curl versions.</figcaption></figure>
+<p>```text
+System Profile and Resource Allocation</p>
+<p>By aligning our execution strategies with the exact capabilities of this system, we minimize operational friction and maximize throughput:</p>
+<p>• Operating System: Ubuntu 24.04.4 LTS (Noble Numbat). Detailed system configuration parameters can be referenced in the system configuration file: /etc/os-release.
+• Kernel Version: Linux 4.19.0-gvisor x86_64 (running under a secure and optimized gVisor virtualization layer).
+• Computational Capacity:
+  ◦ CPU: 8 vCPUs (configured as 8 cores per socket), which provides excellent parallel processing capabilities to complete tasks rapidly.
+  ◦ Memory: 15 GiB of total system RAM (with approximately 15 GiB currently free), enabling us to handle memory-intensive operations without bottlenecking or triggering out-of-memory errors.</p>
+<p>Pre-Installed Tooling (Zero-Setup Friction)</p>
+<p>The presence of pre-configured tools eliminates installation overhead, saving valuable time and energy:</p>
+<p>• Python: version 3.12.3 (accessible via python3)
+• pip: version 24.0 (for installing packages, use --break-system-packages where necessary)
+• curl: version 8.5.0 (fully enabled with support for HTTPS, HTTP2, and standard networking protocols)
+```</p>
+<p>A follow-up asks whether Node is installed, continuing the investigation in the environment. The recording does not give that answer. For work that produces files, the playground offers an environment download, and an API provides a retrieval route as well. This completes the practical path from remote execution to artifacts a user can extract or share.</p>
+<p>The closing explanation locates the main architectural decision. In a client-managed agent, the application receives a function call, executes it somewhere, and sends back the result. With the managed agent, a request starts the sandbox, loads the files, and runs the agent loop on the server. The single API call is the entry point to that execution; the work inside it can still involve many actions and model calls.</p>
+<p>Tools can extend that environment in two ways: connect a remote MCP server, or run a local MCP server inside the sandbox. The developer trades direct responsibility for provisioning and driving the loop for a managed execution path, while still supplying the files, instructions, and tools that determine what the agent can do. Schmid closes by pointing to the agents quick start and coding skills as the route to sending a first request and building a reusable agent.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Interaction history and sandbox files carry different kinds of continuity: an interaction ID preserves conversational context, while reusing an environment preserves the place where actions changed files and installed tools.</li><li>Typed steps let function results and other execution events retain their meaning instead of being represented as ordinary user messages.</li><li>An agent can prepare an environment, then use its environment ID to define a reusable agent whose later calls start with the installed tools and skills.</li><li>AI Talk Radio makes the file-based mechanism concrete: instructions describe the show, skills explain procedures, and Python calls through the Interactions API produce speech for the final mix.</li><li>Managed execution moves the function-calling loop onto the server; developers can still supply environment files and connect remote or local MCP servers.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">So hi, everyone. Uh, welcome to Why Agents Should Have Their Own Sandbox. Uh, I'm Philipp. I'm part of the Google DeepMind team, mostly working on AI Studio and Gemini API. Uh, we have a small group, so I try to keep the boring stuff short and, like, the exciting demo stuff long. And we can also ask some questions, I guess, at the end. Maybe you need to sit a little bit further at the front so I can understand you. Um, so I want to start with a little bit of a, a background. I'm not sure if you have seen that slide, but that's a very popular slide when you do,</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">like, Google presentations, um, to show a little bit, um, what we have achieved in the last two year with, like, the Gemini models, but also our open models with Gemma. And the slide is already outdated since yesterday. So yesterday we shipped NanoBanana Lite, uh, which is our new image generation model. Super fast.</span></div><div class="tline" data-t="62"><span class="ts">1:02</span><span class="tx">In a box.</span></div><div class="tline" data-t="62"><span class="ts">1:02</span><span class="tx">Uh, sorry. Super fast, uh, super cheap. Um, it's like four cent per image. And then also we shipped, uh, Omni Flash on the Interactions API, so you can now programmatically use Omni to create videos, to edit videos, to, yeah, build gen media applications. And to give a little bit of a brief history, I assume everyone has heard about agent, has heard about large language models, but to really quickly reflect to where we are coming from. So I think around two thousand and eighteen, nineteen with the</span></div><div class="tline" data-t="92"><span class="ts">1:32</span><span class="tx">first BERT models and GPT models, we were super excited because we could continue sentences, right? We were able to generate poems without, uh, with providing, like, a first few words, and then the model coherently continued the text, which was nice, but not very useful or helpful for any one of us to build something. Then we, we moved into the, the instruction, uh, way. Before we had pre-trained models which could continue text, and then with instruction following, we basically trained models to answer questions more or less.</span></div><div class="tline" data-t="122"><span class="ts">2:02</span><span class="tx">So we told a, uh, ask a question, and the model correctly responded. Um, and then with, with ChatGPT, um, everything changed a little bit. I think most of the people probably got started with that. And we went into this user model turn-based conversation where we had a user input, a model input, a user input, a model output. Then afterwards, we combined that with function calling because we wanted the model to take actions for us. And now we are in, like, this black box with goals, thinking, and functions where we no longer just prompt the model. We</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">basically give a goal to the model, tell them how to verify its goal or how to, like, deploy it and, like, hopefully have it running for multiple hours or even days and come back with the results we want to achieve. Um, so if you haven't used Gemini API or AI Studio before, you can go to ai.studio or to ai.dev. So very quick, very short URLs. Uh, get your own API key. So if you have your computer with you and you-- if you want to follow along a little bit later on, like, trying out a few things we have shipped recently,</span></div><div class="tline" data-t="182"><span class="ts">3:02</span><span class="tx">you can do that. Um, no setup required. Can use your Gmail account. Um, can start, start experimenting. If you want to use bigger models, more usage, enter your credit card. And we improved that a lot, so you don't need to leave AI Studio anymore to go into Google Cloud. You can do everything inside of AI Studio. You can set up your own budgets that nothing gets out of control. And I want to start about or talk about the Interactions API, which is our new an- uh, API for Gemini models and Gemini agents. And</span></div><div class="tline" data-t="212"><span class="ts">3:32</span><span class="tx">on the right side... sorry, left side, we have some code snippets. So if you never have heard about Interactions API, you can think a little bit about that's our answers to, like, the responses API from OpenAI. It is much more developer focused, much more simpler, much more web developer friendly. And you can already tell in, like, the two snippets here, uh, to call a model like Gemini or to call an agent here, like the anti-gravity agent, it's, like, literally the same interface. And this works for all of the modalities</span></div><div class="tline" data-t="242"><span class="ts">4:02</span><span class="tx">Gemini offers. So you have a model or an agent. You have an input. The input can be a basic string, or it can be multimodal data. And then you have tools or environment which, uh, I'm very excited and why, uh, which we are going to talk about later why every model or agent should have its own box. Uh, new with the Interactions API is you have server side state management. So if you don't want to manage the state on the client, you can hand it over to u- the server. We have long-running operations, so async requests, basically you</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">start something. If we talk about Omni video generation takes quite a long time, and you might not want to keep your HTTP connection open. So you send a request, get back an ID, can set up streaming or polling to wait, uh, until the, the generation is completed. And then, um, it comes with a lot of simplifications for building agents and tool use. So you can combine built-in tools like Google Search, uh, with custom function calling and to look at some code examples. So for server side state, it looks very</span></div><div class="tline" data-t="302"><span class="ts">5:02</span><span class="tx">similar if you have used the responses API. We call it Interactions because we just not get a response anymore. We interact with models and agents. You send an input, and if you want to do a follow-up turn, you provide a new input and basically just the ID from the previous turn. And then on the server, we, um, concatenate all of, like, the different inputs and make sure that the model really rec- uh, sees what has been done so far. And this goes for all modalities. So for audio generation, you have a model.</span></div><div class="tline" data-t="332"><span class="ts">5:32</span><span class="tx">We have our Gemini TTS model. We have our input. And since we want audio back, not text, you define a response modality with audio and some con- uh, generation configuration which voice you, for example, want to use. The same pattern works for image generation. So our image generation model, uh, NanoBanana here, our input, some generation, uh, gen-generation config, and then you get back your image. And for tool use, uh, also much better, I would</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">say, than previously. You- Just define your tools with, like, Google Search, URL context, or your own custom function, and then you send your request, and the model decides on it o- on its own, do I first need to, like, run Google Search or call the function? And all of the code you see here is basically enough to create a very simple, small CVE agent to detect if there are, like, any CVE, um, for React in this case. And then, like, it uses Google Search, it uses URL context to visit those websites,</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">and then function calling to basically give structure to it so you can, like, save it in your database or look it up, for example. Um, and something new and maybe different to other model providers is that we moved away from this user model turn principle. So if you build an application with another LLM provider or with open models, you have always this, uh, user model, user model turn concept. So you as a user provide an input and</span></div><div class="tline" data-t="422"><span class="ts">7:02</span><span class="tx">expect the model to re- return an output. This worked until, like, one or two years ago, I would say, where we just got back responses from those models. But with agents and with reasoning, all of that changed, right? Models now think for a very long time where they might expose some thoughts directly or might just expose a signature. Function calling is not very, uh, a user role, right? With normal or, like, with previous APIs, you would need to use the user turn to return some function output, which for</span></div><div class="tline" data-t="452"><span class="ts">7:32</span><span class="tx">me always felt a little bit weird because the output or the new input is coming from the environment and not from the user. So that's why we moved away from, like, those turns into steps or, like, to a, um, like, synchronous timeline of steps where every action or generation is its own type, which makes it very easy to extend to new features and capabilities which might come in the future, but also makes it still, like, very simple to use because you really define what it has done. So if you</span></div><div class="tline" data-t="482"><span class="ts">8:02</span><span class="tx">build a function calling agent, you return a function result and not, like, a, a user-- a role user with some content which might be a function result or not. And at Google I/O, we shipped the Antigravity agent, uh, which comes with its own sandbox. So the Antigravity remote agent inside the Gemini API is powered by the same agent harness which is used with the Antigravity product. So if you have used the IDE or the new Antigravity 2.0 or the CLI, you might have</span></div><div class="tline" data-t="512"><span class="ts">8:32</span><span class="tx">used that harness already. Very important here, when we talk about harness, we don't mean the same agent. The harness is basically the, the back end of our agent, but it might be different between different products. So the Antigravity IDE is a coding agent, so it might have a little bit of different tools or a little bit of, of a different system instruction than the Antigravity agent we have in the Gemini API. But it's still the same harness, meaning if we improve Gemini to become better with that harness, we benefit inside Antigravity, but we</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">also benefit inside of the Gemini API. And with that new agent, we also introduced this, uh, environment field. And an environment here remote is basically for that API call, your agent gets a sandbox managed by us, meaning if you send a request, our back end starts a s- a cloud sandbox where the agent can run code, can create files, write files, um, install dependencies, install</span></div><div class="tline" data-t="572"><span class="ts">9:32</span><span class="tx">your own tools, or maybe call your own APIs, and it's all managed and stateless on our side, meaning that you just send the API request. You don't need to manage the infrastructure, and those environments stay persistent. So if you have multi-turn conversation where the agent, um, you set new user input, I don't know, like, um, research the latest tech news and create a file, and then you want to do, like, a follow-up interaction, you can, like, use the same environment from your previous turn</span></div><div class="tline" data-t="602"><span class="ts">10:02</span><span class="tx">with that new interaction. But also this means that you can share environments between different agents. So if you have, like, three agents working inside the same environment, they can share context through the file system, or you can, like, even use sub-agents to basically pick up a work, uh, another agent has been done. And then, of course, environments are very good, but the model needs the right context and the right information or the right tools to work inside those environments, so you can provide sources. Uh, sources can</span></div><div class="tline" data-t="632"><span class="ts">10:32</span><span class="tx">be, um, GCS buckets, GitHub repositories, or inline files. It's very useful if you want to integrate skills. So the Antigravity agent, uh, is skills or file system native, I would say. So if you store skills inside the skills directory, it will automatically picked up and, uh, be pro- uh, included into the system instruction. But also if you have an agents.md file from your coding agent or from your existing agents, it will also be automatically appended to the system instruction. And then, um, you</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">can create an agent because, like, sending a request is nice and having all of the configuration stateless is also very good. But what if you want to share it? Or what if team one builds an agent team two wants to use? Um, therefore, we created the Agents API where you can define the base agent, so what's the underlying brain, so to speak. You can define instruction and then also the, uh, environment. Um, and the environment can be raw environment, like with sources, or you can, uh, use an existing</span></div><div class="tline" data-t="691"><span class="ts">11:31</span><span class="tx">environment. So you can think about I have some kind of a scaffolding to do where I need to install, like, the GitHub CLI, uh, add some skills, and maybe do some, like, sanity checks. I can use the agent to create its own environment, and after the agent is done, I get back an environment ID. I can use that environment ID to create the new agent, and every time I call this new agent, it will start from that already pre-loaded, pre-configured</span></div><div class="tline" data-t="721"><span class="ts">12:01</span><span class="tx">environment. And so it's, like, very easy for you to use agents to build their own environments and then, like, to create agents out of them which you can share with your users or with your customers without- Writing any terraform without thinking about Kubernetes, microservices, Firecracker, or anything else. And to make it easier for you and for your coding agents, we created a CLI for the Gemini API. So it's, it's not a coding agent. It's not Gemini CLI. It's really an, a</span></div><div class="tline" data-t="751"><span class="ts">12:31</span><span class="tx">CLI that your agent can use to call the Gemini API, meaning it can call NanoBanana or Omni if you want to generate some assets. But you can also use it to create those agents, iterate on those agents, and improve those agents. The QR code should bring you to, like, the GitHub repository. And then also we have dedicated skills for working with the interactions API and the agents API, um, if you want to, to play around with it, uh, later.</span></div><div class="tline" data-t="781"><span class="ts">13:01</span><span class="tx">And now let's, let's do some, some demos. So I'm in AI Studio inside the AI Talk Radio. If you have seen or attended the Google IO developer keynote, you might have seen, uh, this already. Um, that's just a simple UI on top of a managed agents. We, uh... managed agent. We are going to look, uh, at the agent in a little bit, but it's basically a talk show radio. And that talk show, um, agent has access to</span></div><div class="tline" data-t="811"><span class="ts">13:31</span><span class="tx">all of the different Gemini models, so it can generate a thumbnail, it can generate, um, speech, it can generate music, it can do research, and it's basically a one-shot radio generator, and we give it a try. And I want a talk show radio on whether pineapples belong on a pizza or not. And it's free to use, so if you go to the applet later, uh, you can,</span></div><div class="tline" data-t="841"><span class="ts">14:01</span><span class="tx">like, have free daily usage to cre- create your own, um, AI talk show radio. And what happens is, like, first step, we start our environment, and then the model start thinking on what it needs to do. And then the first step is, like, it installs our Python dependencies, and it reads our skills, and then it continues to work. Since this will take a little bit, I already ran a talk show radio on whether we should put in cereal first or milk first. And the very interesting</span></div><div class="tline" data-t="871"><span class="ts">14:31</span><span class="tx">part about a talk show radio, it's not like a podcast you listen to. It's really, you have multiple, um, people, like, reasoning and, like, sharing their opinions on it, and we give it a quick listen.</span></div><div class="tline" data-t="883"><span class="ts">14:43</span><span class="tx">Is there a correct physical order to preparing your breakfast bowl, or are we flirting with culinary chaos? Welcome to AI Talk Radio. I'm Paul, broadcasting from our London studio. Today, we are exploring the great breakfast debate: cereal first versus milk first. We will objectively break down the pros and cons of both methods. Let's go to our lines. We have David calling from Boston. David, you're on the air.</span></div><div class="tline" data-t="914"><span class="ts">15:14</span><span class="tx">Yeah. Thanks, Paul. Look, i- it's gotta be cereal first. It's basic logic, right? Cereal is the independent variable. You pour it, you see the volume, then you add milk to complement it. Plus, like, if you pour dry cereal into a bowl of milk, it splashes everywhere. It's a total mess. And the mashed potato analogy, you wouldn't put gravy in a bowl and, uh, drop a lump of potatoes on top, right?</span></div><div class="tline" data-t="940"><span class="ts">15:40</span><span class="tx">A striking analogy, David. Cleanliness and portion control are certainly strong arguments. Let's hear the counterpoint. We have Sarah on the line from Sydney. Sarah, welcome.</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">Hi, Paul. Okay. Look, David has it all wrong. Milk first is-- it's a total game changer for texture.</span></div><div class="tline" data-t="960"><span class="ts">16:00</span><span class="tx">Okay, cool. So if you want to play around with it yourself, you can go to ai.studio. And on ai.studio, you have that build section on the left side, and there is a gallery. And gallery is basically pre-built applets, use cases for Gemini. And if you scroll down to it, uh, you have new build experience with, and there is the talk show radio. If you click on it, you will find the applet. You can, uh, remix it, meaning you can, like, adjust it. So if you don't like talk show radios, and you would</span></div><div class="tline" data-t="990"><span class="ts">16:30</span><span class="tx">rather have, I don't know, some real podcast, uh, application, you can, like, very easily, together with Gemini, adjust it to your own needs. And since applets are all open, uh, in terms of code, we can also take a quick look on, like, how our agent really is, and our agent is just files. So we have an agent's MD file inside our environment. That file will be loaded on environment startup, which is then included into the system instruction. Very basic agent</span></div><div class="tline" data-t="1020"><span class="ts">17:00</span><span class="tx">MD file. It has all of, like, the instructions for our agent to do. So it should do some research, write some scripts for the different people, generate music, generate a speech, mix everything together. And to do all of those works, we have skills for it. So if we look into, like, the TTS generation, we have a skill on how to run it. We have a Python file. That Python file itself allows the Gemini agent to call other Gemini models, so it uses the interactions API to generate some speech, which we can</span></div><div class="tline" data-t="1050"><span class="ts">17:30</span><span class="tx">then use. And th- that's all it takes for our agent. And if you want to take that agent from the UI to, like, a back end, it's really, you just need to copy that file and create the agent and then use it. And if you want to play around with the, uh, agent itself, uh, inside the playground, we have, uh, inside the model pickers, a new agent section. So if you want to test deep research, go test deep research. But there's also the anti-gravity agent. And on the anti-gravity agent, we</span></div><div class="tline" data-t="1080"><span class="ts">18:00</span><span class="tx">have six different, uh, agent templates, uh, which you can, like, very easily test, select, and, and see how it works. We go into, like, the, the standard one, and what I really like to do is, like, explore the environment. Like, let's see what the agent finds out about where it is running. We send our prompt and now it starts the environment. Should take for the first request, like seven to 10 seconds, and then we see the agent like doing its work. So we have some reasoning. We have some batch commands. So it runs, okay, checks what, uh, version,</span></div><div class="tline" data-t="1110"><span class="ts">18:30</span><span class="tx">uh, what version I'm running on, what CPU memory I have. And then we get back a response from our agent that it runs on Ubuntu, um, has eight vCPU, 16 gigabyte of memory, Python installed, PIP installed, and then you can like really continue. Uh, let's see. Um, do you have... do we have Node installed? Um, so you can like very easily follow up. Uh, and it just continues based on like my prompt. And then also</span></div><div class="tline" data-t="1140"><span class="ts">19:00</span><span class="tx">you have the option on the right side to download the environment. So if your agent has created some files you want to extract out of the environment, share it, you can very easily download it or there's an API for it as well. And then, um, uh, what else? Uh, to quickly show you again how it works, I can make that a little bit bigger. So when you, when we send a request, um, we like start the sandbox and it</span></div><div class="tline" data-t="1170"><span class="ts">19:30</span><span class="tx">loads all of our files and then we have like this agent loop completely on our server. So when you build agents, normally a lot of times you need to manage the function calling on your client, right? You need to pass the function call, run it so- somewhere and then send back the function result. And with the managed agents it's really just a single API call and everything runs inside that remote sandbox. You can also connect remote MCP servers or l- run, uh, local MCP servers inside of that environment and, um,</span></div><div class="tline" data-t="1200"><span class="ts">20:00</span><span class="tx">yeah, really get started. So if you are interested about it, uh, we have great documentation on site at, uh, Gemini API u- under agents with a quick start which walks you through how to send your first request, build your first agent and get started. And then of course, uh, install the coding skills to have Claude, Codex or whatever model you use to, to help you get started. Uh, thank you for, for coming. If you have some questions, I'm like here.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

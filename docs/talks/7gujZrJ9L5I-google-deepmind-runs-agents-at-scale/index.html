@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Google DeepMind 如何大规模运行智能体 —— KP Sawhney 与 Ian Ballantyne，Google DeepMind | AI 工程师中文版</title>
+<meta name="description" content="一场用 Antigravity 现场制作游戏的演示，引出了对智能体背后基础设施的讨论：共享工作区、配额、追踪、技能评测和代码审查。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>Google DeepMind 如何大规模运行智能体 —— KP Sawhney 与 Ian Ballantyne，Google DeepMind</h1>
+    <div class="orig-title">How Google DeepMind Runs Agents at Scale — KP Sawhney &amp; Ian Ballantyne, Google DeepMind</div>
+    <div class="meta"><span class="speaker">KP Sawhney、Ian Ballantyne</span> · AI Engineer Europe 2026 · 25:13</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=developer-workflows-and-testing">开发工作流与测试</a><a class="tag" href="../../index.html#topic=design-engineering-and-ai-interfaces">AI 界面设计</a><a class="tag" href="../../index.html#topic=harness-engineering">框架工程</a><a class="tag" href="../../index.html#topic=model-routing-and-llm-gateways">模型路由与网关</a><a class="tag" href="../../index.html#topic=sandboxes-and-execution-isolation">沙箱与执行隔离</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/7gujZrJ9L5I-google-deepmind-runs-agents-at-scale" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="7gujZrJ9L5I"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=7gujZrJ9L5I" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">给智能体一份规格说明——再检查接下来发生了什么</div></div>
+      <div class="label row">章节跳转 <span>共 9 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="16"><span class="ts">0:16</span><span>给智能体一份规格说明——再检查接下来发生了什么</span></li><li data-t="272"><span class="ts">4:32</span><span>把框架扩展到编程之外</span></li><li data-t="400"><span class="ts">6:40</span><span>游戏开始了，但验证仍然是工作</span></li><li data-t="469"><span class="ts">7:49</span><span>规模化始于控制需求</span></li><li data-t="786"><span class="ts">13:06</span><span>找到智能体出错的那一步</span></li><li data-t="876"><span class="ts">14:36</span><span>让研究的各个阶段成为协作者</span></li><li data-t="1042"><span class="ts">17:22</span><span>专家技能需要针对任务的测试</span></li><li data-t="1206"><span class="ts">20:06</span><span>配额通知不等于任务完成</span></li><li data-t="1344"><span class="ts">22:24</span><span>用审查闭合循环</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 6 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="AI Engineer Europe" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer Europe</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The AI Engineer Europe logo opens the recording.
+
+[0:00](https://www.youtube.com/watch?v=7gujZrJ9L5I&amp;t=0s) [AI Engineer Europe logo in white on black.](https://assets.ai.engineer/sites/aiecode2025/sha256/aab59c7da120f8504a96c9b8622254406bbff88706e2388a912d6dcc744c1118.webp)
+
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Presenting Sponsor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting Sponsor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Google DeepMind is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=7gujZrJ9L5I&amp;t=5s) [Google DeepMind named as presenting sponsor.](https://assets.ai.engineer/sites/aiecode2025/sha256/22e8cb940ef752894fb0f47ce4cfbb7a04b212fd252bdf1347f3f5879fa393f3.webp)
+
+PRESENTING SPONSOR
+
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Platinum Sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Platinum Sponsors</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Braintrust, WorkOS, and OpenAI are listed as platinum sponsors.
+
+[0:10](https://www.youtube.com/watch?v=7gujZrJ9L5I&amp;t=10s) [Braintrust, WorkOS, and OpenAI listed as platinum sponsors.](https://assets.ai.engineer/sites/aiecode2025/sha256/cb07bd809920405f0c6c0e1a018ad6ca9b4cf012e6a1d4692f53bdc38e061cee.webp)
+
+PLATINUM SPONSORS
+
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Agent Manager" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent Manager</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Antigravity’s Agent Manager opens a new conversation alongside workspaces and past chats. The speaker says it can run multiple agents across projects and integrates with the IDE.
+
+[1:27](https://www.youtube.com/watch?v=7gujZrJ9L5I&amp;t=87s) [Antigravity agent manager showing a new conversation alongside the event broadcast layout.](https://assets.ai.engineer/sites/aiecode2025/sha256/7123904238a84c4943b2ab4c3a7bb857c0b9def59a48f566ebd703237c083228.webp)
+
+Engineering the future of AI
+
+AIE
+AI Engineer
+EUROPE
+2026
+
+Interface text:
+Antigravity
+File  Edit  View
+Fri 10 Apr 12:45
+Development
+Open Editor
+New Conversation
+Conversation History
+Workspaces
+Development
+No chats yet
+gemma-demo-factory
+Auditing Local Model St...  6d
+Scaling Nebula Drift Can...  8d
+Fixing Math-deroids Syn...  9d
+Fixing Maze Solver Types  9d
+See all (11)
+gemma-research-lab
+No chats yet
+gemma-sovereign-calculator
+Setting Up OpenAI Envir...  2d
+Opening Threshold Calc...  2d
+gn
+Running Server Tests  24d
+gemma-4-eap-extras
+How do I squash git co...  18d
+Pulling Latest Code  21d
+Gemma 4 Model Comp...  28d
+Image Analysis and Cit...  1mo
+See all (5)
+gemma4-litellm-share
+Explain this re...  30d
+Knowledge
+Settings
+Provide Feedback
+New conversation in Development
+Open editor
+Ask anything, @ to mention, / for workflows
+Planning
+Gemini 3 Flash</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Antigravity Editor and Agent Panel" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Antigravity Editor and Agent Panel</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The presenter asks the side-panel agent to build an example from a spec file. The request encounters a high-traffic error, and the agent stops with a retry option.
+
+[1:30](https://www.youtube.com/watch?v=7gujZrJ9L5I&amp;t=90s) [Antigravity editor displaying CSS and an agent panel with a draft request.](https://assets.ai.engineer/sites/aiecode2025/sha256/f07a223362e82c2b6e2b2b35bb4b1aaa46c4ba7f6833667e5a530beb17eb387c.webp)
+
+AIE
+Engineering the future of AI
+AI Engineer
+EUROPE
+
+.joystick-knob {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+}
+
+/* Generation Panel Styles */
+.generation-panel {
+    background: rgba(0, 0, 0, 0.4);
+    border: 2px solid #333;
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+}
+
+#game-prompt {
+    background: #000;
+    border: 2px solid var(--neon-blue);
+    color: var(--neon-blue);
+    padding: 12px;
+    border-radius: 6px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1rem;
+    outline: none;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+    transition: box-shadow 0.3s ease;
+}
+
+#game-prompt:focus {
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+}
+
+#game-prompt::placeholder {
+    color: rgba(0, 255, 255, 0.3);
+}
+
+#generate-btn {
+
+Interface text:
+Antigravity
+Explorer
+ gemma-demo-factory
+ demo_001
+ demo_002
+  26b-ais
+  26b-ims
+  26b-q4
+  31b-ais
+   duck-gallery
+   nebula-drift
+    game.js
+    index.html
+    spec.md
+    styles.css
+   side-rider
+   splash
+  35b
+  design
+  nebula_drift
+  index.html
+  loading.html
+  styles.css
+ demo_003
+ demo_004
+ demo_005
+ demo_006
+ demo_007
+ nanobanana-output
+ nebula_drift
+ nebula-drift
+ .env
+ .gitignore
+ server.js
+ spec.md
+ test_gemini.sh
+ test_llm_cloud.sh
+ test_llm.sh
+
+Agent
+Files
+Directories
+Code Context Items
+Code Context Items
+Rules
+Terminal
+Conversation
+MCP Servers
+Build an example of this spec: @
+Planning
+Gemini 3 Flash
+Restart to Update
+
+[1:45](https://www.youtube.com/watch?v=7gujZrJ9L5I&amp;t=105s) [Antigravity displays a server traffic error and retry controls beside the code editor.](https://assets.ai.engineer/sites/aiecode2025/sha256/bd507fcc00d44d4c5e551e2073d26434e377ea87c669a84a2c58668ca92c4311.webp)
+
+AIE
+Braintrust
+WorkOS
+OpenAI
+AI Engineer
+EUROPE
+
+.joystick-knob {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+}
+
+/* Generation Panel Styles */
+.generation-panel {
+    background: rgba(0, 0, 0, 0.4);
+    border: 2px solid #333;
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+}
+
+#game-prompt {
+    background: #000;
+    border: 2px solid var(--neon-blue);
+    color: var(--neon-blue);
+    padding: 12px;
+    border-radius: 6px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1rem;
+    outline: none;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+    transition: box-shadow 0.3s ease;
+}
+
+#game-prompt:focus {
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+}
+
+#game-prompt::placeholder {
+    color: rgba(0, 255, 255, 0.3);
+}
+
+#generate-btn {
+
+Interface text:
+Antigravity
+Explorer
+ gemma-demo-factory
+ demo_001
+ demo_002
+  26b-ais
+  26b-ims
+  26b-q4
+  31b-ais
+   duck-gallery
+   nebula-drift
+    game.js
+    index.html
+    spec.md
+    styles.css
+   side-rider
+   splash
+  35b
+  design
+  nebula_drift
+  index.html
+  loading.html
+  styles.css
+ demo_003
+ demo_004
+ demo_005
+ demo_006
+ demo_007
+ nanobanana-output
+ nebula_drift
+ nebula-drift
+ .env
+ .gitignore
+ server.js
+ spec.md
+ test_gemini.sh
+ test_llm_cloud.sh
+ test_llm.sh
+
+Build an example of this spec: @[demo_002/31b-…
+Continue
+Error Our servers are experiencing high traffic right n…
+Agent terminated due to error
+You can prompt the model to try again or start a new conversation if the error persists.
+See our troubleshooting guide for more help.
+Dismiss
+Copy debug info
+Retry
+Planning
+Gemini 3 Flash
+Restart to Update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Testing Nebula Drift with Antigravity Browser Control" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Testing Nebula Drift with Antigravity Browser Control</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After analyzing the spec and project files, the agent opens a browser to check Nebula Drift. Its test plan calls for moving the ship, checking stars and obstacles, and crashing to view the game-over screen.
+
+[2:43](https://www.youtube.com/watch?v=7gujZrJ9L5I&amp;t=163s) [Antigravity lists analyzed project files and displays a task to test the game in a browser.](https://assets.ai.engineer/sites/aiecode2025/sha256/0ef6671f59407650267d83e45b8ad181108e17aa031a8d1bf04cb222be73ba33.webp)
+
+Build the spec: spec.md
+
+Exploring 4 files, 1 folder, 1 browser
+Thought for 1s
+Analyzed spec.md
+Thought for 1s
+Analyzed demo_002/31b-ais/nebula-drift
+Analyzed index.html
+Analyzed styles.css
+Analyzed game.js
+Thought for 2s
+
+Preview: Testing Nebula Drift Game
+Goal
+Open /Users/irb/Development/gemma-demo-factory/demo_002/31b-ais/nebula-drift/index.html in the browser. Click 'ENGAGE ENGINES' and play for a few seconds. Check if the ship moves with Arrow keys, if stars flicker, and if obstacles spawn. Then let yourself crash to see the game over screen.
+Skip
+
+.joystick-knob {
+    background: radial-gradient(circle at 30% 30%, #444, #000);
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+}
+
+/* Generation Panel Styles */
+.generation-panel {
+    background: rgba(0, 0, 0, 0.4);
+    border: 2px solid #333;
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+}
+
+#game-prompt {
+    background: #000;
+    border: 2px solid var(--neon-blue);
+    color: var(--neon-blue);
+    padding: 12px;
+    border-radius: 6px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1rem;
+    outline: none;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+    transition: box-shadow 0.3s ease;
+}
+
+#game-prompt:focus {
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+}
+
+#game-prompt::placeholder {
+    color: rgba(0, 255, 255, 0.3);
+}
+
+#generate-btn {
+
+Interface text:
+Antigravity
+Explorer
+Local Models Report
+Open Agent Manager
+Downloading Update
+Problems 10  Output  Debug Console  Terminal  Ports
+AIE
+AI Engineer EUROPE
+
+[2:48](https://www.youtube.com/watch?v=7gujZrJ9L5I&amp;t=168s) [Browser Control welcome page displayed over the Antigravity editor.](https://assets.ai.engineer/sites/aiecode2025/sha256/8435e0298ff6e96933802c0985f4413fd903d0106e96e535681561ce31d1c265.webp)
+
+WELCOME TO
+Antigravity Browser Control
+Preview
+
+Getting Started
+
+The agent can click, scroll, type, and navigate web pages automatically. While working, it displays an overlay showing its progress and provides controls to stop execution if you need to intervene.
+
+Simply return to your Antigravity conversation, and the browser will be used automatically when appropriate.
+
+Example Use Cases
+Iterating on website designs and implementations
+Quality assurance testing
+
+.joystick-knob {
+    background: radial-gradient(circle at 30% 30%, #444, [illegible]
+    border-radius: 50%;
+    position: relative;
+    z-index: 2;
+}
+
+/* Generation Panel Styles */
+.generation-panel {
+    background: rgba(0, 0, 0, 0.4);
+    border: 2px solid #333;
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.8);
+}
+
+#game-prompt {
+    background: #000;
+    border: 2px solid var(--neon-blue);
+    color: var(--neon-blue);
+    padding: 12px;
+    border-radius: 6px;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 1rem;
+    outline: none;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+    transition: box-shadow 0.3s ease;
+}
+
+#game-prompt:focus {
+    box-shadow: 0 0 20px rgba(0, 255, 255, 0.4);
+}
+
+#game-prompt::placeholder {
+    color: rgba(0, 255, 255, 0.3);
+}
+
+#generate-btn {
+
+Interface text:
+Chrome
+Browser
+AI Mode
+Managed by google.com
+Antigravity Browser Extension
+Explorer
+Local Models Report
+Problems 10  Output  Debug Console  Terminal  Ports
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">给智能体一份规格说明——再检查接下来发生了什么</a></li><li><a href="#sec-2">把框架扩展到编程之外</a></li><li><a href="#sec-3">游戏开始了，但验证仍然是工作</a></li><li><a href="#sec-4">规模化始于控制需求</a></li><li><a href="#sec-5">找到智能体出错的那一步</a></li><li><a href="#sec-6">让研究的各个阶段成为协作者</a></li><li><a href="#sec-7">专家技能需要针对任务的测试</a></li><li><a href="#sec-8">配额通知不等于任务完成</a></li><li><a href="#sec-9">用审查闭合循环</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">Google DeepMind 如何大规模运行智能体</h2>
+      <div class="lede"><p>一场用 Antigravity 现场制作游戏的演示，引出了对智能体背后基础设施的讨论：共享工作区、配额、追踪、技能评测和代码审查。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="16">▶ 0:16</button></div>
+      <h3>给智能体一份规格说明——再检查接下来发生了什么</h3>
+      <p>What happens when you ask an agent to build from a specification, but the project already contains an implementation? That is the starting point for Ian Ballantyne and KP Sawhney’s demonstration. Ballantyne, a developer relations engineer at Google DeepMind, introduces <a href="https://antigravity.google/blog/introducing-google-antigravity" target="_blank" rel="noopener">Antigravity</a> as more than a Visual Studio-style editor. Behind its familiar interface is an <strong>agent manager</strong> that can spawn agents across projects. Sawhney works on DeepMind’s AI platform team, where the harness behind that interface is itself an engineering concern.</p>
+<p>Ballantyne attaches a specification file and asks <strong>Flash</strong> to implement it. The first attempt produces errors, so he restarts and submits the request again. Once work begins, the agent discovers existing generated files rather than an empty project. Its built-in planning and to-do mechanisms give it a way to decide what still needs changing. It then opens a browser that Antigravity can control to inspect the application. The welcome page shown here marks that browser launch, not a completed application test.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ef8c9051a891e85eecc5a38213847420b21070b02a9b5b6a06de1585d7805ea7" alt="Chrome displays the Antigravity Browser Control welcome page with Getting Started instructions and example use cases; two presenters appear at lower left." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The browser opens to Antigravity Browser Control’s welcome page.</figcaption></figure>
+<p>The browser loop goes beyond taking a picture of a page. The agent can inspect the <strong>DOM</strong>, feed information about the page back into its work, and attempt interactions with the application. Ballantyne describes a completion report explaining what changed, with screenshots or a recording available as review artifacts. At this point, those are expected outputs; the game has not yet loaded successfully.</p>
+<p>The implementation plan provides a separate intervention point before further changes proceed:</p>
+<p>1. Inspect the changes the agent proposes.
+2. Edit or comment on a particular line to correct the intended behavior.
+3. Select proceed to send the agent back to work.</p>
+<p><strong>The plan is an editable part of the workflow</strong>, allowing a person to correct intent before judging the finished implementation. Ballantyne leaves the agent working while the discussion moves to the internal harness.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="272">▶ 4:32</button></div>
+      <h3>把框架扩展到编程之外</h3>
+      <p>Sawhney previously worked on the <a href="https://blog.google/innovation-and-ai/technology/developers-tools/deep-research-agent-gemini-api/" target="_blank" rel="noopener">Deep Research agent</a>, available through the <code>Interactions API</code>. His focus has since shifted to improving the Antigravity harness internally, including its use against Google’s enormous monorepo. That work raises a broader question: can the same environment support research and other tasks as well as coding?</p>
+<p>One proposed change concerns how research stages exchange information. Instead of passing huge blobs of search text from one stage to the next, different parts of the pipeline could collaborate through a <strong>shared filesystem</strong>. Files would become a common workspace for the research process. Sawhney presents this as a direction for generalizing the harness, rather than an already completed replacement for Deep Research’s architecture.</p>
+<p>Inside Google, another major focus is the growing library of skills that help people perform specialized work. Sawhney leaves further projects for possible discussion at I/O, but describes the immediate problem plainly: useful contributions can become uncontrolled skill sprawl. Improving the library therefore includes selecting which skills deserve to survive. His Darwinian comparison captures the desired selection pressure, although the evaluation machinery behind it remains a later question.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="400">▶ 6:40</button></div>
+      <h3>游戏开始了，但验证仍然是工作</h3>
+      <p>Returning to the demo, Ballantyne points out the blue border indicating that Antigravity has control of the browser. The agent appears to have figured out how to start the game, although he is unsure whether it understands the controls. He reports that the previous game, generated by a different model, has been completely rewritten from the specification. The agent is now inspecting the DOM, looking for errors, and trying to work out how to use what it built.</p>
+<p>A final video is still anticipated when Ballantyne opens the agent’s scratchpad. These notes expose a trace of the behaviors it is trying to work through, giving the user another place to inspect progress and interrupt unwanted activity. The demonstrated loop therefore includes implementation, attempted browser interaction, and inspectable task notes; it does not establish that the promised final recording was delivered. Ballantyne describes this as a familiar harness workflow for using <strong>Gemini</strong> models in development.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="469">▶ 7:49</button></div>
+      <h3>规模化始于控制需求</h3>
+      <p>At Google scale, Sawhney’s first concern is how many tokens these workflows consume. A single user request can initiate substantial downstream work, making <strong>per-user and per-team quotas</strong> central operational controls. Reducing cost also means deciding which components actually require the most capable model.</p>
+<p>Sawhney proposes mixing <a href="https://blog.google/innovation-and-ai/technology/developers-tools/gemma-4/" target="_blank" rel="noopener"><strong>Gemma 4</strong></a> running on available GPUs or TPUs with more advanced models for selected components. His description of local inference as effectively free concerns hosted-model quota, not hardware or operating cost. Evaluation adds another demand on compute: the team needs to determine whether complicated workflows succeeded while keeping the cost of testing manageable. He mentions investigating <strong>mock TPUs</strong> to exercise the harness and agentic flow without consuming substantial TPU hours. That separates testing orchestration behavior from paying for every test to run through real inference infrastructure.</p>
+<p>Audience projects make the demand problem concrete. One participant is building first for personal use, then for hospital radiology departments, combining EHR data with radiologist data. The participant is considering Gemma because they want open-source models. Another contribution describes open-source memory infrastructure built around an ontology-driven complex graph—a harness layer that other developers can use.</p>
+<p>The memory-project participant claims roughly 15,000 stars. They report roughly 3 million complex-graph generations or pipelines per month, with one user able to create a thousand in a day. These are participant-reported workload figures, with no counting method or workload conditions supplied; the monthly figure is not a user count. The operational implication is that user count alone says little about the volume an agent service must absorb.</p>
+<p>Ballantyne extends that into a hypothetical power user operating a team of 100 agents: how do you stop one person from overwhelming the system? Sawhney says the current internal answer is blunt quota enforcement. DeepMind has power users who eventually have to stop. He also cites what he describes as Anthropic blocking OpenClaw in a discussion of subscription economics: sustained agent activity can consume far more tokens than a subscription model comfortably covers.</p>
+<p>There is a human operational layer behind those controls. Ballantyne recalls asking how an engineer knows when a Google job is using too many resources and being told that someone will tell them. In practice, SRE teams monitor resource spikes around the clock and may ask an engineer to stop a job on a particular cluster. Quotas and operator intervention both remain part of running the system.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="786">▶ 13:06</button></div>
+      <h3>找到智能体出错的那一步</h3>
+      <p>An audience question about observability shifts the focus from containing demand to explaining behavior. Sawhney describes a custom web application connected to an agent backend used for many Google workloads. When a user submits a query to an agent hosted there, the query automatically appears in the interface. Engineers can drill through the hierarchy of the system all the way down to the raw prediction request sent to the model.</p>
+<p>A separate <strong>agent trajectory store</strong> emphasizes coding workflows, where a run may contain a huge number of steps. Its diagnostic purpose is to locate the exact point at which the model began looping or diverging from the task.</p>
+<p>| View | What it helps inspect |
+| --- | --- |
+| Hierarchical query tracing | Components beneath a query, down to raw model requests |
+| Coding trajectory store | The sequence of steps leading to looping or divergence |</p>
+<p>Both are custom internal tools in Sawhney’s account. The audience member’s alternative—exporting everything to a log file—highlights what the richer interface adds: navigation through a long execution rather than just possession of its logs.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="876">▶ 14:36</button></div>
+      <h3>让研究的各个阶段成为协作者</h3>
+      <p>Asked whether Deep Research will be available in Antigravity, Sawhney says the team is actively exploring the integration without committing to a release. The hoped-for benefits are faster execution, lower cost, and better results from orchestrating research through the same harness. API availability and harness integration are separate questions: the former already exists in this discussion; the latter remains exploratory.</p>
+<p>The architectural motivation is the amount of context passed through the research system. Repeatedly carrying extensive material through the pipeline increases expense and consumes context capacity. A shared workspace could let each component behave more like a collaborator in a human research team. That environment could also support outputs beyond the final report, including infographics, supporting artifacts, and additional documents. Sawhney describes potential benefits rather than measured improvements.</p>
+<p>The next question asks how many levels of nested sub-agents Antigravity supports, prompted by the questioner’s experience with Copilot. Ballantyne does not know the nesting limit or detailed implementation. He describes multiple simultaneous tracks within a project, including jobs that may overlap, but says the assignment of particular agents is relatively opaque. This is not an account of an exposed, arbitrarily deep parallel agent tree.</p>
+<p>For Sawhney, the future engineering problem has two parts: making agent-to-agent communication efficient and giving a person the ability to shape that work. His image is a human supervising a digital assembly line. More autonomous participants increase the importance of coordination and intervention rather than removing those responsibilities.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1042">▶ 17:22</button></div>
+      <h3>专家技能需要针对任务的测试</h3>
+      <p>The audience then asks where skills, MCP, CLIs, and self-improvement fit as community preferences change. Sawhney favors <strong>skills plus guardrailed CLI interactions</strong>. He is skeptical about MCP’s longevity, while valuing its authentication capabilities. His practical example is a skill for debugging raw logs that can perform most of its work through the CLI.</p>
+<p>The organizational benefit comes from who writes the skill. At Google, an expert in a particular area can contribute instructions that transfer specialist knowledge to both colleagues and their agents. That explains Sawhney’s personal preference, but it is not a product decision to abandon MCP: Ballantyne says Antigravity supports both approaches, with community usage informing continued support.</p>
+<p>That returns the discussion to the earlier promise that only the best skills should survive. How is quality determined? Sawhney identifies several obstacles:</p>
+<p>- <strong>Environment setup:</strong> Evaluations require sandboxed environments configured appropriately for each problem set. Provisioning those environments is substantial mechanical work.
+- <strong>Relevant datasets:</strong> Public benchmarks help with external comparisons, but creating new data for specialized skills is especially difficult.
+- <strong>Author responsibility:</strong> A skill’s author bears much of the responsibility for providing a suitable test.
+- <strong>Agent-designed evaluations:</strong> People are experimenting with agents designing tests, but this remains work in progress.</p>
+<p>A large skill library therefore creates an evaluation obligation alongside its knowledge-sharing benefit.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1206">▶ 20:06</button></div>
+      <h3>配额通知不等于任务完成</h3>
+      <p>An AI Ultra subscriber brings the discussion back to the browser: testing is valuable when it works, but retries and apparent network failures make it difficult to tell whether the real problem is exhausted quota. Even at the highest subscription tier available to the questioner, Antigravity does not make the distinction clear enough.</p>
+<p>Ballantyne says internal users have worse limits because customers receive priority, joking that this explains his repeated clicks during the demo. He expects tier-specific limits to persist and distinguishes his corporate Ultra access from his personal account, where he changes his behavior to fit the available allowance.</p>
+<p>The direction he describes is preference-driven model switching under the harness. If capacity runs out on <strong>Pro</strong>, the workflow could move to Flash; if subscription capacity is exhausted entirely, it could continue on a local model. This is a proposed experience, not a confirmed automatic fallback feature or a concrete setting the audience member can adjust.</p>
+<p><strong>Stopping for quota must remain visibly different from finishing the task.</strong> Ballantyne imagines sending a job away, doing something else, and returning to find it has spent an hour idle because it hit a limit. The intended improvement is both continuity where another model can help and clearer signaling when work cannot continue.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1344">▶ 22:24</button></div>
+      <h3>用审查闭合循环</h3>
+      <p>The final question asks how review can keep up with code generation, and whether models could learn from historical Google review comments and commits. Sawhney describes an existing system with two layers: language-specific auto-review models fine-tuned on internal style guides and good code examples, followed by product-area-specific system instructions and prompts. The first layer captures language conventions; the second tailors the signal delivered to reviewers working on a particular product.</p>
+<p>Sawhney gives a recent example: a PR he submitted the previous day received a useful comment from an agent someone had deployed, without him manually triggering auto-review. Review is another station in the human-supervised assembly line. Assistance is needed not only to produce changes, but also to inspect the growing stream of changes before people accept them.</p>
+<p>Ballantyne connects that internal infrastructure to <a href="https://jules.google/docs/" target="_blank" rel="noopener">Jules</a>, a public web interface for working on users’ own GitHub projects, which he also mentions in the context of review components. He closes on the pressure created by increasing agent-generated code: producing more software expands the work of checking it. The development loop remains incomplete if implementation accelerates while review becomes the bottleneck.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://antigravity.google/blog/introducing-google-antigravity" target="_blank" rel="noopener">Introducing Google Antigravity</a> — The original introduction to Antigravity's agent manager, browser verification, review artifacts, and feedback workflow.</li><li><a href="https://blog.google/innovation-and-ai/technology/developers-tools/deep-research-agent-gemini-api/" target="_blank" rel="noopener">Build with Gemini Deep Research</a> — Introduces the Deep Research agent through the Interactions API and explains its iterative research process.</li><li><a href="https://blog.google/innovation-and-ai/technology/developers-tools/gemma-4/" target="_blank" rel="noopener">Gemma 4 launch and deployment options</a> — Describes Gemma 4's Apache 2.0 license, model sizes, and deployment on local hardware and cloud accelerators.</li><li><a href="https://jules.google/docs/" target="_blank" rel="noopener">Getting started with Jules</a> — Connect a GitHub repository, select a branch, and review a proposed plan before Jules changes code.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Okay.</span></div><div class="tline" data-t="16"><span class="ts">0:16</span><span class="tx">Hello, everybody. Uh, so my name is Ian Ballantyne. I'm a developer relations engineer at Google DeepMind.</span></div><div class="tline" data-t="23"><span class="ts">0:23</span><span class="tx">Hi, folks. I'm, uh, KP Sawhney, a software engineer in, uh, DeepMind's AI platform team.</span></div><div class="tline" data-t="29"><span class="ts">0:29</span><span class="tx">Uh, and we're gonna do an agentic panel today to talk a little bit about, uh, how DeepMind thinks about agentic software, how we build kind of our own stacks.</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">Um, we're gonna start very briefly by just showing a quick demo, and then we'll go into like a, like a discussion about some of the stuff that KP works on.</span></div><div class="tline" data-t="45"><span class="ts">0:45</span><span class="tx">Um, and hopefully we can just... You can ask lots of questions, find out all the things you wanna know about how DeepMind and Google think about agents, and, uh, yeah, let us know your thoughts as well.</span></div><div class="tline" data-t="56"><span class="ts">0:56</span><span class="tx">So quick show of hands, who's actually used Antigravity before as a tool?</span></div><div class="tline" data-t="61"><span class="ts">1:01</span><span class="tx">Okay, so like four or five people. Um, I just wanna show you one quick thing 'cause one of the things that we have, uh, in Antigravity is a lot of people know that it's like a Visual Studio style interface.</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">But they don't actually know that it actually has a whole, uh, agent manager and agent manager framework behind it. So you can run and spawn multiple agents working on different projects, um, and it's integrated into the IDE, but it's also again kind of like an agentic platform in itself.</span></div><div class="tline" data-t="88"><span class="ts">1:28</span><span class="tx">So you can do things, uh... I've got this project here, and you can have this chat panel on the side, and I can just say like, uh, build an example of this spec, and then I can give it a particular file.</span></div><div class="tline" data-t="103"><span class="ts">1:43</span><span class="tx">Uh, let's do the spec file. Let's just implement that one. And I'll send that off to Flash. Oh, experiencing errors right now. Let's restart. Should we try that? [chuckles]</span></div><div class="tline" data-t="116"><span class="ts">1:56</span><span class="tx">I am connected to the Wi-Fi. I'm pretty sure I am.</span></div><div class="tline" data-t="122"><span class="ts">2:02</span><span class="tx">Yes. And if you're not connected to the Wi-Fi, you should use the Gemini models instead. That's my plug. [laughs] Uh, so let's start that up again.</span></div><div class="tline" data-t="130"><span class="ts">2:10</span><span class="tx">And hopefully I can do the same thing. Build,</span></div><div class="tline" data-t="134"><span class="ts">2:14</span><span class="tx">uh, build the spec marked here. Okay. Let's see whether we get it this time. Okay, there we go. So again, the model will just go away thinking, uh, on the side there, and hopefully what it should do is it should have a look at the spec.</span></div><div class="tline" data-t="154"><span class="ts">2:34</span><span class="tx">It should analyze it, and it should use a bunch of its in-own internal tools to decide how to do that. Uh, it's actually found that there are already existing files that I have built.</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">It might even tell me that it's already done it, [laughs] uh, which is interesting. But the tool itself has like built-in to-dos. It has a, like a planning system, and what it's just done here is it's thrown up a browser, so it can actually check, uh, how the applications run.</span></div><div class="tline" data-t="177"><span class="ts">2:57</span><span class="tx">And this is also- is controllable by, um, uh, by Antigravity itself. So if I just do that, if I give it two seconds, it should take control over the browser, and it should actually try and run.</span></div><div class="tline" data-t="187"><span class="ts">3:07</span><span class="tx">So what it's probably doing now is it's probably looking at the implementation already to see what's actually already done, and it's gonna then analyze it. Should we just have a quick look, see what it's actually done there?</span></div><div class="tline" data-t="197"><span class="ts">3:17</span><span class="tx">Uh, let's try that again. It'll pick up. So it's hit a snag. So it wants to try and analyze it. Oh, uh, one thing that it can do is it can actually inspect the DOM.</span></div><div class="tline" data-t="209"><span class="ts">3:29</span><span class="tx">So it can look at like the actual web page itself as part of that and give-- and feed that back. And when it finally finishes doing the task, it will give you like a report at the end as to what it was able to achieve and what it im-implemented, so you can then review.</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">It can also capture, for instance, like a, a screenshot or like a video. So if it's like an interaction, if you say like, &quot;Add this feature to my webpage,&quot; it will go through and then actually try and run it.</span></div><div class="tline" data-t="232"><span class="ts">3:52</span><span class="tx">I don't know how good it is at playing games, but we're about to find out. It's either gonna try and play the game or, uh... Should we have a look, see what it's doing at the moment?</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">It hasn't loaded it yet. Let's go back. Okay, we've got an implementation plan here. So this is what it thinks it should change about the file. So what you can do is you can just go in, and you can like edit a line and say like, &quot;Actually, I want this different behavior,&quot; or, &quot;That's not what I meant</span></div><div class="tline" data-t="255"><span class="ts">4:15</span><span class="tx">at all.&quot; So it kind of gives you that human-in-the-loop feedback. And then when you're done, you just say proceed, and then it will go away and do that. Um, while we're waiting for that to happen, do you want to say a little bit about what you work on and like how this kind of relates to the-- your</span></div><div class="tline" data-t="271"><span class="ts">4:31</span><span class="tx">kind of day-to-day job?</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">Yeah, sure. So, um, one of the things I, I worked on a few months ago was the, the Deep Research agent, which is now available via the, the Interactions API.</span></div><div class="tline" data-t="282"><span class="ts">4:42</span><span class="tx">Um, and so that's, that's been great. But as we continue to iterate on that, my, my focus has turned now to making best use of, of this h- Antigravity harness internally.</span></div><div class="tline" data-t="293"><span class="ts">4:53</span><span class="tx">And so of course that, that applies to scaling it for, for all of the coding we're doing, and, you know, we have a gigantic monorepo, so it's pretty complex.</span></div><div class="tline" data-t="303"><span class="ts">5:03</span><span class="tx">Um, but now we're starting to think about how we generalize this to a variety of other use cases. So potentially Deep Research itself, rather than passing around huge, huge blobs of, of text from, from the searches that have been done.</span></div><div class="tline" data-t="317"><span class="ts">5:17</span><span class="tx">Why not have the different parts of that pipeline collaborate in, in a shared file system? Um, and so yeah, that's, that's really been the focus for me, really, um, tightening up this harness and, and making it excellent at, at not just coding, but a variety of other tasks too.</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">And do you have any interesting use cases for like how people within Google or DeepMind are kind of using it at the moment? Like what kind of, what kind of things are they doing with, with the agents in DeepMind?</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">Yeah. So, so there's a huge amount that's, that's been going on. Um, we have quite a few exciting things that you'll probably learn more about in a few months at I/O, which I, uh, can't go into too much detail about right now.</span></div><div class="tline" data-t="358"><span class="ts">5:58</span><span class="tx">Um, but at least internally, there's been a huge, um, amount of focus on, on building up a huge library of, of skills that, that enable folks to, to do their job better.</span></div><div class="tline" data-t="369"><span class="ts">6:09</span><span class="tx">Um- And, you know, skills are great, but in an organization as large as, as Google, um, there's a risk of skills really sprawling out, out of control. Um, and so that's a, that's a big area of focus for us right now is, um, improving those skills, making sure that only the best ones, uh, survive really, almost Darwinian</span></div><div class="tline" data-t="390"><span class="ts">6:30</span><span class="tx">nature. Um, but it really is helping folks to, to deliver good code at a way faster pace, which, which is obviously awesome.</span></div><div class="tline" data-t="400"><span class="ts">6:40</span><span class="tx">Awesome. Thank you. Uh, so you can see this little blue bar around the edge at the moment. That's the, uh, Antigravity taking control of the, of the game. It seems to figure out how to start the game.</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">I don't think it knows what the controls are, so maybe might end up looking those up. [laughs] Um, but yeah, this is... So this is what it edited. Uh, the file that was there before was actually generated by a different model, so I can tell you it's not even the same game.</span></div><div class="tline" data-t="422"><span class="ts">7:02</span><span class="tx">It's completely rewritten it from scratch, um, based on the spec we gave it. Um, and then what you would get at the end... Oh yeah, you can see there, it's like actually li- looking at the DOM, looking for any errors, trying to figure out how to actually use it.</span></div><div class="tline" data-t="434"><span class="ts">7:14</span><span class="tx">You should get a video at the end here.</span></div><div class="tline" data-t="439"><span class="ts">7:19</span><span class="tx">Uh, oh yeah, this is a... It's scratchpad. This is like its notes that it's writing as it kind of goes through and does the task. So you can, like, you can actually get a bit of a trace as to what behaviors it's trying to figure out.</span></div><div class="tline" data-t="448"><span class="ts">7:28</span><span class="tx">Again, you can go in and you can review these things. If you don't like what they're doing, you can kind of interrupt it. So in terms of, like, the workflow, this is kind of, I guess, pretty common to, like, a lot of different agent harnesses at the moment.</span></div><div class="tline" data-t="460"><span class="ts">7:40</span><span class="tx">Um, but this is how we kind of think about using, using the things like Gemini models, um, as well, so that we can use it for our own development.</span></div><div class="tline" data-t="469"><span class="ts">7:49</span><span class="tx">Um, I will close that off now. So I guess one big question on my mind related to, like, uh, agents, how do we do things at kind of Google scale?</span></div><div class="tline" data-t="482"><span class="ts">8:02</span><span class="tx">So if we think, you know, research, Deep Research is a feature within Gemini app, but then also for everyone within Google to use it, like, what kind of challenges come along with that kind of scaling of agents?</span></div><div class="tline" data-t="494"><span class="ts">8:14</span><span class="tx">Yeah. So I mean, the, the, the thing that's kind of top of mind for us at the moment is, um, how token hungry this, this stuff can be. Um, and so as you can imagine, just, just managing the quota on a, on a per user or, or per team basis is, is, is really quite, um, important.</span></div><div class="tline" data-t="511"><span class="ts">8:31</span><span class="tx">Um, and so there's a lot of work we're doing around making that, uh, more efficient and, and, and lower cost. Um, and I think we're- Ian and I were chatting before, and, um, I think what's going to be really interesting for, for folks like yourselves is, is mixing and matching between models like Gemma 4, which, which are</span></div><div class="tline" data-t="532"><span class="ts">8:52</span><span class="tx">effectively free from a quota perspective, just using your whatever GPUs or TPUs you have. Um, and then, you know, using the more advanced, uh, models for, for specific, uh, components of the agentic system.</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">Um, and so also e- e- evaluation as well is, is a big, um, thing we're focusing on at the moment. Um, particularly with these really complicated, uh, workflows, how, how do you actually evaluate that it was successful?</span></div><div class="tline" data-t="560"><span class="ts">9:20</span><span class="tx">How do you minimize the cost of that? So looking into things like mock TPUs so that, you know, you can test the harness itself and, and the agentic flow, but not necessarily using up a ton of, uh, TPU hours.</span></div><div class="tline" data-t="574"><span class="ts">9:34</span><span class="tx">Yes, 'cause I mean, I'm sure people are aware of this, but like [laughs] definitely limited in that capacity at the moment within the world trying to get enough compute to do a lot of this stuff.</span></div><div class="tline" data-t="584"><span class="ts">9:44</span><span class="tx">Uh, just quick show of hands from the room. Who's, who at the moment is either building their own agent architecture or harness at the moment?</span></div><div class="tline" data-t="592"><span class="ts">9:52</span><span class="tx">Okay, fantastic. For... So just quick question, like what kind of scale are you looking at? Who are you trying to... Who are your customers? Anybody?</span></div><div class="tline" data-t="605"><span class="ts">10:05</span><span class="tx">Personally, I'm building for myself first, and also the next thing is going to be for the hospitals to use.</span></div><div class="tline" data-t="611"><span class="ts">10:11</span><span class="tx">Mm.</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">Uh, it's going to be for the radiology department because they're going to like com- they're going to try to combine EHR data with the radiologist data. So that is what we are doing.</span></div><div class="tline" data-t="624"><span class="ts">10:24</span><span class="tx">Okay.</span></div><div class="tline" data-t="624"><span class="ts">10:24</span><span class="tx">And probably we're going to use Gemma models because like we want open source models.</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">Mm.</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">We want open source models.</span></div><div class="tline" data-t="635"><span class="ts">10:35</span><span class="tx">Gotcha. Is anybody using any harnesses off the shelf or you kind of built your own ones? Like what's the general vibe?</span></div><div class="tline" data-t="642"><span class="ts">10:42</span><span class="tx">So we're building memory as a harness, uh, infra layer, um, essentially an ontology-driven complex graph, uh, that developers can use, fully open source, 15,000 PK stars.</span></div><div class="tline" data-t="655"><span class="ts">10:55</span><span class="tx">Oh, nice.</span></div><div class="tline" data-t="656"><span class="ts">10:56</span><span class="tx">Nice, nice.</span></div><div class="tline" data-t="658"><span class="ts">10:58</span><span class="tx">And how many users are you... Do you expect to be able to scale that to?</span></div><div class="tline" data-t="661"><span class="ts">11:01</span><span class="tx">As we know, uh-</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">Okay</span></div><div class="tline" data-t="663"><span class="ts">11:03</span><span class="tx">... we know like pipelines, like generation of complex graphs, and it's around 3 million per month.</span></div><div class="tline" data-t="669"><span class="ts">11:09</span><span class="tx">Wow.</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">Wow.</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">That's some scale.</span></div><div class="tline" data-t="671"><span class="ts">11:11</span><span class="tx">You know, like one user can create a thousand in a day.</span></div><div class="tline" data-t="675"><span class="ts">11:15</span><span class="tx">Yeah. [laughs] [laughs] That's the, yeah, the, the challenge too. I'm sure that's the challenge for us too. How do you stop like one user from... Well, actually, okay, I'm going to turn that into a question.</span></div><div class="tline" data-t="683"><span class="ts">11:23</span><span class="tx">How do you stop one user from taking down a whole system? We could by-</span></div><div class="tline" data-t="686"><span class="ts">11:26</span><span class="tx">By making-</span></div><div class="tline" data-t="687"><span class="ts">11:27</span><span class="tx">... spawning multiple instances and multiple... 'Cause I'm sure that's like, you know, the more we get better at doing this, these tasks and like we've got power users kind of spinning stuff up, and they've got their team of 100 people like working for them, 100 agents.</span></div><div class="tline" data-t="702"><span class="ts">11:42</span><span class="tx">Like how do we kind of manage like the per user like behaviors? If you see what I mean.</span></div><div class="tline" data-t="707"><span class="ts">11:47</span><span class="tx">Yeah, no, it's, it's, it's a great point. And, and like I said earlier, honestly, right now it's kind of brute force with the, the quota. So we have, we have some real power users at DeepMind, and ultimately it gets to a point where it's like- Okay, you've got to just stop right now. [laughs]</span></div><div class="tline" data-t="723"><span class="ts">12:03</span><span class="tx">Um, but, you know, i-i-in general, I think that raises an interesting point about how this stuff is going to be priced in the future as well. Like, uh, you know, you saw, um, Anthropic, uh, blocking the, uh, the OpenClaw, um, stuff, um, because these, these agentic systems are so token hungry, and the subscription model doesn't really work</span></div><div class="tline" data-t="743"><span class="ts">12:23</span><span class="tx">for that. Um, and so yeah, I think that-that's really top of mind for me as well right now, how to, how to mitigate that.</span></div><div class="tline" data-t="750"><span class="ts">12:30</span><span class="tx">Yeah. I, I always used to joke when I joined Google that, you know, you've got all these resources, you know, available in data centers to use for different projects.</span></div><div class="tline" data-t="758"><span class="ts">12:38</span><span class="tx">Like, how do you know when too much is too much? And one of my colleagues once told me, he just said, &quot;Oh, they'll tell you.&quot; And I'm like, &quot;Who's they?&quot; [laughs] [laughs]</span></div><div class="tline" data-t="766"><span class="ts">12:46</span><span class="tx">And yeah, sure enough, there's people monitoring these things twenty-four/seven, like, you know, looking at spikes and graphs and all our SRE, SRE team and, and they do just, like, reach out to you and say, &quot;Can you just, like, stop this job running on this one cluster, please?&quot;</span></div><div class="tline" data-t="780"><span class="ts">13:00</span><span class="tx">Uh, so yeah. I think, yeah, that's also an interesting one. Ev- any questions from the audience?</span></div><div class="tline" data-t="786"><span class="ts">13:06</span><span class="tx">Well, I think if you're running agents at such a huge scale, how do you do observability and the tracing? Because that-</span></div><div class="tline" data-t="792"><span class="ts">13:12</span><span class="tx">That's a fantastic question. Um, so we built a, um, sort of custom, uh, web app for that essentially. Um, and essentially there's, there's one, uh, agent backend system that is used for, for a lot of stuff at, at Google.</span></div><div class="tline" data-t="808"><span class="ts">13:28</span><span class="tx">And essentially anytime, um, a user issues a, a query to, to an agent hosted on that system, it then sort of automatically appears in this UI, um, where you can drill down at various levels of, of hierarchy each of the pieces of the, um, of the system.</span></div><div class="tline" data-t="826"><span class="ts">13:46</span><span class="tx">Um, if needed, you can drill all the way down to the sort of raw predict request made to the model and, and so forth. Um, and so that's been useful.</span></div><div class="tline" data-t="835"><span class="ts">13:55</span><span class="tx">Um, and we also have a concept of, like, an agent trajectory store as well. Um, that's more focused around the, the coding piece, where obviously you can have a huge number of, of steps, uh, going on there.</span></div><div class="tline" data-t="849"><span class="ts">14:09</span><span class="tx">Um, and it can be really important to kind of diagnose at, at what exact point looping started happening or, you know, the model went off the rails. So yeah, it's all custom internally, uh, for now.</span></div><div class="tline" data-t="861"><span class="ts">14:21</span><span class="tx">But I'd be interested to hear what, what you folks use for, for observability as well.</span></div><div class="tline" data-t="866"><span class="ts">14:26</span><span class="tx">Well, I'm just transporting it to a log file and then basically going from there. [laughs] [laughs]</span></div><div class="tline" data-t="873"><span class="ts">14:33</span><span class="tx">Yes. Any other questions? Yep.</span></div><div class="tline" data-t="876"><span class="ts">14:36</span><span class="tx">Yeah. Is, uh, so Deep Research-- Gemini Deep Research is something I've used quite a bit. I really, really love it.</span></div><div class="tline" data-t="882"><span class="ts">14:42</span><span class="tx">Oh, awesome.</span></div><div class="tline" data-t="883"><span class="ts">14:43</span><span class="tx">Is there, uh... Is that going to be available in Antigravity?</span></div><div class="tline" data-t="887"><span class="ts">14:47</span><span class="tx">Yeah, I mean, that's a, that's a fantastic question. Um, obviously I can't go into sort of too much detail on, um, on sort of like release plans and so forth.</span></div><div class="tline" data-t="895"><span class="ts">14:55</span><span class="tx">But what I can tell you is, um, yeah, that's something we're actively exploring. Um, you know, we hope that it, it will make it faster, um, cheaper and, and, and hopefully better results if we can effectively orchestrate that, that Deep Research using the same harness.</span></div><div class="tline" data-t="912"><span class="ts">15:12</span><span class="tx">Mm.</span></div><div class="tline" data-t="912"><span class="ts">15:12</span><span class="tx">Um, and 'cause, you know, right now, uh, without going into too much detail, there's a, there's a huge amount of, of context that's, that's passed all the way through that Deep Research system, um, which gets quite expensive and, you know, consumes the context.</span></div><div class="tline" data-t="928"><span class="ts">15:28</span><span class="tx">And so we're really thinking about, okay, how, how do we make each element of this system more like a collaborator as, as part of a, a workspace, um, which is kind of how it would work if humans were, were researching something deeply, right?</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">Um, and I think that opens up, uh, a lot of nice potential for things like, um, infographics and additional supporting artifacts and documents. So yeah, it's definitely an area of focus for me.</span></div><div class="tline" data-t="955"><span class="ts">15:55</span><span class="tx">Yeah. How-- Let me ask, sorry, just to follow up. Uh, how many, uh... I struggled a little bit with this with Copilot. How many levels of sub-agents can you run, uh, within Antigravity?</span></div><div class="tline" data-t="969"><span class="ts">16:09</span><span class="tx">That's a great question.</span></div><div class="tline" data-t="972"><span class="ts">16:12</span><span class="tx">Sub-agents versus another one, another one like me-</span></div><div class="tline" data-t="973"><span class="ts">16:13</span><span class="tx">I-- Good question. I don't know is the short answer to that. Um, the...</span></div><div class="tline" data-t="980"><span class="ts">16:20</span><span class="tx">I think we-- They're not-- They're a bit more, um... What's the word? They're a bit more opaque in how they're kind of presented. The way, the way you kind of think about it is like you have multiple simultaneous ones working on different tracks, but it's not-- We don't kind of...</span></div><div class="tline" data-t="996"><span class="ts">16:36</span><span class="tx">Yeah. The, the short answer is it's not as obvious as to which agents are actually working w- on a particular task for that. It's not kind of like a massively parallel system in that sense.</span></div><div class="tline" data-t="1004"><span class="ts">16:44</span><span class="tx">It's more like you can give them different, um, like, trains of operation a-among a particular project. But you can tell them to kind of work on specific things, or you can have jobs that kind of overlap a little bit, but it's not kind of...</span></div><div class="tline" data-t="1016"><span class="ts">16:56</span><span class="tx">Yeah, I don't have a huge amount of detail on the, like, the specifics of how the sub-agents work.</span></div><div class="tline" data-t="1021"><span class="ts">17:01</span><span class="tx">I do think that's gonna be, um, the, the future though, is how do we make agent-to-agent communication, uh, efficient, and then also how do we give us as the human the ability to really shape that and, and almost act like a supervisor on a digital assembly line, you know?</span></div><div class="tline" data-t="1038"><span class="ts">17:18</span><span class="tx">Um, so yeah, watch this space, I guess.</span></div><div class="tline" data-t="1041"><span class="ts">17:21</span><span class="tx">Question?</span></div><div class="tline" data-t="1041"><span class="ts">17:21</span><span class="tx">You were next.</span></div><div class="tline" data-t="1042"><span class="ts">17:22</span><span class="tx">Um, there has been a recent debate, of course, you know, skills, MCPs, CLIs. Uh, community is going so fast about it. Uh, we have a trend every single week.</span></div><div class="tline" data-t="1053"><span class="ts">17:33</span><span class="tx">Where do you see with Antigravity this thing going? Like, uh, we-- Is it going to be a combination of skills with CLIs, self-improvement? What's your take on that?</span></div><div class="tline" data-t="1065"><span class="ts">17:45</span><span class="tx">Yeah. For me, I, I really like, uh, skills and, and they've been working very, very well for me. Um, uh, perhaps this is controversial, but I did always think that MCP may be a little bit of a flash in, in the pan.</span></div><div class="tline" data-t="1079"><span class="ts">17:59</span><span class="tx">Um, I like it for the-- f-from the auth perspective. I think that's, that's very powerful. Um, but for me, a combination of, of, of skills and, uh, guardrailed CLI, um- ...</span></div><div class="tline" data-t="1092"><span class="ts">18:12</span><span class="tx">interactions has, has, has worked really well. Um, and it, it speeds up my job so much, you know. I've got a skill for, to your point, to de- debugging raw logs and, you know, it can do most of that from the, from the CLI.</span></div><div class="tline" data-t="1105"><span class="ts">18:25</span><span class="tx">Um, and in a business of our size, the, the great thing is we have these skills contributed by folks who are absolute experts in that particular area, and then I kind of...</span></div><div class="tline" data-t="1115"><span class="ts">18:35</span><span class="tx">I and the agent get that knowledge for free, you know. So I'm definitely Team Skills, if that helps.</span></div><div class="tline" data-t="1121"><span class="ts">18:41</span><span class="tx">I mean, we, we support both of them, and I think that's the intention going forward. Again, it's like what the community uses, like, you know, we want to make sure that they work with the harness, work with the models.</span></div><div class="tline" data-t="1130"><span class="ts">18:50</span><span class="tx">So I think, yeah, whatever you guys keep using will probably still be supported is probably the way to think about it. Yep. Uh, at the back. Shall we go with that?</span></div><div class="tline" data-t="1139"><span class="ts">18:59</span><span class="tx">Yeah, on skills, uh, KP, you were saying earlier that, uh, there was an explosion of skills, um, and only the best survive. But how are you evaluating skills and, I guess, the downstream issues that come with that?</span></div><div class="tline" data-t="1152"><span class="ts">19:12</span><span class="tx">Yeah, no, that's, that's a fantastic, uh, sort of point. Um, eval-ing this stuff is really hard. Um, even just the, the mechanical nature of spinning up all of these sandboxed environments set up in, in, in, in the way needed to, to evalua- evaluate a particular, um, problem set.</span></div><div class="tline" data-t="1172"><span class="ts">19:32</span><span class="tx">Um, I think the, the trickiest part is coming up with new data sets, you know. Um, there's a lot of good, um, you know, open source ones that, that are good for benchmarking externally, but you're right.</span></div><div class="tline" data-t="1185"><span class="ts">19:45</span><span class="tx">For specific skills, the onus is almost on like the, the, the author of the skill itself to r- to come up with, um, some form of test in that.</span></div><div class="tline" data-t="1194"><span class="ts">19:54</span><span class="tx">But people are also experimenting with the agents designing that as well. Um, so it's a little bit meta. But, um, yeah, a lot of work to do in that space.</span></div><div class="tline" data-t="1204"><span class="ts">20:04</span><span class="tx">Anyway, a question over here.</span></div><div class="tline" data-t="1206"><span class="ts">20:06</span><span class="tx">Yeah. When I'm using Antigravity, like the browser testing, I love when it works.</span></div><div class="tline" data-t="1212"><span class="ts">20:12</span><span class="tx">Mm. Mm.</span></div><div class="tline" data-t="1212"><span class="ts">20:12</span><span class="tx">Because I am really struggling, uh, with the limits. Uh, so you also experience like the retry or like the high network? Are there any things from my side I can tweak?</span></div><div class="tline" data-t="1223"><span class="ts">20:23</span><span class="tx">Like, how do I know, uh, when I hit the limits?</span></div><div class="tline" data-t="1226"><span class="ts">20:26</span><span class="tx">Uh, you mean in terms of for like the model and the model usage?</span></div><div class="tline" data-t="1230"><span class="ts">20:30</span><span class="tx">Yeah. I, I, I have like AI Ultra plan-</span></div><div class="tline" data-t="1233"><span class="ts">20:33</span><span class="tx">Yeah, yeah</span></div><div class="tline" data-t="1233"><span class="ts">20:33</span><span class="tx">... highest I can get, but I still,</span></div><div class="tline" data-t="1237"><span class="ts">20:37</span><span class="tx">yeah, I struggle with like maintaining, uh, the limits, and I don't feel Antigravity is telling me like, &quot;Hey, it's now not working, not because of the network, but because you've hit your limit.&quot;</span></div><div class="tline" data-t="1249"><span class="ts">20:49</span><span class="tx">Mm. Yeah, that's a good question. Uh, it's, it's funny actually 'cause we have, we have worse limits than you do. [laughs] Because obviously we prioritize customers and not ourselves, so-</span></div><div class="tline" data-t="1258"><span class="ts">20:58</span><span class="tx">Yeah</span></div><div class="tline" data-t="1258"><span class="ts">20:58</span><span class="tx">... the fact I was like clicking like 100 times to keep going is because it recognizes I'm a Googler, and that's my fault. Um, you know, it's a good question.</span></div><div class="tline" data-t="1265"><span class="ts">21:05</span><span class="tx">Um, I think there's kind of two parts to this. I think the, uh, there will always be limits, especially like within different tiers. I don't have Ultra, for instance, so...</span></div><div class="tline" data-t="1275"><span class="ts">21:15</span><span class="tx">Sorry, my corporate account does, but my personal one doesn't, so I have, I have to change my behavior. But I think we're going to end up in a world...</span></div><div class="tline" data-t="1282"><span class="ts">21:22</span><span class="tx">I mean, we have hopefully somewhere around here is Kevin from the Antigravity team who could probably talk specifically on that. Um, but I think we're gonna be in a pattern whereby it's commonplace for you to run out of credit or run out of capacity on like one model or something and then move to something else, but do</span></div><div class="tline" data-t="1298"><span class="ts">21:38</span><span class="tx">it seamlessly under the harness. So you can give us preference rather than having like, you know, you've hit your limit on tokens for the pro model, so it will automatically put you onto Flash.</span></div><div class="tline" data-t="1308"><span class="ts">21:48</span><span class="tx">Or, uh, you've reached your limit on everything you have in your, in your subscription, so you use a local model or... But it, uh, but to your point, like that it will not interrupt the workflow that you're doing or, you know, the notification you get is not, is not the completion of the task.</span></div><div class="tline" data-t="1321"><span class="ts">22:01</span><span class="tx">It's like, oh, we've run out of quota, sorry. Like, you know, what if you were off doing something else while you'd sent it off doing a job and you come back to find that it spent the last hour not doing anything because you hit a limit?</span></div><div class="tline" data-t="1332"><span class="ts">22:12</span><span class="tx">So I think the way... When I spoke to him last about this, it was very much more about like trying to make it clearer when you get to that point and making sure that you can.</span></div><div class="tline" data-t="1341"><span class="ts">22:21</span><span class="tx">So yeah. Uh, we have time for, I think, one more question. You want to have a go there?</span></div><div class="tline" data-t="1344"><span class="ts">22:24</span><span class="tx">Uh, I have a question in, I guess, in terms of how guys review PRs at Google, as in we have like thousands of PRs today-</span></div><div class="tline" data-t="1352"><span class="ts">22:32</span><span class="tx">Mm. Mm-hmm</span></div><div class="tline" data-t="1352"><span class="ts">22:32</span><span class="tx">... and, uh, maybe closing the development loop somehow. Uh, I wondered if you maybe thought about fine-tuning some like PR models that would go through like your past Google comments and commits and perhaps then, uh, better review that code and produce the work?</span></div><div class="tline" data-t="1368"><span class="ts">22:48</span><span class="tx">Yeah, so, um, you're, you're right. Um, one... A- and I really like the fact that we have some really good stuff in place for that already. So, um, uh, the way it works is, you know, on a per language basis, we have a specific like auto review model that has been, um, fine-tuned on all of our style</span></div><div class="tline" data-t="1387"><span class="ts">23:07</span><span class="tx">guides and, and, and all the rest of it, um, and previous like good examples of, of code. But then also on a PA or, or, or product, uh, basis, folks will come up with their own, um, like specific SIs and, and prompts and so forth to, um, to make sure that, um, you know, uh, the, the, the,</span></div><div class="tline" data-t="1408"><span class="ts">23:28</span><span class="tx">the other reviewers get a good signal for, for how good the code is. Um, and just yesterday actually, I sent a PR for review and, um, and, and I didn't even have to trigger the auto review thing.</span></div><div class="tline" data-t="1420"><span class="ts">23:40</span><span class="tx">I just got an, an agent that someone had spun up commenting on, uh, the PR with, uh, quite a good suggestion. So yeah, um, I think it's important and I think to the point earlier about us being supervisors of a digital assembly line, it's like how do we get help with that piece of it as well?</span></div><div class="tline" data-t="1438"><span class="ts">23:58</span><span class="tx">Mm.</span></div><div class="tline" data-t="1438"><span class="ts">23:58</span><span class="tx">Then we can all go sit on the beach. [laughs]</span></div><div class="tline" data-t="1440"><span class="ts">24:00</span><span class="tx">Yeah. Yeah, we... Uh, to, to your point, like we... You can imagine like the scale of all the Google engineers submitting 100,000 lines of code now being done by agents submitting even more code with more reviews.</span></div><div class="tline" data-t="1451"><span class="ts">24:11</span><span class="tx">They've built a lot of kind of infrastructure for us. But then also we have like tools like Jules, for instance, like which are... If you've ever played with that, it's like you've got like a web interface where you can go and do that on your own PRs and GitHubs, so like...</span></div><div class="tline" data-t="1462"><span class="ts">24:22</span><span class="tx">And you get review components of that. So yeah, I think this is, I think this is an area that's gonna be with the ballooning of... I think there was a comment yesterday about like, uh, the amount of m- the trillions of lines that GitHub is getting at the moment generated by agents and like that process.</span></div><div class="tline" data-t="1477"><span class="ts">24:37</span><span class="tx">So as much as we hate our own boring work, I'm sure the agents hate their boring work too. So we've got to figure out a way to do that.</span></div><div class="tline" data-t="1484"><span class="ts">24:44</span><span class="tx">But, um, yeah. Um, well, I think we're out of time for questions, but we will be around to chat afterwards if you want to come and join us, or if you want to head down to the DeepMind booth later, we'll be around there too.</span></div><div class="tline" data-t="1493"><span class="ts">24:53</span><span class="tx">So thank you very much for listening.</span></div><div class="tline" data-t="1495"><span class="ts">24:55</span><span class="tx">Thank you all. [applause] [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

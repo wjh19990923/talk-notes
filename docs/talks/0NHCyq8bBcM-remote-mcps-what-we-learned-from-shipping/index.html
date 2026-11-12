@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>远程 MCP：我们从上线中学到的东西 —— John Welsh，Anthropic | AI 工程师中文版</title>
+<meta name="description" content="Anthropic 内部的 MCP 网关把模型上下文消息与传输层分开，为各服务的集成、凭据和策略执行提供了一条统一路径。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>远程 MCP：我们从上线中学到的东西 —— John Welsh，Anthropic</h1>
+    <div class="orig-title">Remote MCPs: What we learned from shipping — John Welsh, Anthropic</div>
+    <div class="meta"><span class="speaker">John Welsh</span> · AI Engineer World's Fair 2025 · 15:12</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=forward-deployed-engineering">前线部署工程</a><a class="tag" href="../../index.html#topic=structured-outputs">结构化输出</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/0NHCyq8bBcM-remote-mcps-what-we-learned-from-shipping" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="0NHCyq8bBcM"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=0NHCyq8bBcM" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">当每个工具集成都有自己的接口</div></div>
+      <div class="label row">章节跳转 <span>共 10 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="28"><span class="ts">0:28</span><span>当每个工具集成都有自己的接口</span></li><li data-t="124"><span class="ts">2:04</span><span>把消息契约与传输层分开</span></li><li data-t="256"><span class="ts">4:16</span><span>为什么在内部也使用现成的标准？</span></li><li data-t="360"><span class="ts">6:00</span><span>让使用方产品来完成采样请求</span></li><li data-t="410"><span class="ts">6:50</span><span>让共享网关成为最省事的路径</span></li><li data-t="548"><span class="ts">9:08</span><span>返回 SDK 会话，而不是又一个私有接口</span></li><li data-t="624"><span class="ts">10:24</span><span>不同的传输方式，同样的读写流</span></li><li data-t="675"><span class="ts">11:15</span><span>只实现一次 OAuth，在各产品间复用凭据</span></li><li data-t="761"><span class="ts">12:41</span><span>用共享的上下文路径执行策略</span></li><li data-t="817"><span class="ts">13:37</span><span>在能消除重复工作的那一层集中管理</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 11 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="John Welsh: Who am I?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>John Welsh: Who am I?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>John Welsh brings 20 years of production systems experience to Anthropic’s internal MCP team. He recently worked on remote MCP server support for the public API and claude.ai.
+
+[0:35](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=35s) [John Welsh introduces his background in large-scale systems and MCP integrations at Anthropic.](https://assets.ai.engineer/sites/aiecode2025/sha256/7c17a280a73c1ec72720617c121ba4601776416f7dd3730b492e619a8b4baa0a.webp)
+
+John Welsh
+
+Who am I?
+
+I've spent 20 years putting large scale systems into production and dealing with the consequences of my actions.
+
+Currently a Member of Technical Staff™ at Anthropic, working on our internal MCP team.
+
+Spent the past few months focusing on tool calling and integrations, most recently implementing support for remote MCP servers in the Anthropic Public API and claude.ai
+
+Interface text:
+AI Engineer World's Fair
+aws
+neo4j
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="The Tool Integration Timeline" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Tool Integration Timeline</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>As models became better at calling tools, teams built siloed endpoints. Duplicated functionality and inconsistent interfaces made integrations harder to maintain and reuse.
+
+[1:00](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=60s) [A timeline traces improved model tool calling, proliferation of siloed tools, and integration chaos.](https://assets.ai.engineer/sites/aiecode2025/sha256/dc60b92d8ba1c8246b0ed3b4c7f93bc7dfa05b7bb93cdebf166b75bfb30e11db.webp)
+
+The Tool Integration Timeline
+
+Models Get Good at Calling Tools
+Function calling reliability reaches critical threshold. Agents successfully interface with external APIs. Development teams rush to capitalize on new capabilities.
+
+Everyone Starts Writing Tools
+Teams build siloed integrations without coordination. Custom endpoints proliferate for every use case. &quot;Just add another /call_something endpoint&quot;
+
+Integration Chaos
+Duplicated functionality creates maintenance nightmares. Inconsistent interfaces confuse developers and models alike. Security and performance concerns multiply with each new integration.
+
+Interface text:
+AI Engineer World's Fair
+aws
+WorkOS</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="MCPinization: Everything Evolves Into MCP" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MCPinization: Everything Evolves Into MCP</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Welsh compares endpoints converging on MCP to the evolution of crab-like forms. At Anthropic, endpoints began to resemble MCP, with tools, resources, and requests for details.
+
+[2:06](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=126s) [Title slide comparing convergence toward MCP with the evolution of crab-like forms, illustrated by robotic crabs and circuitry.](https://assets.ai.engineer/sites/aiecode2025/sha256/0a914c66cca47b7fdca6e414235668ae3a0ed5f1c26f8e02ba67da30b1621b26.webp)
+
+Carcinization [struck through]
+MCPinization:
+Everything Evolves
+Into crabs [struck through] MCP
+
+Convergent evolution in LLM context protocols
+
+Interface text:
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="The Two Sides of MCP" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Two Sides of MCP</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>MCP pairs a JSON-RPC message specification for exchanging context with a transport standard covering Streamable HTTP, OAuth 2.1, and session management.
+
+[2:34](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=154s) [A JSON-RPC message specification alongside transport topics: Streamable HTTP, OAuth 2.1, and session management.](https://assets.ai.engineer/sites/aiecode2025/sha256/d4ad0e13f1041f3a75ffa473ba763cd81d2236cf357e5d98e9df054716757dfc.webp)
+
+The Two Sides of MCP
+
+The JSON-RPC Specification
+{
+  jsonrpc: &quot;2.0&quot;;
+  id: string | number;
+  method: string;
+  params?: {
+    [key: string]: unknown;
+  };
+}
+
+The Global Transport Standard
+• Streamable HTTP
+• oAuth 2.1
+• Session Management
+
+Interface text:
+AI Engineer World's Fair
+aws
+Microsoft</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Can We Just Use MCP for Everything?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Can We Just Use MCP for Everything?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For presenting context to models, the same MCP client calls can work whether the message stream reaches another thread, a remote datacenter, or a chain of proxies.
+
+[4:04](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=244s) [MCP request and response examples, possible stream destinations, and client code listing tools and resources.](https://assets.ai.engineer/sites/aiecode2025/sha256/4e2519ea8557c2ff785f0a44a474682c3c2d3f07a9e474c7078214c1be554b44.webp)
+
+Can we just use MCP for everything?
+
+Yes*
+
+Your client sends: {&quot;jsonrpc&quot;: &quot;2.0&quot;, &quot;method&quot;: &quot;tools/list&quot;, &quot;id&quot;: 1}
+
+Something responds: {&quot;jsonrpc&quot;: &quot;2.0&quot;, &quot;result&quot;: {&quot;tools&quot;: [...]}, &quot;id&quot;: 1}
+
+Where That Stream Goes Doesn't Matter
+• ✓ Another thread in your application
+• ✓ Another container on your server
+• ✓ Another datacenter across the country
+• ✓ Through fifteen intermediate proxies
+• ✓ A carrier pigeon with a USB drive
+
+Your Code Doesn't Care
+async with connect_to_mcp(url) as session:
+    tools = await session.list_tools()
+    resources = await session.list_resources()</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Why Standardize on Anything Internally?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why Standardize on Anything Internally?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A shared integration pattern gives engineers one approach to learn and debug, freeing them to solve other problems. Each integration can also improve the starting point for the next.
+
+[4:18](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=258s) [Four reasons to standardize integrations internally: simplicity, one shared pattern, reduced cognitive load, and compounding velocity.](https://assets.ai.engineer/sites/aiecode2025/sha256/f7459850ad5e4dea00167dbcbc44cfa659edee486f6b042fb12302e61b36f1e2.webp)
+
+Why Standardize on Anything Internally?
+
+Boring is Good:
+Integration plumbing is table stakes, not your differentiator
+
+One Pattern to Rule Them All:
+Single approach to learn, debug, secure, and optimize
+
+Protect Your Brain:
+Save cognitive load for problems worth solving
+
+Velocity Compounds:
+Each new integration builds on your previous work
+
+[4:28](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=268s) [Four benefits of internal standardization: simpler integration plumbing, one reusable pattern, reduced cognitive load, and compounding velocity.](https://assets.ai.engineer/sites/aiecode2025/sha256/f2f9632f1d8cee9b246c3ee0b0e124811d400f59b4e3eefdeb1a5e674d5b305f.webp)
+
+Why Standardize on Anything Internally?
+
+Boring is Good:
+Integration plumbing is table stakes, not your differentiator
+
+One Pattern to Rule Them All:
+Single approach to learn, debug, secure, and optimize
+
+Protect Your Brain:
+Save cognitive load for problems worth solving
+
+Velocity Compounds:
+Each new integration builds on your previous work</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Why standardize on MCP internally?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why standardize on MCP internally?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Welsh argues that teams already need MCP for the ecosystem, so using it internally avoids a second integration pattern. He also expects the coalition-backed protocol to evolve with model capabilities.
+
+[5:05](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=305s) [Three reasons to standardize on MCP: ecosystem demand, an industry standard, and a design intended to evolve with model capabilities.](https://assets.ai.engineer/sites/aiecode2025/sha256/5016c604bff142d51217b85046fbac493f7ab3d93957ead003899ff0615dbaa5.webp)
+
+Why standardize on MCP internally?
+
+Ecosystem Demand
+You're already implementing MCP because the AI ecosystem requires it.
+
+Industry Standard
+The protocol is developed and maintained by a large coalition of engineers and organizations.
+
+Future-Ready Design
+MCP is designed to evolve alongside model capabilities. When models need new ways to interact with external context, those patterns will be added to the protocol.
+
+Interface text:
+AI Engineer
+World’s Fair
+[illegible]ugment code
+Microsoft
+aws
+small ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="The Requirements Converge" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Requirements Converge</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Anthropic needed remote MCP access as internal agents multiplied. Distributing network access and credentials across those services complicated security and auditing, while integrations needed to work across new services.
+
+[6:49](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=409s) [Four requirements: remote MCP connectivity and authentication, more agents, security management, and reusable integrations.](https://assets.ai.engineer/sites/aiecode2025/sha256/88f4e42cdfb0268cdfb2add7ca5312196953f203b421f36d021c70e787733904.webp)
+
+The Requirements Converge
+
+1 Remote MCP Needs
+Outbound network connectivity + authentication
+
+2 Proliferation of Agents
+Suddenly there are far more services, written in more languages, and they all need integrations
+
+3 Security Concerns
+Managing network access, credential storage, rotation, and audit logs is complex and risky to distribute
+
+4 Build Once, Use Everywhere
+Existing integrations should just work for new services</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Building the Pit of Success" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Building the Pit of Success</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The MCP Gateway gives engineers one connect_to_mcp() call for internal and external servers. It handles routing and credentials, while centralizing rate limiting and observability.
+
+[8:19](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=499s) [An MCP Gateway provides a single entry point, URL-based routing, automatic credential management, and centralized operations.](https://assets.ai.engineer/sites/aiecode2025/sha256/73ed88db13d68b448a8a70a0ba261f2ab4d2b2e3379b2a60f70d2719ce4f92c1.webp)
+
+Building the Pit of Success
+
+We built a piece of shared infrastructure called the MCP Gateway to handle MCP connections, and made it the easiest way to connect external context to LLM backed services
+
+Single Entry Point
+connect_to_mcp() abstracts all transport and authentication complexity
+
+URL-based Routing
+Internal vs external servers determined automatically by URL scheme
+
+Automatic Credential Management
+OAuth flows and token refresh handled invisibly by service
+
+Zero-Config Operations
+Centralized rate limiting and observability</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Obligatory Diagram" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Obligatory Diagram</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Applications connect to an MCP Gateway that manages authentication, rate limiting, and observability. The gateway routes connections to internal MCP servers and internet servers over SSE or Streamable HTTP.
+
+[8:51](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=531s) [Applications connect through an MCP gateway to internal and external MCP servers.](https://assets.ai.engineer/sites/aiecode2025/sha256/6ef0fb8fce4e62a1b2d5cbac6bde0f60fa187a8e030dc3b1738403fbbeb1e5ed.webp)
+
+Obligatory Diagram
+
+Internal Network
+Claude AI
+Slack Bot
+Code Review
+Internal Tools
+PR/Issue Triager
+Documentation Assistant
+
+MCP Gateway
+• Auth Management
+• Rate Limiting
+• Observability
+
+Internal MCP Servers
+Slack MCP
+internal://slack
+Jira MCP
+internal://jira
+Drive MCP
+internal://drive
+
+SSE
+Streamable HTTP
+
+Internet
+Asana MCP
+mcp.asana.com/sse
+Custom MCP
+example.com/mcp</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Show Me The Code" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Show Me The Code</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The gateway client connects to internal or external MCP servers and returns an MCP SDK object. The example is simplified: the actual client passes a signed token for authentication.
+
+[9:08](https://www.youtube.com/watch?v=0NHCyq8bBcM&amp;t=548s) [Python example connects through the MCP gateway, lists tools and calls a tool; examples describe internal and external servers.](https://assets.ai.engineer/sites/aiecode2025/sha256/239c63e15395621bd4d70698a4459c36ef38be672255defb54610c9a1e9f3144.webp)
+
+Show Me The Code
+
+async with mcp_gateway.connect_to_mcp(
+    mcp_url=server.server_url,
+    organization_id=organization_uuid,
+    account_id=account_id,
+) as session:
+    # List available tools
+    tools = await session.list_tools()
+
+# Call any tool
+    result = await session.call_tool(
+        &quot;repository_search&quot;,
+        {&quot;query&quot;: &quot;MCP implementations&quot;}
+    )
+
+The same code seamlessly connects to any MCP server, internal or external:
+• internal://web-search - An internal web search server
+• internal://google-drive - A Google drive integration
+• https://mcp.asana.com/sse - Asana's remote MCP server
+• https://example.com/custom-mcp - Any external server
+
+Decorative screen text: [illegible]</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">当每个工具集成都有自己的接口</a></li><li><a href="#sec-2">把消息契约与传输层分开</a></li><li><a href="#sec-3">为什么在内部也使用现成的标准？</a></li><li><a href="#sec-4">让使用方产品来完成采样请求</a></li><li><a href="#sec-5">让共享网关成为最省事的路径</a></li><li><a href="#sec-6">返回 SDK 会话，而不是又一个私有接口</a></li><li><a href="#sec-7">不同的传输方式，同样的读写流</a></li><li><a href="#sec-8">只实现一次 OAuth，在各产品间复用凭据</a></li><li><a href="#sec-9">用共享的上下文路径执行策略</a></li><li><a href="#sec-10">在能消除重复工作的那一层集中管理</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">远程 MCP：我们从上线中学到的东西</h2>
+      <div class="lede"><p>Anthropic 内部的 MCP 网关把模型上下文消息与传输层分开，为各服务的集成、凭据和策略执行提供了一条统一路径。</p><p>熟悉客户端/服务端 API、JSON-RPC 和 OAuth bearer token，有助于理解网关和传输层示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="28">▶ 0:28</button></div>
+      <h3>当每个工具集成都有自己的接口</h3>
+      <p>What happens when connecting a model to tools becomes easy, but sharing those integrations across services remains hard? John Welsh approaches that problem from twenty years of building large-scale systems and, at Anthropic, recent work on tool calling and MCP integrations. He places the turning point around the middle to end of the preceding year: models became good enough at calling tools to connect Google Drive, consult Maps, and send someone a text message in one workflow.</p>
+<p>Teams moved quickly. Custom endpoints such as <code>/calltool</code> and <code>/getcontext</code> appeared for individual use cases, then acquired authentication requirements. The organization accumulated duplicated functionality behind incompatible interfaces. In Welsh’s illustrative example, an integration works well in service A, but using it in service B requires a three-week interface rewrite. The exciting part—giving models useful tools—has produced an ordinary distributed-systems problem: everyone has built slightly different plumbing.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/6732d7fe2dc1744c825c35bb2ef7968e730397a510ea9ea39f65ac6d55ca425c" alt="Slide titled “The Tool Integration Timeline” connects models getting good at calling tools, everyone writing tools, and integration chaos." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The tool integration timeline ends in integration chaos.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="124">▶ 2:04</button></div>
+      <h3>把消息契约与传输层分开</h3>
+      <p>At Anthropic, those homegrown interfaces began converging on the same operations: get tools, get resources, ask for additional details. They increasingly resembled <strong>Model Context Protocol (MCP)</strong>, even when they did not implement its full feature set. That convergence suggests adopting the shared contract before independently rebuilding more of it.</p>
+<p>Welsh separates MCP into two concerns:</p>
+<p>| Concern | What it standardizes |
+| --- | --- |
+| Message contract | JSON-RPC exchanges between context providers and model-facing code |
+| Transport and connection machinery | Streamable HTTP, authorization, and session management |</p>
+<p>He locates most of the engineering value in the message semantics and server interactions. The <a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/transports" target="_blank" rel="noopener">March 2025 transport specification</a> provides the historical context for this distinction. Its accompanying <a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization" target="_blank" rel="noopener">authorization specification</a> described OAuth 2.1, then an IETF draft, as an optional authorization framework for HTTP transports—not a requirement that every MCP transport use OAuth.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/dee0001f45d77836b7231675daf0e8a9b916ad24383a192de056cf621c84c1d9" alt="“The Two Sides of MCP” slide pairs a JSON-RPC message structure with Streamable HTTP, OAuth 2.1, and session management." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>MCP’s JSON-RPC specification sits alongside its global transport standard.</figcaption></figure>
+<p><strong>Standardize how context is exchanged without requiring every internal connection to travel the same way.</strong> Welsh’s proposal to use MCP for everything is scoped to presenting context to models, not all application communication. A provider might run in the same process, in another data center, or behind enterprise networking. The consuming code should still connect to MCP and receive the same tools and methods.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="256">▶ 4:16</button></div>
+      <h3>为什么在内部也使用现成的标准？</h3>
+      <p>Making Google Drive talk to an application is necessary work, but usually not a competitive differentiator. A single integration approach gives engineers less to learn and lets improvements made for one integration benefit the next. The goal is to spend less effort moving context between systems and more effort on the product consuming it.</p>
+<p>MCP adds an ecosystem argument to that internal consistency argument: if customers and external services already require MCP support, maintaining a second internal contract means doing the work twice. Welsh cites participation by all major AI labs as a reason to expect new model capabilities to find their way into the protocol. That is his rationale for betting on its evolution; the immediate benefit is having protocol features available when the organization encounters the problems they address.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="360">▶ 6:00</button></div>
+      <h3>让使用方产品来完成采样请求</h3>
+      <p>Consider Welsh’s hypothetical company with four products and four billing models. Each product may also have its own token limits and usage tracking. A shared slides integration needs model generation, but embedding every product’s accounting rules inside that integration would couple it to all four products.</p>
+<p><strong>Sampling reverses who requests model execution.</strong> The integration sends a sampling request over the MCP stream, and the client at the other end fulfills it. This lets the slides integration request generation while the consuming product supplies the execution and accounting context. The <a href="https://modelcontextprotocol.io/specification/2025-03-26/client/sampling" target="_blank" rel="noopener">sampling specification</a> defines <code>sampling/createMessage</code>, requires the client to declare sampling support, and leaves model selection and permissions with the client, with recommended approval controls. Billing and usage accounting remain application responsibilities; MCP supplies the request boundary through which that work can be delegated.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="410">▶ 6:50</button></div>
+      <h3>让共享网关成为最省事的路径</h3>
+      <p>Two pressures converged at Anthropic. External remote MCP services, including the historical <code>mcp.asana.com</code> example, required network connectivity and authentication. Internally, engineers were creating PR review bots, Slack management tools, and other experimental LLM services. Giving every service user credentials and unrestricted outbound connectivity would spread sensitive responsibilities across the organization and make auditing harder.</p>
+<p>The response was an <strong>MCP gateway</strong>: shared infrastructure with one entry point and a connection helper that returns an MCP SDK client session. Welsh calls this a pit of success. If the supported approach is also the easiest approach, engineers naturally use it.</p>
+<p>The gateway combines four responsibilities:</p>
+<p>- <strong>Connection entry point:</strong> One client call opens an MCP session.
+- <strong>URL-based routing:</strong> Internal and external servers use the same connection path from the application’s perspective.
+- <strong>Credential management:</strong> Applications do not each implement OAuth.
+- <strong>Shared operations:</strong> Rate limiting and observability have a central home.</p>
+<p>These capabilities make the gateway useful to application engineers while concentrating the work the organization needs to control.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/823f358108bcbaa6390a4ef903f97c45f309872b45e4e8051aef30217d66fc9c" alt="“Building the Pit of Success” slide lists four gateway capabilities beside an illustration of a person falling into a glowing pit." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The MCP Gateway combines a single entry point, URL-based routing, credential management, and centralized operations.</figcaption></figure>
+<p>The architecture diagram adds a gateway between the callers and their integrations. Welsh jokes that “one more box will solve all our problems.” The concrete value of that box is the shared responsibility it removes from each caller.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="548">▶ 9:08</button></div>
+      <h3>返回 SDK 会话，而不是又一个私有接口</h3>
+      <p>The simplified client call accepts a server URL, organization ID, and account ID. Welsh explains that the real implementation authenticates with a signed token because the gateway accesses stored credentials. Crucially, it returns an MCP SDK object directly. Applications can use the protocol’s interface rather than learning a gateway-specific replacement.</p>
+<p>That choice also reduces the amount of wrapper code that must change as MCP evolves. Welsh describes adopting new features by updating internal MCP packages. The boundary still follows MCP’s <a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/lifecycle" target="_blank" rel="noopener">lifecycle requirements</a>: compatible protocol versions and negotiated capabilities determine what peers can actually use. A package update does not create support on the other end of a connection.</p>
+<p>The same application code connects to internal and external integrations. External connections use the standardized transport; inside Anthropic’s network, the team chose <strong>WebSockets</strong>. The adapter opens a WebSocket and carries JSON-RPC messages in both directions. Internal transport selection follows the organization’s infrastructure needs while preserving the message contract.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="624">▶ 10:24</button></div>
+      <h3>不同的传输方式，同样的读写流</h3>
+      <p>The adapter’s output is a read stream and a write stream. Pass those into the MCP SDK client session, and the session handles the protocol above that boundary. In Python, the essential session wiring looks like this:</p>
+<p>```python
+from mcp import ClientSession</p>
+<p>async def discover_tools(read_stream, write_stream):
+    async with ClientSession(read_stream, write_stream) as session:
+        await session.initialize()
+        return await session.list_tools()
+```</p>
+<p>The transport adapter supplies SDK-compatible streams; application code works with the initialized session. Welsh also suggests gRPC when multiplexing would avoid opening a separate WebSocket for each connection.</p>
+<p>Once that boundary is clear, the transport alternatives are easy to compare:</p>
+<p>| Transport | Role in the talk |
+| --- | --- |
+| WebSocket | Anthropic’s selected internal transport |
+| gRPC | Suggested option for multiplexing connections |
+| Unix socket | Another way to carry local messages |
+| Email over IMAP | Humorous demonstration of transport independence |</p>
+<p>Each adapter ultimately supplies the same read/write stream pair. These are custom transports, not additional standard MCP transports; they must still preserve MCP’s message and lifecycle requirements.</p>
+<p>The email demonstration pushes the separation to an intentionally absurd conclusion. Messages begin with “Dear server, I hope this finds you well” and contain an “MCP request start” marker. After exchanging the messages by email, the implementation still feeds streams into a client session. IMAP is the joke; the stable SDK boundary is the mechanism.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="675">▶ 11:15</button></div>
+      <h3>只实现一次 OAuth，在各产品间复用凭据</h3>
+      <p>With transport hidden behind the session interface, the gateway also owns external OAuth complexity. It exposes helpers to obtain an authorization URL and complete the OAuth flow. Those operations accommodate different redirect destinations: Anthropic’s API and <code>claude.ai</code> may need users returned to different places, even though the gateway manages the credentials for both.</p>
+<p>Central ownership makes credentials portable across consuming services. A batch job can connect using the same internal user identity without asking the user to authenticate again. The job does not need its own copy of the OAuth implementation, and internal servers do not need to manage the external tokens. Credential reuse happens through the gateway.</p>
+<p>Welsh traces the authenticated connection through that boundary:</p>
+<p>1. <strong>Authenticate the internal connection.</strong> The service opens a WebSocket to the gateway with an authentication token in the headers.
+2. <strong>Retrieve external credentials.</strong> The gateway looks up the user’s stored credentials.
+3. <strong>Open the external connection.</strong> The gateway creates an authenticated SDK client, supplying the external bearer token in the authorization header.
+4. <strong>Bridge the streams.</strong> The external client’s read and write streams connect to the internal transport.</p>
+<p>The internal authentication token establishes who is calling the gateway; the retrieved external credential authenticates the gateway’s connection to the integration.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="761">▶ 12:41</button></div>
+      <h3>用共享的上下文路径执行策略</h3>
+      <p>The gateway creates another useful property: a central view of the context models request and the context returned to them. Welsh raises prompt injection and the possibility of a model with Google Drive access deleting its contents as reasons to care about that visibility. The deletion example is a risk scenario, not an incident he reports observing.</p>
+<p>That shared path offers a place to ban malicious servers, classify request content, and audit activity. Because messages have standardized shapes, inspection can target specific protocol operations: tool execution, tool definitions, or resource management. <strong>The gateway provides an enforcement point; the policies and processors still have to be built.</strong> Centralizing traffic makes those controls easier to apply consistently, but does not itself resolve prompt injection.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="817">▶ 13:37</button></div>
+      <h3>在能消除重复工作的那一层集中管理</h3>
+      <p>For a new service, adopting the shared path becomes a package import. Anthropic maintains client packages for multiple internal languages, so the architecture does not depend on every team choosing the same language. Engineers gain a familiar integration interface; operators gain a single point of ingress and egress with standardized messages. Returning SDK sessions also lets protocol evolution flow through the shared packages instead of requiring a new proprietary interface for each feature.</p>
+<p>Welsh’s closing description of MCP as JSON streams emphasizes how little application-specific plumbing should sit between the transport and the client SDK. His broader recommendation is to standardize on something, even if the organization chooses a protocol other than MCP. Then make that standard the easiest path to use. Centralizing authentication and external connectivity at the appropriate layer removes repeated work from every service and leaves teams more time for the behavior that makes their products valuable.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/1050f1e7dcee27edd3596502a3c842f46fec4da040a1300474acc6b0529a6b3d" alt="“Key Takeaways” slide presents four blocks: MCP is just JSON streams; standardize on something; build pits of success; centralize at the right layer." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Key takeaways: JSON streams, standardization, pits of success, and centralization at the right layer.</figcaption></figure>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/transports" target="_blank" rel="noopener">MCP transports: March 2025 specification</a> — Defines standard transports and the requirements for carrying MCP messages over a custom transport.</li><li><a href="https://modelcontextprotocol.io/specification/2025-03-26/client/sampling" target="_blank" rel="noopener">MCP sampling: March 2025 specification</a> — Explains how servers request model generations through clients, including capability declarations and approval controls.</li><li><a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization" target="_blank" rel="noopener">MCP authorization: March 2025 specification</a> — Documents the HTTP authorization framework available around the time of the talk.</li><li><a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/lifecycle" target="_blank" rel="noopener">MCP initialization and capability negotiation</a> — Explains how clients and servers establish compatible protocol versions and supported capabilities.</li><li><a href="https://claude.com/blog/integrations" target="_blank" rel="noopener">Claude's remote MCP Integrations launch</a> — The May 2025 announcement introducing remote MCP integrations for Claude.</li><li><a href="https://claude.com/blog/agent-capabilities-api" target="_blank" rel="noopener">Anthropic API MCP connector announcement</a> — Introduces the API's remote MCP connector alongside other agent-building capabilities.</li><li><a href="https://developers.asana.com/docs/integrating-with-asanas-mcp-server" target="_blank" rel="noopener">Connect to Asana's MCP server</a> — Current Asana V2 connection instructions covering OAuth app registration and authorization.</li><li><a href="https://invariantlabs.ai/blog/mcp-security-notification-tool-poisoning-attacks" target="_blank" rel="noopener">Tool poisoning attacks on MCP</a> — Original research demonstrating how malicious tool descriptions can redirect an assistant and expose sensitive data.</li><li><a href="https://github.com/modelcontextprotocol/python-sdk" target="_blank" rel="noopener">Official MCP Python SDK</a> — Public Python SDK for implementing MCP clients and servers.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] [audience applauding] Awesome.</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">Thanks so much for coming. Um, I wanted to give a bit of a talk on implementing MCP clients and talking remote MCP at scale within a large organization like Anthropic.</span></div><div class="tline" data-t="28"><span class="ts">0:28</span><span class="tx">Um, I wanted to give first a little introduction from me. Uh, my name's John. I've spent twenty years building large-scale systems and dealing with the problems that that causes, and so I've made a lot of mistakes, and, uh, I'm excited to give maybe some thoughts on avoiding some of those mistakes.</span></div><div class="tline" data-t="45"><span class="ts">0:45</span><span class="tx">I'm currently a member of technical staff here at Anthropic, and I've spent the past few months, um, focusing on tool calling and integration and implementing MCP support for all of our internal, like, external integrations within the org.</span></div><div class="tline" data-t="59"><span class="ts">0:59</span><span class="tx">And so, looking at tool integration with models, we've kind of hit this timeline where, um, models only really got good at calling tools, uh, like, kind of late mid last year.</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">And suddenly everyone got very excited because, like, your model could go and call your Google Drive, and then it could call your Maps, and then it could send a text message to people.</span></div><div class="tline" data-t="82"><span class="ts">1:22</span><span class="tx">And so, there's this huge explosion with, like, very little effort you can make very cool things. And so, um, teams are all trying to move fast. Everyone's moving very fast in AI.</span></div><div class="tline" data-t="91"><span class="ts">1:31</span><span class="tx">Custom endpoints start proliferating for every use case. There's a lot of, like, services popping up with, like, /calltool and /getcontext, and then people, um, start to realize there's additional needs of some authentication.</span></div><div class="tline" data-t="104"><span class="ts">1:44</span><span class="tx">There's been a bunch of stuff there, and this kind of led to some integration chaos where you're duplicating a bunch of functionality around your org. Nothing really works the same.</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">You have an integration that works really well in service A, but then you want to use it in service B, but it- you can't 'cause it's gonna take you three weeks to rewrite it to talk to the new interface.</span></div><div class="tline" data-t="124"><span class="ts">2:04</span><span class="tx">And so we're in this kind of spot, and the place that we came to at Anthropic is realizing that over time, all of these endpoints started to look a lot like MCP.</span></div><div class="tline" data-t="135"><span class="ts">2:15</span><span class="tx">Uh, you, you end up with some get tools, some get resources, some elicitation of, of details. Um,</span></div><div class="tline" data-t="144"><span class="ts">2:24</span><span class="tx">and even if you're not using the entire feature space of MCP, uh, as a whole immediately, like, you're probably gonna go extend into something that kind of looks like it over time.</span></div><div class="tline" data-t="155"><span class="ts">2:35</span><span class="tx">And when I'm talking about MCP here, there's kind of two sides to MCP that in my mind feel a bit unrelated. There's this JSON RP-RPC specification, which is really valuable as engineers.</span></div><div class="tline" data-t="168"><span class="ts">2:48</span><span class="tx">It's like a standard way of sending messages and communicating back and forth between, uh, providers of context for your models and the code that's interacting with the models. And, uh,</span></div><div class="tline" data-t="178"><span class="ts">2:58</span><span class="tx">getting those messages right is the topic of huge debate on, like, the MCP, um, repos. If you're involved with any standardization process ever, you know how those conversations end going.</span></div><div class="tline" data-t="189"><span class="ts">3:09</span><span class="tx">And then on the other side, there's this global transport standard, which is the stuff around Streamable HTTP, OAuth 2.1 session management. And global transport standard is hard because you're trying to get everyone to speak the same language, and so it's really nitty, but there's not a lot of, like...</span></div><div class="tline" data-t="207"><span class="ts">3:27</span><span class="tx">Most of the juice of MCP is in this, the message specification and the way that the, uh, servers are interacting. Um, and so we started asking ourselves, like, &quot;Can we just use MCP for everything?&quot;</span></div><div class="tline" data-t="217"><span class="ts">3:37</span><span class="tx">And we said yes, with the caveat that yes is for everything involved in presenting model context to models. Um, we have this format where your client is sending these messages.</span></div><div class="tline" data-t="231"><span class="ts">3:51</span><span class="tx">Something's responding with these messages. Um, where that stream is going, it really doesn't matter. It can be on the same process. It can be another data center. It can be through a giant pile of, uh, enterprise networking stuff.</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">Um, it doesn't really care at the point that your code is interacting with it. You're just calling a connect to MCP, and you have a, a set of, uh, a set of tools and methods that you can call.</span></div><div class="tline" data-t="256"><span class="ts">4:16</span><span class="tx">So, uh, standardizing on that seems useful. Um, standard-- Why standardize on anything internally? Um, being boring on stuff like this is good. It's not a competitive advantage to be really good at making Google Drive talk to your app.</span></div><div class="tline" data-t="273"><span class="ts">4:33</span><span class="tx">It's just a thing that you need to do. Um, it's not your differentiator. Uh, having a single approach to learn as engineers makes things faster. You can spend your cycles working on interesting problems instead of trying to figure out how to plumb, uh, integration.</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">And, uh, if you're using the same thing everywhere, then, like, each new integration might clean up the field a bit for the next person who comes along. Um, it's, it's ov-overall a good thing i-in cases like this where we're, we're not really doing anything interesting.</span></div><div class="tline" data-t="301"><span class="ts">5:01</span><span class="tx">We're plumbing context between integrations and things that are consuming the integrations. Uh,</span></div><div class="tline" data-t="307"><span class="ts">5:07</span><span class="tx">why standardize on MCP internally? Um, I-- This is where I might make an argument to everyone that there's already ecosystem demand. You have to implement MCP because everyone's implementing MCP, so why do two things?</span></div><div class="tline" data-t="319"><span class="ts">5:19</span><span class="tx">Um, it's becoming an industry standard. There's a large coalition of engineers and organizations that are all involved in building out the standard. Uh, all of the major AI labs are represented in that, so you, you know that as new model capabilities start to be developed, uh, those patterns will be added to the protocol because all the labs</span></div><div class="tline" data-t="340"><span class="ts">5:40</span><span class="tx">want you to use their features. So I think the standardizing on MCP internally for this type of context is a, is a good bet. And one of the things you get with MCP is that it solves problems that you haven't actually run into yet.</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">Like, there's a bunch of stuff in the protocol that exists because there's a problem and a need, and having those solutions at hand when you run into them is really important.</span></div><div class="tline" data-t="360"><span class="ts">6:00</span><span class="tx">So sampling, an example of where this might be valuable in your company, you might have four products that have four different billing models, uh, for reasons because you're building fast.</span></div><div class="tline" data-t="369"><span class="ts">6:09</span><span class="tx">Um, you might have a bunch of different token limits. You might have different ways of tracking usage. This is really painful 'cause you wanna write one- Integration service to connect to your slides and how do you go and, like, hook the billing and the tokens up correctly?</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">And MCP has, uh, already has sampling primitives, so you can build your integration. You can just be like, okay, your integration sends a sampling request over the stream. Uh, the other end of the pipe fulfills that request.</span></div><div class="tline" data-t="396"><span class="ts">6:36</span><span class="tx">You can go and hook it in. Everything works great. And so this is a thing that, uh, uh, a shape problem that might take you a bunch of effort, uh, internally without this, but you already have the answer kind of gift-wrapped for you in the protocol.</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">And so at Anthropic, we're running into some requirements converging. We're starting to see external remote MCP services popping up like mcp.asana.com, which is really cool. We wanted to be able to talk to those.</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">Talking to those is complex because you need external network connectivity, you need authentication. Uh, there's a proliferation of internal agents. People have started building, um, PR review bots and, like, Slack management things and just lots of people have lots of ideas.</span></div><div class="tline" data-t="439"><span class="ts">7:19</span><span class="tx">No one's really sure what's gonna hit, so we're having a huge explosion of LLM-backed services internally. Uh, with that explosion, there's a bunch of security concerns where, uh,</span></div><div class="tline" data-t="450"><span class="ts">7:30</span><span class="tx">you don't really want all of those services to be going and accessing user credentials, uh, y- because that ends up being an, being kind of a nightmare. You don't want, uh, outbound external network connectivity everywhere.</span></div><div class="tline" data-t="463"><span class="ts">7:43</span><span class="tx">Um, auditing becomes really complex. Uh, and so we are looking at this problem. We wanted to be able to build our integrations once and use them anywhere. And so, uh, a model I was introduced to by a mentor of mine and a while ago is the pit of success, which is the idea that, um, if you make</span></div><div class="tline" data-t="483"><span class="ts">8:03</span><span class="tx">the right thing to do the easiest thing to do, then everyone in your org kind of falls into it. And so, uh, we designed a service which is just a piece of shared infrastructure called the MCP gateway that provides a single point of entry and provided engineers just with a connect to MCP call that returns a MCP</span></div><div class="tline" data-t="504"><span class="ts">8:24</span><span class="tx">SDK client session on the end. And we're trying to make that as simple as possible, uh,</span></div><div class="tline" data-t="510"><span class="ts">8:30</span><span class="tx">because that way people will use it if it's the easiest thing to do. Um, we used URL-based routing to route to external servers, internal servers. It doesn't matter. It's all the same call.</span></div><div class="tline" data-t="520"><span class="ts">8:40</span><span class="tx">Uh, we handle all the credential management automatically because you don't wanna be implementing OAuth five times in your company. Uh, it gives you a centralized place for rate limiting and observability.</span></div><div class="tline" data-t="531"><span class="ts">8:51</span><span class="tx">Uh, I have an obligatory diagram here of a bunch of lines going in and out, but, uh, [laughs] here's a, a gateway in the middle. This is kind of the thing, just one more box will solve all our problems.</span></div><div class="tline" data-t="541"><span class="ts">9:01</span><span class="tx">Uh, can I go next? Uh, where is my...</span></div><div class="tline" data-t="548"><span class="ts">9:08</span><span class="tx">Yeah. Uh, so the, uh, the code that we have here, we just made some client libraries where you just MCP gateway connect to MCP. Uh, we pass in a URL, an org ID, account ID.</span></div><div class="tline" data-t="560"><span class="ts">9:20</span><span class="tx">This is, like, a bit simplified. We actually pass a signed token to authenticate 'cause it's accessing credentials, but this is the basic idea. And then importantly, this call returns an MCP SDK object, which means that when new features get added to the protocol, you just update your MCP packages internally.</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">You get those features across the board. Everything works great. The same code seamlessly connects to internal, external integrations. When it comes to transports, uh, and this is a bit high level and hand-wavy because everyone's setup is different, um, internally within your network, it really doesn't matter.</span></div><div class="tline" data-t="594"><span class="ts">9:54</span><span class="tx">You can do anything you want. We've got the standardized transport for connecting to external MCP servers, um, but really just picking the best thing for your org. So we went and picked, uh, WebSockets for our internal transport.</span></div><div class="tline" data-t="610"><span class="ts">10:10</span><span class="tx">Uh, and here's just a quick code example. It's nothing special. We just have a WebSocket, uh, that's being opened. We are sending these JSON-RPC blobs back and forth over the WebSocket.</span></div><div class="tline" data-t="619"><span class="ts">10:19</span><span class="tx">And then if I can make this scroll down,</span></div><div class="tline" data-t="624"><span class="ts">10:24</span><span class="tx">w- at the end, we just pipe those, uh, read streams and write streams into a MCP SDK client session, and we're good to go. We've got MCP going. Um, you might want to do this with gRPC because you wanna wrap these in some multiplexed transport so you don't have to open one WebSocket per connection.</span></div><div class="tline" data-t="641"><span class="ts">10:41</span><span class="tx">That's pretty simple. Also, uh, we have read stream, write, write stream at the end. Uh, starting to see a pattern here. You can do, like, Unix socket transport if you want.</span></div><div class="tline" data-t="650"><span class="ts">10:50</span><span class="tx">You can just have, uh, messages be passed that way. Read stream, write stream at the end. MCP works great. Um, I threw in an enterprise-grade email transport implementation over IMAP, um, which is pretty much the same thing.</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">You just go through. Here is our s- server. We're sending emails back and forth. Uh, &quot;Dear server, I hope this finds you well.&quot; [laughing] Uh, &quot;MCP request start,&quot; and then we pipe those into a client session at the end.</span></div><div class="tline" data-t="675"><span class="ts">11:15</span><span class="tx">And so it truly doesn't matter. Like, whatever it takes inside your organization is great. We set up this unified authentication model where we're handling OAuth at the gateway, uh, which means that consumers don't have to worry about all that, uh, all that complexity in their apps.</span></div><div class="tline" data-t="693"><span class="ts">11:33</span><span class="tx">Uh, we added a get OAuth authorization URL function and a complete OAuth flow because you might have different endpoints. At Anthropic, we have api.anthropic.com, and we have claude.ai, and we might want those redirects to go back to different places.</span></div><div class="tline" data-t="705"><span class="ts">11:45</span><span class="tx">But, uh, this is tied on the gateway. It's really easy to start a new authentication. Uh, a real advantage of having this put on your gateway is that the credentials are portable.</span></div><div class="tline" data-t="715"><span class="ts">11:55</span><span class="tx">If you have a batch job that you're kicking off, um, your users don't have to reauthenticate to that. You're just calling the same MCP with your internal user ID, and they get everything added correctly.</span></div><div class="tline" data-t="725"><span class="ts">12:05</span><span class="tx">Your also internal servers don't have to worry about your tokens.</span></div><div class="tline" data-t="730"><span class="ts">12:10</span><span class="tx">Um, so your request comes in internally for us. We're hitting a WebSocket connection to MCP gateway, uh, with- Auth token provided as headers to that. Uh, that gateway retrieves your stored credentials.</span></div><div class="tline" data-t="742"><span class="ts">12:22</span><span class="tx">You create an authenticated SDK client. You just pass in the bearer token to the auth header, uh, and then you're good to go. The MCP client receives a read stream and a write stream, and so you just plumb those read stream and write stream into your internal transport, and you're, and you're, you're good to go.</span></div><div class="tline" data-t="761"><span class="ts">12:41</span><span class="tx">Uh, one of the things that this gives for your org that's not immediately obvious but is really valuable is a central place for all of your context that your models are asking for and all the context that's flowing into your models for your org.</span></div><div class="tline" data-t="776"><span class="ts">12:56</span><span class="tx">Uh, there's some papers written on MCP prompt injection attacks. There is a general risk of, uh, models going and having access to Google Drive and deleting everything in Google Drive.</span></div><div class="tline" data-t="789"><span class="ts">13:09</span><span class="tx">There's some need of, uh, enforcing policy. You might want to be able to, like, ban malicious servers, um, do some content classification on the request, see what's coming in, kind of give an audit.</span></div><div class="tline" data-t="803"><span class="ts">13:23</span><span class="tx">And the really nice thing about this is that because it's MCP, all of your messages are in a standardized format, so it's really easy to hook into that stream and be like, &quot;Okay, here is my tool execution message processor,&quot; or, &quot;Here is my tool definition thing,&quot; or, &quot;Here's my resource management.&quot;</span></div><div class="tline" data-t="817"><span class="ts">13:37</span><span class="tx">And so the payoff that you get from this is, um, adding MCP support to new services is as simple as possible. You just go and import a package. Uh, it doesn't matter what language you're in.</span></div><div class="tline" data-t="828"><span class="ts">13:48</span><span class="tx">We've got multiple languages internally. They all have their own kind of packages. Engineers can focus on building features and not plumbing. Uh, you have the operational simplicity of having a single point of ingress, egress, and standardized message formats.</span></div><div class="tline" data-t="841"><span class="ts">14:01</span><span class="tx">And you get future features for free. As the protocol evolves, you get all of that work, uh, naturally.</span></div><div class="tline" data-t="848"><span class="ts">14:08</span><span class="tx">And so just wanted to go through some takeaways from this that I, I want to p-put to you is that MCP is really just JSON streams, and how you pipe those streams around your infrastructure is a small implementation detail.</span></div><div class="tline" data-t="862"><span class="ts">14:22</span><span class="tx">It's a couple of lines of code to hook the stream into the client SDK that makes the messages. Uh, the, uh, you should standardize on something, anything. I think MCP is a good idea.</span></div><div class="tline" data-t="874"><span class="ts">14:34</span><span class="tx">If you don't think it's a good idea, like, just pick something. Um, your future self will thank you. Uh, build some pits of success. You really want to make the right way to do a thing the easiest way to do a thing, and then everyone just falls into doing the right thing naturally.</span></div><div class="tline" data-t="886"><span class="ts">14:46</span><span class="tx">And also centralizing at the correct layer, so solving some shared problems like auth and external connectivity once allows you to spend your time working on, uh, more interesting problems that are more valuable to you and your, your business.</span></div><div class="tline" data-t="900"><span class="ts">15:00</span><span class="tx">Uh, thanks. That's all I got for you. Uh, thank you so much [audience applauding] for coming out. [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,1314 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>从无状态的噩梦到持久化的智能体 | AI 工程师中文版</title>
+<meta name="description" content="一局“二十个问题”游戏暴露了长时间运行智能体的重启问题。Temporal 保住了已完成的工作，而 Python 继续掌控研究工作流。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>从无状态的噩梦到持久化的智能体</h1>
+    <div class="orig-title">From Stateless Nightmares to Durable Agents</div>
+    <div class="meta"><span class="speaker">Samuel Colvin</span> · AI Engineer Code 2025 · 22:13</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=harness-engineering">框架工程</a><a class="tag" href="../../index.html#topic=workflow-automation">工作流自动化</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/flf_IKnFYnE-from-stateless-nightmares-durable-agents" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="flf_IKnFYnE"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=flf_IKnFYnE" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">当重启本身成为问题</div></div>
+      <div class="label row">章节跳转 <span>共 10 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="0"><span class="ts">0:00</span><span>当重启本身成为问题</span></li><li data-t="76"><span class="ts">1:16</span><span>两个智能体尝试识别一颗土豆</span></li><li data-t="246"><span class="ts">4:06</span><span>记录外部工作，重放控制流</span></li><li data-t="426"><span class="ts">7:06</span><span>重试一次失败，然后杀掉进程</span></li><li data-t="644"><span class="ts">10:44</span><span>一个持久的智能体仍然可能出错</span></li><li data-t="739"><span class="ts">12:19</span><span>用更小的智能体组成研究</span></li><li data-t="897"><span class="ts">14:57</span><span>规划、并行搜索，再综合</span></li><li data-t="1010"><span class="ts">16:50</span><span>保留 Python，加上持久化的边界</span></li><li data-t="1128"><span class="ts">18:48</span><span>恢复止于尚未完成的活动</span></li><li data-t="1275"><span class="ts">21:15</span><span>示例与即将推出的网关</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 13 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Temporal streaming documentation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Temporal streaming documentation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Pydantic AI’s Temporal docs show an event stream handler as the streaming workaround. The agent runs in the workflow, and an external system can carry events between processes.
+
+[0:11](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=11s) [Pydantic AI documentation describing streaming with Temporal, shown beside the presenter.](https://assets.ai.engineer/sites/aiecode2025/sha256/f23bdae597aa43169ca4c74873e98920158fdf687323064f67165810f21a91b0.webp)
+
+To account for these limitations, tool functions and the event stream handler running [illegible] activities receive a limited version of the agent's RunContext, and it's your responsib[illegible] sure that the dependencies object provided to TemporalAgent.run() can be serializ[illegible] Pydantic.
+
+Specifically, only the deps, retries, tool_call_id, tool_name, tool_call_approved, retry, max_retries and run_step fields are available by default, and trying to access model, usage, prompt, messages, or tracer will raise an error. If you need one or more of these attributes to be available inside activities, you can create a TemporalRunContext subclass with custom serialize_run_context and deserialize_run_context class methods and pass it to TemporalAgent as run_context_type.
+
+Streaming
+
+Because Temporal activities cannot stream output directly to the activity call site, Agent.run_stream(), Agent.run_stream_events(), and Agent.iter() are not supported.
+
+Instead, you can implement streaming by setting an event_stream_handler on the Agent or TemporalAgent instance and using TemporalAgent.run() inside the workflow. The event stream handler function will receive the agent run context and an async iterable of events from the model's streaming response and the agent's execution of tools. For examples, see the streaming docs.
+
+As the streaming model request activity, workflow, and workflow execution call all take place in separate processes, passing data between them requires some care:
+
+- To get data from the workflow call site or workflow to the event stream handler, you can use a dependencies object.
+- To get data from the event stream handler to the workflow, workflow call site, or a frontend, you need to use an external system that the event stream handler can write to and the event consumer can read from, like a message queue. You can use the dependency object to make [illegible]
+
+Interface text:
+Samuel Colvin (Pydantic)
+Temporal
+Search
+Pydantic AI
+Multi-Agent Patterns
+Testing
+Pydantic Evals
+Overview
+Pydantic Graph
+Overview
+Integrations
+Debugging &amp; Monitoring with Pydantic Logfire
+Durable Execution
+Overview
+Temporal
+DBOS
+Agent-User Interaction (AG-UI)
+Agent2Agent (A2A)
+Related Packages
+Clai
+Examples
+Setup
+Getting Started
+Conversational Agents
+Data &amp; Analytics
+Streaming
+Complex Workflows
+Considerations
+Agent Names and Toolset IDs
+Instructions Functions, Output Functions, and History Processors
+Agent Run Context and Dependencies
+Streaming
+Activity Configuration
+Activity Retries
+Observability with Logfire
+Known Issues
+Pandas
+Chrome
+File
+Edit
+View
+History
+Bookmarks
+Profiles
+Tab
+Window
+Help
+Temporal - Pydantic AI
+ai.pydantic.dev/durable_execution/temporal/#streaming
+Gmail
+Calendar
+Google Keep
+Pydantic deck
+samuelcolvin
+Pydantic Org
+pydantic-ai
+paig
+paig-console
+GitHub
+Logfire
+https://ai.pydantic.dev/durable_execution/temporal/</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Twenty-questions answerer agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Twenty-questions answerer agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Colvin starts a two-agent twenty-questions demo without durable execution. The answerer uses five graded responses and is instructed to answer truthfully about a secret object.
+
+[0:42](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=42s) [Python code defining answer choices and a Pydantic AI agent for a twenty-questions game.](https://assets.ai.engineer/sites/aiecode2025/sha256/432edf85a33a2d1198983d79b675f3f22b58d2f0036754c7be230da912c0451d.webp)
+
+import asyncio
+from dataclasses import dataclass
+from enum import StrEnum
+
+from pydantic_ai import Agent, AgentRunResult, RunContext, Usage[illegible]
+
+class Answer(StrEnum):
+    yes = 'yes'
+    kind_of = 'kind of'
+    not_really = 'not really'
+    no = 'no'
+    complete_wrong = 'complete wrong'
+
+answerer_agent = Agent(
+    'anthropic:claude-3-5-haiku-latest',
+    # 'groq:openai/gpt-oss-120b',
+    deps_type=str,
+    instructions=&quot;&quot;&quot;
+You are playing a question and answer game.
+Your job is to answer questions about a secret object only you know truthfully.
+&quot;&quot;&quot;,
+    output_type=Answer,
+)
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py
+durable-exec/twenty_questions.py
+pydantic-demo
+.claude
+.github/workflows
+.logfire
+.ruff_cache
+.venv
+distributed-frontend-example
+durable-exec
+  __pycache__
+  deep_research.py
+  deep_research_durable.py
+  twenty_questions.py
+  twenty_questions_durable.py
+  twenty_questions_evals.py
+fastapi-example
+logfire-hello-world
+pai-hello
+pai-mcp-sampling
+  .logfire
+  __pycache__
+  client.py
+  generate_svg.py
+  README.md
+pai-memory
+pai-pydantic
+  retry.py
+  simple.py
+pai-weather
+scratch
+.gitignore
+.pre-commit-config.yaml
+.python-version
+a-pink-robot_punk.svg
+a-pink-robot_punk-style.svg
+LICENSE
+Makefile
+pyproject.toml
+robot_punk-pink.svg
+README.md
+uv.lock
+14:1  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Twenty Questions answerer agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Twenty Questions answerer agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The answerer agent receives the secret object through a dynamic instruction and replies using five predefined choices, giving the questioner more information than a yes-or-no answer.
+
+[1:12](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=72s) [Python code showing the answerer agent, its dynamic instruction function, and the beginning of a game state class.](https://assets.ai.engineer/sites/aiecode2025/sha256/39dda3b7eaefede41594326f7db7c5f0a4586f0d998e1b1c0f133fded297f9e8.webp)
+
+yes = 'yes'
+    kind_of = 'kind of'
+    not_really = 'not really'
+    no = 'no'
+    complete_wrong = 'complete wrong'
+
+answerer_agent = Agent(
+    'anthropic:claude-3-5-haiku-latest',
+    # 'groq:openai/gpt-oss-120b',
+    deps_type=str,
+    instructions=&quot;&quot;&quot;
+You are playing a question and answer game.
+Your job is to answer questions about a secret object only you know truthfully.
+&quot;&quot;&quot;,
+    output_type=Answer,
+)
+
+@answerer_agent.instructions
+def add_answer(ctx: RunContext[str]) -&gt; str:
+    return f'THE SECRET OBJECT IS: &quot;{ctx.deps}&quot;.'
+
+@dataclass
+class GameState:
+    answer: str
+
+Interface text:
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py
+durable-exec/twenty_questions.py
+Samuel Colvin (Pydantic)
+Project files: .claude, .github/workflows, .logfire, .ruff_cache, .venv, distributed-frontend-example, durable-exec, __pycache__, deep_research.py, deep_research_durable.py, twenty_questions.py, twenty_questions_durable.py, twenty_questions_evals.py, fastapi-example, logfire-hello-world, pai-hello, pai-mcp-sampling, client.py, generate_svg.py, README.md, pai-memory, pai-pydantic, retry.py, simple.py, pai-weather, scratch, .gitignore, .pre-commit-config.yaml, .python-version, a-pink-robot_punk.svg, a-pink-robot_punk-style.svg, LICENSE, Makefile, pyproject.toml, robot_punk-pink.svg, README.md, uv.lock
+14:1  Python 3.12.7 (venv)  Python
+
+[1:26](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=86s) [Code defining answer choices and an agent that answers questions about a secret object.](https://assets.ai.engineer/sites/aiecode2025/sha256/0363240f3f23fa7c67809c93e55372ef7ae7273231321cdba5e38ff6e1a65512.webp)
+
+class Answer(StrEnum):
+    yes = 'yes'
+    kind_of = 'kind of'
+    not_really = 'not really'
+    no = 'no'
+    complete_wrong = 'complete wrong'
+
+answerer_agent = Agent(
+    'anthropic:claude-3-5-haiku-latest',
+    # 'groq:openai/gpt-oss-120b',
+    deps_type=str,
+    instructions=&quot;&quot;&quot;
+You are playing a question and answer game.
+Your job is to answer questions about a secret object only you know truthfully.
+&quot;&quot;&quot;,
+    output_type=Answer,
+)
+
+@answerer_agent.instructions
+def add_answer(ctx: RunContext[str]) -&gt; str:
+    return f'THE SECRET OBJECT IS: &quot;{ctx.deps}&quot;.'
+
+Interface text:
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py
+durable-exec/twenty_questions.py
+Samuel Colvin (Pydantic)
+Samuel Colvin, 16 hours ago
+Project files: .claude, .github/workflows, .logfire, .ruff_cache, .venv, distributed-frontend-example, durable-exec, __pycache__, deep_research.py, deep_research_durable.py, twenty_questions.py, twenty_questions_durable.py, twenty_questions_evals.py, fastapi-example, logfire-hello-world, pai-hello, pai-mcp-sampling, client.py, generate_svg.py, README.md, pai-memory, pai-pydantic, retry.py, simple.py, pai-weather, scratch, .gitignore, .pre-commit-config.yaml, .python-version, a-pink-robot_punk.svg, a-pink-robot_punk-style.svg, LICENSE, Makefile, pyproject.toml, robot_punk-pink.svg, README.md, uv.lock
+16:12  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Twenty Questions questioner agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Twenty Questions questioner agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The questioner narrows down a secret object by asking strategic questions. Its ask_question tool runs the answerer agent and returns the response for the next question.
+
+[1:54](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=114s) [Code defines an agent that asks strategic questions and a tool that calls the answerer agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/47f1a8c7314a73af45bca78e56c01b4ef6e86dee6688b24b4b6a1df7589329c3.webp)
+
+answer: str
+
+# Agent that asks questions to guess the object
+questioner_agent = Agent(
+    'anthropic:claude-sonnet-4-5',
+    deps_type=GameState,
+    instructions=&quot;&quot;&quot;
+You are playing a question and answer game. You need to guess what object the other player is thinking of.
+Your job is to ask quantitative questions to narrow down the possibilities.
+
+Start with broad questions (e.g., &quot;Is it alive?&quot;, &quot;Is it bigger than a breadbox?&quot;) and get more specific.
+When you're confident, make a guess by saying &quot;Is it [specific object]?&quot;
+
+You should ask strategic questions based on the previous answers.
+&quot;&quot;&quot;,
+)
+
+@questioner_agent.tool
+async def ask_question(ctx: RunContext[GameState], question: str) -&gt; Answer:
+    result = await answerer_agent.run(question, deps=ctx.deps.answer)
+    print(f'{ctx.run_step:&gt;2}: {question}: {result.output}')
+    return result.output
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+durable-exec/twenty_questions.py
+.claude
+.github/workflows
+.logfire
+.ruff_cache
+.venv
+distributed-frontend-example
+durable-exec
+__pycache__
+deep_research.py
+deep_research_durable.py
+twenty_questions.py
+twenty_questions_durable.py
+twenty_questions_evals.py
+fastapi-example
+logfire-hello-world
+pai-hello
+pai-mcp-sampling
+.logfire
+__pycache__
+client.py
+generate_svg.py
+README.md
+pai-memory
+pai-pydantic
+retry.py
+simple.py
+pai-weather
+scratch
+.gitignore
+.pre-commit-config.yaml
+.python-version
+a-pink-robot_punk.svg
+a-pink-robot_punk-style.svg
+LICENSE
+Makefile
+pyproject.toml
+robot_punk-pink.svg
+README.md
+uv.lock
+69:29 (6 characters)  Python 3.12.7 (venv)  Python
+
+[2:16](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=136s) [Code defining a questioner agent and a tool that calls the answerer agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/ef8f9e4503a442f97f1f6ca5062cd947b4b734e996ab1e2ed8a6ae62fe376abb.webp)
+
+# Agent that asks questions to guess the object
+questioner_agent = Agent(
+    'anthropic:claude-sonnet-4-5',
+    deps_type=GameState,
+    instructions=&quot;&quot;&quot;
+You are playing a question and answer game. You need to guess what object the other player is thinking of.
+Your job is to ask quantitative questions to narrow down the possibilities.
+
+Start with broad questions (e.g., &quot;Is it alive?&quot;, &quot;Is it bigger than a breadbox?&quot;) and get more specific.
+When you're confident, make a guess by saying &quot;Is it [specific object]?&quot;
+
+You should ask strategic questions based on the previous answers.
+&quot;&quot;&quot;,
+)
+
+@questioner_agent.tool
+async def ask_question(ctx: RunContext[GameState], question: str) -&gt; Answer:
+    result = await answerer_agent.run(question, deps=ctx.deps.answer)
+    print(f'{ctx.run_step:&gt;2}: {question}: {result.output}')
+    return result.output
+
+async def play(answer: str) -&gt; AgentRunResult[str]:
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+durable-exec/twenty_questions.py › async def ask_question
+.claude
+.github/workflows
+.logfire
+.ruff_cache
+.venv
+distributed-frontend-example
+durable-exec
+__pycache__
+deep_research.py
+deep_research_durable.py
+twenty_questions.py
+twenty_questions_durable.py
+twenty_questions_evals.py
+fastapi-example
+logfire-hello-world
+pai-hello
+pai-mcp-sampling
+.logfire
+__pycache__
+client.py
+generate_svg.py
+README.md
+pai-memory
+pai-pydantic
+retry.py
+simple.py
+pai-weather
+scratch
+.gitignore
+.pre-commit-config.yaml
+.python-version
+a-pink-robot_punk.svg
+a-pink-robot_punk-style.svg
+LICENSE
+Makefile
+pyproject.toml
+robot_punk-pink.svg
+README.md
+uv.lock
+Samuel Colvin, 24 minutes ago
+55:60 (8 characters)  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="A completed guessing run" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A completed guessing run</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The questioner narrows the object down through ten questions and guesses a potato. Its ask_question tool calls an answerer agent to decide each response.
+
+[2:25](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=145s) [Terminal output shows the agent narrowing down its guesses and identifying a potato.](https://assets.ai.engineer/sites/aiecode2025/sha256/eb2b30d3cb14fbbbca8ef551c0a83db516c23e78651831d3d885f67085b80d2d.webp)
+
+code/pydantic-demo 0 ➤ uv run durable-exec/twenty_questions.py
+1: Is it a living thing?: kind of
+2: Is it currently alive (growing, breathing, etc.)?: no
+3: Is it made from something that was once alive (like wood, leather, or food)?: yes
+4: Is it something you would eat?: yes
+5: Is it a fruit or vegetable?: yes
+6: Is it a fruit?: no
+7: Does it grow underground (like a root vegetable)?: yes
+8: Is it orange in color?: no
+9: Is it typically brown or tan on the outside?: yes
+10: Is it a potato?: yes
+After 11.0, the answer is: Excellent! I guessed it! 🎉
+
+**The answer is: a potato!**
+
+That was a fun game! The &quot;kind of&quot; answer to whether it's alive made sense because a potato is a tuber that was once part of a living plant, and technically can sprout and grow if planted, but in its harvested form it's not actively alive in the traditional sense.
+
+code/pydantic-demo 0 ➤ uv run durable-exec/twenty_questions.py
+
+Interface text:
+Samuel Colvin (Pydantic)
+Ghostty  File  Edit  View  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py
+durable-exec/twenty_questions.py › async def ask_question
+~/code/pydantic-demo
+temporal server start-dev
+Python 3.12.7 (venv)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Twenty Questions demo" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Twenty Questions demo</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent narrows a potato down through ten questions, then starts another run with a different sequence of questions. Colvin notes that a run can sometimes take up to about fifty steps.
+
+[2:41](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=161s) [Terminal output shows a completed potato guess followed by the first three questions of a new run.](https://assets.ai.engineer/sites/aiecode2025/sha256/1ba6ad680e4926bb30fa3909c8dad27366b3cbbaf8df7c17da2bfb33463534fc.webp)
+
+uv run durable-exec/twenty_questions.py
+1: Is it a living thing?: kind of
+2: Is it currently alive (growing, breathing, etc.)?: no
+3: Is it made from something that was once alive (like wood, leather, or food)?: yes
+4: Is it something you would eat?: yes
+5: Is it a fruit or vegetable?: yes
+6: Is it a fruit?: no
+7: Does it grow underground (like a root vegetable)?: yes
+8: Is it orange in color?: no
+9: Is it typically brown or tan on the outside?: yes
+10: Is it a potato?: yes
+After 11.0, the answer is: Excellent! I guessed it! 🎉
+
+**The answer is: a potato!**
+
+That was a fun game! The &quot;kind of&quot; answer to whether it's alive made sense because a potato is a tuber that was once part of a living plant, and technically can sprout and grow if planted, but in its harvested form it's not actively alive in the traditional sense.
+
+uv run durable-exec/twenty_questions.py
+1: Is it a living thing?: kind of
+2: Is it a plant or made from plant material?: yes
+3: Is it something you would typically find indoors?: yes
+
+Interface text:
+Ghostty  File  Edit  View  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py
+durable-exec/twenty_questions.py › async def ask_question
+temporal server start-dev
+uv run durable-exec/twenty_questions.py
+Samuel Colvin (Pydantic)
+Answer: Samuel Colvin, 24 minutes ago
+[illegible]mits=UsageLimits(request_limit=25))
+[illegible]esult.output}')
+if __name__ == '__main__':
+55:60 (8 characters)  Python 3.12.7 (venv)  Python
+
+[2:53](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=173s) [Terminal shows a successful potato guess and six questions in a second game.](https://assets.ai.engineer/sites/aiecode2025/sha256/bdb5102b81db44dd73a4fd4261c26f5db835fb16b94c5ed582e2a6d7db010bc2.webp)
+
+uv run durable-exec/twenty_questions.py
+1: Is it a living thing?: kind of
+2: Is it currently alive (growing, breathing, etc.)?: no
+3: Is it made from something that was once alive (like wood, leather, or food)?: yes
+4: Is it something you would eat?: yes
+5: Is it a fruit or vegetable?: yes
+6: Is it a fruit?: no
+7: Does it grow underground (like a root vegetable)?: yes
+8: Is it orange in color?: no
+9: Is it typically brown or tan on the outside?: yes
+10: Is it a potato?: yes
+After 11.0, the answer is: Excellent! I guessed it! 🎉
+
+**The answer is: a potato!**
+
+That was a fun game! The &quot;kind of&quot; answer to whether it's alive made sense because a potato is a tuber that was once part of a living plant, and technically can sprout and grow if planted, but in its harvested form it's not actively alive in the traditional sense.
+
+uv run durable-exec/twenty_questions.py
+1: Is it a living thing?: kind of
+2: Is it a plant or made from plant material?: yes
+3: Is it something you would typically find indoors?: yes
+4: Is it larger than a breadbox?: kind of
+5: Is it something you would eat or drink?: yes
+6: Is it a fruit?: no
+
+Interface text:
+Ghostty  File  Edit  View  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py
+durable-exec/twenty_questions.py › async def ask_question
+temporal server start-dev
+uv run durable-exec/twenty_questions.py
+Samuel Colvin (Pydantic)
+Answer: Samuel Colvin, 24 minutes ago
+[illegible]mits=UsageLimits(request_limit=25))
+[illegible]esult.output}')
+if __name__ == '__main__':
+55:60 (8 characters)  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Interrupted demo run" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Interrupted demo run</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Twenty Questions run ends with a KeyboardInterrupt. Colvin explains that if a run dies, restarting means starting from scratch—a growing problem as tasks get longer.
+
+[2:57](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=177s) [Terminal displays a Python traceback ending in KeyboardInterrupt.](https://assets.ai.engineer/sites/aiecode2025/sha256/45a815d839fbdc8ddf71e290928ab6a72f428be466758951c5dd41ac9a72a8b5.webp)
+
+async for event in self._handle_tool_calls(ctx, tool_calls):
+  File &quot;/Users/samuel/code/pydantic-demo/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py&quot;, line 654, in [illegible]
+e_tool_calls
+    async for event in process_tool_calls(
+  File &quot;/Users/samuel/code/pydantic-demo/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py&quot;, line 835, in [illegible]
+s_tool_calls
+    async for event in _call_tools(
+  File &quot;/Users/samuel/code/pydantic-demo/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py&quot;, line 962, in _call_
+tools
+    done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+  File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/tasks.py&quot;, line 464, in
+wait
+    return await _wait(fs, timeout, return_when, loop)
+  File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/tasks.py&quot;, line 550, in
+_wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File &quot;/Users/samuel/code/pydantic-demo/durable-exec/twenty_questions.py&quot;, line 69, in &lt;module&gt;
+    asyncio.run(play('potato'))
+  File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/runners.py&quot;, line 194,
+in run
+    return runner.run(main)
+  File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/runners.py&quot;, line 123,
+in run
+    raise KeyboardInterrupt()
+KeyboardInterrupt
+
+Interface text:
+Ghostty  File  Edit  View  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py
+durable-exec/twenty_questions.py &gt; async def ask_question
+uv run durable-exec/twenty_questions.py
+temporal server start-dev
+Samuel Colvin (Pydantic)
+Answer:  Samuel Colvin, 24 minutes ago
+[illegible]mits=UsageLimits(request_limit=25))
+[illegible]esult.output}')
+if __name__ == '__main__':
+55:60 (8 characters)  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Restarting the Twenty Questions demo" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Restarting the Twenty Questions demo</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After the interrupted run, Colvin restarts the game from scratch. The new run begins by asking whether the object is a living thing; the answer is “kind of.”
+
+[3:14](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=194s) [Terminal shows the interruption traceback followed by the launched command.](https://assets.ai.engineer/sites/aiecode2025/sha256/e8b1279170a9d96aff7542a85b0682a6497826a05754f1f37a449c15000d156f.webp)
+
+File &quot;/Users/samuel/code/pydantic-demo/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py&quot;, line 654, in [illegible]
+e_tool_calls
+    async for event in process_tool_calls(
+File &quot;/Users/samuel/code/pydantic-demo/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py&quot;, line 835, in [illegible]
+s_tool_calls
+    async for event in _call_tools(
+File &quot;/Users/samuel/code/pydantic-demo/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py&quot;, line 962, in [illegible]
+tools
+    done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/tasks.py&quot;, line 464, in wait
+    return await _wait(fs, timeout, return_when, loop)
+File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/tasks.py&quot;, line 550, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File &quot;/Users/samuel/code/pydantic-demo/durable-exec/twenty_questions.py&quot;, line 69, in &lt;module&gt;
+    asyncio.run(play('potato'))
+  File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/runners.py&quot;, line 194, in run
+    return runner.run(main)
+  File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/runners.py&quot;, line 123, in run
+    raise KeyboardInterrupt()
+KeyboardInterrupt
+code/pydantic-demo 130 ➤ uv run durable-exec/twenty_questions.py
+
+Interface text:
+Ghostty  File  Edit  View  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py
+durable-exec/twenty_questions.py › async def ask_question
+temporal server start-dev
+uv run durable-exec/twenty_questions.py
+Samuel Colvin (Pydantic)
+Answer:  Samuel Colvin, 24 minutes ago
+[illegible]mits=UsageLimits(request_limit=25))
+[illegible]esult.output}')
+if __name__ == '__main__':
+55:60 (8 characters)  Python 3.12.7 (venv)  Python
+
+[3:19](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=199s) [Terminal showing an interrupted Python run and the first question after restarting.](https://assets.ai.engineer/sites/aiecode2025/sha256/53510d5e657de85d2e203b7aac4b79ff497ef2beddf263d47f6c1c498faadb76.webp)
+
+e_tool_calls
+    async for event in process_tool_calls(
+File &quot;/Users/samuel/code/pydantic-demo/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py&quot;, line 835, in [illegible]
+s_tool_calls
+    async for event in _call_tools(
+File &quot;/Users/samuel/code/pydantic-demo/.venv/lib/python3.12/site-packages/pydantic_ai/_agent_graph.py&quot;, line 962, in [illegible]
+tools
+    done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/tasks.py&quot;, line 464, in wait
+    return await _wait(fs, timeout, return_when, loop)
+File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/tasks.py&quot;, line 550, in _wait
+    await waiter
+asyncio.exceptions.CancelledError
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File &quot;/Users/samuel/code/pydantic-demo/durable-exec/twenty_questions.py&quot;, line 69, in &lt;module&gt;
+    asyncio.run(play('potato'))
+  File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/runners.py&quot;, line 194, in run
+    return runner.run(main)
+  File &quot;/Users/samuel/.local/share/uv/python/cpython-3.12.7-macos-aarch64-none/lib/python3.12/asyncio/runners.py&quot;, line 123, in run
+    raise KeyboardInterrupt()
+KeyboardInterrupt
+code/pydantic-demo 130 ➤ uv run durable-exec/twenty_questions.py
+1: Is it a living thing?: kind of
+
+Interface text:
+Ghostty  File  Edit  View  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py
+durable-exec/twenty_questions.py › async def ask_question
+temporal server start-dev
+uv run durable-exec/twenty_questions.py
+Samuel Colvin (Pydantic)
+Answer:  Samuel Colvin, 24 minutes ago
+[illegible]mits=UsageLimits(request_limit=25))
+[illegible]esult.output}')
+if __name__ == '__main__':
+55:60 (8 characters)  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Wrapping the answerer agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Wrapping the answerer agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Colvin wraps the answerer in TemporalAgent, which still behaves like a Pydantic AI agent. For this demo, the secret is hard-coded into the answerer's prompt.
+
+[4:09](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=249s) [Code defining a yes-or-no answerer agent and wrapping it with TemporalAgent.](https://assets.ai.engineer/sites/aiecode2025/sha256/843338c73f81aedb8172b9fdff2d5bff9af51a445230adf1eac6fd2fc13854fb.webp)
+
+logfire.instrument_pydantic_ai()
+
+secret = 'potato'
+
+answerer_agent = Agent(
+    'anthropic:claude-3-5-haiku-latest',
+    instructions=f&quot;&quot;&quot;
+You are playing a question and answer game.
+Your job is to answer yes/no questions about the secret object truthfully.
+ALWAYS answer with only true for 'yes' and false for 'no'.
+
+THE SECRET OBJECT IS: {secret}.
+&quot;&quot;&quot;,
+    output_type=bool,
+    name='answerer_agent',
+)
+temporal_answerer_agent = TemporalAgent(answerer_agent)
+
+# Agent that asks questions to guess the object
+questioner_agent = Agent(
+    'anthropic:claude-sonnet-4-0',
+    instructions=&quot;&quot;&quot;
+You are playing a question and answer game. You need to guess what object the other player is thinking of.
+Your job is to ask yes/no questions to narrow down the possibilities.
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py  twenty_questions_durable.py
+durable-exec/twenty_questions_durable.py
+Samuel Colvin, 16 hours ago
+32:40 (13 characters)  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Questioner and answer tool" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Questioner and answer tool</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The questioner asks progressively narrower questions. Its tool calls the Temporal-wrapped answerer, converts its Boolean output to yes or no, and can raise a random error.
+
+[4:26](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=266s) [Code defining the questioner agent and a tool that calls the Temporal-wrapped answerer.](https://assets.ai.engineer/sites/aiecode2025/sha256/dc764147c0aba820959cc8c82f0630298020164cfdd041bdf2bb81e5833a4b39.webp)
+
+# Agent that asks questions to guess the object
+questioner_agent = Agent(
+    'anthropic:claude-sonnet-4-0',
+    instructions=&quot;&quot;&quot;
+You are playing a question and answer game. You need to guess wh[illegible]
+of.
+Your job is to ask yes/no questions to narrow down the possibilities.
+
+Start with broad questions (e.g., &quot;Is it alive?&quot;, &quot;Is it bigger than a breadbox?&quot;) and get more specific.
+When you're confident, make a guess by saying &quot;Is it [specific object]?&quot;
+
+You should ask strategic questions based on the previous answers.
+&quot;&quot;&quot;,
+    name='questioner_agent',
+)
+
+@questioner_agent.tool
+async def ask_question(ctx: RunContext, question: str) -&gt; Literal['yes', 'no']:
+    if random() &gt; 0.2:
+        raise RuntimeError('broken')
+    print(f'{ctx.run_step:&gt;2}: {question}: ', end=' ', flush=True)
+    result = await temporal_answerer_agent.run(question)
+    ans = 'yes' if result.output else 'no'
+    print(ans)
+    return ans
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py  twenty_questions_durable.py
+durable-exec/twenty_questions_durable.py › async def ask_question
+pydantic-demo
+.claude
+.github/workflows
+.logfire
+.ruff_cache
+.venv
+distributed-frontend-example
+durable-exec
+__pycache__
+deep_research.py
+deep_research_durable.py
+twenty_questions.py
+twenty_questions_durable.py
+twenty_questions_evals.py
+fastapi-example
+logfire-hello-world
+pai-hello
+pai-mcp-sampling
+.logfire
+__pycache__
+client.py
+generate_svg.py
+README.md
+pai-memory
+pai-pydantic
+retry.py
+simple.py
+pai-weather
+scratch
+.gitignore
+.pre-commit-config.yaml
+.python-version
+a-pink-robot_punk.svg
+a-pink-robot_punk-style.svg
+LICENSE
+Makefile
+pyproject.toml
+robot_punk-pink.svg
+README.md
+uv.lock
+Samuel Colvin, 16 hours ago
+56:43 (23 characters)  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Answerer and questioner prompts" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Answerer and questioner prompts</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Colvin puts the secret in the answerer’s prompt, wraps that agent in TemporalAgent, and instructs the questioner to narrow down the object with yes/no questions.
+
+[4:29](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=269s) [Code showing the answerer prompt, its Temporal wrapper, and the questioner instructions.](https://assets.ai.engineer/sites/aiecode2025/sha256/e0dfd53a1d94edad19964df20389d61d1cf7f410bc8a49d6b770d631342d4bbc.webp)
+
+You are playing a question and answer game.
+Your job is to answer yes/no questions about the secret object t[illegible]
+ALWAYS answer with only true for 'yes' and false for 'no'.
+
+THE SECRET OBJECT IS: {secret}.
+&quot;&quot;&quot;,
+    output_type=bool,
+    name='answerer_agent',
+)
+temporal_answerer_agent = TemporalAgent(answerer_agent)
+
+# Agent that asks questions to guess the object
+questioner_agent = Agent(
+    'anthropic:claude-sonnet-4-0',
+    instructions=&quot;&quot;&quot;
+You are playing a question and answer game. You need to guess what object the other player is thinking of.
+Your job is to ask yes/no questions to narrow down the possibilities.
+
+Start with broad questions (e.g., &quot;Is it alive?&quot;, &quot;Is it bigger than a breadbox?&quot;) and get more specific.
+When you're confident, make a guess by saying &quot;Is it [specific object]?&quot;
+
+You should ask strategic questions based on the previous answers.
+&quot;&quot;&quot;,
+    name='questioner_agent',
+)
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py  twenty_questions_durable.py
+durable-exec/twenty_questions_durable.py
+pydantic-demo
+.claude
+.github/workflows
+.logfire
+.ruff_cache
+.venv
+distributed-frontend-example
+durable-exec
+  __pycache__
+  deep_research.py
+  deep_research_durable.py
+  twenty_questions.py
+  twenty_questions_durable.py
+  twenty_questions_evals.py
+fastapi-example
+logfire-hello-world
+pai-hello
+pai-mcp-sampling
+  .logfire
+  __pycache__
+  client.py
+  generate_svg.py
+  README.md
+pai-memory
+pai-pydantic
+  retry.py
+  simple.py
+pai-weather
+scratch
+.gitignore
+.pre-commit-config.yaml
+.python-version
+a-pink-robot_punk.svg
+a-pink-robot_punk-style.svg
+LICENSE
+Makefile
+pyproject.toml
+robot_punk-pink.svg
+README.md
+uv.lock
+26:1 (3 lines, 37 characters)  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Twenty Questions Temporal workflow" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Twenty Questions Temporal workflow</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The questioner’s tool can raise a simulated error before calling the answerer. The demo wraps the questioner in TemporalAgent, then runs it inside a TwentyQuestionsWorkflow and prints the result.
+
+[4:35](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=275s) [Code wrapping the questioner agent with TemporalAgent above a workflow definition.](https://assets.ai.engineer/sites/aiecode2025/sha256/78cb6ec6128e1a95b61b9142e8100310af37186f4f620d9a4eb0697f2e4f4868.webp)
+
+Start with broad questions (e.g., &quot;Is it alive?&quot;, &quot;Is it bigger [illegible]
+When you're confident, make a guess by saying &quot;Is it [specific [illegible]
+
+You should ask strategic questions based on the previous answers[illegible]
+&quot;&quot;&quot;,
+    name='questioner_agent',
+)
+
+@questioner_agent.tool
+async def ask_question(ctx: RunContext, question: str) -&gt; Literal['yes', 'no']:
+    if random() &gt; 0.2:
+        raise RuntimeError('broken')
+    print(f'{ctx.run_step:&gt;2}: {question}:', end=' ', flush=True)
+    result = await temporal_answerer_agent.run(question)
+    ans = 'yes' if result.output else 'no'
+    print(ans)
+    return ans
+
+temporal_questioner_agent = TemporalAgent(questioner_agent)
+
+@workflow.defn
+class TwentyQuestionsWorkflow:
+    @workflow.run
+    async def run(self) -&gt; None:
+        [illegible]
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py  twenty_questions_durable.py
+durable-exec/twenty_questions_durable.py
+.claude
+.github/workflows
+.logfire
+.ruff_cache
+.venv
+distributed-frontend-example
+durable-exec
+  __pycache__
+  deep_research.py
+  deep_research_durable.py
+  twenty_questions.py
+  twenty_questions_durable.py
+  twenty_questions_evals.py
+fastapi-example
+logfire-hello-world
+pai-hello
+pai-mcp-sampling
+  .logfire
+  __pycache__
+  client.py
+  generate_svg.py
+  README.md
+pai-memory
+pai-pydantic
+  retry.py
+  simple.py
+pai-weather
+scratch
+.gitignore
+.pre-commit-config.yaml
+.python-version
+a-pink-robot_punk.svg
+a-pink-robot_punk-style.svg
+LICENSE
+Makefile
+pyproject.toml
+robot_punk-pink.svg
+README.md
+uv.lock
+63:1 (32 characters)  Python 3.12.7 (venv)  Python
+
+[4:40](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=280s) [Code editor showing a questioner agent wrapped in TemporalAgent and run inside a TwentyQuestionsWorkflow.](https://assets.ai.engineer/sites/aiecode2025/sha256/7658a7ea28dd81fc63c548fc0885099c6be32f3bd16b4f52f9f96c8d9e20215f.webp)
+
+async def ask_question(ctx: RunContext, question: str) -&gt; Litera[illegible]
+    if random() &gt; 0.2:
+        raise RuntimeError('broken')
+    print(f'{ctx.run_step:&gt;2}: {question}:', end=' ', flush=True[illegible]
+    result = await temporal_answerer_agent.run(question)
+    ans = 'yes' if result.output else 'no'
+    print(ans)
+    return ans
+
+temporal_questioner_agent = TemporalAgent(questioner_agent)
+
+@workflow.defn
+class TwentyQuestionsWorkflow:
+    @workflow.run
+    async def run(self) -&gt; None:
+        result = await temporal_questioner_agent.run('start')
+        print(f'After {len(result.all_messages()) / 2}, the answer is: {result.output}')
+
+async def play(resume_id: str | None):
+    client = await Client.connect('localhost:7233', plugins=[PydanticAIPlugin(), LogfirePlugin()])
+
+async with Worker(
+        client,
+        task_queue='twenty_questions',
+        [illegible]
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview  File  Edit  Selection  View  Go  Run  Window  Help
+pydantic-demo  durable-agents
+twenty_questions.py  twenty_questions_durable.py
+durable-exec/twenty_questions_durable.py
+.claude
+.github/workflows
+.logfire
+.ruff_cache
+.venv
+distributed-frontend-example
+durable-exec
+  __pycache__
+  deep_research.py
+  deep_research_durable.py
+  twenty_questions.py
+  twenty_questions_durable.py
+  twenty_questions_evals.py
+fastapi-example
+logfire-hello-world
+pai-hello
+pai-mcp-sampling
+  .logfire
+  __pycache__
+  client.py
+  generate_svg.py
+  README.md
+pai-memory
+pai-pydantic
+  retry.py
+  simple.py
+pai-weather
+scratch
+.gitignore
+.pre-commit-config.yaml
+.python-version
+a-pink-robot_punk.svg
+a-pink-robot_punk-style.svg
+LICENSE
+Makefile
+pyproject.toml
+robot_punk-pink.svg
+README.md
+uv.lock
+63:1 (32 characters)  Python 3.12.7 (venv)  Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Durable Twenty Questions with Temporal" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Durable Twenty Questions with Temporal</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The questioner calls an answerer through a tool that can raise a simulated error. The workflow runs the Temporal-wrapped agent; a local worker either starts a workflow or resumes one by ID.
+
+[5:58](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=358s) [Code editor showing the questioner agent's ask_question tool, including a simulated failure and a call to the answerer agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/a08c5f7cc290acf6328dfda65c74ac7abe60212933279fb0cabad109a316fe23.webp)
+
+Start with broad questions (e.g., &quot;Is it alive?&quot;, &quot;Is it bigger [illegible]
+When you're confident, make a guess by saying &quot;Is it [specific o[illegible]
+
+You should ask strategic questions based on the previous answers[illegible]
+&quot;&quot;&quot;,
+    name='questioner_agent',
+)
+
+@questioner_agent.tool
+async def ask_question(ctx: RunContext, question: str) -&gt; Literal['yes', 'no']:
+    if random() &gt; 0.2:
+        raise RuntimeError('broken')
+    print(f'{ctx.run_step:&gt;2}: {question}:', end=' ', flush=True)
+    result = await temporal_answerer_agent.run(question)
+    ans = 'yes' if result.output else 'no'
+    print(ans)
+    return ans
+
+temporal_questioner_agent = TemporalAgent(questioner_agent)
+
+@workflow.defn
+class TwentyQuestionsWorkflow:
+    @workflow.run
+    async def run(self) -&gt; None:
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview
+pydantic-demo / durable-agents
+twenty_questions.py
+twenty_questions_durable.py
+durable-exec/twenty_questions_durable.py
+Python 3.12.7 (venv)
+
+[6:13](https://www.youtube.com/watch?v=flf_IKnFYnE&amp;t=373s) [Python code defines a workflow and configures a Temporal worker with an option to resume an existing workflow.](https://assets.ai.engineer/sites/aiecode2025/sha256/cf62901492c04ddf31a8ab9eaa807908b576417029e7b4cc63ab7891b92d477b.webp)
+
+@workflow.defn
+class TwentyQuestionsWorkflow:
+    @workflow.run
+    async def run(self) -&gt; None:
+        result = await temporal_questioner_agent.run('start')
+        print(f'After {len(result.all_messages()) / 2}, the answer is: {result.output}')
+
+async def play(resume_id: str | None):
+    client = await Client.connect('localhost:7233', plugins=[PydanticAIPlugin(), LogfirePlugin()])
+
+async with Worker(
+        client,
+        task_queue='twenty_questions',
+        workflows=[TwentyQuestionsWorkflow],
+        plugins=[AgentPlugin(temporal_answerer_agent), AgentPlugin(temporal_questioner_agent)],
+    ):
+        if resume_id is not None:
+            print('resuming existing workflow', resume_id)
+            await client.get_workflow_handle(resume_id).result()  # type: ignore[ReportUnknownMemberType]
+        else:
+            await client.execute_workflow(  # type: ignore[ReportUnknownMemberType]
+                TwentyQuestionsWorkflow.run,
+                id=f'twenty_questions-{uuid.uuid4()}',
+                task_queue='twenty_questions',
+            )
+
+Interface text:
+Samuel Colvin (Pydantic)
+Zed Preview
+pydantic-demo / durable-agents
+twenty_questions.py
+twenty_questions_durable.py
+durable-exec/twenty_questions_durable.py &gt; async def play
+Samuel Colvin, 12 hours ago
+Python 3.12.7 (venv)</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">当重启本身成为问题</a></li><li><a href="#sec-2">两个智能体尝试识别一颗土豆</a></li><li><a href="#sec-3">记录外部工作，重放控制流</a></li><li><a href="#sec-4">重试一次失败，然后杀掉进程</a></li><li><a href="#sec-5">一个持久的智能体仍然可能出错</a></li><li><a href="#sec-6">用更小的智能体组成研究</a></li><li><a href="#sec-7">规划、并行搜索，再综合</a></li><li><a href="#sec-8">保留 Python，加上持久化的边界</a></li><li><a href="#sec-9">恢复止于尚未完成的活动</a></li><li><a href="#sec-10">示例与即将推出的网关</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">从无状态的噩梦到持久化的智能体</h2>
+      <div class="lede"><p>一局“二十个问题”游戏暴露了长时间运行智能体的重启问题。Temporal 保住了已完成的工作，而 Python 继续掌控研究工作流。</p><p>熟悉 Python 异步函数、LLM 工具调用和基本的进程故障会有帮助；不需要 Temporal 经验。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="0">▶ 0:00</button></div>
+      <h3>当重启本身成为问题</h3>
+      <p>What happens when an agent dies after doing useful work? For a single question and response, starting again may be acceptable. For a longer workflow, restarting means paying for completed computation again—and making the user wait through it again. Samuel Colvin explores that boundary with Pydantic AI, Temporal, Pydantic Logfire, and Pydantic Evals. At the time of the recording, Pydantic AI supports Temporal and DBOS, with roughly five pull requests proposing other execution or orchestration backends.</p>
+<p>Deep research is the motivating workload: enough time and computation accumulate that losing progress becomes expensive. Colvin tentatively identifies Temporal as infrastructure behind OpenAI’s deep research; that attribution is not established here. His own demonstration starts smaller, with a game whose intermediate work is easy to follow, before building a research pipeline.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="76">▶ 1:16</button></div>
+      <h3>两个智能体尝试识别一颗土豆</h3>
+      <p>The game has two agents. An answerer knows the secret object; a questioner must discover it. Rather than restricting replies to yes or no, the answerer can give qualified responses such as kind of or completely wrong. The extra information helps shorten otherwise slow games. The answerer uses <strong>Claude Haiku 3.5</strong>, and the secret—potato—is added to its context.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/4b0a6e22c7f67e475daa0cee45c49c48f0f172d050230c8a627ae336847828e0" alt="Python editor showing the Answer enumeration, answerer agent configuration, and a function adding the secret object to its instructions." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The twenty-questions answerer defines its response choices and receives the secret object through context.</figcaption></figure>
+<p>The questioner receives instructions for playing and asks questions through <code>ask_question</code>. That tool runs the answerer agent and returns its response, so one agent’s tool call becomes another agent’s inference request. Colvin points to the public <a href="https://github.com/pydantic/pydantic-stack-demo/tree/main/durable-exec" target="_blank" rel="noopener">companion examples</a>, then still in a pull request he intends to merge after the demonstration.</p>
+<p>One run narrows the object through fruit versus vegetable, rules out fruit, asks whether it is orange, and eventually reaches potato. Other runs wander. Colvin reports that the game sometimes takes around fifty steps. If an endpoint fails or Kubernetes terminates the process during scaling, rerunning the ordinary script starts the game from scratch. Every completed exchange disappears from the new run’s working history.</p>
+<p>The toy has the same dependency structure as deep research. Each answer informs the next question; a search or retrieval step plays the role of the answerer. Colvin likens it to asking the troll at the bottom of the garden for the next riddle on a quest. Replace that intermediary with web search or RAG, and preserving the chain of discoveries becomes a practical infrastructure requirement.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="246">▶ 4:06</button></div>
+      <h3>记录外部工作，重放控制流</h3>
+      <p>The durable version wraps both agents in <code>TemporalAgent</code>, which behaves like a Pydantic AI agent and subclasses <code>AbstractAgent</code>. For simplicity, this version puts potato directly into the answerer’s system prompt rather than passing it through context. The agent logic otherwise stays much the same. This is the recording’s API: the <a href="https://pydantic.dev/docs/ai/capabilities/durable_execution/temporal/" target="_blank" rel="noopener">current Temporal integration guide</a> recommends <code>TemporalDurability</code> and deprecates the wrapper approach.</p>
+<p>Temporal separates <strong>workflows</strong> from <strong>activities</strong>. Workflow code must be deterministic so it can reproduce the same control flow during replay. External I/O and nondeterministic operations belong outside that replayable logic, in activities. Temporal records activity inputs and results; when it reconstructs a workflow, it supplies the recorded answers instead of repeating completed external operations.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/cd8207a18eb10c68de53be6d5dfce654a0c20ebba8de1ffc6be4d35b4fd0c801" alt="Python code showing the questioner wrapped in TemporalAgent, the TwentyQuestionsWorkflow class, and client and worker setup below." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A TemporalAgent wrapper and the twenty-questions workflow.</figcaption></figure>
+<p>| Component | Responsibility | During replay |
+| --- | --- | --- |
+| Workflow | Branches, sequencing, orchestration | Runs again deterministically |
+| Completed activity | External operation with a recorded result | Returns the recorded result |
+| <code>TemporalAgent</code> | Turns model and tool I/O into activities | Preserves the agent-facing interface |</p>
+<p>The wrapper makes the activity boundaries largely implicit, including the tool call that invokes the second agent. Colvin criticizes OpenAI’s then-current integration for lacking tool activities. The narrower distinction matters: a <a href="https://community.temporal.io/t/openai-agents-tools/18110" target="_blank" rel="noopener">dated Temporal support example</a> documents explicit <code>activity_as_tool</code> wrapping, so the blanket claim should not be read as an absence of any tool-activity support. Automatic wrapping and explicit adapters are different integration choices.</p>
+<p>The runtime has three roles: a server stores execution history, a worker runs workflow code and activities, and a client starts or waits for workflows. Colvin connects to a separate local open-source Temporal server through <code>localhost</code>; he can reset this demo server to clear its state. He presents Temporal Cloud as a production deployment option. The launch call is <code>execute_workflow</code>, supplied with the workflow and its inputs. This version of twenty questions has no launch inputs because the answer is already in the prompt.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="426">▶ 7:06</button></div>
+      <h3>重试一次失败，然后杀掉进程</h3>
+      <p>The first durable run immediately raises an exception. Colvin has deliberately made the tool fail with a 20% probability. Temporal retries, but the demonstration then appears to stop progressing; the cause is not established. He resets the local server and reruns with a 10% injected failure probability. This time, questions continue despite occasional errors. These are configured fault-injection probabilities, not observed production failure rates.</p>
+<p>Retries alone could be implemented without Temporal. The stronger test is to terminate the agent process while it is working and preserve the existing workflow. Colvin kills the process, then opens <a href="https://pydantic.dev/docs/logfire/get-started/" target="_blank" rel="noopener">Pydantic Logfire</a>. Its trace shows the Claude requests and the nested activity running the answerer. Recovery proceeds through the workflow’s identity:</p>
+<p>1. Open the top-level workflow-start trace and copy its workflow ID.
+2. Pass that ID to the demo script’s resume option.
+3. Restart the worker and wait for that existing workflow to finish.</p>
+<p>The explicit ID is a convenience for this launch script: running it normally would start another workflow alongside the unfinished one. It is not resume logic added throughout the agents.</p>
+<p>The restarted run quickly reaches question six and continues. Colvin reports roughly five-millisecond responses for the replayed LLM calls. Those responses come from recorded activity results, not fresh inference. The workflow executes its ordinary procedural logic, consumes the saved answers, and moves forward until it reaches work that still needs external I/O. <strong>Recovery replays the program while reusing completed work.</strong> It does not ask the model to reconstruct its previous reasoning.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="644">▶ 10:44</button></div>
+      <h3>一个持久的智能体仍然可能出错</h3>
+      <p>The recovered questioner keeps running, but its reasoning is not improving: it starts exploring whether the object might be a salad bowl. That leads into a separate question—how should the models be compared? Colvin uses <a href="https://github.com/pydantic/pydantic-stack-demo/blob/main/durable-exec/twenty_questions_evals.py" target="_blank" rel="noopener">Pydantic Evals for twenty questions</a>, showing <strong>GPT-4.1</strong>, <strong>Gemini</strong>, and <strong>Claude Sonnet 4.5</strong>. The displayed results include assertion outcomes, average cost, speed, and question count.</p>
+<p>Gemini initially appears cheaper and faster, reaching an answer in fewer questions. Colvin subsequently inspects its answers and discovers why: it invents an incorrect answer, and his evaluation was not checking correctness. The apparent advantage therefore does not establish better task performance. The current companion evaluation includes normalized answer-equality checking, but that does not repair the comparison displayed in the recording.</p>
+<p>Meanwhile, Colvin leaves the durable game after forty-six steps without a correct identification of the potato. Persistence has protected the sequence of operations; it has not made those operations useful. For this task, correctness must constrain the interpretation of question count, latency, and cost.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="739">▶ 12:19</button></div>
+      <h3>用更小的智能体组成研究</h3>
+      <p>The next example replaces the game with a <a href="https://github.com/pydantic/pydantic-stack-demo/blob/main/durable-exec/deep_research.py" target="_blank" rel="noopener">deep-research pipeline</a>, built as a quick prototype the previous night. Colvin considers its output competitive with other research systems, though he does not present a quality evaluation. It begins with a structured plan: an executive summary describing the intended work, a bounded list of web-search steps, and analysis instructions. The five-step limit keeps the research from running indefinitely. A compact Python representation is:</p>
+<p>```python
+from pydantic import BaseModel, Field</p>
+<p>class DeepResearchPlan(BaseModel):
+    executive_summary: str
+    web_search_steps: list[str] = Field(max_length=5)
+    analysis_instructions: str
+```</p>
+<p>The schema gives the next stages concrete fields to consume rather than requiring them to parse a free-form planning essay.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/3943fb9f40bfe7bd32dfbbb738c69d0c08873560bc9f31ece7e295871fd390a6" alt="Python editor showing the DeepResearchPlan fields and a planning agent configured to output that model." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The deep-research plan defines an executive summary, web-search steps, and analysis instructions.</figcaption></figure>
+<p>This decomposition depends on what agent means. Colvin distinguishes three common uses:</p>
+<p>- <strong>AI:</strong> An LLM calling tools in a loop.
+- <strong>Engineering:</strong> A microservice.
+- <strong>Business:</strong> Something that can replace a human.</p>
+<p>He describes a shift away from assuming one tool-calling loop per microservice. Smaller agents become units of development that combine into a larger autonomous task. Here, deep research is the application assembled from those units.</p>
+<p>| Agent | Job | Output or capability |
+| --- | --- | --- |
+| Planner | Turn the request into a plan | A Pydantic model instance |
+| Searcher | Investigate a planned step | Search tools and result text |
+| Analyst | Synthesize the findings | Final research report |</p>
+<p>The searcher uses <strong>Gemini Flash</strong> for speed; the analyst uses Claude Sonnet 4.5. Colvin keeps the orchestration in ordinary Python because this control flow does not require a graph. For persistence, he prefers the finer activity boundaries of durable execution over graph-level snapshotting. The analyst also has a tool for further web search, although he does not think it uses it in this example.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="897">▶ 14:57</button></div>
+      <h3>规划、并行搜索，再综合</h3>
+      <p>The orchestration has three phases. First, await the planner. Next, launch the planned searches concurrently using Python’s <code>TaskGroup</code>. After the group finishes, collect the search outputs. The concurrency portion can stay this small:</p>
+<p>```python
+import asyncio
+from collections.abc import Awaitable, Callable, Sequence</p>
+<p>async def search_all(
+    steps: Sequence[str],
+    search: Callable[[str], Awaitable[str]],
+) -&gt; list[str]:
+    async with asyncio.TaskGroup() as group:
+        tasks = [group.create_task(search(step)) for step in steps]</p>
+<p>return [task.result() for task in tasks]
+```</p>
+<p>The task group waits for the searches; the result list preserves their planned order. Colvin then uses <code>format_as_xml</code> to package the collected text into readable context for the analysis agent, which produces the final synthesis.</p>
+<p>The request is a sales-research question: find hedge funds that write Python in London. Colvin launches the script with <code>uv run</code> and inspects its progress in Logfire. In the ordinary research run, Colvin observes a nine-second planning step. The trace then shows searches running concurrently, followed by the analysis agent once their results are available. Individual search traces expose the questions, generated queries, retrieved material from sites including Medium, and additional context supplied to the agent.</p>
+<p>During that inspection, Colvin refers to ten parallel searches, although the plan shown earlier is capped at five search steps. The distinction is not explained, so the demonstrated bound should be understood as a limit on planned steps, without inferring an exact count of underlying search operations. While analysis is still running, Colvin observes eight cents of cumulative spend. That is an interim cost, not the price of a completed report. Killing this ordinary process would discard its progress and require another run from the beginning.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1010">▶ 16:50</button></div>
+      <h3>保留 Python，加上持久化的边界</h3>
+      <p>The <a href="https://github.com/pydantic/pydantic-stack-demo/blob/main/durable-exec/deep_research_temporal.py" target="_blank" rel="noopener">Temporal research version</a> follows the same pipeline, with one recording-specific substitution. Colvin reports a Vertex SDK incompatibility with Temporal and switches to OpenAI Responses plus Tavily instead of built-in search. He duplicates the example for readability, although the shared code could have been imported.</p>
+<p>Each agent receives a <code>TemporalAgent</code> wrapper. The analysis activity also receives a one-hour timeout because synthesis had exceeded a shorter limit. Colvin is unsure of that earlier default, so the useful operational point is to size an activity timeout for its actual workload, not to infer a universal default from the demonstration.</p>
+<p>Inside the workflow, the orchestration remains imperative Python. The same <code>TaskGroup</code> runs concurrent searches; Colvin also names <code>asyncio.gather</code> as an alternative. A hypothetical seven-day sleep illustrates another benefit: Temporal can manage a durable suspension for periodic work instead of requiring a process to remain alive throughout the wait. The final stage still receives the combined context and runs the analyst.</p>
+<p>After registering the agents and observability integrations through plugins, the client again launches with <code>execute_workflow</code>. This time, the question is which Python agent framework is best for durable execution and type safety. The changed research prompt does not change the execution structure: plan, parallel searches, then analysis.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1128">▶ 18:48</button></div>
+      <h3>恢复止于尚未完成的活动</h3>
+      <p>Logfire shows the workflow starting and searches beginning. Colvin then terminates the process around the transition into the final stage. Instead of submitting the research request again, he restarts the worker and waits on the same workflow. In a deployed system, another available worker can continue the stored workflow after the original process disappears.</p>
+<p>In the recovered research run, Colvin observes a twenty-four-millisecond replayed planning step. Completed searches also return their stored results almost immediately. The analysis stage still has to execute: Temporal has no completed result to substitute for that activity.</p>
+<p>| Work at interruption | Recovery behavior |
+| --- | --- |
+| Completed plan | Reuse its recorded result |
+| Completed searches | Reuse their recorded results |
+| Analysis without a completed result | Execute the activity |</p>
+<p><strong>Durability preserves completed activities, not arbitrary progress inside an activity.</strong> If an activity is interrupted before completion, it must run again from its beginning. Choosing the activity boundary therefore determines how much work a failure can force the application to repeat.</p>
+<p>The report eventually completes and recommends Pydantic AI with Temporal. It includes an executive summary, links, and discussion of Pydantic AI, LangGraph, and Temporal alone. Colvin’s favorable assessment of the report and jokes about competing frameworks are promotional commentary, rather than comparative findings established by this run. What the demonstration does establish is the completion of research after recovery; a polished interface for presenting that research remains to be built.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1275">▶ 21:15</button></div>
+      <h3>示例与即将推出的网关</h3>
+      <p>Colvin closes by returning to the public <code>pydantic-stack-demo</code> repository and reiterating his plan to merge the durable-execution examples. The repository and on-screen QR code give viewers a route to the code behind the demonstrations.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/fd81ccbda234f505cc3a794e3f532f8e5009fdcc2cde1a639b1de4d048e03307" alt="GitHub repository page for pydantic/pydantic-stack-demo showing example folders, with a QR code beneath the speaker inset." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The public pydantic-stack-demo repository, with an on-screen QR code.</figcaption></figure>
+<p>He also previews Pydantic AI Gateway, still forthcoming in the recording, and invites requests for early access. His proposed capabilities include buying inference from major providers and most open-source models, enterprise self-hosting, and observability. This extends the stack beyond orchestrating and inspecting agent work to providing access to the models that perform it.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/pydantic/pydantic-stack-demo/tree/main/durable-exec" target="_blank" rel="noopener">Durable agent demo code</a> — Python examples for twenty questions, deep research, evaluations, and Temporal and DBOS execution.</li><li><a href="https://pydantic.dev/docs/ai/capabilities/durable_execution/temporal/" target="_blank" rel="noopener">Current Pydantic AI Temporal integration</a> — Current setup and execution guidance, including the capability API that supersedes the demonstrated agent wrapper.</li><li><a href="https://github.com/pydantic/pydantic-stack-demo/blob/main/durable-exec/twenty_questions_evals.py" target="_blank" rel="noopener">Twenty-questions evaluations</a> — Evaluation code measuring question count and answer correctness across a small object dataset.</li><li><a href="https://pydantic.dev/docs/logfire/get-started/" target="_blank" rel="noopener">Get started with Pydantic Logfire</a> — Setup documentation for the observability platform used to inspect the demo's agent runs.</li><li><a href="https://github.com/temporalio/sdk-python/blob/main/temporalio/contrib/openai_agents/README.md" target="_blank" rel="noopener">Temporal integration for the OpenAI Agents SDK</a> — Current Python integration examples, including exposing Temporal activities as agent tools.</li><li><a href="https://pydantic.dev/articles/pydantic-ai-gateway" target="_blank" rel="noopener">Pydantic AI Gateway launch</a> — Samuel Colvin's launch announcement explains provider access, spending controls, observability, and deployment options.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">Hi, I'm Samuel from Pydantic, and today I'm gonna give a demo of Pydantic AI, Temporal, and Pydantic Logfire. I'll also cover Pydantic Evals. So we have in Pydantic AI support for Temporal and DBOS, two durable execution frameworks.</span></div><div class="tline" data-t="16"><span class="ts">0:16</span><span class="tx">We're actually adding a bunch more. I think we've had something like five pull requests to add other durable execution or like workflow orchestration backends. But at the moment it's, it's these two, and I think it's fair to say Temporal are like the big incumbent in this space, and they're, they're kind of, I guess, leaders, leaders in how</span></div><div class="tline" data-t="33"><span class="ts">0:33</span><span class="tx">you do this. To, to demonstrate this simple example of like I go ask an LLM a question, it replies, mostly just works, and we don't need the durable execution component.</span></div><div class="tline" data-t="43"><span class="ts">0:43</span><span class="tx">So, but once we get into longer-running workflows, that's where it really becomes a problem. In particular, where we've done enough compute that we don't wanna lose it, or we've spent enough time on that compute that we really don't wanna have to start again for the user.</span></div><div class="tline" data-t="56"><span class="ts">0:56</span><span class="tx">That's what, for example, I, I think OpenAI, it's-- I think it's public that OpenAI use Temporal for their, um, deep research, and I think some of the other LLM deep research do the same thing.</span></div><div class="tline" data-t="66"><span class="ts">1:06</span><span class="tx">So I'll, I'll start with a kind of toy example, and then I'll move on to a more deep research type example. In fact, a deep research example. But before we get into that, let me, let me run this example without.</span></div><div class="tline" data-t="76"><span class="ts">1:16</span><span class="tx">So this is a, uh, two agents that play, um, twenty questions. Um, so instead of just a yes/no answer, they get to give a little bit more detail like, yes, kind of, not really, no, completely wrong.</span></div><div class="tline" data-t="88"><span class="ts">1:28</span><span class="tx">Um, that was because I was getting bored of waiting for them to take ages to succeed on the... with the just a yes/no. So we have an answerer agent, which is runs a relatively small model, Haiku 3.5, 'cause I didn't know 4.5 came out until about an hour ago.</span></div><div class="tline" data-t="101"><span class="ts">1:41</span><span class="tx">And, and this basically takes a question and answers yes or well, with, with one of these answers, and it, it gets added into its context the, the, like, secret object that you're looking for, um, which in this example is a potato.</span></div><div class="tline" data-t="113"><span class="ts">1:53</span><span class="tx">So and then we have the, um, questioner agent or the player agent has a bit more context on what it's gonna go and do. You don't need to read, read through all of this stuff.</span></div><div class="tline" data-t="123"><span class="ts">2:03</span><span class="tx">This code is, i-is public now. It's a pull request, but I'll, I'll merge that afterwards, but you should get the idea. Um, and the way that the questioner agent gets to ask its questions is by calling a tool, ask_question.</span></div><div class="tline" data-t="137"><span class="ts">2:17</span><span class="tx">Inside that tool, we run the other agent, the answer agent, to basically decide the answer to this question, and then we respond, and it takes a little bit of time to run.</span></div><div class="tline" data-t="146"><span class="ts">2:26</span><span class="tx">You can see in this case it succeeded pretty quickly. Sometimes it's amazing how even these very simple questions, even very intelligent LLMs get themselves completely confused and go down some weird track and, and, like, get very confused.</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">But you can see in the last run that it asked a bunch of questions, got down to like, &quot;Is this a ve... fruit or vegetable? Is it a fruit?&quot;</span></div><div class="tline" data-t="166"><span class="ts">2:46</span><span class="tx">No. So it knew it was a vegetable. Is it orange? And it worked out the answer was, was potato. But obviously, and here it is running again, I don't know how many steps it's gonna take.</span></div><div class="tline" data-t="176"><span class="ts">2:56</span><span class="tx">Sometimes it can take up to like fifty steps to get this question right. And obviously the problem is if this dies, either because we have some unreliable, uh, endpoint within our system or because we're running in the cloud and Kubernetes decides it wants to scale or whatever it might be, if we run this again, we obviously have</span></div><div class="tline" data-t="196"><span class="ts">3:16</span><span class="tx">to start from scratch. That is problematic in this case, uh, but you can imagine as the tasks get longer and longer, just restarting it gets more and more problematic.</span></div><div class="tline" data-t="206"><span class="ts">3:26</span><span class="tx">So, uh, um, and I think the other thing to say about this, this like, um, twenty questions example is, although it's pretty simple to understand and it feels like a toy, it is actually directly equivalent to a deep research case where effectively the agent is, is like going off on a quest to go and find an answer</span></div><div class="tline" data-t="223"><span class="ts">3:43</span><span class="tx">to a question where it needs to an-- ask the like, you know, troll at the bottom of the garden the, the other, like, uh, question to the next riddle to get to the next endpoint, right?</span></div><div class="tline" data-t="232"><span class="ts">3:52</span><span class="tx">Like deep research is effectively this twenty questions just with like web, like web search or RAG or whatever it might be is your intermediate steps. So let's turn that twenty questions into a durable agent.</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">Um, so this is mostly the same code. For simplicity, I've actually copied it here, but you see we have our answerer agent. We need to wrap it in this TemporalAgent, which gives us another thing that behaves like an agent, uh, like a Pydantic AI agent, so it's also a subclass of AbstractAgent.</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">We do the same with our questioner agent. To keep things simple, we aren't doing the same, um, stuff about passing around the answer in context. We've just hard-coded the answer into the system prompt here for the, for the answer agent.</span></div><div class="tline" data-t="276"><span class="ts">4:36</span><span class="tx">But apart from these, like adding the Temporal wrappers, you can, as I will show later, just, um, apply durable execution later. But here's where the, the Temporal bit comes in, and I'm not a salesperson for Temporal, and although the underlying stuff they do is am-amazing, I do think some of their Python abstractions are kind of ugly.</span></div><div class="tline" data-t="294"><span class="ts">4:54</span><span class="tx">But anyway, the, the principle of Temporal is that you have workflows and activities, and workflows need to be entirely deterministic, and activities then need to do anything that is non-deterministic, like I/O in particular.</span></div><div class="tline" data-t="309"><span class="ts">5:09</span><span class="tx">So you can basically do anything inside a workflow other than I/O and calling random. And if you're, if you, if that's the case, then you have a deterministic system.</span></div><div class="tline" data-t="318"><span class="ts">5:18</span><span class="tx">And what you can think of what Temporal is doing in the background as it's running that workflow, and it's basically recording the every activity that runs and both the, the inputs to that and the outputs.</span></div><div class="tline" data-t="330"><span class="ts">5:30</span><span class="tx">And so if you want to rerun it from like from the beginning to a certain point, it can basically plug in those answers. And I'll show what that looks like.</span></div><div class="tline" data-t="337"><span class="ts">5:37</span><span class="tx">So this is how we define our workflow. The activities here are implicit. The point is that this TemporalAgent takes care of turning all of the I/O that you need to do to call an LLM into activities in the background, including tool calls.</span></div><div class="tline" data-t="352"><span class="ts">5:52</span><span class="tx">So OpenAI claim to have Temporal support, but they don't support tool calls as activities, which to me makes it slightly a chocolate teapot. Like there's actually no point in having any of these things without, without tool calling or little, little point.</span></div><div class="tline" data-t="365"><span class="ts">6:05</span><span class="tx">But We define our workflow like this. I think you can, for the most part, just copy-paste their, their definitions of how to do it. Here we have our play mechanism.</span></div><div class="tline" data-t="374"><span class="ts">6:14</span><span class="tx">The point here is we're gonna, we're gonna connect to the Temporal server, which is what's gonna record the state of our task or our agent as it's executing and be able to resume and stuff.</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">I have Temporal running locally here. This is just the open source version of Temporal, which runs as a separate process, and I can restart that to kind of kill the state, and that's why we're connecting to localhost.</span></div><div class="tline" data-t="395"><span class="ts">6:35</span><span class="tx">In production, you use Temporal's cloud. That's why they make so much money. Um, and here we, we run the worker. This is where we're actually gonna kick off our workflow.</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">In general, we just kick off our workflow with execute_workflow. We plu- pass in the, the workflow that we want to run. We pass the inputs. There aren't any inputs in this case because we just start, so there aren't any here, and it will then go and run.</span></div><div class="tline" data-t="418"><span class="ts">6:58</span><span class="tx">And so if I run this, we will... You will see it start to, to execute.</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">You'll see it running. The only couple of things to note, there's a couple of log messages. Ah, and we immediately have this exception broken, and that was because to simulate some system that's unreliable inside the tool, I added 20% of the time it's gonna, it's gonna break.</span></div><div class="tline" data-t="442"><span class="ts">7:22</span><span class="tx">What you will see is that Temporal has immediately taken care of continuing after that. So even though this broke, it will continue to run, and I may have set 20% to be too high, um, because it's now failing all the time, but it's actually gonna continue and deal with those runtime errors and just continue to operate absolutely</span></div><div class="tline" data-t="460"><span class="ts">7:40</span><span class="tx">fine. Let me-- However, I think I dialed up 20% too high just before, so I'm going to... I'm going to actually see if this is gonna continue to operate.</span></div><div class="tline" data-t="469"><span class="ts">7:49</span><span class="tx">Obviously, when you give a demo, everything suddenly grinds to a halt. Someone recently said they hate demos where everything goes to plan, and I said, &quot;You never need to worry about that with me.&quot;</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">Um, I don't know why that has actually ground to a complete halt. I don't know whether that's it just repeatedly failing.</span></div><div class="tline" data-t="486"><span class="ts">8:06</span><span class="tx">Let me-- I'm gonna kill Temporal server here and restart it so that we don't have the state stored, and I will clear this and run it again. And you should now see it succeeding most of the time and failing ten percent of the time.</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">So yeah, you see it now asking questions and occasionally breaking, good timing, but continuing. Um, so that's one of the things Temporal does. It just does the, like, retry logic that is like, well, you could implement without Temporal, but they do it very nicely.</span></div><div class="tline" data-t="513"><span class="ts">8:33</span><span class="tx">But there are more powerful things. So let's say this process that's in the middle of running gets killed by Kubernetes. Now, so we go across here, and we, we just, like, kill it.</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">The process gets killed. Now, what I didn't show you is I also instrumented this with Logfire. So if we look at our, our workflow, we can see exactly what was going on here.</span></div><div class="tline" data-t="532"><span class="ts">8:52</span><span class="tx">Um, and we, we can see what's going on here. We have the different calls to Claude, and then inside that we have-- we're running the activity, which is then running the, um, other agent.</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">But in particular, if we come to the top-level start for the workflow, I can take the, the workflow ID, and if we come back over to code here, you'll see I had some, some code in here to basically allow me to continue with a given, uh, resume ID and to continue a workflow.</span></div><div class="tline" data-t="557"><span class="ts">9:17</span><span class="tx">Now, for the most part, you wouldn't have to do this. This is just for the sake of the demo. If I just reran the script again, it would kick off this workflow again, and it would run the two in parallel.</span></div><div class="tline" data-t="566"><span class="ts">9:26</span><span class="tx">That would look really confusing. So instead of doing that, I'm, I'm specifically hanging on a particular workflow to finish so you can see what's going on. So if I r- if I run my script again, but I give it the workflow that was ongoing, now you see it's already whizzed forward to question six, and it's continuing to</span></div><div class="tline" data-t="584"><span class="ts">9:44</span><span class="tx">operate. So we've got it to basically resume without having to add any resume code anywhere in our actual agent code. We just set up Temporal, and it works. And you can see exactly what's happened if you, um, look at Logfire.</span></div><div class="tline" data-t="597"><span class="ts">9:57</span><span class="tx">What you will see is that, that whole, that first bunch of, um, calls to the LLM responded in like five milliseconds. So these were not actually sent to the LLM.</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">Temporal just returned the result, the kind of cached result that it already had for each of these cases. So we're able to effectively zoom forward to the point where it then continues to, to call the LLM.</span></div><div class="tline" data-t="619"><span class="ts">10:19</span><span class="tx">It's, it's as if you've gone through everywhere that you're doing I/O, and you've set up, uh, caching on each individual call so that you can run your code. Uh, I see some people nodding, which is making me feel a bit better about explaining this.</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">But we don't have to do the inference. We don't have to wait the time. We can basically run our workflow codes. It's generally very fast because it's no I/O, it's just procedural, and it will just keep getting results instantly until it gets to the point where it needs to, needs to continue.</span></div><div class="tline" data-t="644"><span class="ts">10:44</span><span class="tx">And you see in this case it's got itself completely confused, and it's off, um, wondering about whether this thing is a salad bowl. So you see how sometimes the LLM does well, sometimes it does, does terribly.</span></div><div class="tline" data-t="655"><span class="ts">10:55</span><span class="tx">Um, I'm gonna... Actually I'll leave that running to see whether it... You see it's g- it knows it's related to food, but it's got itself really confused. Um, I will just say as, as it might interest you, just before this, I was k- wondering how the different models would perform.</span></div><div class="tline" data-t="668"><span class="ts">11:08</span><span class="tx">And so I, I ran some evals with Pydantic Evals on these different cases, and you can see here we have... It's a bit hard to read on the screen, but, uh, GPT-4.1, Gemini, and Claude Sonnet 4.5.</span></div><div class="tline" data-t="683"><span class="ts">11:23</span><span class="tx">And you can see the different assertion for each case, whether they passed or failed here. And you can see the, the average cost. You can see Gemini was way, way cheaper, way, way faster.</span></div><div class="tline" data-t="696"><span class="ts">11:36</span><span class="tx">And somewhere we should have, if we look at an individual case, we have a, a, a metric for how many steps it took to succeed. I think maybe we have to scroll over.</span></div><div class="tline" data-t="705"><span class="ts">11:45</span><span class="tx">Yeah, question count. You can see here Gemini was way quicker each time. I discovered subsequently having, having checked the results that actually the reason Gemini is way faster and answers much more quickly is it just invents an answer that's wrong, and I wasn't checking it.</span></div><div class="tline" data-t="718"><span class="ts">11:58</span><span class="tx">So this is not perfect yet, but like, it's, uh, the, the ev-- There's, it's definitely an interesting case for evals and seeing and, like, working out which model is actually better because they're definitely not particularly good at it by default.</span></div><div class="tline" data-t="728"><span class="ts">12:08</span><span class="tx">But yeah, in my naive case, Gemini did way better, but that's not representative. Anyway, I'm gonna leave that 'cause it's got forty-six steps in, and it's still failing to work out that that thing's a potato.</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">I, I can show the evals case if you want, but I think it might be more interesting to look at a Deep Research case, which is a kind of more meaningful example of where you would run durable execution, um, and also doing stuff in parallel, which is also one of the things that, like, just works out of</span></div><div class="tline" data-t="754"><span class="ts">12:34</span><span class="tx">the box with Temporal without you having to write any, any code. So this is my very quick last night hours attempt at building Deep Research. I honestly think it's as good as lots of the actual Deep Research systems.</span></div><div class="tline" data-t="767"><span class="ts">12:47</span><span class="tx">So we have-- We define our plan for Deep Research, and this is, this is effectively our Deep Research plan. So it has an executive summary, what you would effectively pump out to the user about what I'm gonna go and do.</span></div><div class="tline" data-t="780"><span class="ts">13:00</span><span class="tx">Then we have a list of web search steps. We maximum-- We have a maximum of five here, so it doesn't take forever. And then we have analysis instructions. And the point is that, like, I mean, I think this is one of the big change in AI this year, answering a bit the question I had on the other</span></div><div class="tline" data-t="794"><span class="ts">13:14</span><span class="tx">Zoom. I think we've moved from thinking that, like, agents in the sense that... So there were t-three definitions of agents. There is the, like, AI definition, which is LLMs to-calling tools in a loop.</span></div><div class="tline" data-t="806"><span class="ts">13:26</span><span class="tx">There is the tech definition, which is a microservice. And then there is the business definition, which is something that can replace a human. Um, ignoring the business definition for a minute, if you think about the AI and the, like, engineering definitions, we thought at the beginning of this year you would have one AI agent, one, uh, LLM</span></div><div class="tline" data-t="824"><span class="ts">13:44</span><span class="tx">calling tools in the loop within each microservice. I think we've moved more and more to think that the agents are actually the kind of quantum of development. They are the, the, the microtasks that are doing--</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">that you build up to, to form a, like, what most people would think of as an agent, something that actually goes and autonomously completes a task. And so our Deep Research agent is actually made up of multiple agents.</span></div><div class="tline" data-t="845"><span class="ts">14:05</span><span class="tx">So we have this plan agent, which goes off with a prompt, and it returns an instance. Structured data extraction gives you an instance of this Pydantic model, which is your plan to run it.</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">Then you have the search agent, which has access, in this case, to search tool, or I'll show using Tavily in the other case, um, which is using a, a faster model, Gemini Flash, uh, in this case.</span></div><div class="tline" data-t="866"><span class="ts">14:26</span><span class="tx">And then you're using, in this case, I'm using Claude Sonnet 4.5 for the final analysis stage. So I suppose this is a bit what people talk about when they're leaning towards graphs.</span></div><div class="tline" data-t="876"><span class="ts">14:36</span><span class="tx">I haven't built this in a graph, although I could, because it doesn't need a graph. It's not complex enough to need a graph. And durable execution is a way better way of getting snapshotting, but, like, much more granular support for, for durable execution.</span></div><div class="tline" data-t="888"><span class="ts">14:48</span><span class="tx">We added a tool that allowed the analysis agent to do a bit more web search if it really wanted to. I don't think it uses it. But this is the actual Deep Research code.</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">So you can see how concise it is. We run the plan agent. We get back our plan. We run in parallel all of the search agents. So we're just using a TaskGroup from Python to run all of these.</span></div><div class="tline" data-t="910"><span class="ts">15:10</span><span class="tx">We get those results, which will all be the, the text results of the different bits of search. We use format_as_xml to basically smash all of that into a massive lump of reasonably readable data for the analysis agent.</span></div><div class="tline" data-t="921"><span class="ts">15:21</span><span class="tx">And then we go off and run the agent. And we run the kind of question that I'm asking AI relatively re-regularly for sales, which is find me a list of hedge funds that write Python in London.</span></div><div class="tline" data-t="930"><span class="ts">15:30</span><span class="tx">And if I go and run this, uh, uv run Deep Research,</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">we'll see it starting to churn away. We can see it in the terminal with Logfire, but we can also</span></div><div class="tline" data-t="948"><span class="ts">15:48</span><span class="tx">come over here to Logfire. Let me clear that. Um, go to the bottom here, and we can see this, this run here. As it's going on, it's, it's run the plan step in nine seconds, and you can see all of the search steps going on in parallel.</span></div><div class="tline" data-t="964"><span class="ts">16:04</span><span class="tx">Once they've finished, it will start. You can see the analysis agent has just started. We can look at the individual searches, so you get a pretty good idea of what happened, the question it got asked, uh, the queries it decided to run, bunch of data from Medium, different sites, structured data, and then, like, the agent also bangs</span></div><div class="tline" data-t="985"><span class="ts">16:25</span><span class="tx">in quite a lot of context, right? So this is each individual one of our, like, ten parallel searches, and now the analysis is gonna go and run with all of that input.</span></div><div class="tline" data-t="995"><span class="ts">16:35</span><span class="tx">You can see so far we've sent-spent eight cents on this particular run. We'll see what it gets to by the time it finishes. But obviously, the problem with this is if I kill this now, it's just gonna die, and I'd have to restart from the beginning if I wanted to, to run it again.</span></div><div class="tline" data-t="1010"><span class="ts">16:50</span><span class="tx">So while that churns away, let me start introducing you to the durable execution example. Spoiler, it's gonna be pretty similar. I discovered last night that there's a bug with the Vertex SDK that means that you can't use it with Temporal right now.</span></div><div class="tline" data-t="1026"><span class="ts">17:06</span><span class="tx">So I swapped out. Uh, I think we should fix that, or at least I'll be whinging at, uh, DeepMind today to go and fix that. So I've switched it out to OpenAI Responses here, and I'm using Tavily instead of the built-in search.</span></div><div class="tline" data-t="1040"><span class="ts">17:20</span><span class="tx">Yeah, but other than that, this is all pretty similar code. I could have probably imported the code from the other module. I just decided to duplicate it just to keep things easy.</span></div><div class="tline" data-t="1050"><span class="ts">17:30</span><span class="tx">But you see again, we do the same thing. We wrap, uh, our agents in TemporalAgent. This analysis one can take more than, I think, whatever the default activity duration is 'cause it's a long, basically build up a, a summary.</span></div><div class="tline" data-t="1062"><span class="ts">17:42</span><span class="tx">So I give it a, I think it was taking longer than two minutes or whatever the default is, so I just gave it an hour so it was not gonna fail.</span></div><div class="tline" data-t="1069"><span class="ts">17:49</span><span class="tx">Um, and then the, the-- for me, the most powerful bit is everything here inside my workflow looks exactly the same. I don't have to do any crazy stuff to do parallelism.</span></div><div class="tline" data-t="1079"><span class="ts">17:59</span><span class="tx">I just use a TaskGroup exactly the same. I could use asyncio.gather. It's all just imperative Python code as you would be used to. I could have a-- If I wanted to run this periodically, I could sleep for seven days in here.</span></div><div class="tline" data-t="1093"><span class="ts">18:13</span><span class="tx">Temporal would take care of pausing everything. Again, I'm not here to be a Temporal salesperson. I don't love everything about what they do, but it's a pretty powerful way of thinking about code, where you don't have to do all the infra stuff.</span></div><div class="tline" data-t="1104"><span class="ts">18:24</span><span class="tx">And then ultimately, again smash all my context into the last agent and run it. And again, there's a bit of plugin stuff. I have to plug in log... Have add some plugins, add the agents as plugins.</span></div><div class="tline" data-t="1115"><span class="ts">18:35</span><span class="tx">But again, my code to actually go and s- kick it off is just execute_workflow, simple as that. And I asked it here slightly more controversial question of what's the best Python agent framework to use for durable execution and type safety?</span></div><div class="tline" data-t="1128"><span class="ts">18:48</span><span class="tx">And we will pray to God it gives the right answer when we run it in front of everyone. If I go and kick that off and run this</span></div><div class="tline" data-t="1136"><span class="ts">18:56</span><span class="tx">again, we should see it. If we come over here, we should see it running in Logfire. You can see we have the stuff related to kicking off the agent.</span></div><div class="tline" data-t="1145"><span class="ts">19:05</span><span class="tx">It's kicking off the workflow, excuse me, here, and we have the searches beginning to happen, happen. But the, the powerful bit here is, again, imagine that we're halfway through running all these searches.</span></div><div class="tline" data-t="1156"><span class="ts">19:16</span><span class="tx">We're about to start the final step, and something comes along and kills the process. And by... In general, you'd have to go and completely restart this process and run your deep, deep research all over again.</span></div><div class="tline" data-t="1169"><span class="ts">19:29</span><span class="tx">With Temporal, it will just go and rerun that workflow automatically. In this case, I'm restarting it and just running that one workflow. But y- in general, it would just automatically go and be restarted, and on the, the next time the Kubernetes comes up, the workflow will run as it would've done before, but it will get answers to</span></div><div class="tline" data-t="1187"><span class="ts">19:47</span><span class="tx">each individual question basically instantly. And so if it's not gonna fail for me, which it seems to be... There we are. It's started again. You see our plan took twenty-four milliseconds.</span></div><div class="tline" data-t="1201"><span class="ts">20:01</span><span class="tx">Search all took no time at all in the grand scheme of things because it just got the result back from Temporal immediately. And then the analysis, that was the, the, the task we needed to, that we haven't run yet, obviously, that needs to go and start again 'cause that's an activity, and you can't...</span></div><div class="tline" data-t="1216"><span class="ts">20:16</span><span class="tx">Activities obviously have to run again from scratch. And so once that finishes, I think it does take quite a long time. Maybe I can show the previous output, or did we not get to displaying the previous output?</span></div><div class="tline" data-t="1229"><span class="ts">20:29</span><span class="tx">Did it ironically actually fail the time before? But hopefully once this finishes, we should be able to see, uh, its analysis, which, you know, I think is on a par with what I see from the other Deep Research things.</span></div><div class="tline" data-t="1240"><span class="ts">20:40</span><span class="tx">Obviously, there will be some, there's some UI work to do to display this in a nice deep, Deep Research interface. There we are. It's completed, and it has primary recommendation is Pydantic AI with Temporal.</span></div><div class="tline" data-t="1251"><span class="ts">20:51</span><span class="tx">So it, it, it did what I hoped it would do, and you see it's given a reasonable report here of like the relative trade-offs of the other inferior agent frameworks, and it should have done an executive summary at the beginning with, with links.</span></div><div class="tline" data-t="1264"><span class="ts">21:04</span><span class="tx">Yeah. So it said Pydantic AI, LangGraph, obviously if you love snapshotting or writing unsafe code, type unsafe code, Temporal on its own, which makes sense. Yeah. So there's a, there's the summary.</span></div><div class="tline" data-t="1275"><span class="ts">21:15</span><span class="tx">That is the main stuff I had to show. I will merge the, the durable execution stuff in here. So go here. And I just... Other thing I wanna just say quickly while I have, I can't work out how to post a comment, but like you'll find it on Pydantic if you, if you, if you look for it.</span></div><div class="tline" data-t="1289"><span class="ts">21:29</span><span class="tx">Um, oh, I have f- I can do that. If anyone wants to take a picture of that QR code. The other thing I just wanted to mention, we're about to announce, uh, Pydantic AI Gateway.</span></div><div class="tline" data-t="1298"><span class="ts">21:38</span><span class="tx">So if anyone wants to try it early, let us know. Um, but yeah, that platform will be landing soon. You'll be able to use Pydantic AI Gateway directly to buy inference from any of the big models or most of the open source models and self-hosting for enterprise, all the observability stuff.</span></div><div class="tline" data-t="1314"><span class="ts">21:54</span><span class="tx">But I, I'll, I'll save you the full spiel, but that's coming soon. I think some of you will find it interesting. That's it. Thanks so much for watching. If you wanna learn more about Pydantic AI, Pydantic AI Gateway, or Pydantic Logfire, please scan these QR codes.</span></div><div class="tline" data-t="1327"><span class="ts">22:07</span><span class="tx">If you have any feedback, uh, please come and talk to us. Thanks so much for listening.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

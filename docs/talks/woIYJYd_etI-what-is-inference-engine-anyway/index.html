@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>推理引擎到底是什么？ —— Charles Frye，Modal | AI 工程师中文版</title>
+<meta name="description" content="Charles Frye 拆开了模型 API 背后的机制：请求如何变成 GPU 批次，调度器为什么重要，以及缓存、CUDA graph、推测解码和生产 trace 如何让 token 源源不断地产出。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>推理引擎到底是什么？ —— Charles Frye，Modal</h1>
+    <div class="orig-title">What Is an Inference Engine, Anyway? — Charles Frye, Modal</div>
+    <div class="meta"><span class="speaker">Charles Frye</span> · AI Engineer World's Fair 2026 · 59:58</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=kv-caching-and-prefix-reuse">KV 缓存与前缀复用</a><a class="tag" href="../../index.html#topic=gpu-programming-and-kernel-optimization">GPU 编程与内核优化</a><a class="tag" href="../../index.html#topic=speculative-decoding">推测解码</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/woIYJYd_etI-what-is-inference-engine-anyway" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="woIYJYd_etI"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=woIYJYd_etI" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">产生 token 很容易，高效地提供服务才塑造了引擎</div></div>
+      <div class="label row">章节跳转 <span>共 10 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>产生 token 很容易，高效地提供服务才塑造了引擎</span></li><li data-t="476"><span class="ts">7:56</span><span>一个请求包含两种工作负载：预填充和解码</span></li><li data-t="934"><span class="ts">15:34</span><span>服务器包裹着引擎，调度器把守着 GPU</span></li><li data-t="1508"><span class="ts">25:08</span><span>跟随一个请求穿过批处理循环</span></li><li data-t="1977"><span class="ts">32:57</span><span>独立的进程让主机端工作各自推进</span></li><li data-t="2205"><span class="ts">36:45</span><span>算子库负责数学，引擎负责组织工作</span></li><li data-t="2818"><span class="ts">46:58</span><span>复用已计算的注意力状态和重复的启动工作</span></li><li data-t="3055"><span class="ts">50:55</span><span>推测器把串行解码变成小规模的并行检查</span></li><li data-t="3236"><span class="ts">53:56</span><span>调试已部署的引擎，再解读标牌生成器的流量尖峰</span></li><li data-t="3475"><span class="ts">57:55</span><span>从一个你能读懂的小引擎开始</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 27 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="What is an inference engine, anyway?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is an inference engine, anyway?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The workshop peels back the layers behind inference APIs and the code that runs inference when you run it yourself.
+
+[0:12](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=12s) [Title slide asking what an inference engine is.](https://assets.ai.engineer/sites/aiecode2025/sha256/5177da8ac86a4463564d506c85f734c3fc70843a9c1fc39b0aacbd4f1d31eed2.webp)
+
+What is an inference engine, anyway?
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Tokens in, tokens out" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tokens in, tokens out</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>SGLang, vLLM and TensorRT-LLM take tokens in and produce tokens out. The hard part is achieving high performance and good tokenomics.
+
+[1:18](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=78s) [Arrows show tokens entering and leaving a box containing SGLang, vLLM and TensorRT-LLM logos.](https://assets.ai.engineer/sites/aiecode2025/sha256/8d57d565769ac6d04400e06211b63cc44ab405a0d8b9988ff79de3974f0aa836.webp)
+
+Tokens In
+
+SGL
+vLLM
+TensorRT
+LLM
+
+Tokens Out
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="A quick sketch" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A quick sketch</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The engine links I/O, tokenization and detokenization through communicating processes. A CPU scheduler dispatches GPU model forward passes; those two components handle most performance-sensitive work.
+
+[2:17](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=137s) [Diagram connects server I/O, tokenizer, detokenizer and scheduler processes to GPU model forward passes.](https://assets.ai.engineer/sites/aiecode2025/sha256/98914ecbfab9ad416c12544267f5357d8e1759f3f3f21db58eadaf4b81f366a0.webp)
+
+A quick sketch
+
+Server I/O Process
+Tokenizer Processes
+IPC
+Detokenizer Process
+Scheduler Process
+CPU
+GPU
+Model Forward Passes
+
+Modal
+SGL</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Why inference?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why inference?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Frye turns to why engineers should care about running inference and operating inference engines.
+
+[3:25](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=205s) [Section title: Why inference?](https://assets.ai.engineer/sites/aiecode2025/sha256/5bca1b99f84ea31775671e7207672870e9e1fc134c034b36ee7d3ca3c33d737d.webp)
+
+Why inference?
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Why inference? AI infrastructure" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why inference? AI infrastructure</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Frye uses swyx’s post about “boring” AI infrastructure to point to demand for inference across labs, companies running their own stacks, and infrastructure builders.
+
+[3:54](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=234s) [A social post comments on the success of people working in AI infrastructure.](https://assets.ai.engineer/sites/aiecode2025/sha256/33489c7d6cc566a61ba01a28eb5fb3596f17f3d2dfdab96ecda432af5853a8f9.webp)
+
+Why inference?
+
+swyx
+@swyx
+
+everyone in ai infrastructure* is finally getting filthy rich and it is so nice to see them succeed
+
+*not the sexy ai research stuff, just “boring” infra
+
+12:26 PM · May 21, 2026 · 72.8K Views
+
+Modal
+
+Interface text:
+Subscribe</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Why inference?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why inference?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Frye argues that inference earns revenue while training incurs costs. Many teams deploy models, and post-training uses inference to generate samples. The work spans application architecture, algebra and hardware.
+
+[5:09](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=309s) [Slide contrasts training as a cost center with inference as a revenue center, and asks whether people pay for model weights.](https://assets.ai.engineer/sites/aiecode2025/sha256/bef5bce71975d447de919e758b7c91fd726f231d26d55b3a001b1d6cd3bf4ded.webp)
+
+Why inference?
+
+- Training is a cost center, inference is a revenue center
+  - Will people pay for model weights per se? Not so far...
+
+Modal
+
+[5:49](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=349s) [Reasons inference matters, including revenue, deployment, post-training and its breadth across the technology stack.](https://assets.ai.engineer/sites/aiecode2025/sha256/a66e3227cf33d15bf0c3ea66c2199a224732ff7a1005b27dc2e99f98b47dff4c.webp)
+
+Why inference?
+
+- Training is a cost center, inference is a revenue center
+  - Will people pay for model weights per se? Not so far...
+- Training is done by a few orgs, inference done by many
+- Post-training now requires inference
+- Inference straddles the stack right now – apps to algebra to electrons
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Why listen to me?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why listen to me?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Charles Frye moved from training to inference at Modal, where he helps teams deploy and optimize inference across hundreds or thousands of GPUs and builds inference applications himself.
+
+[6:30](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=390s) [The speaker’s experience with inference at Modal, GPU performance and deploying inference systems.](https://assets.ai.engineer/sites/aiecode2025/sha256/a63b5f02c40fd41fa09098797a430e67fd56b1a2f27654e7ce1e5eec7aec3caa.webp)
+
+Why listen to me?
+
+- Working on inference at Modal for the last two years
+  - And previously at FSDL, and on training before that (W&amp;B, PhD @ Berkeley)
+- Working internally on “GPU stuff” – metrics, profiling, perf
+- Helping leading teams deploy+optimize inference on 100s/1000s of GPUs
+- Eating my own dog food – Modal-hosted inference servers, Modal Endpoints
+
+FATHOM  hume  ramp  Cognition  runway  SUNO  blend  Doppel  substac[illegible]
+Quora  reducto  Lovable  David AI  Contextual AI  PostHog  Physical Intelligence  Resolve.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="What is an inference engine, anyway?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is an inference engine, anyway?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Frye moves from inference workloads to engine architecture and performance techniques, then covers observability for correctness and performance in production.
+
+[7:42](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=462s) [Agenda covering workloads, architecture, key techniques and observability.](https://assets.ai.engineer/sites/aiecode2025/sha256/0c3add0eea1103f56f46bb65aa11481ee8923bc94e8ad175b5c6abb59b58ab73.webp)
+
+What is an inference engine, anyway?
+
+Workloads
+Architecture
+Key Techniques
+Observability
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="LLM Application Archetypes: Infra-Brained Edition" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>LLM Application Archetypes: Infra-Brained Edition</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Chatbot+ interacts with people and often uses tools. Background agents work without a person waiting, while data processors extract structured information from unstructured inputs.
+
+[8:14](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=494s) [Three LLM application archetypes: chatbot plus, background agent and data processor, with examples.](https://assets.ai.engineer/sites/aiecode2025/sha256/383100874f5c464884366b08ddc5d029014219ee25c58d35a2c65aebfe52e72f.webp)
+
+LLM Application Archetypes: Infra-Brained Edition
+
+- Chatbot+
+  - Prototype: ChatGPT, Claude Code
+- Background Agent
+  - Prototype: Devin, Ramp Inspect, OpenClaw, Hermes
+- Data Processor
+  - Prototype: Reducto, Fathom
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Under the hood: prefill and decode" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Under the hood: prefill and decode</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A server processes the client’s input in one prefill run, then repeated decode runs generate one or a few tokens at a time. The diagram shows a KV cache beneath both phases.
+
+[9:30](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=570s) [A client sends input to a server, where prefill is followed by repeated decode steps using a KV cache.](https://assets.ai.engineer/sites/aiecode2025/sha256/32f1bc1ef962f4f32b270c9959739de7b74a33b23a915472fba5d61ae42d4ade.webp)
+
+Under the hood: prefill and decode
+
+Server
+prefill → decode → decode → decode
+a machine → in the likeness → of a human → mind.
+KV Cache
+
+Client
+Thou shalt not create
+a machine in the likeness of a human mind
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Defining LLM workloads via metrics" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Defining LLM workloads via metrics</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Inference workloads combine user-driven query rates and prefix reuse with token counts influenced by the model. Applications set latency budgets for the first and subsequent tokens.
+
+[10:47](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=647s) [Workload metrics include queries per second, tokens per query, prefix reuse, and latency budget.](https://assets.ai.engineer/sites/aiecode2025/sha256/f64cbf59a7717710a7f1363cbf828f95fbb623afe218c7569bc73dc5334f5926.webp)
+
+Defining LLM workloads via metrics
+
+- QPS: how many queries per second
+  - Under control of users, tricky to forecast
+  - Consider variability/seasonality
+- TPQ: tokens per query, in/out aka prefill/decode
+  - Under control of users AND model, but can be estimated
+- Prefix re-use
+  - Mostly under control of users
+- Latency budget (TTFT and TPOT/ITL)
+  - Defined by application, typically per user
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="LLM application archetypes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>LLM application archetypes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Chatbots and background agents reuse prefixes, but agents tolerate longer decodes and more latency. Data processors reuse fewer prefixes, produce short outputs, and prioritize throughput.
+
+[12:58](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=778s) [Chatbots, background agents, and data processors compared by prefix reuse, decode length, and latency or throughput needs.](https://assets.ai.engineer/sites/aiecode2025/sha256/936ee364048818fce3026af4559108164cb378a57a77d2bc2c3f7da7ab49d8d4.webp)
+
+LLM Application Archetypes: Infra-Brained Edition
+
+- Chatbot+ – High prefix re-use, short decode, low latency tolerance
+  - Prototype: ChatGPT, Claude Code
+- Background Agent – High prefix re-use, long decode, high latency tolerance
+  - Prototype: Devin, Ramp Inspect, OpenClaw, Hermes
+- Data Processor – Low prefix re-use, short decode, high throughput demand
+  - Prototype: Reducto, Fathom
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Prefill and decode sub-workloads" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Prefill and decode sub-workloads</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Prefill processes the input prompt; decode generates the output. Both move many GiB, but decode does less arithmetic per user than prefill.
+
+[14:17](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=857s) [A prefill and decode diagram contrasts the greater arithmetic work of prefill with the fewer operations of decode.](https://assets.ai.engineer/sites/aiecode2025/sha256/d3de4542e51d777413300b4c355a5b7fee99fe8fe760636ffcbb31b139c957f2.webp)
+
+Feels like two “sub-workloads”: prefill and decode
+
+Client
+Server
+prefill → decode → decode → decode
+a machine → in the likeness → of a human
+KV Cache
+
+Thou shalt not create
+a machine in the likeness of a human mind
+
+Move many GiB
+Do many GFLOPs
+
+Move many GiB
+Do fewer GFLOPs
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="What does an inference engine do?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What does an inference engine do?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The server handles HTTP I/O; the engine tokenizes the request, runs inference to extend a tensor from K to K+1 entries, and detokenizes the result into a response.
+
+[16:52](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=1012s) [An inference server and engine diagram labels preprocessing, processing, and post-processing from request to response.](https://assets.ai.engineer/sites/aiecode2025/sha256/19d92c62cf039d4a437d0483f4fa272575dd56444cad4b98902900f15852ca46.webp)
+
+What does an inference engine do?
+
+HTTP request → Inference Server → HTTP response
+Server I/O process
+Engine process(es)
+
+Request → Inference Engine → Response
+
+Pre-processing
+Tokenizer
+[Token]^k → [Tensor]^k
+
+Processing
+[Tensor]^k → Inference™ → [Tensor]^(k+1)
+
+Post-processing
+Detokenizer
+[Tensor]^(k+1) → [Token]^(k+1)
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Inference engine process architecture" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference engine process architecture</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In SGLang, server I/O connects tokenizers and a detokenizer to a CPU scheduler. The scheduler queues GPU work and can become a bottleneck feeding model forward passes.
+
+[20:56](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=1256s) [Server I/O, tokenizer, detokenizer, and scheduler processes communicate while model forward passes run on the GPU.](https://assets.ai.engineer/sites/aiecode2025/sha256/1e647644792a03cee05af175644ec05e81cabdb133f7dc5ace835402c2fe92c6.webp)
+
+What does an inference engine do?
+
+RPC/HTTP requests, metrics, etc.
+
+Server I/O Process
+Tokenizer Processes
+IPC
+Detokenizer Process
+Scheduler Process
+
+define and schedule work on the GPU(s)
+
+CPU
+GPU
+
+Model Forward Passes
+
+do work on the GPU(s)
+
+Modal
+SGL</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Life of an inference request" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Life of an inference request</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The server sends requests through tokenization to the scheduler, which repeatedly batches work for model runners. Output tokens go to the detokenizer and return as a response.
+
+[24:53](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=1493s) [Sequence diagram showing a request passing through server I/O, tokenization, scheduling, model runners and detokenization before a response returns.](https://assets.ai.engineer/sites/aiecode2025/sha256/b75634122f30db3da0bf2866ce0a129706de733d138e084ba70cb90f11243d28.webp)
+
+Server I/O
+Tokenizer(s)
+Scheduler
+Model Runner(s)
+Detokenizer
+
+create request
+submit request
+
+Core loop
+start batch
+output tokens/logits
+
+send tokens
+send response
+
+SGL</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Why multiprocessing?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why multiprocessing?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Separate processes give server I/O, tokenization, detokenization and model runners independent control. Python’s global interpreter lock can make threads block each other, though this has recently begun to change.
+
+[33:02](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=1982s) [Slide explains separate control for inference engine components and discusses Python threading.](https://assets.ai.engineer/sites/aiecode2025/sha256/d5d701adc01dcbb5c7053a49d313c50c23b1fa93885d28118bad21f712feb67b.webp)
+
+Why multiprocessing?
+
+- Because we want a thread of control for each subcomponent
+  - Server I/O, tok/detok, each model runner
+- Why not threads instead of processes?
+  - Python is* single-threaded per process
+    - *Only recently has this changed, still a lot to figure out here
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Why Python?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why Python?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Python’s C/C++ interop helps model workers call GPU code, while CUDA graphs move work onto the GPU. The scheduler must keep up, making it a potential Rust rewrite target as GPUs get faster.
+
+[34:35](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=2075s) [Slide discusses Python's model and GPU support, model workers and scheduler performance, alongside the Python logo.](https://assets.ai.engineer/sites/aiecode2025/sha256/3006084dc1d9def6330738259b2455451c6e3f2dfdc9c2d41da822b7e89663c1.webp)
+
+Why Python?
+
+- Because Python has excellent model/GPU support
+  - Why? Excellent, deep C/Cpp interop from Python
+- Why not Rewrite It In Rust™?
+  - Model worker processes “just” tell GPU what to do
+    - A few calls wrapping a very big CUDA Graph launch
+  - Scheduler “just” needs to stay faster than GPU
+    - Starting to get trickier: GPUs are hella fast, small models getting better
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Inference engine software inside-out" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference engine software inside-out</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Engines draw kernels from backends, while per-model forward code selects them. Batch construction selects and queues inputs, including mixes of prefill and decode; multimodal tokenization remains an area for optimization.
+
+[36:42](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=2202s) [Slide lists kernels, model forward passes, batch construction and detokenization as inference engine components.](https://assets.ai.engineer/sites/aiecode2025/sha256/8b3798d4f3366ff90d33ead4b9e0284de62f456a8fd185521fe68c28cc1dfac7.webp)
+
+Inference engine software inside-out
+
+- Kernels: Running operations from models
+  - Mostly deferred by engine, consumed via backends
+  - A few special kernels per engine, e.g. tree attention for speculators in SGLang
+- Model forward pass: Control flow and selection of kernels
+  - Implemented “per model” in each engine, labor-intensive
+- Batch construction: Selecting inputs to model forward pass, queueing
+  - This is one source of special sauce per engine – fast, fair, configurable, mix prefill/decode
+- De/Tokenization: Map between model format and “outside world” format
+  - Mostly “boring”, except for multimodal inputs/outputs
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Model code and GPU execution" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Model code and GPU execution</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Model forward code can reach the GPU through PyTorch, external kernel libraries, or the engine’s own kernels.
+
+[40:42](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=2442s) [Diagram connects model forward code, PyTorch and kernel libraries to code running on GPUs.](https://assets.ai.engineer/sites/aiecode2025/sha256/4b94d7020481f6db4702eb6ed0113ff07ec2c941c64782eddce332b48da809ef.webp)
+
+Model forward code in engine
+PyTorch
+Kernel libraries
+Code running on the GPU(s)
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Kernels and backends" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Kernels and backends</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each layer runs cross-token attention or linear attention, then per-token computation, before merging the result back into the representation. Different kernels support dense MLPs, sparse MoE, and attention.
+
+[41:21](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=2481s) [Diagram distinguishes per-token computation from cross-token computation within a loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/b169df97675b3c636474278b27e755d79c45ad2c77a9887dece242b07726c170.webp)
+
+Kernels and backends
+
++
+Per-Token Computation
+Cross-Token Computation
+
+Modal
+
+[41:52](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=2512s) [Per-token and cross-token computation with corresponding kernel and backend categories.](https://assets.ai.engineer/sites/aiecode2025/sha256/ba709e78cb2781cf25dbc1b26d1b37ce303914ca7ae84843955afd063fdc7bba.webp)
+
+Kernels and backends
+
+Sparse MoE / Group GEMM
+Same libs as GEMMs, but adds all-to-all comms kernels (e.g. deepep)
+
+Dense MLP / GEMM
+cutlass, deep_gemm, flashinfer_trtllm, triton, marlin, bitsandbytes...
+
+Per-Token Computation
++
+
+Attention
+flash-attn, flashinfer, triton, cutlass, trtllm-mha...
+
+Linear Attention
+Generally implemented per-model (GDN/Mamba2)
+
+Cross-Token Computation
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Quadratic attention, prefix sharing, and GPU RAM" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Quadratic attention, prefix sharing, and GPU RAM</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Attention can reuse stored computations, trading computation for GPU memory. Requests sharing “Thou shalt not” can reuse that prefix until their tokens diverge.
+
+[46:52](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=2812s) [Three example continuations share the prefix “Thou shalt not.”](https://assets.ai.engineer/sites/aiecode2025/sha256/2f76fe4eac2d524901e6cb5f56f64218291216abf8b51c0da8f058278cfe57fa.webp)
+
+Problem: quadratic attention, prefix sharing, GPU RAM cap
+
+Thou shalt not
+  kill.&lt;EOS&gt;
+  create a machine in the likeness...
+  covet they neighbor...
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="KV caching" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>KV caching</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>KV caching stores shared prefixes in pages or radix structures. Attention kernels reconstruct tensors from the cache, while the inference engine manages its capacity and layout.
+
+[48:16](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=2896s) [Token cache diagrams compare pages of size three and size one.](https://assets.ai.engineer/sites/aiecode2025/sha256/4daae6d90cf6b44f1ca1d9cb3b4658a0ff90c0bae8f0951bf4c2a0d047b3cf19.webp)
+
+Key technique: KV cacheing
+
+KV Cache, Page Size 3
+Thou | shalt | not
+kill | . | &lt;EOS&gt;
+covet | thy | neighbor
+create | a | machine
+
+KV Cache, Page Size 1
+likeness
+machine
+in
+the
+Thou
+shalt
+not
+create
+a
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="Host overhead" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Host overhead</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>CPU work can leave gaps between GPU kernels when it blocks progress. CUDA graph capture groups kernel operations so one CPU-side decision can launch the graph.
+
+[49:08](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=2948s) [Timelines compare GPU kernel execution when CPU work blocks and does not block progress.](https://assets.ai.engineer/sites/aiecode2025/sha256/9a1f09f4e3363f20273affdf3c8f2e0f3d34d03e1011dbe1f2aa6b2b7068bdac.webp)
+
+Problem: Host overhead
+
+Before – host overhead
+GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel
+CPU work | host work blocks GPU | CPU work
+
+After – no host overhead
+GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel | GPU kernel
+CPU work | host work does not block | CPU work
+
+Modal
+modal.com/blog/host-overhead-inference-efficiency</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="24" data-cap="Decode is sequential and heavyweight" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Decode is sequential and heavyweight</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After prefill, decode runs sequentially. By default, each token requires reloading all model parameters, or all active parameters in an MoE, putting heavy demand on memory bandwidth.
+
+[50:53](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=3053s) [A client prompt passes through prefill and successive decode steps on a server with a KV cache.](https://assets.ai.engineer/sites/aiecode2025/sha256/c055ed30847c03c3cea2417483036cc64aaf1b757cdfa548bd1b7c08bcb9752e.webp)
+
+Problem: decode is sequential, heavyweight
+
+Server
+prefill → decode → decode → decode
+a machine → in the likeness → of a human → mind.
+KV Cache
+
+Client
+Thou shalt not create
+a machine in the likeness of a human mind
+
+Modal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="25" data-cap="Key technique: Speculative decoding" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Key technique: Speculative decoding</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A speculator guesses the next tokens, and the target LLM checks them in parallel. In the example, the speculator proposes “company” and the target changes it to “platform.”
+
+[51:29](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=3089s) [A speculator proposes a completion, which the target LLM checks and changes.](https://assets.ai.engineer/sites/aiecode2025/sha256/4d341374b725ec1bd2269c02ba967e282a94694712252f071df37b1c10295c80.webp)
+
+Key technique: Speculative decoding
+
+Modal is a
+Speculator
+Modal is a serverless computing company
+
+Modal is a serverless computing company
+Target LLM
+Modal is a serverless computing platform
+
+Modal
+modal.com/spec-is-all-u-need</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="26" data-cap="Speculation Is All You Need" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Speculation Is All You Need</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The chart shows speedup generally rising with acceptance length. Frye says improving the speculator can produce roughly linear gains in decode throughput.
+
+[52:10](https://www.youtube.com/watch?v=woIYJYd_etI&amp;t=3130s) [Scatterplot shows speedup rising with acceptance length, alongside a brief chat excerpt.](https://assets.ai.engineer/sites/aiecode2025/sha256/67ff3d1ba3511e6c1fefcc4ad1c896c71bd52e69f5fd5fa9a51ae5852b9c3da1.webp)
+
+Speculation Is All You Need™
+
+Y-axis: Speedup
+Y-axis ticks: 0, 1, 2, 3, 4, 5, 6, 7, 8
+X-axis: Acceptance Length
+X-axis ticks: 0, 1, 2, 3, 4, 5, 6, 7, 8
+
+better spec model,
+faster inference
+
+Modal
+modal.com/spec-is-all-u-need
+
+Chat excerpt:
+david.wang  Tuesday at 5:47 PM
+it’s crazy how bitter lesson spec is 💀
+moar data moar compute brrr
+
+charles  Tuesday at 5:49 PM
+tattooed on my chest</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">产生 token 很容易，高效地提供服务才塑造了引擎</a></li><li><a href="#sec-2">一个请求包含两种工作负载：预填充和解码</a></li><li><a href="#sec-3">服务器包裹着引擎，调度器把守着 GPU</a></li><li><a href="#sec-4">跟随一个请求穿过批处理循环</a></li><li><a href="#sec-5">独立的进程让主机端工作各自推进</a></li><li><a href="#sec-6">算子库负责数学，引擎负责组织工作</a></li><li><a href="#sec-7">复用已计算的注意力状态和重复的启动工作</a></li><li><a href="#sec-8">推测器把串行解码变成小规模的并行检查</a></li><li><a href="#sec-9">调试已部署的引擎，再解读标牌生成器的流量尖峰</a></li><li><a href="#sec-10">从一个你能读懂的小引擎开始</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">推理引擎到底是什么？</h2>
+      <div class="lede"><p>Charles Frye 拆开了模型 API 背后的机制：请求如何变成 GPU 批次，调度器为什么重要，以及缓存、CUDA graph、推测解码和生产 trace 如何让 token 源源不断地产出。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>产生 token 很容易，高效地提供服务才塑造了引擎</h3>
+      <p>Tokens go in, tokens come out. A basic implementation using PyTorch and Hugging Face Transformers can be small; making it fast enough to serve users at a workable cost is the hard part. Charles Frye, drawing on inference deployment work at Modal, uses <strong>SGLang</strong>, <strong>vLLM</strong> and <strong>TensorRT-LLM</strong> to explain what grows around that simple operation.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b030f9deeeaa2b9398345d7682435be349d34afe56306fb76c81468c187abdec" alt="Selected presentation frame from What Is an Inference Engine, Anyway? — Charles Frye, Modal at 102 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A diagram shows tokens entering and leaving an inference engine, with SGLang, vLLM, and TensorRT-LLM logos between the arrows.</figcaption></figure>
+<p>The initial architecture has communicating processes for network IO, input and output conversion, scheduling, and GPU execution. Two components receive most of the performance attention: the code doing expensive work on the accelerator, and the scheduler deciding which work gets there. The engine must both execute efficiently and keep execution supplied with work.</p>
+<p>Frye’s economic framing is blunt: “training is a cost center and inference is a revenue center.” In the business pattern he describes, model producers create foundation models, while deployments sell useful responses to particular inputs. Inference also feeds post-training by generating samples. The engineering spans application architecture, linear algebra and hardware—an “engineer’s playground.”</p>
+<p>A museum placard generator gives that machinery a visible purpose. Frye’s art piece, shown at the Legion of Honor, passes what it sees through a <strong>Qwen mixture-of-experts vision-language model</strong>, served by SGLang on Modal. The output describes the scene as an artwork. Pointing it at the entrance line produced a museum-style description. Frye supplies the joke himself: “you’re not art until somebody writes one of these little placards to describe what you’ve done.” The application sits between the strictest interactive latency demands and jobs that chiefly need high throughput.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="476">▶ 7:56</button></div>
+      <h3>一个请求包含两种工作负载：预填充和解码</h3>
+      <p>Three application profiles help identify what a deployment should optimize:</p>
+<p>- <strong>Chatbot plus.</strong> A person waits for the response, supplies more context, and may trigger interactions with external tools. ChatGPT and Claude Code are examples.
+- <strong>Background agents.</strong> Similar interactions happen without a person waiting on each model call. The useful deadline might be completing a pull request in minutes rather than returning each token immediately.
+- <strong>Data processors.</strong> A model converts unstructured material, such as a PDF, into a smaller structured result suitable for a database. These deployments often prioritize total throughput.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/d867f6daa81c2a2eeba5ce4d93423edd0b38239ac96ec1cb514a112a6832e2ca" alt="Selected presentation frame from What Is an Inference Engine, Anyway? — Charles Frye, Modal at 513 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A slide lists chatbot, background-agent, and data-processor workload categories with brief descriptions.</figcaption></figure>
+<p>Inside the engine, the input first undergoes <strong>prefill</strong>: the model processes the prompt. <strong>Decode</strong> then repeatedly produces one or a few output tokens. A user experiences one response, but the engine handles two kinds of work. Prefill performs much more arithmetic per request; each decode step performs less arithmetic and repeats as generation continues. These phases can follow different code paths and need different scheduling choices.</p>
+<p>A useful workload description includes requests per second per replica, input and output tokens per request, the opportunity to reuse cached prefixes, and a latency budget. Measure lengths rather than assuming them: users choose inputs, and the model helps determine when output ends. <strong>Time to first token</strong> measures how long the caller waits for generation to begin. <strong>Time per output token</strong>, or intertoken latency, describes how quickly the response continues.</p>
+<p>The same API can conceal very different opportunities. Chatbots and background agents often reuse substantial prefixes as an interaction grows. The chatbot profile Frye describes produces tens to hundreds of output tokens and has a tight human-facing latency budget. A document processor sees different documents, shares relatively little beyond a system prompt, and produces a short extraction relative to its input. A database backfill can tolerate more waiting if the overall job finishes efficiently.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="934">▶ 15:34</button></div>
+      <h3>服务器包裹着引擎，调度器把守着 GPU</h3>
+      <p>An inference server turns an HTTP or gRPC request into a response. The engine is the machinery underneath that interface. vLLM includes both a serving layer and an engine accessible through its software interface. At the per-replica request volumes discussed here, ordinary network serving is generally easier than the model work it wraps.</p>
+<p>The transformations are concrete. Unicode text, images, video or streams arrive in representations useful to external systems. Preprocessing turns them into model inputs, including tokens and GPU tensors. In the simplest next-token picture, the model extends a sequence of K entries to K plus one. Postprocessing converts generated tokens back into a response people or tools can use.</p>
+<p>The request interface can appear stateless while performance depends on retained state. Once the engine keeps previously computed information in a <strong>KV cache</strong>, earlier requests leave useful work behind. An individual replica manages its cache; the surrounding deployment layer generally defines sessions and how they relate to requests. A session and a replica’s cached computation are therefore separate concerns.</p>
+<p>In the SGLang architecture described here, server IO communicates with preprocessing and postprocessing, which communicate with a scheduler. One or more model-runner processes perform GPU work. The scheduler manages queues and scarce resources through a single point of control. It performs far fewer operations than the accelerator, yet can bottleneck access to it: the “gatekeeper to the GPU.”</p>
+<p>Parallel schedulers are not automatically an improvement. Coordinating concurrent access to GPU resources adds locks and other complexity. If the host already prepares work faster than the GPU consumes it, reducing scheduling time further may leave the next batch waiting for the previous GPU operation anyway. The immediate goal is to keep preparation ahead of execution.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="1508">▶ 25:08</button></div>
+      <h3>跟随一个请求穿过批处理循环</h3>
+      <p>A request arrives at the server, passes through tokenization, and reaches the scheduler. The scheduler asks how many resources it needs and which resources are available, then constructs a batch for the model runners. Accelerators benefit from processing multiple requests together. Frye compares this to a database scan: if loading the whole table is expensive, several queries can share that pass over the data.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/3836882a53368d17aac459fb2ed98f12424a79e15f1d1fed2c2a65c88d0bd951" alt="Selected presentation frame from What Is an Inference Engine, Anyway? — Charles Frye, Modal at 1541 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A sequence diagram traces a request across server IO, tokenization, scheduling, model running, and detokenization.</figcaption></figure>
+<p>Where does a request enter the repeating computation, and where do its output tokens leave? The diagram separates the scheduler–runner loop from the outward response path. Model runners return logits—the scores used to determine token probabilities—and generated tokens. Ready tokens pass to the detokenizer and back through the server while the loop continues generation. A response can therefore begin before all its GPU work is finished.</p>
+<p>Tokenizer and detokenizer consistency comes from using the same mapping system and underlying libraries, generally Hugging Face tokenization libraries in this discussion. They do not inherently need a direct conversation for each request. Frye describes separate components in SGLang and a shared manager process in vLLM; the important relationship is the shared mapping, rather than identical process layouts.</p>
+<p>Parallel tokenization does not remove the cost of a long prompt. Time to first token ends at the first generated output token, so it includes the model’s processing of the input. Longer inputs require more work in the core loop. When an engine divides a long input into chunks, congestion can also impose waiting at multiple scheduling opportunities. More tokenizer workers cannot eliminate either source of delay.</p>
+<p>SGLang’s multiple tokenizer processes and single detokenizer reflect different rates of work. Prefill can consume input tokens much faster than decode produces output tokens. Detokenization still affects when users receive text, but it does not feed the expensive model computation. In Frye’s experience, prefill and especially decode usually dominate latency; smaller models with very large inputs can make tokenization a more significant bottleneck.</p>
+<p>The response path surrounds a repeating GPU batch loop
+The scheduler constructs successive batches. Ready tokens leave through detokenization while generation continues.
+- Server IO — Receive the external request and return response content.
+- Tokenizer — Prepare the input for inference.
+- Scheduler — Assess resources and construct batches.
+- Model runners and GPU — Execute batches and produce logits and tokens.
+- Detokenizer — Convert ready tokens into response content.
+- Server IO → Tokenizer (Incoming request)
+- Tokenizer → Scheduler (Prepared input)
+- Scheduler → Model runners and GPU (Next batch)
+- Model runners and GPU → Scheduler (Results for continued generation)
+- Scheduler → Detokenizer (Ready output tokens)
+- Detokenizer → Server IO (Response content)</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="1977">▶ 32:57</button></div>
+      <h3>独立的进程让主机端工作各自推进</h3>
+      <p>Multiprocessing gives server IO, tokenization, detokenization and model runners independent control flows. The model runner offloads work to the GPU, much as network software offloads work to a network interface. Separate event loops make it easier to tune each component’s latency, and the communication volume does not force all components into one thread.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f297eb0853e404d4ec9ea9d97fcbd92b7fdb61c39e99d9077763fe24aa557b8f" alt="Selected presentation frame from What Is an Inference Engine, Anyway? — Charles Frye, Modal at 2055 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A slide titled “Why multiprocessing?” contrasts separate component processes with threads.</figcaption></figure>
+<p>For the Python implementations discussed, separate processes also avoid contention on the global interpreter lock. Frye acknowledges work on removing that restriction, with compatibility and performance still relevant concerns. Python remains useful because its model ecosystem and deep C/C++ interoperability make accelerator code accessible. Much of the expensive computation already runs in compiled, carefully optimized GPU kernels; rewriting the Python model worker does not automatically accelerate those kernels.</p>
+<p>The scheduler is a more focused candidate for a faster host language. As GPU operations get faster, the host has less time to prepare the next batch. Scheduling manipulates resources without needing to reimplement the model ecosystem, so Frye expects it to be a useful target for a Rust rewrite. This is a proposed direction for engine development.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="2205">▶ 36:45</button></div>
+      <h3>算子库负责数学，引擎负责组织工作</h3>
+      <p>An engine generally consumes GPU kernels from backend libraries instead of implementing every operation itself. Its per-model forward-pass code selects and connects those operations. Reference implementations from Transformers provide a starting point, and the engines described offer paths to use them with automatic optimization. Commonly deployed architectures often have specially written execution code. Shared kernel libraries help explain why engine differentiation often comes from organizing work and getting out of the GPU’s way.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/32b11e1c0518749de46df6a3576090895a75aa4dfe92fe1879298d079da9f1e9" alt="Selected presentation frame from What Is an Inference Engine, Anyway? — Charles Frye, Modal at 2261 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A slide lists kernels, model forward pass, batch construction, and de/tokenization as parts of inference-engine software.</figcaption></figure>
+<p>Batch construction is one of those distinctive engine responsibilities. A scheduler may separate prefill and decode, mix them in a batch, or switch between pure and mixed batches. Those choices determine how new prompts compete with ongoing generation. A queue is useful machinery, but a continually growing queue is an operating problem: the deployment is accumulating work faster than it clears it.</p>
+<p>Multimodal preprocessing adds another place to spend time. A video may need FFmpeg to extract raw frames before those frames become model tensors. An image requires more preparation than an already-supported text tokenizer mapping Unicode input. Returning to the placard application, its visible simplicity does not mean its input path is as cheap as a text-only request.</p>
+<p>Within the forward pass, the backend responsibilities become easier to distinguish:</p>
+<p>- <strong>Cross-token computation.</strong> Attention combines information across the sequence. Backend choices discussed include FlashAttention, FlashInfer, CUTLASS, Triton implementations and kernels separated from TensorRT-LLM.
+- <strong>Per-token computation.</strong> The MLP performs large matrix multiplications, often called GEMMs. A dense MLP uses the same network for every token; a sparse mixture of experts routes each token to selected smaller networks. DeepGEMM, Marlin and bitsandbytes appear among the backend examples.
+- <strong>Expert routing and communication.</strong> Mixture-of-experts execution must send tokens to the right experts and combine results. DeepEP is an example of a separate communication library. Combining routing and matrix multiplication into a larger kernel can avoid penalties introduced by separating those stages.</p>
+<p>Backend selection is configurable, although the configuration interface changes as engines develop. Frye describes SGLang as exposing choices at startup with smart defaults, and vLLM as emphasizing defaults with further changes available through environment variables. These are ways to choose implementations underneath the model, rather than changes to the application’s request format.</p>
+<p>Under heavy concurrency, the scheduler must also allocate KV-cache capacity. Frye describes favoring requests that already have cached work, avoiding recomputation. Eviction or offloading can preserve availability, but he treats cache thrashing and spilling as symptoms of a poorly provisioned deployment. The eviction path depends on the engine; the operational analogy is swapping on a laptop—survival with painfully worse performance.</p>
+<p>Cold starts are a separate deployment concern. The brief answer names memory snapshots, GPU-memory snapshots and a custom filesystem as pieces used to reduce startup time. Their implementation is not developed here. They address bringing a replica online, while scheduling and kernel optimization address its work once running.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="2818">▶ 46:58</button></div>
+      <h3>复用已计算的注意力状态和重复的启动工作</h3>
+      <p>KV caching trades memory for repeated computation. Retaining previously computed attention information avoids recalculating that information at every generation step. The retained state grows with the sequence, and GPU memory limits how much can remain useful at once. Moving it elsewhere is not automatically a win: fetching it back can cost more than recomputing it on a fast GPU.</p>
+<p>Prefix reuse extends the same idea across requests. The commandments example shares the beginning “Thou shalt not”; computation for that common prefix can be reused until the token sequences diverge. After a differing token, matching later words do not restore a shared prefix. This produces a tree-shaped structure and makes a long common agent system prompt—potentially tens of thousands of tokens—valuable to cache across users.</p>
+<p>Pages and radix structures organize cached state, and attention kernels can consume these layouts. That support takes over some work that previously belonged to the engine. The engine still manages cache capacity and layout: how much memory to allocate and which computed state can remain available. Faster attention kernels do not remove the capacity problem.</p>
+<p><strong>CUDA graphs</strong> address a different repetition: CPU work to launch GPU kernels. A model forward pass contains dependent operations over device memory. Graph capture records those operations and dependencies as a directed acyclic graph. Instead of repeatedly preparing every kernel launch on the CPU, the worker selects and launches the captured graph.</p>
+<p>What changes when those launches are captured? The comparison shows that the GPU’s dependent operations remain; repeated host decisions shrink to a graph launch. This helps keep GPU work moving, although the CPU still has to schedule requests and return responses. Accidental host–device synchronization can still interrupt progress.</p>
+<p>CUDA graphs reduce repeated CPU launch work
+Capture retains operation dependencies while replacing per-kernel launch preparation with a launch of the recorded graph.
+- Prepare each kernel launch — CPU repeatedly chooses operations and their memory pointers.
+- Execute dependent kernels — GPU operations read and mutate device data.
+- Select and launch a graph — One host launch starts the captured operations.
+- Execute the recorded DAG — Captured dependencies order the GPU operations.
+- Prepare each kernel launch → Execute dependent kernels (Repeated launch preparation)
+- Select and launch a graph → Execute the recorded DAG (Launch captured operations)</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="3055">▶ 50:55</button></div>
+      <h3>推测器把串行解码变成小规模的并行检查</h3>
+      <p>Ordinary decode repeatedly reads model parameters to produce the next token. For a mixture of experts, this means the active parameters. Producing only a little output per pass makes memory bandwidth a major constraint: the engine repeatedly moves a large amount of data for each increment of the response.</p>
+<p><strong>Speculative decoding</strong> uses another model, the speculator, to propose several upcoming tokens. The target model checks those candidates together. With the appropriate rejection-sampling procedure, the check preserves the target model’s sampling behavior, subject to numerical differences; it does not promise identical text from every separate stochastic run. Frye describes this as turning decodes into “tiny pre-fills”: the target performs useful work over several positions in one pass.</p>
+<p>A better speculator gets more consecutive guesses accepted, so each expensive target pass advances generation further. This creates a direct route from training a better auxiliary model to faster serving. Frye contrasts it with optimizations won a few percentage points at a time and gives two-, four- and eightfold improvements as possible scales of gain. Actual speedup depends on accepted draft length and the cost of proposing and checking tokens; these examples are not a benchmark guarantee for an arbitrary deployment.</p>
+<p>Splitting model work across accelerators introduces another responsibility. Kernels need to support the chosen parallelism, while the engine’s per-model execution code performs the surrounding communication. Moving and coordinating data is where many problems arise; adding accelerators does not remove the need to organize that work.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="3236">▶ 53:56</button></div>
+      <h3>调试已部署的引擎，再解读标牌生成器的流量尖峰</h3>
+      <p>A fast engine also has to execute the model correctly. Distinguish application failures, such as an unwanted model response, from an engine optimization that changes model behavior. Tokenization and chat-template mistakes can alter what the model actually receives. Separately, performance may degrade only after a replica has run for a long time, or differ across machines in a heterogeneous cloud deployment.</p>
+<p>The debugging advice connects each kind of problem to useful evidence:</p>
+<p>- <strong>Model quality.</strong> Run evaluations against the actual deployment, retaining results and traces. Connect production user feedback to the requests that produced it.
+- <strong>Tokenizer behavior.</strong> Log token IDs. They expose the representation the engine actually processes and generates.
+- <strong>Performance.</strong> Retain enough metrics to compare behavior over time and across replicas. An unexpected correlation can make a difficult regression much easier to locate.</p>
+<p>The museum application returns as a load example. Frye describes a setup with three replicas and an endpoint dashboard showing a traffic spike. Time to first token rises as requests wait to enter prefill. Intertoken latency rises too: ongoing decodes first slow a little, then much more as work contends for the GPU. The observable change is both a later start to each placard and a slower continuation once text begins.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/662a915c5e4aba79734129dd5a2f7bb9efa797550a28907d2116846e4a571cc3" alt="Selected presentation frame from What Is an Inference Engine, Anyway? — Charles Frye, Modal at 3391 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A dark endpoint dashboard contains multiple green charts and a “Traffic spike!” annotation pointing toward a lower chart.</figcaption></figure>
+<p>Additional replicas relieve that congestion. Increased load is detected, new replicas come online, and they take some of the incoming requests. Queued work falls back to baseline. The causal sequence matters: more serving capacity spreads the demand and reduces contention, allowing requests to enter computation sooner.</p>
+<p>For deeper diagnosis, Nsight Systems and Torch Profiler can expose activity across processes and GPU operations together. Frye gives a case where one GPU ran everything more slowly than its peers and the cause was NUMA awareness. A whole-engine trace helps distinguish a resource-placement problem from a slow model operation instead of treating every latency increase as the same failure.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="3475">▶ 57:55</button></div>
+      <h3>从一个你能读懂的小引擎开始</h3>
+      <p>miniSGLang and nano vLLM offer smaller implementations of the architecture to study. Their size makes the request loop, scheduling and execution code easier to hold in mind—and easier to discuss with a coding agent that can fit the implementation into its context. Follow one request through the code: where does it wait, what computed work survives, and what launches the next GPU operation?</p>
+<p>The closing recommendations include a vLLM walkthrough by Aleksa Gordic, notebook exploration, and DeepWiki’s repository explanations and question-answering interface. Modal endpoints are presented as a way to begin with a reasonably optimized deployment baseline. These starting points serve different purposes: compact code explains the machinery, while evaluations, dashboards and traces reveal what limits the actual deployment.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Describe workloads using input and output lengths, request rate, prefix reuse and latency budgets. Prefill and decode place different demands on the same engine.</li><li>The scheduler can bottleneck the GPU despite doing much less computation. It must prepare useful batches quickly enough to keep execution moving.</li><li>KV caching saves repeated computation, CUDA graphs save repeated host launch work, and speculative decoding lets the target check several proposed tokens together.</li><li>Evaluate the deployed engine for correctness, log token IDs for tokenizer problems, and compare traces and metrics across time and replicas.</li><li>In the placard-generator example, a traffic spike increased both first-token waits and intertoken latency. Additional replicas absorbed load and brought the queue back down.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">All right. Um, so I'm gonna go ahead and get started while people get seated. Um, we got a pretty tight turnaround, a lot of really wonderful workshops at this event, um, so I wanna make sure we have plenty of time. Uh, so I prepared for ten or fifteen minutes of questions, and I think it'd be best, especially given this is a workshop, if people just interrupted me as I was going. Raise your hand and I'll call on you and answer your question. Um,</span></div><div class="tline" data-t="43"><span class="ts">0:43</span><span class="tx">and so just, like, let's keep this interactive. Um, I think it's, it's better that way. Um, and it seems like-- talked to a couple of people, it seems like we got a lot of folks here who know their, who know their inference, uh, know their engines, and so we can get a, um, sophisticated conversation going. Um, so the title of this talk is What Is an Inference Engine Anyway? And the goal is to sort of peel back some of the layers that are behind</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">APIs and, uh, what is go-actually going on inside of the code that runs your inference, uh, when you run it yourself. So roughly, you know, their tokens go in, tokens come out, um, and a lot of the time you get to avoid thinking about what happens in between. Um, there's this really high quality open source software out there for running your, uh, running your language or multimodal model inference. You've got SGLang, vLLM, TensorRT-LLM. Many</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">people write similar things to these in-house. Uh, they design these, these, uh, engines that, like, at a high level, just taking in some tokens, putting out some tokens is not that hard. Um, you can write something like this in using PyTorch and Hugging Face Transformers in, like, an hour or two, especially if you're good with agents. Um, but making it, uh, extremely high performance so that you can produce tokens with good tokenomics is the challenging part.</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">Um, and that dr- like, sort of drives the design and architecture of these systems. Um, so just as, like, a very quick sketch, um, before we jump back to the high level and talk about why, why we're here. Um, the, uh, these are generally architected as a set of communicating processes, one that does IO, does HTTP or RPC serving, and responds to the outside world. Um, and then,</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">uh, there's a little bit of pre and post-processing with tokenizers and detokenizers, uh, and this wraps, uh, the sort of core of the system where the real work gets done, um, in sort of two pieces. One, uh, a sort of scheduler that s- like, defines and schedules work to run on the accelerator, usually a GPU, um, and then the actual code that runs on the GPU. Um, and so this, these two components in the bottom right</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">here are where the sort of majority of the performance sensitive work gets done and where the complicated problems are. Um, so that's where we'll spend the majority of our time, uh, discussing.</span></div><div class="tline" data-t="207"><span class="ts">3:27</span><span class="tx">Um, all right. So with that stage set, um, I think, uh, I've been to AI engineer since it was the summit and talked about, uh, running, uh, running inference, uh, every time, and the answer to this question gets better and better each time. Uh, the question of like, why inference and why you should care about it, why you should think about being, uh, an inference engineer who operates inference engines. Um, our, uh, fearless</span></div><div class="tline" data-t="237"><span class="ts">3:57</span><span class="tx">leader and, uh, uh, one-man conference army, Sean Wang, uh, tweeted recently, uh, that everybody in AI infrastructure, the boring stuff, uh, like inference engines, not the sexy research stuff, um, is finally getting filthy rich. Um, and so what, uh, I think he's pointing to here is there's tremendous demand, uh, for these, uh, to run inference. Uh, there's demand at the labs, there's demand within companies who want to own their own stacks,</span></div><div class="tline" data-t="267"><span class="ts">4:27</span><span class="tx">there's demand to set up and rethink the infrastructure s-stack, and all of this wraps this core inference workload. Um, but Sean is also pointing out that a lot of what people have been thinking about up to this point, um, is sort of the research side, the production of models. So, um, why not, you know, why not think about training? Why not go to the training engines, uh, talk with your precious time? I think the fundamental reason why this is such a critical place, uh, for</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">engineering work to get done and why it's such a, like, cool place to work as an engineer is that in the end, training is a cost center and inference is a revenue center. Um, so when you train models, um, it turns out, um, people have not generally been able to make businesses work where they sell model weights to people directly. Um, and so you can't really turn a training setup into a, like, a proper self-supporting system. Uh, but, uh, inference, once you have a model, um, is</span></div><div class="tline" data-t="327"><span class="ts">5:27</span><span class="tx">something that people will pay for. People will pay for a system to, you know, take in their tokens and their context to produce new tokens, produce software for them, whatever. Um, there's a lot of opportunities to do inference. We have a setup where there are a small number of essentially model foundries who produce foundation models that are then deployed and customized by inference engineers. Um, and then even for training, inference has, uh, snuck its way in. A lot of the post-training</span></div><div class="tline" data-t="356"><span class="ts">5:56</span><span class="tx">adaptation of these foundation models pr-requires that you generate samples from the model, uh, in inference, and a lot of the same technologies come to play, a lot of the same concerns are present. Um, and then finally, sort of more selfishly as an engineer, there's-- But right now, inference is still very new, even though we're years into this new technology. Um, and so you end up kind of straddling the whole stack from application architecture, uh, through linear algebra down to, like, electrons and hardware. So it's a,</span></div><div class="tline" data-t="386"><span class="ts">6:26</span><span class="tx">an engineer's playground. Um, so we'll see a lot of that as we go. Um, I'll maybe in the interest of time, since we kinda had to get started very quickly, I'll skip over this. But I've been working on inference for a couple of years, mostly at, uh, at Modal, um, since coming from the sort of training world before that, um, and helping a lot of teams sort of deploy and optimize their inference on hundreds or thousands of GPUs on the Modal platform. Um, I've also been making a lot of, uh, inference applications myself. This is a little art piece that I made. Um,</span></div><div class="tline" data-t="417"><span class="ts">6:57</span><span class="tx">we, uh, uh, had it in the, uh, Legion of Honor just this past week. Um, this art piece takes what it sees, passes it through a vision language model, uh, one of the Qwen MoEs, running on, uh, uh, served via the inf-- SGLang inference engine and running on Modal. Um, it takes that input, and it describes it as though it were an art piece. So it produces one of these little museum placard, uh, type things. And as everybody knows, you're not art until somebody writes one of these little placards to describe what you've done. Um,</span></div><div class="tline" data-t="447"><span class="ts">7:27</span><span class="tx">so I pointed it, I pointed it at the line on the way in, um, and it came up with a cute little description. Anyway, so this is the kind of, you know, uh, sort of in the middle of the set of inference applications between the lowest latency and the, uh, highest throughput applications that get deployed. Um, so, uh, I'll start by talking in more detail about those workloads, like what workloads land on these inference engines, and then jump quickly, jump-- move from that quickly into architecture, how these engines are designed, some of the key</span></div><div class="tline" data-t="476"><span class="ts">7:56</span><span class="tx">techniques, uh, that fit within that architecture to make their, uh, improve their performance. Um, and then lastly, a key piece for making these things work in production, observability and, uh, like debugability of these engines for correctness and for performance. All right, so let's start with workloads really quick. Um, uh, I like to break things down into kind of three pieces. There's chatbot plus, which is like the original killer app of inference, something like ChatGPT or Claude Code.</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">There's a person waiting on the other side interacting with this inference system and providing additional context. Um, the plus, uh, indicates that not only does it talk to a person, it also probably interacts with external systems via tool calls. Um, then you have background agents. They often do similar tasks to something like Claude Code, um, but they do it in the background, not directly in response to a person. So something like Devin, Ramp Inspect, uh, OpenClaw or Herbies for a non-coding case of a background agent. Um,</span></div><div class="tline" data-t="536"><span class="ts">8:56</span><span class="tx">so, uh, this is, uh, characterized by a similar sort of, uh, affordances or workloads, but a different performance profile. And then lastly, data processors. Um, these generally run relatively small models. They take unstructured data, like a PDF, and they turn it into structured data. Um, they extract some information from it, um, usually the sort of thing you might insert in a database. So this is something like the, uh, Reducto document processing platform or, uh, something like, uh, Fathom that takes a, uh, a</span></div><div class="tline" data-t="566"><span class="ts">9:26</span><span class="tx">video and extracts the transcript. Um, okay. So under the h-hood, what do these, uh, workloads look like? Um, you send in some tokens from a client, uh, that goes to some server somewhere. Um, for now we're gonna focus on cloud deployment of inference 'cause that's where the majority of it happens right now. Obviously, in the future, a lot of these inference engines are gonna end up running on people's, uh, machines like in a couple of years. Um, yeah, go ahead.</span></div><div class="tline" data-t="594"><span class="ts">9:54</span><span class="tx">Is there anyone that can adjust this side of the screen? Or if it's like that, always-</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">The size of the screen?</span></div><div class="tline" data-t="600"><span class="ts">10:00</span><span class="tx">No. The brightness.</span></div><div class="tline" data-t="601"><span class="ts">10:01</span><span class="tx">Brightness.</span></div><div class="tline" data-t="601"><span class="ts">10:01</span><span class="tx">Brightness of the screen. Um, I'm-- Yeah, so the question was about adjusting the brightness. I'm not sure if we can, uh, fix that. That's what I get for making dark mode slides. But yeah. Um, yeah. All right. So a client submits, um, an input, uh, and then it's processed by our engine running on a server somewhere. Um, first, we process the input tokens in the prefill phase, and then we generate the output tokens in the decode phase. Um, and so we have, uh, one, uh,</span></div><div class="tline" data-t="631"><span class="ts">10:31</span><span class="tx">one prefill, uh, run, uh, does a forward pass through the model, and then multiple decode runs produce one or a few tokens at a time. And then once we're done, return them to the user or generate a tool call and, and interact with an external system.</span></div><div class="tline" data-t="648"><span class="ts">10:48</span><span class="tx">Um, so with these work-- these-- both the external interface and this sort of internal prefill decode split defines these, uh, the sort of metrics that you care about for a workload that sort of tells you how to deploy your inference engine and, and how to measure its success and performance. So you have something like queries per second in and queries per second produced. Um, this one pretty tricky to think about, uh, under control of your users. Um, uh, you probably have a better time</span></div><div class="tline" data-t="678"><span class="ts">11:18</span><span class="tx">thinking of it, uh, at the engine level, thinking of how many queries per second you can handle per replica of your inference engine, um, and then you have aggregate demand coming from users. Uh, then with those queries, you wanna look at how many tokens there are per query, um, input and output, AKA prefill and decode. Um, so this one is tricky because it, because it's not only under control of users, but it's also under the control of the model. Uh, so the determination of when to finish processing a query is not under your</span></div><div class="tline" data-t="708"><span class="ts">11:48</span><span class="tx">deterministic control. It's under the control of the model inside the inference engine. Um, so this is something not-- Both of those sources of nondeterminism means you need to kind of like measure this, benchmark it to get it. Um, and then, uh, when we do our processing, we, uh, we produce some intermediate artifacts that we wanna cache in the KV cache. Uh, and then the degree to which that cache is reusable is a key component of the definition of our workload. Um, this is also mostly under control of users, but you</span></div><div class="tline" data-t="738"><span class="ts">12:18</span><span class="tx">can get, like, depending on the workload, there's actually, like, pretty, uh, relatively fixed patterns of, of prefix reuse. Um, uh, and then finally coming from the application layer, um, you have some, uh, latency budget, some SLO of, like, how quickly you want to return tokens. That could be how quickly you finish something like the prefill phase and have your first tokens ready to send to users, or it can be how quickly you can generate each set of tokens during your decodes and get them back to users.</span></div><div class="tline" data-t="768"><span class="ts">12:48</span><span class="tx">So that's your time to first token and your time per output token or intertoken latency. Uh, so this is gonna be the, like, primary constraint that you operate under. Okay. Um, and we can map those back onto our application arch-archetypes, uh, like a chatbot plus background agent, really high prefix reuse. There's some interactivity going on, whether that's a person or an agent. Um, the chatbot plus generally has relatively short decodes, relatively short outputs of tens to hundreds of tokens, um,</span></div><div class="tline" data-t="798"><span class="ts">13:18</span><span class="tx">and a very tight latency tolerance on that. Like, a person, uh, wants to see something in a few hundred milliseconds at the very most, or they get bored, uh, they get angry, they turn away. Um, with a background agent, you maybe have a few minutes to produce a PR, right? Um, if it's as high quality as an engineer, maybe, uh, as, like, what would be produced by a good software engineer, maybe you have a few hours. Um, and so there's not as tight of a, of a budget on your milliseconds of network overhead or whatever. Um, and then with a data processor, you generally have very low prefix reuse. Um,</span></div><div class="tline" data-t="828"><span class="ts">13:48</span><span class="tx">you are seeing different documents each time. There's maybe a system prompt, but it's generally small relative to the other inputs. Um, and then you have a very short decode. You're producing some structured object that's generally short relative to the input. Um, the structured version is shorter than the unstructured version. Um, and then the demand here is less on latency generally and more on aggregate throughput because you're generally, like, ripping through a database backfill type job in a lot of these. All right.</span></div><div class="tline" data-t="858"><span class="ts">14:18</span><span class="tx">Um, and so may- maybe we just wanna call out, uh, like now that we've looked through this, you could see that, like, e-even though at the application layer this feels like kind of one s-- it's one single workload from the pref- perspective of the user, once you start drilling down into what the engine is doing, it really feels like there's two sub-workloads going on. There's the, like, workload to do your prefills, to do the processing of input prompts, um, and then there's work to do the decodes to produce the outputs. Um, and</span></div><div class="tline" data-t="888"><span class="ts">14:48</span><span class="tx">these, uh, they sort of operate semi-independently inside the engine, um, and so need like a sort of like different perspective, and they follow often, like, different code paths. Um, and they're sort of defined by the fact that the per user in the decode phase, you do-- you're doing far less arithmetic, far less math per, uh, per decode per user than you would do in the prefill phase, which is a lot, like, much higher arithmetic intensity, a lot more,</span></div><div class="tline" data-t="918"><span class="ts">15:18</span><span class="tx">uh, uh, a lot more math per request. Um, and so that's your fundamental constraint, but also the sort of space in which you operate in configuring an engine and then, like, adding features or, um, adjusting the engine behavior to serve these two things.</span></div><div class="tline" data-t="934"><span class="ts">15:34</span><span class="tx">Okay. So I wanted to make sure we're all on the same page about some of the core stuff about what these engines are actually doing before we peel open, uh, the insides and start looking at them. So what is the architecture of an inference engine? Um, so, um, this is a little, little diagram showing at a high level what an inference engine does. So the goal of an inference server is to take an HTTP request or a gRPC request and turn it into an HTTP response to the client. Um, and so it does that</span></div><div class="tline" data-t="964"><span class="ts">16:04</span><span class="tx">by passing through all these things down here. Um, so the idea in this diagram, um, is that if you follow any set of arrows, you get the same thing. So, uh, you can sort of peel back a layer of the arrows and look inside and say, &quot;All right. So what, what is the-- the inference server does this high level thing. What's the next level down?&quot; The inference engine is the sort of like interesting part of it, is the, is the part that is not doing the HTTP serving because we aren't in one of those situations where HTTP serving is the hard part, is your</span></div><div class="tline" data-t="994"><span class="ts">16:34</span><span class="tx">bottleneck. It's not like a proxy. Um, it's, uh, it's a-- this is a case where you're handling tens, hundreds, maybe thousands at most of requests and responses per replica, and so general purpose hardware just, you know, kinda eats this for lunch. Um, so the real interesting stuff is all at the layer below this. Um, so at the top is your, like, your server IO for HTTP requests. At the bottom is the actual engine, and its, like, collection of processes. Um, and you can kinda break this out into three</span></div><div class="tline" data-t="1024"><span class="ts">17:04</span><span class="tx">pieces. The request comes in expressed using, like, sort of human-friendly, um, or external representations. So you have Unicode strings, you have PNG images, you have MP4 videos or WebRTC streams, um, and these need to be preprocessed before they can get passed to the actual inference. So they get turned into collections of tokens, um, which then get mapped into tensors on the GPU. And then we can actually do the inference part of the inference engine, which</span></div><div class="tline" data-t="1053"><span class="ts">17:33</span><span class="tx">takes, uh, you know, in the simplest case, it takes a tensor with K entries in it and gives you a tensor with K plus one entries in it. And these are machine learning models that predict the next token. They guess what would the next entry in this big tensor look like, um, based off of the data I've seen in training, whether that's data from the internet or data from what a helpful agent would do or, uh, RL data, um, whatever that you've learned to predict this next tensor entry. So that's the core right there,</span></div><div class="tline" data-t="1084"><span class="ts">18:04</span><span class="tx">um, and that is what is wrapped by the rest of the inference engine. Um, so then we have post-processing on the side here. So post-processing turns that new tensor into a response, uh, and that's generally done by this detokenizer that goes back to the sort of- Token space first and then, uh, and then back to our, um, back to the human and external system friendly representation in the response, so it can be returned to the user.</span></div><div class="tline" data-t="1111"><span class="ts">18:31</span><span class="tx">Question?</span></div><div class="tline" data-t="1114"><span class="ts">18:34</span><span class="tx">Could you, could you explain the difference between the inference server and the inference engine, and where does vLLM lie?</span></div><div class="tline" data-t="1121"><span class="ts">18:41</span><span class="tx">Great question. Yeah. So the question was what is the difference between an inference server and an inference engine, and where does something like vLLM lie? Um, so inference server, uh, means that you've wrapped some like input/output around the core operations of like taking requests and turning them into responses. Uh, so vLLM has both of these. Like vLLM operates as a, an HTTP or gRPC server. Um, and then you-- the</span></div><div class="tline" data-t="1151"><span class="ts">19:11</span><span class="tx">engine layer is sort of like part of the vLLM or SGLang SDK as like vLLM dot engine. Um, so most deployments are-- look like are deployed as a server with a like a single request, single response kind of interface, um, as depicted here. Um, yeah. Does that answer your question? Yeah. Um,</span></div><div class="tline" data-t="1175"><span class="ts">19:35</span><span class="tx">cool. Um, I said this earlier, but some people have come in since. Like please interrupt or raise your hand with questions if I'm like ... if there's anything confusing or if you wanna dive deeper. Yeah, [REDACTED]?</span></div><div class="tline" data-t="1186"><span class="ts">19:46</span><span class="tx">I'm assuming this is a stateless type of workload.</span></div><div class="tline" data-t="1190"><span class="ts">19:50</span><span class="tx">Yeah. So the question from [REDACTED][REDACTED] is, is this like a stateful or stateless, uh, workload? So the answer is, it is stateless if you don't care about performance. Um, it's stateful once you do care about performance, which is pretty much every case. So in the primary state that you accumulate over time for requests is the KV cache of like previously computed things for, for a previous request attached to some notion of session. Um,</span></div><div class="tline" data-t="1220"><span class="ts">20:20</span><span class="tx">and that handling things like sessions actually lives outside of the inference server/inference engine in general. So the-- an in-individual engine replica can track this KV cache, but is up to the wrapping layer, which might be something like NVIDIA Dynamo or LMD to handle like defining what a session means. So it's like the clients in that architecture sort of define the, the sessions. Um, and that is where a lot of the trickiness comes in. Um, so we won't talk too much about that 'cause it's kinda outside the-- There's enough to talk about with</span></div><div class="tline" data-t="1250"><span class="ts">20:50</span><span class="tx">engines, um, already. But yeah, uh, come find me afterwards, um, if you wanna talk about that layer.</span></div><div class="tline" data-t="1258"><span class="ts">20:58</span><span class="tx">Um, right. So this diagram, we also talked about it previously. We just wanna return to it now that we've seen a little bit more. So this outer layer is our server IO process. This, um, is it-- this is specifically SGLang's architecture. There's some slight differences with vLLM, but this server IO process communicates with the outside world and then with our pre-processing and post-processing. Those things communicate with a scheduler process, um, which is the one that defines and schedules work onto the GPU, handles things like</span></div><div class="tline" data-t="1288"><span class="ts">21:28</span><span class="tx">queuing. Um, and then the... Actually, not ready for that yet. Um, and then the one or more processes that are sort of closely tied to the GPU are the ones that do the real work of doing the inference. Um, so the, yeah. So the key things to pull out here is that if you are an old school ML person who's been in this world for a long time, the model forward passes layer is the one that you're familiar with. This is where the vast majority of the sort of like PyTorch, uh, and</span></div><div class="tline" data-t="1318"><span class="ts">21:58</span><span class="tx">similar code shows up. Um, and this is the pla-- like the GPU i- or the accelerator in general is the component that costs the most, um, and is capable of the most work, like petaflop per second scale operations. So this is where the like hardcore shave a, shave a microsecond performance engineering is focused. Uh, but critically, this scheduler process out here, or its equivalent in another architecture, is your-- is</span></div><div class="tline" data-t="1348"><span class="ts">22:28</span><span class="tx">the bottleneck to that component. Um, and so this is, it's generally operates, um, it is literally single-threaded in the implementations we'll talk about, but it's also like semantically it's single-threaded. It's this one thing that is defining-- somebody has to define the work that happens on the, on the GPU. Somebody has to manage a bunch of resources there, and there's some, some fiddly, like tricky things to do concurrently. And so this becomes this, uh, like s-s-semantically</span></div><div class="tline" data-t="1378"><span class="ts">22:58</span><span class="tx">single-threaded, uh, like point of control that can potentially, despite the fact that it's not doing much, it's not doing as many operations, uh, as the work on the GPU, it actually becomes your bottleneck. It's the sort of gatekeeper to the GPU. And so this is the other place where the majority of like performance engineering and care needs to go in the design and operation of an inference engine. Um, so we'll see more on that as we go, but that, that's like the high level takeaway about these things.</span></div><div class="tline" data-t="1408"><span class="ts">23:28</span><span class="tx">So then is the solution to that bottleneck having better, you know, detokenization processes to run schedulers in parallel by breaking up the problem?</span></div><div class="tline" data-t="1418"><span class="ts">23:38</span><span class="tx">Uh, yeah. So the question was, is the solution to that bottleneck to, you know, operate the schedulers in parallel or, um, uh, or to improve some of the external components that consume from it? I think the current state of affairs is that this is not reached the-- like that you can operate these server processes in Python, and you just have to be faster on the host side than the GPU side. And</span></div><div class="tline" data-t="1448"><span class="ts">24:08</span><span class="tx">there's not-- the like complexity increase that you get from trying to manage like locks or coordination on the GPU resources is much-- that complexity increase is much greater than the gain. Um, because even if you were able to get it down to a microsecond, the work wouldn't start happening until the previous work on the GPU had finished. And that's- You know, depends on the particular workload, but you're talking generally tens of milliseconds to hundreds of</span></div><div class="tline" data-t="1478"><span class="ts">24:38</span><span class="tx">milliseconds. And so the, like, um, yeah, there are general-- most of the time you can get around it. We'll, we'll talk a little bit more about this, so maybe ask again once we get to that if, if that wasn't satisfying. Um, but yeah, great question. More good questions, please. Okay. Um, so then just looking at that s-- that was, like, the architecture diagram that you think of as you're, like, engineering. Um, let's look at the, like, life of a request in this architecture. So the, um, the server,</span></div><div class="tline" data-t="1508"><span class="ts">25:08</span><span class="tx">like, receives an input from the outside world. It says, &quot;Okay, we've got a request.&quot; Um, it sends it to the tokenizer to s- prepare, pre-process this request. That g- then goes into the scheduler that decides, like, okay, how many resources is this thing gonna consume? What resources are available? Um, and then that runs this core loop of creating, um, batches of requests to go in the model runners. So generally, most of the accelerators, like, benefit from operating on multiple requests</span></div><div class="tline" data-t="1538"><span class="ts">25:38</span><span class="tx">in parallel. Um, so especially GPUs, but also TPUs and, and many others. So you want to collect a bunch of requests together and run them. Um, if you're a database person, you might imagine, like, I'm go- I'm about to run a sequential scan, so I might as well grab like three or four queries that are all going to, like, read this entire table and do all of their, um, like, you know, do all of their queries at once. Um, 'cause the hard part is that, like, sequential scan of loading the entire table. Um, so there's a similar thing going on here.</span></div><div class="tline" data-t="1568"><span class="ts">26:08</span><span class="tx">Um, uh, so this core loop operates over and over again, start a batch, and outputs the, like, uh, the tokens and the probability distribution over tokens, the, the logits, um, that comes from the, the model runner or runners. Um, so that operates, um, sort of continually. Uh, and then as tokens are ready, uh, they can be passed to the detokenizer to be, like, turned back into a proper response to the outside world and then sent back to the server.</span></div><div class="tline" data-t="1601"><span class="ts">26:41</span><span class="tx">So yeah. Rel-- this is-- What's interesting about this stuff is that it is simple relative to what's going on inside databases, file systems, uh, like web servers, um, uh, partly because it's fairly new, but partly 'cause there's just this core bit at the middle that you just want to operate at maximum speed. Yeah. Question.</span></div><div class="tline" data-t="1621"><span class="ts">27:01</span><span class="tx">Is there communication between the tokenizer and the detokenizer?</span></div><div class="tline" data-t="1623"><span class="ts">27:03</span><span class="tx">The question was, is there communication between the tokenizer and the detokenizer? Um, to my knowledge, there is no direct communication between the tokenizer and the detokenizer in SGLang. Um, in vLLM, they actually live inside the same process, the, um, manager, the engine manager. And so, like, it'll be a little harder to determine if there's any communication there. Um, but in general, they actually don't need to communicate with each other. They just need to operate essentially the same, um, system for mapping from, like, inputs to, uh,</span></div><div class="tline" data-t="1654"><span class="ts">27:34</span><span class="tx">tokens or tokens to outputs. Yeah. Did that answer your question?</span></div><div class="tline" data-t="1658"><span class="ts">27:38</span><span class="tx">Yeah. I guess I got confused because I think, like, the, the mapping-- I'm not sure the map-- how simple the mapping is. Like, if you start to have ambiguity at some level, disambiguate it in some way-</span></div><div class="tline" data-t="1678"><span class="ts">27:58</span><span class="tx">Mm-hmm</span></div><div class="tline" data-t="1678"><span class="ts">27:58</span><span class="tx">... and it seems like you would need to respect the disambiguation and the de-tokenization.</span></div><div class="tline" data-t="1686"><span class="ts">28:06</span><span class="tx">Right. So the, the question was about basically maintaining coherence between the tokenizer and the detokenizer and how would you handle maybe, like, ambiguous, um, like, ambiguous inputs. Um, the answer is that, yeah, they, they run the same, like, underlying lib-- like, underlying libraries, like the-- usually, like, the tokenizers library from Hugging Face. Um, and they-- I would say the tokenization part is the one that is harder than the de-tokenization part. The</span></div><div class="tline" data-t="1716"><span class="ts">28:36</span><span class="tx">de-tokenization part is, like, a little bit more entirely under c- under the control of the person implementing the, the detokenizer. Um, yeah. Um, yeah.</span></div><div class="tline" data-t="1725"><span class="ts">28:45</span><span class="tx">So, say the software allows them to always make the same decisions?</span></div><div class="tline" data-t="1730"><span class="ts">28:50</span><span class="tx">Yes. So the question was, does the software allow the tokenizer and detokenizer to always make the same decisions? I would say yes. I'm try-- I'm, like, trying to make sure that I'm not overpromising here. Um, but I don't think you need communication between them to ensure that the same decisions are made. Yeah. Question. Sorry, the person... Yeah.</span></div><div class="tline" data-t="1749"><span class="ts">29:09</span><span class="tx">The tokenizers can be parallelized correctly in administrator.</span></div><div class="tline" data-t="1752"><span class="ts">29:12</span><span class="tx">Yes.</span></div><div class="tline" data-t="1753"><span class="ts">29:13</span><span class="tx">But in practice, you still see longer time per token on longer inputs. Um, why is that?</span></div><div class="tline" data-t="1761"><span class="ts">29:21</span><span class="tx">Right. So, well, first pointing out that the tokenizer can be, um, parallelized and generally is, like, multiple processes. Um, and yet you still see longer time to first token, uh, if you have longer input sequences. So why is that? Um, so the answer is that processing a longer sequence of tokens takes longer inside of this core loop. Um, so it's the, like, primary driver. Um, if you have a hundred thousand tokens, that will take, let's call it</span></div><div class="tline" data-t="1791"><span class="ts">29:51</span><span class="tx">ten times ten thousand tokens. Um, once you get to a certain, uh, size, it's basically linear in the input sequence size. Um, then in a, like, running inference engine, there's also effects from, like, you break up the input tokens into multiple pieces and run them as separate batches, so you can also get additional-- if there's, like, queuing and congestion, that adds more to the, um, uh, processing of a, uh, of a long batch, um, than to a short batch. You experience the queuing delay multiple times,</span></div><div class="tline" data-t="1821"><span class="ts">30:21</span><span class="tx">possibly. Um, but maybe the, uh, one underlying, um, point to clarify, like, producing the first token means producing the first output token, not the tokenization process. Um, and then finally, not a part of the question, but something I wanted to point out, it is interesting that you generally have multiple deta- tokenizer processes, um, and one detokenizer in the SGLang architecture at least. Um, and the answer there is that input tokens are-- come in at, like, a much higher rate than output tokens are</span></div><div class="tline" data-t="1851"><span class="ts">30:51</span><span class="tx">produced. Um, and that's related to the fact that prefill can operate at much, like, higher rates of total tokens per second than decode can in general. Um, and so you-- there isn't as much pressure on the detokenizer component of the system to operate, like, at the-- a-as quickly. Um, and it's also in some-- it's bottlenecking your response to the user, but it's not bottlenecking the core model forward pass resource. So it's also, like, off the hot path a little bit. Um, yeah.</span></div><div class="tline" data-t="1879"><span class="ts">31:19</span><span class="tx">How much is kind of the portion of the latency between the tokenizer and then the core loop, like this part of the code?</span></div><div class="tline" data-t="1887"><span class="ts">31:27</span><span class="tx">Yeah. So the question was how much of the latency comes from this part in the tokenizer versus this part in the core loop. This is gonna b-depend on your workload. Um, I would say there was a nice thing from, uh, who was that? Crusoe, I think, um, that pointed out that the existing tokenizers generally don't show up as a bottleneck if you have models that are, let's call it, like, twenty billion parameters total or, or above. Um,</span></div><div class="tline" data-t="1917"><span class="ts">31:57</span><span class="tx">and that, and if you-- but if you are operating a smaller model and you're operating on very large input context, then it can show up as a, as a bottleneck. So that's maybe a good rough guide, I would say. Like, I actually have not had to think about the tokenizer latency very much. It's generally been prefills and substantially decodes that are your-- the, like, latency bottleneck. And so decodes, if you're producing one thousand output tokens a second, each one is, like, one millisecond on average. Um,</span></div><div class="tline" data-t="1947"><span class="ts">32:27</span><span class="tx">and the, um... But up to, like, ten milliseconds, twenty milliseconds, um, or even more if you have a, um, lower decode throughput, like a large MOE that you're running at lower interactivity. And so that very-- the tokenizers are definitely millisecond scale or less and only happens once, um, per request. Yeah. Also notable that nobody talks about tokenizer caching. People talk about KV caching, not tokenizer caching, even though you could do it.</span></div><div class="tline" data-t="1977"><span class="ts">32:57</span><span class="tx">Um, I'm gonna keep going just to make sure we get through more stuff, but these have been great questions, and so if it's still relevant, please ask. Um, another important question to ask. Wait, why are we doing multiprocessing? The key reason is we want, we want separate threads of control for each subcomponent for our server I/O, for our tokenization and detokenization, for each model runner. Um, we want them to be able to sort of operate as independently of each other as possible. Um, they are-- many of them, the tokenizer and the detokenizer are doing relatively compute-intensive work relative</span></div><div class="tline" data-t="2007"><span class="ts">33:27</span><span class="tx">to most of what happens maybe in a, in a, in a web server. Um, the model runner is, um, like interfacing with the GPU or accelerator. It interacts with that in a way that's kinda similar to the way you would interact with a NIC, um, in like a web server, which is to say you offload work onto it. Um, and, uh, so that one, you, you're giving it its own event loop. Maybe in theory, that could be part of, like, a broader event loop. Um, uh, but it's, uh,</span></div><div class="tline" data-t="2038"><span class="ts">33:58</span><span class="tx">certainly, like, cleaner to have these separate threads of control and optimize their, uh, you know, optimize their latencies, and there's not sufficient, uh, interprocess communication to require them to, like, say, live in the same thread. Um, but why not threads, uh, for each of these instead of processes? Um, and one of the fundamental reasons is that Python is single-threaded per process. This has recently started to change. There's still a lot of work for compatibility and performance to be done there. Um, so that, uh, because Python has a global</span></div><div class="tline" data-t="2067"><span class="ts">34:27</span><span class="tx">interpreter lock for all the threads in the same process, you would, like, frequently block on that. Um, so it's-- so that is another reason to sort of split these up. Um, but that just, uh, begs the question, um, uh, or I guess begets the question, why Python? Um, and the answer is Python has excellent model or GPU support. Uh, so it's, like, easy to run code on accelerators with Python. So specifically for that model, um, uh, model forward pass component. Um, and so wait, but why--</span></div><div class="tline" data-t="2097"><span class="ts">34:57</span><span class="tx">wait, why does Python have excellent support here? Partly it's that it's a great language for researchers 'cause it's, like, ease of use and these, uh, models are still coming out of a sort of research-y, data science-y environment. But there's a deeper reason, which is that Python has really-- has kept, like, really deep C and C++ interop as one of its core design principles, and that allows for, like, much easier communication, uh, with these accelerators and, uh, with, like, accelerated code in general, um, than, uh, like, a maybe equally ergonomic</span></div><div class="tline" data-t="2127"><span class="ts">35:27</span><span class="tx">language like JavaScript. Um, but why not, like, rewrite it in Rust? Um, the model worker processes, again, they're just trying to, like, tell the GPU what to do. So you could-- like, the code on the GPU is written in a compiled language and, and, like, carefully optimized, like, to within an inch of its life. Um, but the model worker processes are just organizing that. And there is a few tricks, like CUDA graphs, um, that, like, really just pull all the work out of the worker processes and into sort of fast stuff running on the</span></div><div class="tline" data-t="2157"><span class="ts">35:57</span><span class="tx">GPU. Um, but there is the scheduler, on the other hand. So the scheduler just needs to stay faster than that work. Um, but as GPUs get faster and as the amount of work on the GPU goes down, the pressure on the scheduler component goes up. Um, so this is actually, like, a pretty good target for a rewrite it in Rust type moment, um, because this part is host side. It has to manipulate a small number of GPU resources, but it doesn't necessarily have to know stuff about models and PyTorch. Um, and so it's like a thinner rewrite. It's, like, specific</span></div><div class="tline" data-t="2187"><span class="ts">36:27</span><span class="tx">per engine, um, and, uh, uh, and host side only. So, like, in the sort of arc of future inference engines, I'd expect it to be a big target, um, making that faster now that the f-the sort of iterative development speed is slowing down a bit.</span></div><div class="tline" data-t="2205"><span class="ts">36:45</span><span class="tx">Okay, so now let's look inside of the, like, what, what is going on inside of these components. Um, um, get mostly, mostly focused on the, um, the model forward pass piece. So at the very-- We're going sort of like inside out. So at the very bottom, there are kernels that run operations fr- as part of the model architecture in general. Um, these are mostly deferred by the engine, which is to say, like, the engine doesn't implement all of the kernels for every operation it needs to</span></div><div class="tline" data-t="2234"><span class="ts">37:14</span><span class="tx">support. Um, it has backends that implement the, uh, these kernels, and it consumes them from external libraries of kernels. This is one reason why there isn't much differentiation between the engines on sort of raw GPU performance. Um, it's mostly about how good are you at getting out of the way of the GPU. Um, there are a few special kernels per engine like tree attention for tree-based speculators in SGLang. Um, and so there's like little bits where an engine will have a specific kernel, but, like, if it's useful, if it's popular, it</span></div><div class="tline" data-t="2264"><span class="ts">37:44</span><span class="tx">ends up in some kernel library, so it can be used in lots of places, and then they consume it from, like, an external library. Um, then, uh, the kernels are selected by the sort of model forward pass code that does control flow of-- and sort of like selection of which kernels to operate. Um, and this is, this is implemented in each engine in general, and it's implemented per model. Like, if you want to add support for a new model architecture, this needs to be implemented in each engine. Um, there's generally a reference</span></div><div class="tline" data-t="2294"><span class="ts">38:14</span><span class="tx">implementation that comes from a library like Transformers, um, but that is insufficiently optimized, um, the, like, s- the setup there. So there's, um... I guess in SGLang and vLLM, there is now a path where you can just use that Transformers implementation, and they'll maybe do a little bit, tiny bit of surgery to see what they can automatically kernel fuse or automatically optimize or rewrite. Um, but in general, uh, for most things people wanna run, you're gonna go through this hand, handwritten, as handwritten as software is these days,</span></div><div class="tline" data-t="2324"><span class="ts">38:44</span><span class="tx">uh, path for, um, like selecting which kernels to run. Um, then, uh, wrapping those model forward passes is our batch construction to select the inputs to that model forward pass. Um, this is kind of one of the primary sources of special sauce per engine. You need to set up this, um, this sort of like queuing setup. Um, so you might want to be able to, for example, not operate separate prefill and decode queues but operate one sort of</span></div><div class="tline" data-t="2354"><span class="ts">39:14</span><span class="tx">queue where you can mix prefill and decodes together. Um, that might have some performance implications. You might also want to be able to, like, dynamically switch whether you're running pure prefills, pure decodes, or mixes. Um, and then you want to do this. I think in the ideal operation of an inference server, there is no queuing. Um, so as somebody who operates these things, I, like, I treat queuing as a problem, um, but the engine should be able to kind of do it. Um, or may-maybe it's too extreme to say that queuing is a problem, but, um, you don't want</span></div><div class="tline" data-t="2384"><span class="ts">39:44</span><span class="tx">this to be a, like, yeah, a growing queue. Um, you want it to be flushed as quickly as possible. Um, and then lastly, wrapping that, you have, uh, detokenization and tokenization. Um, this is, like, mostly boring, I'll say. Um, it's, like, solved in the existing tokenization libraries outside of the engine. I think the exception to this being multimodal inputs and outputs. Um, we now have pretty good open weights multimodal input models. Um, and if you take a look at some traces, you'll see that there's, like,</span></div><div class="tline" data-t="2413"><span class="ts">40:13</span><span class="tx">still many opera- opportunities for optimization on this path. Um, tokenization of an image is just, like, a harder problem than tokenization of a, um, of a string of Unicode bytes, like conditioned on already having a, a tokenizer. There's more, more work to be done. You might need like FFmpeg, for instance, to like pull out raw frames to go into something that turns it into a tensor. Um, and so, yeah. So that, that's maybe the most interesting part there. Um,</span></div><div class="tline" data-t="2444"><span class="ts">40:44</span><span class="tx">the str- one way to sort of conceptualize the structure around the model forward codes is that the model forward code is, um, like going to call into a couple of different types of libraries or directly sort of write its own code to run on the GPU. Um, so a lot of it goes through like PyTorch code, which has its own kernel libraries and, and can run things on the GPU. Um, then there are like specific kernel libraries that you would draw from that aren't in the engine. And then finally, the</span></div><div class="tline" data-t="2474"><span class="ts">41:14</span><span class="tx">engine has its own, uh, set of like kernels that can directly, um, you know, run code on the GPU. Um, so picking that apart a little bit, the, um, uh, the kernels that exist in their backends, the core of language modeling architectures these days look something like this. Um, there's a sequence of layers, uh, that you take an input, you pass it, do some cross-token computation on the sequence, then you do some</span></div><div class="tline" data-t="2504"><span class="ts">41:44</span><span class="tx">per-token computation to enrich the sequence, um, and then you merge that back in with your representation, and you iterate this layer after layer. Um, and so this splits nicely into the two kind of classes of like really critical fast kernels that are available, especially via the backends. Um, so the cross-token computation is your attention or linear attention. Um, there's a bunch of different backends for attention. The FlashAttention kernels from Tri Dao and Jay Shah and others, uh,</span></div><div class="tline" data-t="2534"><span class="ts">42:14</span><span class="tx">FlashInfer from NVIDIA, uh, CUTLASS also from NVIDIA, um, the Triton, uh, implementations of these kernels, that's OpenAI's kernel authoring library. Um, the TRT-LLM, the engine has also split out its kernels, and they're available, um, as, as backends for attention. I think you'll see many of the same names that show up as attention backends also show up as backends for your matrix multiplications inside of your, um, your,</span></div><div class="tline" data-t="2564"><span class="ts">42:44</span><span class="tx">uh, per-token computation, which is your MLP layer. It's where the biggest, uh, GEMMs are. Uh, it's also, uh, in some architectures, this, this is a dense MLP, a classic neural network. In other architectures, it's these sparse mixture of experts, which basically just says, &quot;Don't send every token to the same neural network. Per token, decide which smaller neural network to send it to.&quot; Um, so the, um- The dense MLPs, there's a, there's a nice, uh, library for this from, uh,</span></div><div class="tline" data-t="2594"><span class="ts">43:14</span><span class="tx">DeepSeek, DeepGEMM that gets used a lot in SGLang as kind of like the default. Um, in vLLM, there's some quantization-focused backends for this, the Marlin and bitsandbytes backends. On the, uh, for the grouped GEMM, you can split this out into first, like, there-- we have this like routing or communication problem of where do tokens go and how do I bring stuff together at the end. Um, so that can be done with a separate set of kernels like the, uh, for this all-to-all communication and</span></div><div class="tline" data-t="2624"><span class="ts">43:44</span><span class="tx">routing, like the-- another one from DeepSeek, DeepEP. Um, and that could be sort of factored out from the, like, matrix multiplication step, um, that ha- that can have performance penalties. And so you can also do that as like one big kernel, um, a, a mega kernel, uh, which is what is done in the DeepSeek V4 architecture.</span></div><div class="tline" data-t="2647"><span class="ts">44:07</span><span class="tx">Um, okay. So these, uh, with vLLM and SGLang, these are things that you can sort of set and control. In SGLang, it's, like, kinda pushed up into your face in the form of configuration at start with smart defaults. vLLM is a lot more focused on the, like, smart defaults side, and then you sort of like patch change things more with, um, environment variables. Um, at least last I checked, you know, these things change every, like, few days. Um, but yes.</span></div><div class="tline" data-t="2677"><span class="ts">44:37</span><span class="tx">Question.</span></div><div class="tline" data-t="2678"><span class="ts">44:38</span><span class="tx">Can you talk a bit about what happens when there are like thousands and millions of requests? Like, who decides how much KV cache to give to like each request, and how does everything happen? Like, there's been instances where like clouds stopped working when there was a lot of requests. So what happens on the inference side to deal with concurrency?</span></div><div class="tline" data-t="2698"><span class="ts">44:58</span><span class="tx">Yeah. So the question was basically about what's happening with concurrency with really large numbers of requests. Um, so that goes back-- So that's, uh, much higher level than the kernels and backends, um, that's happening sort of at our, like, batch construction and scheduler level. So basically, the scheduler is gonna do what-- the best that it can to decide like, um, which requests to run, em- generally emphasizing requests that already have KV cache allocated to them, um, 'cause then you don't need to recompute.</span></div><div class="tline" data-t="2728"><span class="ts">45:28</span><span class="tx">Um, the-- If you need to evict something from the cache to make space for another request, um, yeah, that will generally get like put out to CPU memory and then disk. Um, and I would say, yeah, to my point earlier about queuing, I think of that as essentially like a failure state of the engine, um, that we-- like I've deployed my engine improperly if I get to the case where I have KV cache thrashing or like things being flushed to disk. In the same way that there's like swap</span></div><div class="tline" data-t="2757"><span class="ts">45:57</span><span class="tx">memory in your operating system, like you can swap memory to disk, but at that point, your MacBook becomes unusable, right? Um, so it's, it's a useful feature to have, but almost like, um, so that you don't go hard down when you have a serving problem. Um, yeah.</span></div><div class="tline" data-t="2773"><span class="ts">46:13</span><span class="tx">Can I have one follow-up question? How does, how does serverless, uh, uh, inference engine deals with cold start problem? Like, for example, how is model compared to like AWS Institute or Google Cloud Run?</span></div><div class="tline" data-t="2789"><span class="ts">46:29</span><span class="tx">Yeah. So the question was about like serverless deployments and cold starts. I'm not gonna talk about that this much because I promised Swix I wouldn't do a vendor talk. Um, but please talk to me afterwards. There's a blog post called Truly Serverless GPUs that talks about how we solve that problem. Memory snapshotting, GPU memory snapshotting, custom file system, bunch of pieces to make the cold starts faster. Um, yes. Um, cool. All right. So let's talk about some of the key techniques that you need, uh, to implement to--</span></div><div class="tline" data-t="2818"><span class="ts">46:58</span><span class="tx">in- inside an inference engine to make sure, like, uh, your performance is good. Um, so attention is fundamentally quadratic, at least like the, uh, load-bearing part of the attention in, in every architecture that's popular. Um, and the, um, so the solution to that is to store things, um, after you've computed them, and you do like a little space-time trade-off for linear computational complexity in exchange for linear storage. Um, that runs into problems with how much can you</span></div><div class="tline" data-t="2848"><span class="ts">47:28</span><span class="tx">store in GPU memory because it's actually often slower to store this somewhere else, uh, and then load it back in as opposed to recomputing it. GPUs are fast. Um, so you want to be efficient with your use of GPU memory. Um, and then you often have requests that share prefixes. So for example, like all these commandments start with &quot;Thou shalt not,&quot; um, and so you can reuse the computation of everywhere up to here. Um, as soon as a single token differs, you no longer can</span></div><div class="tline" data-t="2879"><span class="ts">47:59</span><span class="tx">share the prefix. So it's kind of this like tree or trie shaped structure. Um, but you want to be able to make use of that, especially if you have like a giant system prompt for like an agent system that's tens of thousands of tokens. Um, it's like quite nice to be able to share that across users. Um, and so the solution to this is like KV caching with pages or, or radices. Uh, so you store the information in this, um, in like a, a page cache data structure like you'd have in an operating system,</span></div><div class="tline" data-t="2909"><span class="ts">48:29</span><span class="tx">and then you just need to reconstruct these tensors sort of on the fly to pass them to attention kernels. So that, that job is now... It used to be the job of the engine to solve that problem. That's now incorporated into the attention kernels like FlashAttention-4, something that our team worked on, the, um, page size one, um, and sort of like radix, uh, form of KV caching that you can see on the right. Um, and, uh, yeah. So this is, this is moved a little bit. Uh, I put this in here 'cause it used to be like a defining feature of the engine,</span></div><div class="tline" data-t="2939"><span class="ts">48:59</span><span class="tx">but now it's kind of actually part of the kernels, and really it's the management of KV cache capacity and, um, and the like layout of the KV cache that's the problem of the engine.</span></div><div class="tline" data-t="2950"><span class="ts">49:10</span><span class="tx">Um, another problem I already talked about, how this, this scheduler can be this, um, host side bottleneck. What you want when you're running stuff on the GPU, like both at the sort of scheduler level and then inside of models, is that you want that just like at every moment, some kernel is running on the GPU, and things happen on the CPU to decide what that, uh, should run on the GPU, but they shouldn't ever block, uh, progress. But it's very easy to accidentally write some kind of host device sync. There does have to be information passed between them. The GPU can't just like</span></div><div class="tline" data-t="2980"><span class="ts">49:40</span><span class="tx">send the response directly to the user. Um, it wouldn't be that good at it if it did run an HTTP server. Um, and so you, you do need this CPU work. You just wanna make sure it doesn't block. Um, one of the key techniques for this is CUDA graph capture. So you take all of these kernels that get run in the forward pass of the model, and you track all of them, and you turn that into one big data structure, a DAG of operations of like this kernel runs and pr- and like, you know, mutates the data at this pointer.</span></div><div class="tline" data-t="3010"><span class="ts">50:10</span><span class="tx">Once that is done, this kernel can now run to mutate what was present at that same pointer and mix it with data from another pointer. So this big DAG of cu- of, uh, uh, of operations is your CUDA graph, and this, um, allows you to go from launching like each one of these GPU kernels having a little bit of CPU work to decide what to run, how to run it, uh, what, you know, which pointer to put. Um, you turn it into just one CPU side work to decide which graph to launch, and then all of it gets launched</span></div><div class="tline" data-t="3040"><span class="ts">50:40</span><span class="tx">from that single graph, which is what's depicted in this, um, uh, Perfetto trace. Uh, so this allows you to relax quite a bit about what is going on in the model, uh, forward pass component at least.</span></div><div class="tline" data-t="3055"><span class="ts">50:55</span><span class="tx">Um, another problem, decode here is sequential, um, and every time you run it, you have to load like either all of the parameters of the model or all of the active parameters in an MoE arc- architecture, um, and you need to do that over and over again, um, by default for each token. So you're, like on behalf of your users, you might be loading like a terabyte of data or a hundred gigabytes of data per token, and you wanna produce a token every couple milliseconds. Um, so now you're looking at that's petabyte per</span></div><div class="tline" data-t="3085"><span class="ts">51:25</span><span class="tx">second scale, uh, memory bandwidth. That's, uh, pretty hard to achieve. Um, so one solution is-- a key technique for solving this is speculative decoding, where you take, um, a separate model, the speculator, guess what the next couple of tokens will be, and then pass it through the target model. Um, and then the target model sort of grades all of those in parallel. Um, and if you apply the right sampling techniques, rejection sampling, um, then you can, uh, guarantee that, uh, the</span></div><div class="tline" data-t="3115"><span class="ts">51:55</span><span class="tx">output from the target model is the same as you would've gotten if you'd run it sequentially up to numerics. Um, the same output, uh, but you've now run it in parallel. You sort of turn your decodes into tiny pre-fills, which is nice. Um, and so the, um, I'll skip over a little any details about the algorithm. There's a great... We wrote a blog post about this, uh, just this past week or two. The key reason why this is really important is that as you improve the quality of the speculator, as you improve the number of tokens it</span></div><div class="tline" data-t="3145"><span class="ts">52:25</span><span class="tx">can guess in a row, um, you actually get basically a linear speed up in your decode throughput. So like many other optimizations that you can do on your inference engine are like the, it's like a game of inches, of like a percent, five percent, ten percent, like each time, and you have to do the like very like difficult performance engineering for each of those, you know, percentage points. Um, but then on the other hand, you could sit down and train a better speculator model, um, and</span></div><div class="tline" data-t="3175"><span class="ts">52:55</span><span class="tx">to first approximation, throw data and compute at it, um, and then get a two x speed up or a four x speed up or an eight x speed up, um, on top of the, the, the baseline. Um, so this is, this has emerged as one of the like key techniques to allow you to operate, say like a thousand tokens per second on, um, on NVIDIA hardware without having-- for actually fairly large models, uh, without having to go to, um, like a, a novel accelerator, like an LPU or Cerebrus.</span></div><div class="tline" data-t="3206"><span class="ts">53:26</span><span class="tx">Um, I'll actually get a... There's a lot of parallelism techniques, but in the interest of time, I'm gonna kinda skip over this one. Um, you want to be able to split work onto accelerators. Um, a lot of this comes from the underlying kernels. You need good kernels that can operate with this parallelism, but within the engine, in the sort of model forward pass code, which is written on a sort of per engine basis, um, you need to do all of the communications around that. Um, and so the communications is where a lot of the problems come in in these, uh,</span></div><div class="tline" data-t="3236"><span class="ts">53:56</span><span class="tx">parallelism, uh, techniques. Um, all right, so, uh, observability with our last couple minutes here. Um, inference services, like all services, will have some bugs in them. Um, you have everything from application level bugs, from models misbehaving, um, uh, which is really not the engine's problem, it's the app developer's problem, but they'll show up on your dashboard sometimes. Uh, model quality bugs, these are the problem of the engine. Are you actually doing your inference correctly? When you applied this</span></div><div class="tline" data-t="3265"><span class="ts">54:25</span><span class="tx">performance optimization, did you actually guarantee it didn't change model behavior? Um, one of the most common ones here is actually on model release, tokenizers are often slightly bugged. They both tokenize and apply chat templates, and there's often some like, uh, some issues there. Um, they're beaten down in a couple weeks after model release, but it's something you always have to be like on guard for. Um, and then performance bugs or engine performance issues, the kind of worst ones are regressions over time. As you operate a replica for an extended period, you might see performance degradation</span></div><div class="tline" data-t="3296"><span class="ts">54:56</span><span class="tx">from issues that only arise once the thing has been running for an extended period. Um, then you also might observe, especially in a heterogeneous cloud deployment environment, di- differences across replicas in their performance, um, that then need to be investigated. So the goal with these is with all kinds of like production debugging is observability. Um, if you can log enough information, uh, to debug just from those logs, then you don't have to spin up a development server and take a bunch of extra time. Um, and so this runs from application</span></div><div class="tline" data-t="3326"><span class="ts">55:26</span><span class="tx">level stuff, um, to, I think, focusing on the engine problems, model quality. You'll-- You want to be able-- You wanna be good at running evals for model quality as part of your deployment. Um, so you wanna hit your actual deployment with like evaluation benchmarking type scripts. Um, there's scripts in SGLang, there's scripts in vLLM, there's external benchmarking tools. Um, take those, uh, calculate some numbers, log traces somewhere, log as much data as you can about those so you can debug later. Um, and then in</span></div><div class="tline" data-t="3355"><span class="ts">55:55</span><span class="tx">prod log traces and try to get feedback from users on correctness that you can thread through all the way back to those requests. Um, for tokenizer bugs, hot tip, log the token IDs. Set your engine up so that the token IDs are logged as well. Um, and then finally, for performance, performance bugs can show up anywhere, so the more metrics that you log, uh, the better. Like, more metrics than you think you need, um, 'cause you never know which cross correlation will revea- will make the bug super easy to discover instead of super hard. Um, so rather than</span></div><div class="tline" data-t="3385"><span class="ts">56:25</span><span class="tx">going through those, I'm gonna talk a little bit about this. This is an endpoint dashboard on Modal and what-- like, how you might read it. Um, I was operating that, um, the, uh, art project, uh, that I showed at the beginning, and I just actually spun up like three different replicas of it, uh, to see what would happen, like under increased load. Um, so there was a traffic spike, which you can see down here, that turns into increasing, uh, first time to first token as things start to queue, uh, on the prefill side and, and don't</span></div><div class="tline" data-t="3415"><span class="ts">56:55</span><span class="tx">enter prefill, um, until, uh, the things have finished. Uh, and then also shows up as well as intertoken latency as, uh, decodes get first get a little bit slower and then a lot slower with this queuing as there's sort of contention on the underlying GPU. Um, and so the solution in this case with going back to the question about serverless deployments is this is detected as like increased load. You spin up new replicas. Those replicas come online. They start taking on some of this</span></div><div class="tline" data-t="3445"><span class="ts">57:25</span><span class="tx">request load. Um, and then the, um, like the amount queued, um, uh, decreases back down to baseline, and things are, um, you, your congestion is solved. So I think, um, that's the like primary way. I think in many cases, you know, we scale up additional resources to solve congestion and queuing. Um, so yeah. Um, when you need to go deeper, I'll skip over this, um, but there's the NSight Systems or Torch Profiler is one of your key</span></div><div class="tline" data-t="3475"><span class="ts">57:55</span><span class="tx">tools here. It allows you to see the whole engine at once. Um, it allows you to see all the processes that are running, all the work that's going on on the GPU, um, and pick out issues like, &quot;Oh, this GPU is running, uh, like everything slower than the others.&quot; Turned out to be a NUMA awareness problem. Um, okay. So, uh, closing out here. Um, if you wanna learn more, miniSGLang and nano vLLM are a really great place to start. These are these simple implementations of the engine architecture, um, by the two</span></div><div class="tline" data-t="3505"><span class="ts">58:25</span><span class="tx">teams. They're great for humans. Um, they're incredible for agents. They can fit all the context in, you know, in their context window. Uh, Aleksa Gordic did a great walkthrough blog of vLLM, uh, and, uh, share these slides later. Um, also work through that in a notebook so you can play with it. And then actually, uh, you can point your coding agent at the coding base and ask questions. Cognition op- also operates this thing called DeepWiki, which basically scrolls these a bunch of repos, including SGLang and vLLM, and</span></div><div class="tline" data-t="3534"><span class="ts">58:54</span><span class="tx">writes nice architecture diagrams and makes this like wiki style, um, page where you can sort of read and ask, and then ask their, um, agent questions, which is a nice thing to pair with your own agent setup. Um, so that's everything. I'm out of time, so I'll just quickly say if you're interested in deploying and owning your own inference, we o- we have a, a new product on Modal to help you, like, get started with deployment really easily, get optim-- get an, uh, initial baseline of reasonably</span></div><div class="tline" data-t="3564"><span class="ts">59:24</span><span class="tx">optimized, uh, inference engine deployment that you can work off of with Modal endpoints. Um, so check that out. Uh, and if you're interested in working on deploying inference for hundreds of, of teams, uh, check out modal.jobs. Thank you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

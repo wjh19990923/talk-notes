@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LLM 时代的编译器 | AI 工程师中文版</title>
+<meta name="description" content="跟随一个嵌入函数，从 Python 经过追踪、类型传播和原生编译，再通过一个 OpenAI 风格的客户端从 Node.js 中调用它。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>LLM 时代的编译器</h1>
+    <div class="orig-title">Compilers in the Age of LLMs</div>
+    <div class="meta"><span class="speaker">Yusuf Olokoba</span> · AI Engineer Code 2025 · 17:36</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=local-inference">本地推理</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/q2nHsJVy4FE-compilers-in-age-llms" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="q2nHsJVy4FE"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=q2nHsJVy4FE" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">多一个模型，多一次部署</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="0"><span class="ts">0:00</span><span>多一个模型，多一次部署</span></li><li data-t="242"><span class="ts">4:02</span><span>从一个 Python 嵌入函数开始</span></li><li data-t="331"><span class="ts">5:31</span><span>找到一种实用的方法来捕获这个函数</span></li><li data-t="496"><span class="ts">8:16</span><span>在计算图中传播类型</span></li><li data-t="695"><span class="ts">11:35</span><span>用 LLM 构建算子库</span></li><li data-t="814"><span class="ts">13:34</span><span>生成原生源码并编译成共享库</span></li><li data-t="902"><span class="ts">15:02</span><span>从 Node.js 调用编译好的模型</span></li><li data-t="966"><span class="ts">16:06</span><span>给原生推理套上熟悉的客户端接口</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 20 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Computing Embeddings" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Computing Embeddings</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The function prefixes each text for its task, tokenizes the batch, and runs EmbeddingGemma to return vectors for uses such as text search and document retrieval.
+
+[4:07](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=247s) [Python function tokenizes text and runs EmbeddingGemma to produce embeddings.](https://assets.ai.engineer/sites/aiecode2025/sha256/df6d13b2ecc509f4de67471f20b0e30911f29f75ec46393c375f794d0e986bc7.webp)
+
+def compute_embeddings(
+    texts: list[str],
+    task: TaskType=&quot;document&quot;
+) -&gt; ndarray:
+    &quot;&quot;&quot;
+    Create embedding vectors from text with EmbeddingGemma.
+    &quot;&quot;&quot;
+    prompts = [TASK_PREFIX_MAP[task] + item for item in texts]
+    inputs = tokenizer(prompts, padding=True, return_tensors=&quot;np&quot;)
+    embeddings = model.run(None, inputs.data)[1]
+    return embeddings</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Introducing EmbeddingGemma" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Introducing EmbeddingGemma</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>EmbeddingGemma has 270 million parameters. The speaker says it runs on cloud GPUs and quickly on consumer hardware.
+
+[4:41](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=281s) [Article introducing EmbeddingGemma as an open model for on-device embeddings.](https://assets.ai.engineer/sites/aiecode2025/sha256/1538d23062069e39c35e9e9d5a53c4374655ab4b59185d9ec1eb2fb97064ceba.webp)
+
+GEMMA
+
+Introducing EmbeddingGemma: The Best-in-Class Open Model for On-Device Embeddings
+
+SEPT. 4, 2025
+
+Min Choi
+Product Manager
+Google DeepMind
+
+Sahil Dua
+Lead Research Engineer
+Google DeepMind
+
+Alice Lisak
+
+EmbeddingGemma
+
+Interface text:
+Search all articles...
+Search
+English
+Share</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="From Python to an Executable" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From Python to an Executable</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The workflow generates C++ and Rust from a Python embedding function, compiles the model and its dependencies into a self-contained executable, then uses it through the OpenAI embeddings client.
+
+[4:55](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=295s) [Diagram connects Python, C++ or Rust, a self-contained executable, and OpenAI client embeddings.](https://assets.ai.engineer/sites/aiecode2025/sha256/7b0c117fa38994648a552a8e05db47e3c678b1fdfacd68ac1a9e869dea009d4f.webp)
+
+Python
+
+C++ / Rust
+
+101
+010
+Self-contained executable
+
+OpenAI client embeddings</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="PyTorch FX in a Nutshell" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>PyTorch FX in a Nutshell</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>PyTorch FX traces a model using fake inputs and produces a graph of its operations. Here, two inputs become an addition node and a returned result.
+
+[5:50](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=350s) [Two fake tensors enter a PyTorch model, producing an FX graph with an addition operation.](https://assets.ai.engineer/sites/aiecode2025/sha256/55708db5e28980837ac9490959b6f1831088a495ebb4e491a3c5d09c358cbd16.webp)
+
+PyTorch FX in a Nutshell
+
+Fake tensor 1
+Fake tensor 2
+
+Source PyTorch Model
+
+class SomeModel(nn.Module):
+    return a + b
+
+Fx.Graph
+
+%a: input
+%b: input
+%res: operator.add(%a, %b)
+return (%res,)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Generating an Intermediate Representation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Generating an Intermediate Representation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The first tracing attempt sends source code and a system prompt to an LLM, requesting an IRFunction response. The speaker reports almost 100% accuracy in their own tests, but says it took too much time.
+
+[7:12](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=432s) [Python code requests a structured IRFunction response using a system prompt and source code.](https://assets.ai.engineer/sites/aiecode2025/sha256/554b0e37b4d014037bc2c249c4a2f42bf7bc4197544f76e349961fa98702dda2.webp)
+
+openai = OpenAI()
+response = openai.responses.parse(
+    model=model,
+    input=[
+        { &quot;role&quot;: &quot;system&quot;, &quot;content&quot;: _IR_SYSTEM_PROMPT },
+        { &quot;role&quot;: &quot;user&quot;, &quot;content&quot;: code }
+    ],
+    text_format=IRFunction
+)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Intermediate Representation Schema" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Intermediate Representation Schema</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The schema represents a function as call and return nodes. The speaker says the LLM approach achieved almost 100% accuracy in their testing, but took too long.
+
+[7:19](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=439s) [Python models define function-call and return nodes and an intermediate representation of a function.](https://assets.ai.engineer/sites/aiecode2025/sha256/28885cef368f2ffd1a04853c3885f0bb0446e5b5d3a966568d85d23da24b1078.webp)
+
+class IRFunctionCallNode(BaseModel):
+    &quot;&quot;&quot;
+    Function call node.
+    &quot;&quot;&quot;
+    variable: str = Field(description=&quot;Result variable&quot;)
+    target: str = Field(description=&quot;Target function to invoke.&quot;)
+    arguments: list[str] = Field(description=&quot;Function call arguments.&quot;)
+
+class IRReturnNode(BaseModel):
+    &quot;&quot;&quot;
+    Return node.
+    &quot;&quot;&quot;
+    variables: list[str] = Field(description=&quot;Variables to return.&quot;)
+
+IRNode = (
+    IRFunctionCallNode |
+    IRReturnNode
+)
+
+class IRFunction(BaseModel):
+    &quot;&quot;&quot;
+    Intermediate representation of a Python function.
+    &quot;&quot;&quot;
+    name: str = Field(description=&quot;Fully qualified function name.&quot;)
+    body: list[IRNode] = Field(description=&quot;Function body.&quot;)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Python function abstract syntax tree" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Python function abstract syntax tree</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The tracer analyzes the Python function’s abstract syntax tree and uses heuristics to build an internal representation. This excerpt shows the annotated texts parameter of compute_embeddings.
+
+[7:38](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=458s) [Abstract syntax tree for the compute_embeddings function and its annotated texts parameter.](https://assets.ai.engineer/sites/aiecode2025/sha256/283286ebb6cba352ae2bea9d5943c298c67e6af19f1e89641ba731ba529359a2.webp)
+
+FunctionDef(
+    name='compute_embeddings',
+    args=arguments(
+        posonlyargs=[],
+        args=[
+            arg(
+                arg='texts',
+                annotation=Subscript(
+                    value=Name(id='Annotated', ctx=Load()),
+                    slice=Tuple(
+                        elts=[
+                            Subscript(
+                                value=Name(id='list', ctx=Load()),
+                                slice=Name(id='str', ctx=Load()),
+                                ctx=Load()),
+                            Call(
+                                func=Attribute(
+                                    value=Name(id='Parameter', ctx=Load()),
+                                    attr='Generic',
+                                    ctx=Load()),
+                                args=[],
+                                keywords=[
+                                    keyword(
+                                        arg='description',
+                                        value=Constant(
+                                            value='Input texts to embed.'))])],
+                        ctx=Load()),
+                    ctx=Load()),
+                type_comment=None),
+                ...,
+            )
+        )
+    )
+)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Input parameter nodes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Input parameter nodes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The function’s intermediate representation gives texts and task separate parameter nodes, each pairing a variable with its matching keyword.
+
+[7:59](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=479s) [Intermediate representation entries for the texts and task parameters.](https://assets.ai.engineer/sites/aiecode2025/sha256/c16ecd559f3ee901fa68eca148def0bfa6374a45ad3c29ed61bb1d55adc69a60.webp)
+
+# Texts input parameter
+- kind: parameter
+  variable: texts
+  keyword: texts
+
+# Task input parameter
+- kind: parameter
+  variable: task
+  keyword: task</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Tokenizer call node" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tokenizer call node</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The IR calls tokenizer with prompts, padding, and return_tensors, storing the result in inputs.
+
+[8:06](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=486s) [Intermediate representation of a tokenizer call with prompts, padding, and return tensor arguments.](https://assets.ai.engineer/sites/aiecode2025/sha256/247b91d257d89fc0a4dbf9b13ff83c5f10cd9be7f9a209dadfcb4fba8665f3f5.webp)
+
+# Call `tokenizer` to get input IDs
+- kind: function_call
+  variable: inputs
+  target: tokenizer
+  arguments:
+  - variable: prompts
+  - variable: padding
+  - variable: return_tensors</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Model inference call node" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Model inference call node</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The intermediate representation records a model.run call and its two argument variables. The speaker’s next step is to translate the high-level representation into lower-level C++ or Rust.
+
+[8:10](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=490s) [Intermediate representation of an ONNX model run call and its arguments.](https://assets.ai.engineer/sites/aiecode2025/sha256/9e5c092d8d470b8f79179c871fa583329d3be736ea9807403caa45c84b530b59.webp)
+
+# Run the Embedding Gemma ONNX model with `InferenceSession.run`
+- kind: function_call
+  variable: call_10
+  target: model.run
+  arguments:
+  - variable: const_8
+  - variable: attr_9</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Static type mismatch" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Static type mismatch</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Assigning a string to an integer variable illustrates the type constraints the speaker must resolve when generating lower-level code from Python.
+
+[8:57](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=537s) [Code declares an integer variable and then assigns it a string, illustrating a compilation error.](https://assets.ai.engineer/sites/aiecode2025/sha256/049897d3eefafd8e26b10a62aedd17b4b299fe2cc9b72101010ef098d0a127d8.webp)
+
+// `x` is declared as an integer
+int32_t x = 12;
+
+// So the following will NOT compile
+x = &quot;Hello Muna&quot;</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Building embedding prompts" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Building embedding prompts</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A list comprehension builds each prompt by prepending the selected task prefix to an input text.
+
+[9:14](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=554s) [Python function creates prompts by adding a task prefix to each input text.](https://assets.ai.engineer/sites/aiecode2025/sha256/de3afea3e5417b6768e0cdce0d11d2b3a0694a50657d6b48539c1653298a6403.webp)
+
+TASK_PREFIX_MAP: dict[str, str] = { ... }
+
+def compute_embeddings(
+    texts: list[str],
+    task: TaskType=&quot;document&quot;
+) -&gt; ndarray:
+    # Create full prompts by attaching the task prefix
+    prompts = [TASK_PREFIX_MAP[task] + item for item in texts]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Python string addition" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Python string addition</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The task prefix and input item are strings. Their + operation is equivalent to operator.add, raising the question of how the compiler determines the C++ result type.
+
+[9:36](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=576s) [Python code shows prefix and item strings joined with + and the equivalent operator.add call.](https://assets.ai.engineer/sites/aiecode2025/sha256/cb786a5a01b4055b3eafa9fb12c379f4217f6a1c57d78cdb230706d469ee3ad1.webp)
+
+# We know that `TASK_PREFIX_MAP[str]` is a `str`
+# We also know that item is a `str`
+TASK_PREFIX_MAP[task] + item
+
+# This is equivalent to...
+operator.add(TASK_PREFIX_MAP[task], item)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Determining the C++ result type" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Determining the C++ result type</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The compiler uses type propagation to determine that adding the string prefix and input produces a string, giving the generated C++ result a type.
+
+[10:12](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=612s) [C++ code declares two strings and asks for the result type of an addition function.](https://assets.ai.engineer/sites/aiecode2025/sha256/774a4d193bdf0ea7eadc9af351757c27c1563eefeb445dc831dde2fb0dee6f9d.webp)
+
+// So in C++, we can generate something like...
+std::string item = texts[0];
+std::string prefix = TASK_PREFIX_MAP[task];
+
+// But how do we know the result type?
+???? result = _operator_add(prefix, item);</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="C++ string addition implementation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>C++ string addition implementation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The generated C++ function concatenates two strings with std::format. Its declared return type tells type propagation that the addition result is also a string.
+
+[10:29](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=629s) [A C++ function accepts two strings and returns their concatenation using std::format.](https://assets.ai.engineer/sites/aiecode2025/sha256/e6c5fea97540c5e32ae7cbfe3938db49d206e245b8088dcfa28380e38705baf4.webp)
+
+// Concatenate two strings and return the result
+std::string _operator_add(
+    std::string a,
+    std::string b
+) {
+    return std::format(&quot;{}{}&quot;, a, b);
+}</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Functions built from shared operations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Functions built from shared operations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Functions A and B arrange the same operations in different orders. The speaker argues that implementing elementary operations in C++ lets them be recombined as they are in Python.
+
+[12:21](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=741s) [Two functions arrange add, power, and matrix multiplication operations in different orders.](https://assets.ai.engineer/sites/aiecode2025/sha256/a20a6fc24ff265ad717b6337e5964fe98fd4e1f5959db14b05d47c20f72c8cce.webp)
+
+Even though functions A and B are different...
+They are both made up of the same underlying operations.
+
+Function A
+operator.add
+operator.pow
+operator.matmul
+
+Function B
+operator.pow
+operator.matmul
+operator.add</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Generating matrix multiplication code" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Generating matrix multiplication code</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A prompt asks AI tools for 2D matrix multiplication across CUDA, MLX, and Vulkan. The speaker describes using LLMs to generate native operations at scale instead of rewriting them by hand.
+
+[13:14](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=794s) [A request for matrix multiplication code flows through AI tools to illustrated implementations for CUDA, MLX, and Vulkan.](https://assets.ai.engineer/sites/aiecode2025/sha256/1f7bdb32f5a2ae4d1a1554f3c58ca979e7381221495d38fdae78f8b597e8ec81.webp)
+
+“Hey, write me a 2D matrix multiplication for CUDA, MLX, and Vulkan.”
+
+mlx:
+{
+[illegible]
+}
+
+cuda:
+auto&amp; [illegible]
+[illegible]
+}
+
+vulkan::TensorWrapper matmul(auto&amp;
+A, auto&amp; B) {
+    ...
+}</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Calling the compiled library from JavaScript" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Calling the compiled library from JavaScript</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example uses FFI to load a compiled embedding library, declare an illustrative native function signature, and call it from JavaScript with serialized text and a task.
+
+[15:31](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=931s) [JavaScript example loading a shared library with FFI and calling its embedding function.](https://assets.ai.engineer/sites/aiecode2025/sha256/d8342117cc26e3c4d322206677eb50bdaff6ea0d4571da3c8a9010656f857eb5.webp)
+
+// embed.js
+const ffi = require('ffi-napi');
+const ref = require('ref-napi');
+const ArrayType = require('ref-array-di')(ref);
+
+// Load the shared library we just compiled
+const float = ref.types.float;
+const FloatArray = ArrayType(float);
+const lib = ffi.Library('./libEmbeddingGemma.so', {
+
+// The following signature is for illustration:
+  // float* compute_embeddings(const char* text, const char* task);
+  compute_embeddings: [FloatArray, ['string', 'string']],
+});
+
+// Call the C function; returns a FloatArray
+const texts = [&quot;hello world&quot;];
+const task = &quot;question_answering&quot;;
+const embeddingBuffer = lib.compute_embeddings(
+    JSON.stringify(texts),
+    task
+);</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="An OpenAI-style embeddings client" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>An OpenAI-style embeddings client</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The client sketch maps a model name to a compiled library, runs it, and converts the result to an OpenAI-compatible format behind embeddings.create.
+
+[16:19](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=979s) [Code sketch defining a client and embeddings service, followed by an example embeddings request.](https://assets.ai.engineer/sites/aiecode2025/sha256/33d2e45c3a971bdb06025152509ad63d06fddf5d64334b70efeaf00a3acf989a.webp)
+
+// 💥 Define our client that matches OpenAI
+class Client {
+
+public readonly embeddings: Embeddings;
+}
+
+// 🔥 Implement an `Embeddings` service to run our compiled model
+class Embeddings {
+
+public async create({ model }) {
+    const libPath = lookupPathFor(model);
+    const embeddingBuffer = runLibrary(libPath);
+    const result = makeOpenAICompatible(embeddingBuffer);
+  }
+}
+
+// 🚀 Use the client!
+const openai = Client();
+const embeddings = openai.embeddings.create({
+  model: &quot;@google/embedding-gemma-270m&quot;,
+  input: &quot;What is the capital of France?&quot;
+});</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Muna closing slide" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Muna closing slide</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Find Muna at muna.ai and @usemuna.
+
+[17:21](https://www.youtube.com/watch?v=q2nHsJVy4FE&amp;t=1041s) [Muna logo above an invitation to visit its website and social account.](https://assets.ai.engineer/sites/aiecode2025/sha256/ddf594fe87dfcb59132efad610740d5eae224e3628113964201c33693e8e6df6.webp)
+
+Check us out!
+
+https://muna.ai
+
+@usemuna</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">多一个模型，多一次部署</a></li><li><a href="#sec-2">从一个 Python 嵌入函数开始</a></li><li><a href="#sec-3">找到一种实用的方法来捕获这个函数</a></li><li><a href="#sec-4">在计算图中传播类型</a></li><li><a href="#sec-5">用 LLM 构建算子库</a></li><li><a href="#sec-6">生成原生源码并编译成共享库</a></li><li><a href="#sec-7">从 Node.js 调用编译好的模型</a></li><li><a href="#sec-8">给原生推理套上熟悉的客户端接口</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">LLM 时代的编译器</h2>
+      <div class="lede"><p>跟随一个嵌入函数，从 Python 经过追踪、类型传播和原生编译，再通过一个 OpenAI 风格的客户端从 Node.js 中调用它。</p><p>对 Python 函数、类型注解和模型推理有基本了解会有帮助；编译器和 FFI 概念会在出现时介绍。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="0">▶ 0:00</button></div>
+      <h3>多一个模型，多一次部署</h3>
+      <p>An OpenAI client in the codebase, Hugging Face tabs in the browser, several playground repositories, and an agent that strings together HTTP calls: this is a familiar starting point for an AI application. Adding a new open-source model often means writing another Dockerfile, running another container, and finding infrastructure to host it. Making that model available to an agent adds another tool to its context, perhaps exposed through MCP. The model may be easy to download; adopting it still expands the application’s infrastructure.</p>
+<p>The desired interface is much smaller: an OpenAI-style client that accepts a model name and works with minimal application changes. Execution might be local or remote, backed by <code>llama.cpp</code> or TensorRT. Yusuf Olokoba’s proposed route to that experience is a Python compiler: take plain inference code and turn it into a self-contained native artifact for targets ranging from cloud servers to Apple Silicon. His introduction also frames LLM-generated code as something to constrain with verification and testing.</p>
+<p>Two requirements motivate that choice. First, developers should be able to bring an internal model or one found on Hugging Face or GitHub and obtain something their application can execute. Changing the <code>model</code> argument when a new OpenAI model appears provides the interaction to emulate. A compiler supplies the missing transformation: Python inference code goes in; an artifact suited to the user’s execution environment comes out.</p>
+<p>Second, Olokoba expects <strong>hybrid inference</strong> to become common: small models on devices or at edge locations cooperate with larger cloud models that offer stronger reasoning. That forecast changes the deployment target. A server-side Python process in a Docker container is no longer sufficient for every location where inference should happen. Native execution offers a route closer to the hardware, with fewer runtime dependencies and greater control over responsiveness.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="242">▶ 4:02</button></div>
+      <h3>从一个 Python 嵌入函数开始</h3>
+      <p>The running example is Google’s <a href="https://developers.googleblog.com/en/introducing-embeddinggemma/" target="_blank" rel="noopener"><strong>EmbeddingGemma</strong></a>. A Python function takes a list of sentences and returns an embedding vector for each sentence—together, an embedding matrix. Those vectors support text search, retrieval-augmented generation, and retrieval of individual document passages. Olokoba describes the model as having 270 million parameters; Google’s release specifies 308 million. His reason for choosing it is its suitability for both cloud GPUs and consumer devices, rather than a measured speed comparison in this demonstration.</p>
+<p>The intended journey has three stages: translate the Python function into equivalent C++ or Rust, compile it with the model and its dependencies, and expose inference through <code>client.embeddings.create</code>. Before generating native code, however, the compiler needs a graph describing what the function does. That graph becomes the basis for translating the function operation by operation.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/8edb4a77fc3e54403dc5eae47f60788096caf0b963ad4ecad5bb8846525d43e5" alt="Diagram connecting Python, C++ / Rust, a self-contained executable, and OpenAI client embeddings with arrows." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>From Python through C++ or Rust to a self-contained executable and OpenAI client embeddings.</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="331">▶ 5:31</button></div>
+      <h3>找到一种实用的方法来捕获这个函数</h3>
+      <p>The first prototypes used PyTorch’s compiler tooling, including <code>torch.compile</code> and <a href="https://proceedings.mlsys.org/paper_files/paper/2022/file/7c98f9c7ab2df90911da23f9ce72ed6e-Paper.pdf" target="_blank" rel="noopener"><code>torch.fx</code></a>. Two details help separate the tools: FX arrived in <a href="https://pytorch.org/blog/pytorch-1-8-released/" target="_blank" rel="noopener">PyTorch 1.8</a>, before PyTorch 2, and its basic symbolic tracer records operations through <code>Proxy</code> objects. <a href="https://docs.pytorch.org/docs/main/user_guide/torch_compiler/torch.compiler_fake_tensor.html" target="_blank" rel="noopener">Fake tensors</a>, which carry tensor metadata without allocating the represented data, belong to related compiler analysis machinery. Olokoba describes his prototype in terms of running with fake inputs to obtain an operation graph.</p>
+<p>That approach exposed two problems for the team’s broader Python target:</p>
+<p>- <strong>Library coverage:</strong> inference functions may include NumPy operations, OpenCV calls, and other non-PyTorch data types. Supporting those paths would require extending the tracing machinery.
+- <strong>Input representation:</strong> a data-free tensor can retain a tensor’s shape and other metadata, but constructing suitable stand-ins for images, dictionaries, and arbitrary objects was harder in their prototype.</p>
+<p>These were obstacles to the team’s chosen implementation, rather than a universal requirement that every FX trace use fake inputs.</p>
+<p>The next experiment asked an LLM to produce the trace directly. Structured outputs supplied the constraint: give the model source code and a response schema, then ask for a graph in that schema. Olokoba reports almost 100% accuracy for LLM trace generation in internal testing, but says it took too long. He supplies neither the test size and correctness criterion nor a latency measurement. The limiting factor was therefore the reported cost in time, even when the generated structure looked promising.</p>
+<p>The eventual tracer instead analyzes Python’s <strong>abstract syntax tree</strong>, using internal heuristics to construct an <strong>intermediate representation</strong>, or IR. For the embedding example, the relevant graph contains the string-list input, a tokenizer call, a model call, and the returned embedding vectors. This gives the compiler a structured description of the computation without making an LLM request the tracing mechanism.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="496">▶ 8:16</button></div>
+      <h3>在计算图中传播类型</h3>
+      <p>An operation graph is not yet enough to emit native code. Python can bind <code>x</code> to an integer and then rebind it to a string. An individual variable in the generated C++ or Rust has a fixed type, whether that type is written explicitly or inferred. The compiler must therefore determine native types for the intermediate values in the Python function.</p>
+<p>The example begins with a list comprehension that prepends a task-specific prefix to each input sentence. The essential operation can be isolated in Python like this:</p>
+<p>``<code>python
+def make_prompts(text: list[str], prefix: str) -&gt; list[str]:
+    return [prefix + sentence for sentence in text]
+</code>``</p>
+<p>In the demonstrated function, the prefix comes from a global task-prefix map. The function’s annotation establishes that each member of <code>text</code> is a string, and the map supplies string-valued prefixes. The remaining question is the native type of <code>prefix + sentence</code>.</p>
+<p><strong>Type propagation</strong> answers that question using an implementation of the operation for the known operand types. Here, Python’s <code>operator.add</code> means string concatenation. A corresponding C++ operation can have this signature and body:</p>
+<p>```cpp
+#include &lt;string&gt;</p>
+<p>std::string add_strings(
+    const std::string&amp; prefix,
+    const std::string&amp; sentence
+) {
+    return prefix + sentence;
+}
+```</p>
+<p>The function takes two strings and returns a string. Its return type supplies the missing type information for the graph node.</p>
+<p>| Value | Where its type comes from | Known type |
+| --- | --- | --- |
+| Input sentence | Python input annotation | String |
+| Task prefix | Global constant map | String |
+| Concatenated prompt | Native addition result | String |</p>
+<p>The compiler combines information from the Python function signature with native type information for constants and operations. Once the concatenation result is known, that information can flow onward through the comprehension and subsequent operations. Repeating the process determines types for intermediate values across the IR.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="695">▶ 11:35</button></div>
+      <h3>用 LLM 构建算子库</h3>
+      <p>Type propagation moves a substantial requirement into view: every supported Python operation or function call needs a corresponding native implementation. Knowing how string addition behaves does not supply the implementations for other operand types, library functions, or tensor operations. Olokoba accepts that requirement; the compiler needs those building blocks.</p>
+<p>His first reason for considering it tractable is that source-code variety comes largely from <strong>combinations of operations</strong>. Many different functions reuse the same elementary operations in different sequences. The slide illustrates this with <code>operator.add</code>, <code>operator.pow</code>, and <code>operator.matmul</code>: Function A and Function B contain the same operations in different orders. Native implementations can likewise be composed into different generated functions.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/62afcd664f386992885a1e5526532819b497b99308111d50f72f85ad7ad0281d" alt="Function A lists operator.add, operator.pow, and operator.matmul; Function B lists operator.pow, operator.matmul, and operator.add." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Different functions combine the same underlying operations in different orders.</figcaption></figure>
+<p>The elementary set is still large. Addition, subtraction, and exponentiation are only the beginning; useful inference functions also rely on NumPy and PyTorch operations. This is where LLMs return to the compiler design. Instead of requiring engineers to handwrite each native equivalent, the team uses LLMs to generate C++ and Rust implementations. The role is narrower than generating a fresh trace for every user function: produce reusable implementations of operations that the compiler can compose.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="814">▶ 13:34</button></div>
+      <h3>生成原生源码并编译成共享库</h3>
+      <p>With native operation implementations available and types propagated through the graph, the compiler has the information needed to emit typed C++ source. Olokoba presents this as the point where the IR can become compilable native code. The side-by-side walkthrough follows the original computation: build the prefixed prompts, tokenize them into IDs, run the model, and return the embedding matrix. The deployment language changes while the sequence of inference operations remains recognizable.</p>
+<p>The next step uses an ordinary native compiler. C and C++ toolchains exist across a broad range of devices, which makes native source a useful portability layer. The result in this example is a <strong>dynamic library</strong>, or shared object, that another process can load and execute. Portability here means building for supported targets, not shipping one native binary that executes on every architecture; Olokoba’s <a href="https://blog.codingconfessions.com/p/compiling-python-to-run-anywhere" target="_blank" rel="noopener">companion article</a> also describes target-specific builds and incomplete Python language coverage.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="902">▶ 15:02</button></div>
+      <h3>从 Node.js 调用编译好的模型</h3>
+      <p>The host application in the demonstration is JavaScript running on Node.js. A <strong>foreign-function interface</strong>, or FFI, bridges JavaScript and the compiled library. The binding must identify the library built for the host’s operating system and architecture, name the exported function, and declare its native signature. Those declarations tell the binding how to call the function across the language boundary.</p>
+<p>The invocation procedure is then straightforward:</p>
+<p>1. Locate the compiled library.
+2. Load it through the FFI bindings.
+3. Invoke the exported inference function with the expected inputs.
+4. Receive the embedding matrix.</p>
+<p>The team standardizes this scaffolding across compiled functions. The particular binding implementation remains open-ended in the explanation; the demonstrated result is a JavaScript call that obtains embeddings from the native library.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="966">▶ 16:06</button></div>
+      <h3>给原生推理套上熟悉的客户端接口</h3>
+      <p>The final layer restores the interface that motivated the compiler. A <code>Client</code> class contains an <code>Embeddings</code> class whose <code>create</code> method exposes the familiar <code>client.embeddings.create</code> path. That method receives the model name and resolves it to the path of the compiled binary. The FFI machinery already built for Node.js loads the library and executes its inference function.</p>
+<p>One step remains after execution: reshape the embedding matrix into the result structure expected from the OpenAI-style client. That separates three responsibilities cleanly: model-name resolution chooses an artifact, FFI invokes native inference, and response conversion presents the result to the application. The final slide brings these layers together with an embedding request containing a question about the capital of France.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/29fb4b595a9fa805102fbbb8d9aa3821b5bac19e3ed0d5229c32dc5db64e27b5" alt="Code slide showing a Client class, an Embeddings create method with library lookup, execution and compatibility conversion, and an embedding request asking the capital of France." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Client and Embeddings classes wrap library execution and output conversion, followed by an example call.</figcaption></figure>
+<p>The application can now request embeddings through a familiar method while the implementation runs a compiled open-source model inside the host process. Olokoba closes with the ambition of extending this access to any open-source model expressible through a Python function. Within the compiler’s supported operations and build targets, the completed example shows what that means concretely: a model name selects a native library, the library returns embeddings, and the client presents them in the expected shape.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://blog.codingconfessions.com/p/compiling-python-to-run-anywhere" target="_blank" rel="noopener">Compiling Python to Run Anywhere</a> — Yusuf Olokoba's account of Muna's compiler, including type propagation, native operator generation, platform targets and language limitations.</li><li><a href="https://developers.googleblog.com/en/introducing-embeddinggemma/" target="_blank" rel="noopener">Introducing EmbeddingGemma</a> — Google's launch announcement for its 308M-parameter embedding model, with on-device inference conditions and integration links.</li><li><a href="https://proceedings.mlsys.org/paper_files/paper/2022/file/7c98f9c7ab2df90911da23f9ce72ed6e-Paper.pdf" target="_blank" rel="noopener">torch.fx: Practical Program Capture and Transformation for Deep Learning in Python</a> — The original FX paper explains Proxy-based symbolic tracing, its graph representation and customization points.</li><li><a href="https://docs.muna.ai/predictors/requirements" target="_blank" rel="noopener">Muna function requirements</a> — Current guidance for preparing Python functions for Muna compilation, including annotations, supported types and language coverage.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">If you're an AI engineer right now, your day-to-day probably looks something like this. You've got an OpenAI client in your code base, you've got a few Hugging Face tabs open, you've got three different repos with the word playground in them, and you've got at least one agentic workflow that's really just stringing together a bunch of HTTP calls.</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">Right now, everyone is talking about voice agents, MCP, and these are pretty cool technologies. But when you peel back the hype a little bit, what I hear when I talk to a lot of engineering teams is that they're usually grappling with much more fundamental and boring problems.</span></div><div class="tline" data-t="38"><span class="ts">0:38</span><span class="tx">How do I use more models in more places without having to rebuild or extend my infrastructure every single time? So say you wanna go try out a new open source model that just dropped on Hugging Face.</span></div><div class="tline" data-t="52"><span class="ts">0:52</span><span class="tx">Today, that usually means you gotta go write a Dockerfile, spin up a Docker container, and then get that running on infrastructure that you own or that you rent from a third-party provider.</span></div><div class="tline" data-t="63"><span class="ts">1:03</span><span class="tx">And if you're wiring this into an AI agent, well, that's another tool that you have to put into the context and perhaps expose either like an MCP or something similar.</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">A lot of this is just complexity that creeps in and only grows further the more time you spend. What developers actually want is something way simpler. Just give me an OpenAI style client that just works.</span></div><div class="tline" data-t="88"><span class="ts">1:28</span><span class="tx">Let me point it to any model at all. It doesn't matter if it's running locally, if it's running remotely, if it's llama.cpp or TensorRT, I just want something that works with minimal code changes.</span></div><div class="tline" data-t="100"><span class="ts">1:40</span><span class="tx">In this talk, I'll walk you through how we decided to build a compiler for Python that enables developers to write simple, plain Python code and then convert that into a tiny self-contained binary that can then run anywhere at all.</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">It could be the cloud, it could be Apple Silicon, it could be anything else in between. Further, I'll show you how we use LLMs within that compiler pipeline. A few things we tried, what worked, what didn't work, how we fenced them with verification and LLM-powered testing, and how these-- this infrastructure gives us the ability to not</span></div><div class="tline" data-t="135"><span class="ts">2:15</span><span class="tx">just run any AI model at all, but we can now run it in so many more places beyond just server side.</span></div><div class="tline" data-t="142"><span class="ts">2:22</span><span class="tx">So before we start getting our hands dirty with an example, I wanted to provide some motivation on why we thought building a Python compiler was the best way to solve AI deployment in the long run.</span></div><div class="tline" data-t="155"><span class="ts">2:35</span><span class="tx">First, we needed an extremely simple and standardized way for developers to bring their AI models, whether the ones that they've built internally or models that they found open source on Hugging Face on GitHub, and then get something that they could execute very easily in their code base.</span></div><div class="tline" data-t="174"><span class="ts">2:54</span><span class="tx">So when a new OpenAI model comes out, for example, all you have to do is simply just change the model argument, pointing it to the new model that OpenAI just dropped.</span></div><div class="tline" data-t="183"><span class="ts">3:03</span><span class="tx">We wanted to recreate something that tracked this experience as closely as possible. Conceptually, this would have to look like something that ingested code, Python inference code, and then spat out some other thing that knew how to get executed in our develop-- in our users', uh, execution environments.</span></div><div class="tline" data-t="202"><span class="ts">3:22</span><span class="tx">Second, we wanted to prepare for what we strongly believe to be the future of AI deployment, hybrid inference. We expect that in the future we will see smaller models, typically much closer to users, either locally on their devices or in edge locations, working in tandem with cloud AI models that are much larger and have a, a bigger</span></div><div class="tline" data-t="223"><span class="ts">3:43</span><span class="tx">reasoning abilities. And we expect that this is going to be the future of how a lot of people consume AI in their day-to-day lives. As such, this means that developers have to move away from, you know, the, the cages of Python code and Docker containers into something that is a lot more low level, closer to the hardware,</span></div><div class="tline" data-t="242"><span class="ts">4:02</span><span class="tx">and a lot more responsive. So let's get our hands dirty. This is a Python function that runs Google's EmbeddingGemma two seventy million parameter model. It's a very simple text embedding model that takes in a list of, of sentences, just plain text, and then runs a model that is able to generate an embedding vector or a list of</span></div><div class="tline" data-t="266"><span class="ts">4:26</span><span class="tx">embedding vectors, an embedding matrix. You will typically use models like this in text, in text search, in retrieval-augmented generation, and in other frameworks where you need to be able to retrieve documents or retrieve subsections of documents.</span></div><div class="tline" data-t="281"><span class="ts">4:41</span><span class="tx">This model from Google is small enough at only two hundred and seventy million parameters that not only can it run very easily on, uh, GPUs in the cloud, it can also run very quickly on consumer hardware also.</span></div><div class="tline" data-t="293"><span class="ts">4:53</span><span class="tx">And today we will be figuring out how to take this Python function that runs the embedding model,</span></div><div class="tline" data-t="299"><span class="ts">4:59</span><span class="tx">generate equivalent C++ and Rust code that is much lower level and is now able to run anywhere at all. And then we will compile a binary that contains this model and all the dependencies it needs.</span></div><div class="tline" data-t="312"><span class="ts">5:12</span><span class="tx">And finally, we will consume this model using the familiar OpenAI client.embeddings.create experience. The very first step is taking our function and generating a graph representation that describes everything that happens within that function.</span></div><div class="tline" data-t="331"><span class="ts">5:31</span><span class="tx">We call this tracing. Initially, our, uh, first prototypes of building a symbolic tracing, uh, solution was actually built off of PyTorch 2, which introduced torch.compile along with torch.fx, uh, for this purpose.</span></div><div class="tline" data-t="348"><span class="ts">5:48</span><span class="tx">So the way that torch.fx works is it'll take in Python source code and then run it with fake inputs that don't allocate any memory, and then give you a description, a graph of everything that happened within that function.</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">We actually tried to use this, but we faced two major issues that caused us to build our own, uh, tracing infrastructure. The first was that PyTorch, uh, is very focused.</span></div><div class="tline" data-t="374"><span class="ts">6:14</span><span class="tx">Its tracer is very focused on only PyTorch code. And so in order to trace arbitrary code, which your functions will usually have to rely on, things like NumPy operations or OpenCV or something else, we would have had to figure out a way to like add support for those data types into PyTorch.</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">The second reason why we didn't stick with PyTorch was in order for the tracer to work, it had to be run on fake inputs. And so, you know, creating a fake tensor is trivial.</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">You just, you know, give it the same description and don't allocate any data. But it's a lot harder to create a fake image or a fake dictionary or a fake, you know, whatever type that we might encounter in the wild.</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">And so we simply decided that we were gonna build something in-house. Our first attempt was actually using LLMs as a way to generate traces because LLMs for quite some time now have had this capability of structured outputs.</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">This is where you can give an LLM a prompt, some data, whether it be an image, text, or audio, and ask it to respond to you with the specific schema that you have given to the model.</span></div><div class="tline" data-t="441"><span class="ts">7:21</span><span class="tx">This actually turned out to work pretty well. Uh, it had almost like a hundred percent, uh, accuracy rate in our own testing. The only limitation was it simply took way too much time.</span></div><div class="tline" data-t="452"><span class="ts">7:32</span><span class="tx">And so eventually, we decided we're just gonna do it old school. We would build a tracer by first analyzing the code, looking at the AST or the ast-- uh, the abstract syntax tree of the Python code, and then using a bunch of internal heuristics to build our own internal representation or IR of the user's function.</span></div><div class="tline" data-t="471"><span class="ts">7:51</span><span class="tx">So for this function that we've written up, the IR is actually incredibly simple. I'm not gonna show you the entire thing, but I'll just show you the parts that are relevant to look at.</span></div><div class="tline" data-t="479"><span class="ts">7:59</span><span class="tx">As you can see, there's input nodes for the actual, uh, inputs to the function, so like that's a list of the strings. There's a function call to calling out to the tokenizer, another one's calling out to the model, and then return those outputs so that the user can then get their embedding vectors.</span></div><div class="tline" data-t="496"><span class="ts">8:16</span><span class="tx">Now that we have a high-level intermediate representation of our Python function, the next step is to figure out how to translate that somehow into lower level C++ or Rust code.</span></div><div class="tline" data-t="508"><span class="ts">8:28</span><span class="tx">But before jumping into that, I wanted to talk about one major difference between Python as a language and C++ or other lower level languages that we will run into and have to solve.</span></div><div class="tline" data-t="520"><span class="ts">8:40</span><span class="tx">Python is a very dynamic language, so one variable, X, could be assigned to an integer and then immediately after assigned to, say, a string. There is full dynamism and anything goes.</span></div><div class="tline" data-t="534"><span class="ts">8:54</span><span class="tx">Whereas in lower level languages like C++ and Rust, if you declare a variable, you must give it a type, and that type can never change. This gives us quite a bit of a challenge because we need to figure out how to attach or constrain the types in the code that we will be generating from our Python high-level</span></div><div class="tline" data-t="553"><span class="ts">9:13</span><span class="tx">code. So let's look at the first line of our function, the very first node, if you call it, of our IR. As you can see, prompts is this list that is being generated by a comprehension statement, and we're effectively just adding a set of prefixes for every sentence that has been passed in by the user.</span></div><div class="tline" data-t="575"><span class="ts">9:35</span><span class="tx">And so let's just focus in on that addition operation that's happening within that comprehension. As you can see, well, we know that every item in text is a string because we have pretty much annotated our function as such, right?</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">The input text is a list of strings. And we also know that the task prefix map just contains a bunch of strings. Each prefix is itself a string. And so the question then becomes: How do we know or how do we figure out the C++ type on the output of that operation?</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">And this is where the compiler comes in, specifically a technique we call type propagation. And so here we will take one string, the prefix, the other string, the actual input text that was provided to the function, and we now know that there is some addition operation happening to these two.</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">So we can simply write or generate a C++ function that takes in two strings and performs the operator.add operation from Python. The output of that function that we generate in C++, as you can see here, well, it's just a string.</span></div><div class="tline" data-t="644"><span class="ts">10:44</span><span class="tx">And that's how we know that whatever the output of this addition operation, uh, we're doing is must itself be a string. So in that way, zooming out, we've been able to take the input information, the input type information from just the signature of our Python function, along with the C++ type information or the, the native type information</span></div><div class="tline" data-t="668"><span class="ts">11:08</span><span class="tx">of this global constant task prefix map, and then we've been able to use that to propagate into the output of the concatenation of these two things. We now know that if I concatenate one prefix with one input string, the result itself is a string.</span></div><div class="tline" data-t="684"><span class="ts">11:24</span><span class="tx">And so we can then do this propagation for every intermediate variable or every operation within our original Python function, and that's how we can kind of like flow type information through.</span></div><div class="tline" data-t="695"><span class="ts">11:35</span><span class="tx">And so at this point, you might be wondering, well, your compiler, if you're doing this propagation thing that requires us manually implementing some operation in C++ or in Rust code, we would have to literally rewrite this for every unique p- function call or operation that we ever encounter in Python.</span></div><div class="tline" data-t="715"><span class="ts">11:55</span><span class="tx">And you'll be correct. You'll be a hundred percent correct. That is in fact what we would have to do. But that is now tractable, and it's an easier problem to solve now for two reasons.</span></div><div class="tline" data-t="727"><span class="ts">12:07</span><span class="tx">The first reason is that all the variety you will ever see in source code in the wild is not because there is such a giant volume of these operations.</span></div><div class="tline" data-t="737"><span class="ts">12:17</span><span class="tx">The volume is actually because you can combine operations in so many different ways. You can permute them in so many different ways, and each of these permutations is what forms a unique Python function or Python code.</span></div><div class="tline" data-t="750"><span class="ts">12:30</span><span class="tx">And so we really only need to cover that base level or that base number of elementary functions, and we could just stack them or combine them in different ways in C++ the same way we do in Python.</span></div><div class="tline" data-t="762"><span class="ts">12:42</span><span class="tx">But you might even say to that, that wait, that elementary set of functions, it's still pretty large, and you would be 100% right. We need to cover everything from, you know, adding two things to like, you know, subtracting them to exponentiation to like, you know, some stuff that is like in native libraries like NumPy operations or PyTorch</span></div><div class="tline" data-t="781"><span class="ts">13:01</span><span class="tx">operations. And so yeah, so you have a, a perfectly valid point. The only reason why that's tractable now is, well, we don't have to sit down and write the equivalent native code that does the same thing in Python anymore.</span></div><div class="tline" data-t="794"><span class="ts">13:14</span><span class="tx">We can simply have LLMs generate all the code that we need that translates a function from Python, right, into C++ and Rust. And so this gives us the ability to basically mass produce a lot of the operations that we, we would otherwise have had to manually rewrite ourselves in native code.</span></div><div class="tline" data-t="814"><span class="ts">13:34</span><span class="tx">And so now that we've been able to propagate type information through our Python IR graph, we basically have all we need to simply generate actual C++ code that is correct and will compile.</span></div><div class="tline" data-t="830"><span class="ts">13:50</span><span class="tx">So here's what it actually looks like side by side. As you can see, I'm literally just walking through, and you can see where we're doing that, you know, list comprehension to add the prefixes to each string.</span></div><div class="tline" data-t="840"><span class="ts">14:00</span><span class="tx">You can see where we are running the tokenizer to tokenize those input text into IDs, and you can now see we're running the model and returning the output embedding vectors or the embedding matrix.</span></div><div class="tline" data-t="853"><span class="ts">14:13</span><span class="tx">At this point, because we now have C++ source code, we can now compile this to run natively on any device or platform that we would ever want to run on simply because every piece of technology that you've ever touched has a C or C++ compiler.</span></div><div class="tline" data-t="870"><span class="ts">14:30</span><span class="tx">This is what gives us the ability to take high-level Python code and convert it into a form that is self-contained and that can now run anywhere at all. So let's go ahead and do that, and then what we're gonna end up with on the other end is simply a s- uh, dynamic library, uh, a shared object, if</span></div><div class="tline" data-t="887"><span class="ts">14:47</span><span class="tx">you call it that, that we can then load into a process and execute like any other code. Now comes the fun part. Let's figure out how to actually invoke or use our compiled embedding model from any language on any device.</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">We're gonna go with JavaScript running on Node.js for this example. And so the very first step we wanna do is figure out how to call in to our compiled library from JavaScript in Node.js.</span></div><div class="tline" data-t="915"><span class="ts">15:15</span><span class="tx">We can use FFI for this, for this purpose, and so this is where you're able to effectively design bindings and declare that, &quot;Hey, I'm loading this native library, which has been compiled for my system and my architecture.</span></div><div class="tline" data-t="929"><span class="ts">15:29</span><span class="tx">It has this function with some name.&quot; In our case, we already have a, a function name. And that function, that native function has this signature. And so we're able to write a bunch of scaffolding code.</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">This... We've figured out a way to standardize this across different, different, uh, compiled functions to make it very easy for ourselves, but this is pretty open-ended. Once you do, you can basically point Node.js or your JavaScript application to the location of that compiled library, load it in, and simply just invoke it like any other thing.</span></div><div class="tline" data-t="960"><span class="ts">16:00</span><span class="tx">When we do, guess what? We get our embedding matrix right there.</span></div><div class="tline" data-t="966"><span class="ts">16:06</span><span class="tx">And for the final piece of the puzzle, let's take it back to the top. Let's figure out how to expose our compiled embedding model through our OpenAI style client.</span></div><div class="tline" data-t="975"><span class="ts">16:15</span><span class="tx">So what we're gonna do is create a class, just call it Client. Within it, we'll create a nested class called Embeddings, and within that, we will create a create function mirroring the official OpenAI client.embeddings.create path.</span></div><div class="tline" data-t="990"><span class="ts">16:30</span><span class="tx">And so within that function, when the user passes in the model name, all we're gonna do is simply just go from the name of that model to a path to the compiled binary that we just created from our C++ code generation.</span></div><div class="tline" data-t="1005"><span class="ts">16:45</span><span class="tx">And with that, with the rest of all the, uh, FFI that we just implemented, we now have a way of taking the model, resolving it to a path to the library, loading that library in, uh, library in, and simply just executing it to get out our embedding matrix.</span></div><div class="tline" data-t="1020"><span class="ts">17:00</span><span class="tx">The final step is to simply massage the outputs so that it looks just like the outputs that the official OpenAI client gives you. And with this entire system in place, we have just recreated the official OpenAI client, but given it access to any open source model that we can com- get into a Python function.</span></div><div class="tline" data-t="1041"><span class="ts">17:21</span><span class="tx">So</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

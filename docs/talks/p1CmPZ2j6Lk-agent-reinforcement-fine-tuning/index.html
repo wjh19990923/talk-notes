@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>智能体强化微调 | AI 工程师中文版</title>
+<meta name="description" content="智能体 RFT 训练的是工具调用之间的决策，利用任务奖励来改进代码仓库调研、代码修改和 GPU 内核，同时减少无用功。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>智能体强化微调</h1>
+    <div class="orig-title">Agent Reinforcement Fine Tuning</div>
+    <div class="meta"><span class="speaker">Will Hang、Cathy Zhou</span> · AI Engineer Code 2025 · 16:55</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=fine-tuning">微调</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=post-training">后训练</a><a class="tag" href="../../index.html#topic=rl-environments-and-simulators">强化学习环境与模拟器</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/p1CmPZ2j6Lk-agent-reinforcement-fine-tuning" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="p1CmPZ2j6Lk"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=p1CmPZ2j6Lk" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">是什么让一个编程智能体变得更好？</div></div>
+      <div class="label row">章节跳转 <span>共 9 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="22"><span class="ts">0:22</span><span>是什么让一个编程智能体变得更好？</span></li><li data-t="104"><span class="ts">1:44</span><span>从更好的提示词到学到的工具使用</span></li><li data-t="234"><span class="ts">3:54</span><span>适应环境并惩罚浪费的调用</span></li><li data-t="311"><span class="ts">5:11</span><span>给完整轨迹打分，再建立基线</span></li><li data-t="412"><span class="ts">6:52</span><span>Cognition：选对文件，再并行搜索</span></li><li data-t="535"><span class="ts">8:55</span><span>Qodo：改进调研并消除长尾</span></li><li data-t="626"><span class="ts">10:26</span><span>Cosine：把正确性作为关卡</span></li><li data-t="766"><span class="ts">12:46</span><span>Mako：奖励快速的算子，而不是捷径</span></li><li data-t="885"><span class="ts">14:45</span><span>让探索产生可学习的信号</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 18 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GPT-5 receives a prompt and exchanges inputs and outputs with tools before producing a final answer. Those tools let an agent interact with the outside world to complete a task.
+
+[0:49](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=49s) [Diagram showing a prompt entering GPT-5, tool input and output exchanged with tools, and a final answer.](https://assets.ai.engineer/sites/aiecode2025/sha256/a5e434fde27b5c8cb3aad9186e213304f7444ea0fadb99f63f6955982d31a724.webp)
+
+Agents
+
+Input prompt
+GPT-5
+Tool input
+Tools
+Tool output
+Final answer
+
+2
+
+Interface text:
+AIE / CODE
+PRESENTED BY
+Google DeepMind
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG
+Member of Technical Staff
+CATHY ZHOU
+Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Agents: GPT-5 trajectory" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agents: GPT-5 trajectory</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A GPT-5 agent interleaves reasoning with tool calls and outputs in the same context window before producing a final answer.
+
+[1:00](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=60s) [A GPT-5 trajectory interleaves reasoning with tool calls and outputs before the final answer.](https://assets.ai.engineer/sites/aiecode2025/sha256/8a8c1eed04e31f07bef3239323fb2e5e91c9ef747a8ab54b9eb87d8080438c93.webp)
+
+Agents
+
+GPT-5 trajectory
+
+Input prompt
+Reasoning
+Tool call 1
+Tool output 1
+Reasoning
+Tool call 2
+...
+Final answer
+
+Tools
+
+3
+
+AIE / CODE
+PRESENTED BY
+Google DeepMind
+
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG
+Member of Technical Staff
+CATHY ZHOU
+Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Codex" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Codex</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Codex takes a request to write a PR with tests, uses planning, terminal and apply_patch tools, and returns a summary of its work.
+
+[1:19](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=79s) [Codex receives a request to write a pull request with tests, uses planning, terminal and apply_patch tools, and returns a summary.](https://assets.ai.engineer/sites/aiecode2025/sha256/637d07481ec022f794e307119add9a7766d4406717a149242edb95f163afc44d.webp)
+
+Codex
+
+“Please write a PR ...
+with tests”
+
+Codex
+
+Planning tool
+Terminal tool
+apply_patch tool
+
+“Here’s a summary of
+what I did...”
+
+4
+
+AIE / CODE
+PRESENTED BY
+Google DeepMind
+
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG
+Member of Technical Staff
+CATHY ZHOU
+Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Improving agent performance: Prompt optimization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Improving agent performance: Prompt optimization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Prompt optimization steers GPT-5 with better guidance in the input prompt. The model can exchange information with tools before producing a final answer.
+
+[1:43](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=103s) [Prompt optimization guides a GPT-5 agent that uses tools to produce a final answer.](https://assets.ai.engineer/sites/aiecode2025/sha256/ab9eeb5faee0d14221e481dfb17447aaa9c21583a60fe6ccbfba2f614d144509.webp)
+
+Improving agent performance
+
+Prompt optimization
+
+Steer model behavior with better guidance and instructions
+
+Input prompt
+GPT-5
+Tools
+Final answer
+
+5
+
+AIE / CODE
+PRESENTED BY
+Google DeepMind
+
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG
+Member of Technical Staff
+CATHY ZHOU
+Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Improving agent performance: Task optimization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Improving agent performance: Task optimization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Task optimization changes the work around GPT-5: simplify the task, add tool guardrails, or change the tools and their behavior.
+
+[2:00](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=120s) [Task optimization simplifies tasks and improves tool guardrails or functionality for a GPT-5 agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/c8df29ce4419b8ac342300a5fa1b0df60e9087caf55a841d588be68313ea40e1.webp)
+
+Improving agent performance
+
+Task optimization
+Simplify the task, add guardrails to tools to prevent improper use, add more tools, or enhance tool functionality
+
+Input prompt
+GPT-5
+Tools
+Final answer
+
+6
+
+AIE / CODE
+PRESENTED BY
+Google DeepMind
+
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG
+Member of Technical Staff
+CATHY ZHOU
+Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Agent reinforcement fine-tuning" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent reinforcement fine-tuning</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GPT-5 generates trajectories for a task, graders score them, and the rewards provide a training signal that changes the model’s weights.
+
+[2:13](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=133s) [GPT-5 generates three trajectories that graders score; rewards provide a training signal back to the model.](https://assets.ai.engineer/sites/aiecode2025/sha256/d55bfe17cae9fb7734afd1d405f7a6d8d1da27761cc9dfd6332b7b2596babdd3.webp)
+
+Agent Reinforcement
+Fine-Tuning
+
+Task
+Tools
+GPT-5
+
+Trajectory 1 → Grader → 0.1
+Trajectory 2 → Grader → 0.7
+Trajectory 3 → Grader → 0.4
+
+Reward
+Training signal
+
+8
+
+AIE / CODE
+PRESENTED BY
+Google DeepMind
+
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG
+Member of Technical Staff
+CATHY ZHOU
+Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Agent reinforcement fine-tuning: Endpoints" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent reinforcement fine-tuning: Endpoints</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>During training, GPT-5 explores tool calls through public internet endpoints. Endpoint-hosted graders score the resulting trajectories, providing a learning signal.
+
+[2:32](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=152s) [A fine-tuning diagram highlights that tools and graders are accessed via endpoints.](https://assets.ai.engineer/sites/aiecode2025/sha256/73e11d3fa26e3c142c37401db25b491bb34a6372ac702476c2c88f134acc5857.webp)
+
+Agent Reinforcement Fine-Tuning
+
+Task
+Tools
+Accessed via endpoints
+
+GPT-5
+
+Trajectory 1 → Grader → 0.1
+Trajectory 2 → Grader → 0.7
+Trajectory 3 → Grader → 0.4
+
+Graders: Accessed via endpoints
+
+9
+
+AIE / CODE
+PRESENTED BY Google DeepMind
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG — Member of Technical Staff
+CATHY ZHOU — Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Agent RFT Benefits" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent RFT Benefits</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Agent RFT tunes reasoning models for multi-step tool use. The slide reports improvements with 10’s to 100’s of samples, along with lower latency and higher performance on agentic tasks.
+
+[3:18](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=198s) [Benefits include improved tool use, sample efficiency, lower latency, and higher performance.](https://assets.ai.engineer/sites/aiecode2025/sha256/babd4ed91ba5e4895cfc7a0392dc35fc0cf7126b68505d1f713f66f46b8fad40.webp)
+
+Agent RFT Benefits
+
+Works with reasoning models
+Improves agent’s ability to use tools, interact with its environment, and reach an optimal final answer in a multi-step fashion
+Requires 10’s to 100’s of samples to get performance improvements
+Fine tuned models have lower latency and higher ML performance on agentic tasks
+
+10
+
+AIE / CODE
+PRESENTED BY
+Google DeepMind
+
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG
+Member of Technical Staff
+CATHY ZHOU
+Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="ML Performance" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>ML Performance</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent explores possible interactions, learning from failed attempts and better tool calls as it moves toward higher reward.
+
+[4:41](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=281s) [A diagram shows an agent exploring a search space toward higher reward.](https://assets.ai.engineer/sites/aiecode2025/sha256/7ab1f1d49eb24210dc9f74ad7482cdc0545882002b8924844f59cf4c7078d0bd.webp)
+
+ML Performance
+
+Agent learns to reason on task better
+Agent tried something that didn’t work
+Agent discovers better way of calling tools
+
+Reward
+Search space
+
+12
+
+Interface text:
+AI Engineer
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Latency" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Latency</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A 10-tool-call cutoff penalizes trajectories that attempt an 11th call. The illustrated final answer scores 0.7; the speaker says training within the budget can reduce latency.
+
+[4:46](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=286s) [A tool-call cutoff penalizes trajectories that exceed the budget and rewards a final answer within it.](https://assets.ai.engineer/sites/aiecode2025/sha256/dd744319f2a15767165a78bfe1f1fef02f67c2d063b5ae1e5deb189ecdc69998.webp)
+
+Latency
+
+Reward: -1
+...
+Tool output 10
+Reasoning
+Tool call 11
+
+Reward: -1
+...
+Tool output 10
+Reasoning
+Tool call 11
+
+...
+
+Reward: 0.7
+...
+Tool call 10
+Reasoning
+Final answer
+
+Cutoff at 10 tool calls
+
+13
+
+Interface text:
+AI Engineer
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="How Agent RFT Works: Initial Tool Call" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How Agent RFT Works: Initial Tool Call</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>OpenAI assigns each agent rollout a unique trajectory ID and sends it with tool calls, letting the user's environment associate each call with the corresponding trajectory in its database.
+
+[5:09](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=309s) [A trajectory identifier connects an input prompt and first tool call to a record in the user's environment.](https://assets.ai.engineer/sites/aiecode2025/sha256/e7a51ca2de43f553c747d80a9421a69903ab516ba194441755c309121e9516a6.webp)
+
+How does Agent RFT work?
+
+Trajectory ID
+abc123
+
+Input prompt
+Reasoning
+Tool call 1
+
+Tool call
+abc123
+
+Tools
+
+In your DB
+Trajectory abc123
+Tool call 1 abc123
+
+OpenAI
+Your environment
+The public internet
+
+14
+
+AI Engineer
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="How Agent RFT Works: Continuing the Trajectory" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How Agent RFT Works: Continuing the Trajectory</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each tool call carries the same trajectory ID to the user's environment, where the database tracks the rollout as it evolves.
+
+[5:27](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=327s) [Later tool calls and outputs are associated with the same trajectory and recorded in the user's environment.](https://assets.ai.engineer/sites/aiecode2025/sha256/36093642cfe272247dbfffe41089550b8a1a8b9010c50d65fde8b0348bae5866.webp)
+
+How does Agent RFT work?
+
+Trajectory ID
+abc123
+
+...
+Reasoning
+Tool call 19
+Tool output 19
+...
+
+Tool call
+abc123
+
+Tools
+
+In your DB
+Trajectory abc123
+Tool call 1 abc123
+...
+Tool call 19 abc123
+
+OpenAI
+Your environment
+The public internet
+
+15
+
+AI Engineer
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="How does Agent RFT work?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How does Agent RFT work?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The trajectory ID connects the final answer to recorded tool calls. A grader uses that context to produce a reward for downstream training.
+
+[5:31](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=331s) [A grader uses the final answer and recorded trajectory context to provide a reward for downstream training.](https://assets.ai.engineer/sites/aiecode2025/sha256/6a58a9bf98f77cc1cc1cc99dce1dedd56004fdc61271c69c8f620a8e67d9f94e.webp)
+
+How does Agent RFT work?
+
+Trajectory ID
+abc123
+
+...
+Tool output 25
+Reasoning
+Final answer
+
+Final answer
+abc123
+
+Grader
+Reward 0.6
+Downstream training
+
+In your DB
+Trajectory abc123
+Tool call 1 abc123
+...
+Tool call 19 abc123
+
+OpenAI
+Your environment
+The public internet
+
+16
+
+AI Engineer
+Engineering the future of AI
+
+[5:36](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=336s) [A rollout’s final answer and associated trajectory are graded in the user’s environment; the reward feeds downstream training.](https://assets.ai.engineer/sites/aiecode2025/sha256/570e9e3e742e57dcc1bbbc5d7dec3981a971a883f2c91e0b3fba5471908da5f2.webp)
+
+How does Agent RFT work?
+
+Trajectory ID
+abc123
+
+...
+Tool output 25
+Reasoning
+Final answer
+
+Final answer
+abc123
+
+Grader
+Reward 0.6
+Downstream training
+
+In your DB
+Trajectory abc123
+Tool call 1 abc123
+...
+Tool call 19 abc123
+
+OpenAI
+Your environment
+The public internet
+
+16
+
+AI Engineer
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="When to use Agent RFT" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>When to use Agent RFT</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Match training and evaluation data to production traffic, baseline model performance, and optimize prompts and tasks. Turn to Agent RFT when you still want further gains.
+
+[5:43](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=343s) [Four steps: build representative datasets and evaluations, baseline models, optimize prompts and tasks, then use Agent RFT.](https://assets.ai.engineer/sites/aiecode2025/sha256/880961da59241936e81a30ee99aa8168fb98c1b0e5910af59264dcfe5977e6bc.webp)
+
+When to turn to Agent RFT
+
+01 Build a high quality dataset with representative evals
+02 Baseline frontier models performance
+03 Optimize your prompts and task
+04 Use Agent RFT
+
+17
+
+Interface text:
+AI Engineer
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Success stories" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Success stories</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Cathy introduces coding examples of customers using Agent RFT to improve their agents, plus lessons for optimizing other agents.
+
+[6:34](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=394s) [OpenAI success stories section title.](https://assets.ai.engineer/sites/aiecode2025/sha256/0660390d0fffc837b533b3532071a06616b3ea26cc0cccd952b5d6396ac68fcb.webp)
+
+OpenAI
+
+Success Stories
+
+AI Engineer
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Cognition code edit planning agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Cognition code edit planning agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Cognition trains Devin to select files for a coding task using an F1 reward against labeled edits. Each rollout runs tool calls and grading in an isolated VM.
+
+[6:57](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=417s) [The agent selects files to edit using shell and file-reading tools; training uses labeled file lists and an F1 reward.](https://assets.ai.engineer/sites/aiecode2025/sha256/01e52d3a62fb5987cf4911ad6fac4a3b1b94464b4c0cae1edbb4272b3607b850.webp)
+
+Cognition
+Code Edit Planning Agent
+
+• Given an initial user prompt, determine which files to edit to complete the task.
+• Tools - shell, read file
+• Dataset - user queries with labelled ground truth of edited files
+• Reward - F1 score of the list of files returned
+
+Diagram:
+OpenAI Platform
+Devin VM 1: Tool call 1: shell … Tool call 9: read_file … Final Answer … Grader
+Devin VM 35: Tool call 1: shell … Tool call 7: shell … Final Answer … Grader
+
+19
+
+Interface text:
+AI Engineer
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Cognition code edit planning agent results" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Cognition code edit planning agent results</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Cognition’s GPT-5 planning score rises from 0.697 to 0.790 after fine-tuning on the larger dataset. Parallel tool calls also cut the agent’s tool-call turns from 8–10 to 4.
+
+[8:02](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=482s) [A chart compares plan action scores of 0.697, 0.741 and 0.790; the slide highlights data volume and parallel tool calls.](https://assets.ai.engineer/sites/aiecode2025/sha256/685766d76e7fc6e96f2091d0d3f7772019eb9cc1fba65b4d0d6e376451775104.webp)
+
+Cognition
+Code Edit Planning Agent
+
+→ Data quality and volume matter
+10 ppt improvement from GPT-5 on larger dataset
+
+→ Agent learns to call tools in parallel
+8-10 tool call turns -&gt; 4 turns
+
+Plan Action Score by Model
+Y-axis: Plan Action Score
+Y-axis ticks: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8
+GPT-5: 0.697
+GPT-5 RLFT Medium (less data): 0.741
+GPT-5 RLFT Medium (more data): 0.790
+
+20
+
+Interface text:
+AI Engineer
+Engineering the future of AI
+
+[8:41](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=521s) [Cognition reports higher planning scores with more training data and fewer tool-call turns through parallel calls.](https://assets.ai.engineer/sites/aiecode2025/sha256/89a342273765f231a52fda98e94ae3519a3b26e184141c4956b0ee4dc7e494e0.webp)
+
+Cognition
+Code Edit Planning Agent
+
+→ Data quality and volume matter
+10 ppt improvement from GPT-5 on larger dataset
+
+→ Agent learns to call tools in parallel
+8-10 tool call turns -&gt; 4 turns
+
+Plan Action Score by Model
+Y-axis: Plan Action Score
+Y-axis ticks: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8
+GPT-5: 0.697
+GPT-5 RLFT Medium (less data): 0.741
+GPT-5 RLFT Medium (more data): 0.790
+
+20
+
+Interface text:
+AIE / CODE
+PRESENTED BY
+Google DeepMind
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG
+Member of Technical Staff
+CATHY ZHOU
+Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Qodo code review research agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Qodo code review research agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Qodo trains a research agent to answer developer questions using semantic search. Its dataset contains ~1,100 real questions across eight repositories, and its reward measures facts recalled in the answer.
+
+[8:53](https://www.youtube.com/watch?v=p1CmPZ2j6Lk&amp;t=533s) [Qodo describes a code review research agent using semantic search, a dataset of about 1,100 questions, and a facts-recall reward.](https://assets.ai.engineer/sites/aiecode2025/sha256/866db3ab27285873e670f5daa48471094a41da86044145683710599335592625.webp)
+
+qodo
+
+Deep research agent for code review
+
+➜ Answer developer questions in a complex codebase
+➜ Tools - semantic search to retrieve code context
+➜ Dataset - ~1,100 real questions across 8 repositories
+➜ Reward - recall on number of facts appearing in predicted answer
+
+21
+
+Interface text:
+AIE / CODE
+PRESENTED BY
+Google DeepMind
+AGENT REINFORCEMENT FINE TUNING
+WILL HANG
+Member of Technical Staff
+CATHY ZHOU
+Member of Technical Staff
+OpenAI</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">是什么让一个编程智能体变得更好？</a></li><li><a href="#sec-2">从更好的提示词到学到的工具使用</a></li><li><a href="#sec-3">适应环境并惩罚浪费的调用</a></li><li><a href="#sec-4">给完整轨迹打分，再建立基线</a></li><li><a href="#sec-5">Cognition：选对文件，再并行搜索</a></li><li><a href="#sec-6">Qodo：改进调研并消除长尾</a></li><li><a href="#sec-7">Cosine：把正确性作为关卡</a></li><li><a href="#sec-8">Mako：奖励快速的算子，而不是捷径</a></li><li><a href="#sec-9">让探索产生可学习的信号</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">智能体强化微调：学会更好地使用工具</h2>
+      <div class="lede"><p>智能体 RFT 训练的是工具调用之间的决策，利用任务奖励来改进代码仓库调研、代码修改和 GPU 内核，同时减少无用功。</p><p>熟悉模型工具调用、训练与评测数据集和基础 Python，有助于理解示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="22">▶ 0:22</button></div>
+      <h3>是什么让一个编程智能体变得更好？</h3>
+      <p>How do you improve a coding agent that can already use a terminal but still struggles to complete your tasks? Start with what the agent actually does. A standalone model produces an answer; an agent interacts with an environment to get work done. For coding, that environment might expose a terminal, a code interpreter or an entire repository. Will Hang and Cathy Zhou, from OpenAI’s fine-tuning team, describe an architecture in which <strong>reasoning, tool calls and tool outputs share the same context window</strong>. Each tool result becomes information the agent can use to decide what to do next.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/04cc12e5778c3a31f3c1567d639b20e8bbc7d6ec80e9ce0ebf89f432f8f14c03" alt="Agents slide showing a GPT-5 trajectory from input prompt through reasoning, tool calls and tool output to a final answer, with connections to a Tools box." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>An agent trajectory interleaves reasoning with tool calls and outputs before reaching a final answer.</figcaption></figure>
+<p>Codex illustrates the pattern: it can inspect a codebase, write unit tests and produce substantial code changes. Some capabilities appear as terminal commands; others are custom functions, such as a function that invokes a planning workflow. Improving this agent means improving the sequence of decisions that connects the initial task to a useful result, including which tools it calls and how it interprets their outputs.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="104">▶ 1:44</button></div>
+      <h3>从更好的提示词到学到的工具使用</h3>
+      <p>There are several places to intervene before changing model weights.</p>
+<p>| Intervention | What changes |
+|---|---|
+| Prompt optimization | Instructions that steer behavior |
+| Task optimization | Task scope, guardrails and available tools |
+| Fine-tuning | The model’s weights |</p>
+<p>Task optimization includes simplifying the job, adding guardrails, adding or removing tools, and changing tool behavior to make the environment easier to use. Fine-tuning comes after these improvements, when the task still has performance headroom.</p>
+<p><strong>Agent reinforcement fine-tuning</strong>, or Agent RFT, changes model weights according to a learning signal supplied by the developer. During training, the agent explores different ways of using tools to solve the task. In the customer-facing RFT beta described here, training can call tools through publicly hosted endpoints and invoke a custom reward endpoint after each completed rollout. A rollout is one attempted trajectory through the task, ending in an answer that can be graded. The consequential addition is that training can learn from interaction with the customer’s environment.</p>
+<p>The target is a reasoning model that must act over multiple steps, not simply produce a better standalone response. Will reports successful training with as few as ten examples in unspecified cases. That illustrates possible sample efficiency, rather than establishing a minimum dataset size. He also describes improved task performance and lower latency as benefits of learning better tool use.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="234">▶ 3:54</button></div>
+      <h3>适应环境并惩罚浪费的调用</h3>
+      <p>A business environment can differ substantially from the environments used to train a general model. This <strong>domain shift</strong> can show up as repeated tool calls or invalid tool inputs. Agent RFT lets the model explore the actual environment and learn both how to invoke its tools and how to reason over their outputs. Reward guides that exploration toward more successful trajectories.</p>
+<p>The reward can also encode a tool-call budget. Penalizing trajectories that exceed the budget gives the model a reason to finish with fewer interactions. Will describes models learning to stay within that limit while preserving or exceeding their original task performance. The slide makes the rule concrete: a cutoff at ten tool calls gives trajectories reaching an eleventh call a reward of −1, while a trajectory that reaches a final answer receives 0.7. These are example reward assignments, not measured latency results.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/24ad8ae20c15c58ee548ea3431764430e9270e10bb73f1924b6790d31fb549ec" alt="Latency slide with three example trajectories above a dashed cutoff at 10 tool calls; two show tool call 11 and reward −1, while the third ends with a final answer and reward 0.7." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A ten-tool-call cutoff contrasts trajectories rewarded −1 with a final answer rewarded 0.7.</figcaption></figure>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="311">▶ 5:11</button></div>
+      <h3>给完整轨迹打分，再建立基线</h3>
+      <p>Trajectory-level grading requires a way to connect external actions to the answer they produced. Each rollout receives a unique <strong>UUID</strong>, associated with every tool call made into the customer’s system. Customer infrastructure can use that identifier to maintain the trajectory’s state as it evolves. When the final answer arrives, the same association lets the grader evaluate it together with the accumulated context. The grading unit can therefore include what the agent did, rather than only what it said at the end.</p>
+<p>Before starting training, establish whether the setup can support a meaningful improvement:</p>
+<p>1. Build training and evaluation datasets that closely match production traffic.
+2. Run the base model on those datasets to establish a baseline.
+3. Improve prompts and task design against that baseline.
+4. Use Agent RFT when those changes leave worthwhile performance gains to pursue.</p>
+<p>This sequence also makes the customer examples easier to interpret: each selects a particular agent behavior and supplies an environment and reward suited to that behavior.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="412">▶ 6:52</button></div>
+      <h3>Cognition：选对文件，再并行搜索</h3>
+      <p>Cognition applied Agent RFT to Devin’s code-edit planning phase. Before making edits, the agent inspects the repository with shell tools such as <code>grep</code> and file reads, then selects the files it intends to change. Cognition paired user queries with the files users actually modified and rewarded the agent using <strong>file-selection F1</strong>. Precision discourages selecting irrelevant files; recall discourages missing necessary ones. F1 balances the two.</p>
+<p>A small Python grader captures this set-based reward. In this example, selecting <code>src/auth.py</code> and <code>README.md</code> when the reference files are <code>src/auth.py</code> and <code>tests/test_auth.py</code> gives one correct selection, one unnecessary selection and one omission.</p>
+<p>```python
+def file_selection_f1(selected: set[str], expected: set[str]) -&gt; float:
+    if not selected and not expected:
+        return 1.0
+    return 2 * len(selected &amp; expected) / (len(selected) + len(expected))</p>
+<p>selected = {&quot;src/auth.py&quot;, &quot;README.md&quot;}
+expected = {&quot;src/auth.py&quot;, &quot;tests/test_auth.py&quot;}
+score = file_selection_f1(selected, expected)  # 0.5
+```</p>
+<p>The empty-set convention is explicit here; the central mechanism is that both extra files and missing files lower the reward.</p>
+<p>Cognition also built a separate VM for each trajectory. That VM held the codebase, executed tool calls and graded the final answer. Isolation kept shell activity in one rollout from affecting another rollout’s environment.</p>
+<p>Cathy reports a five-point improvement with approximately 100 training examples and a ten-point improvement with 1,000 examples. The reward was file-selection F1, but she does not explicitly identify the metric behind those reported improvement points. The practical lesson is that a small dataset can provide a useful start while additional high-quality examples can still materially improve behavior.</p>
+<p>Cathy reports that planning fell from eight to ten steps before RFT to four steps afterward. Initially, the model alternated reasoning and tool calls. After training, it launched many tool calls in parallel at the first step, reducing sequential work before it could begin editing. For Devin, that shorter planning phase mattered because users wanted code changes to start appearing quickly.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="535">▶ 8:55</button></div>
+      <h3>Qodo：改进调研并消除长尾</h3>
+      <p>Qodo’s code review system includes a deep research agent that answers developer questions about large repositories. Qodo trained <strong>GPT-5</strong> to use repository search and retrieval tools, using approximately 1,000 authentic question-answer pairs from eight repositories. Its reward measured the recall of relevant facts the agent retrieved.</p>
+<p>Cathy describes the quality improvement as 6%; the displayed results specify facts recall increasing from 0.68 to 0.74. That is a gain of 0.06 on the displayed recall scale. The slide also reports 10–15% fewer tool-call steps and 50% fewer output tokens to tools. These results describe Qodo’s repository-question setup; the token reduction is specifically for output sent to tools.</p>
+<p>The distribution reveals a further benefit. Base GPT-5 occasionally exceeded 15 tool calls per sample; after RFT, Cathy reports that the long tail disappeared and the distribution centered around two to four calls. Those unusually long runs were slow and could produce inconsistent behavior. Cathy describes their removal as eliminating P95 long-tail cases, although no numerical P95 latency measurement is given. The production benefit is more predictable work per request alongside better fact retrieval.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/14765daf89caac21695ee730b504278bf66780d511c553be74af33de0e863248" alt="Qodo slide listing facts recall increasing from 0.68 to 0.74, 10–15% fewer tool-call steps and 50% fewer output tokens to tools, alongside overlapping base and RFT histograms." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Qodo results pair improved facts recall and reduced tool use with a histogram comparing base and RFT tool-call counts.</figcaption></figure>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="626">▶ 10:26</button></div>
+      <h3>Cosine：把正确性作为关卡</h3>
+      <p>Cosine trained coding agents for large enterprise codebases with 30 tools, including file reads, keyword search, terminal sessions and browser sessions. Its early grading approach gave partial credit for attempts, but the model began optimizing style and tone instead of reliably producing working code. Cosine changed the reward so that final code had to pass tests before it could receive credit. <strong>Correctness became a prerequisite for reward.</strong></p>
+<p>A strict gate creates sparse rewards: many attempted solutions may receive zero. GPT-5 helped because it could already produce some successful samples. Cosine then increased batch size and compute to obtain more positive-reward samples and reduce the risk of batches containing nothing but failures. The training setup needed successful trajectories to learn from, not merely a precise definition of failure.</p>
+<p>Once code was correct, a custom LLM judged style and tone, penalizing verbosity, emojis and unprofessional presentation. The grader also rewarded agents that validated their own work by running tests, inspecting terminal outputs and checking lint results before reporting success. These secondary signals refined a successful coding workflow without replacing the test-passing requirement.</p>
+<p>Cathy reports state-of-the-art results across multiple benchmarks and a much faster agent, without naming the benchmarks or scores in the spoken explanation. Before training, some Cosine trajectories exceeded 100 messages; afterward, Cathy describes a tighter sequence without giving a final message count. As in the Qodo example, reducing extremely long trajectories was part of the improvement.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="766">▶ 12:46</button></div>
+      <h3>Mako：奖励快速的算子，而不是捷径</h3>
+      <p>Mako’s task was to write highly performant GPU kernels. Training examples are scarce in this domain, especially for new hardware such as NVIDIA B200s. Cathy reports that Mako trained GPT-5 using approximately 100 PyTorch prompts. The attraction of RFT was that a useful reward could support learning without a large collection of example kernel solutions.</p>
+<p>The reward itself needed repair. By inspecting early rollouts, Mako identified seven categories of reward hacking. The examples Cathy names are returning the reference code, returning no-op kernels and returning identity kernels. A judge LLM detected those categories and assigned zero reward. Static analysis using an <strong>abstract syntax tree</strong> supplied another check: generated kernels had to exist and actually be launched.</p>
+<p>Only after these protections did the grader score correctness and real speedup against the PyTorch baseline. That order matters: a fast result is useful only if the agent performs the intended computation through the generated kernel. The slide groups the safeguards under a judge LLM and Kernel Reachability Analysis, alongside correctness and speed rewards.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ac8d23e4bb77a1e5df4e8759c4952c17909d70a13bbc65baed05d6cb90d911eb" alt="MAKO GPU kernel building agent slide listing 100 PyTorch examples, correctness and speed rewards, a judge LLM evaluating seven hack categories, and Kernel Reachability Analysis." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>MAKO combines 100 PyTorch examples with correctness and speed rewards and checks against reward hacking.</figcaption></figure>
+<p>With the safeguards in place, Cathy reports that the trained agent substantially outperformed base GPT-5. Mako then generated three samples and selected the best. Cathy reports that selecting the best of three samples beat the state of the art by 72%. The talk does not name the benchmark, comparator or aggregation behind that percentage, so it remains an attributed result for this historical experiment.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="885">▶ 14:45</button></div>
+      <h3>让探索产生可学习的信号</h3>
+      <p>Will closes with four conditions for productive training. First, define a constrained task with an unambiguous meaning of success. Grading should not depend on subjective taste. Second, make training and evaluation data mirror production traffic, so the deployment environment does not reintroduce domain shift.</p>
+<p>Third, check whether additional sampling exposes better solutions. For the same input, some rollouts should perform better than others, and the best observed performance should improve as more samples are drawn. That variation gives training something to learn: a distinction between good and bad ways of completing the same task. If exploration never finds a better result, the proposed setup offers little evidence of a useful learning signal.</p>
+<p>Fourth, close reward-hacking loopholes and prefer continuous rewards where they faithfully measure progress. Will compares this to giving a student partial credit: intermediate scores can guide incremental improvement. Cosine’s experience supplies the necessary qualification. Partial credit is helpful when it rewards progress toward the actual objective; it is harmful when style or apparent effort can substitute for working code. A strict correctness gate and richer rewards for valid solutions can serve different parts of the same grading design.</p>
+<p>At the time of the recording, the instruction for obtaining Agent RFT access was to contact an account director. That is historical access guidance: the <a href="https://developers.openai.com/api/docs/guides/reinforcement-fine-tuning" target="_blank" rel="noopener">current fine-tuning documentation</a> now says the platform is winding down and is unavailable to new users.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://openai.com/index/introducing-agentkit/" target="_blank" rel="noopener">OpenAI's announcement of custom tools and graders for RFT</a> — The October 2025 announcement places custom tool calls and custom graders in the GPT-5 RFT beta.</li><li><a href="https://developers.openai.com/api/docs/guides/reinforcement-fine-tuning" target="_blank" rel="noopener">Reinforcement fine-tuning documentation</a> — Explains grader-driven fine-tuning and carries the current notice that the platform is winding down and closed to new users.</li><li><a href="https://arxiv.org/html/2602.11000v1" target="_blank" rel="noopener">Fine-Tuning GPT-5 for GPU Kernel Generation</a> — Makora's February 2026 paper describes reinforcement fine-tuning for Triton kernel generation and evaluates a full coding agent against TorchInductor on expanded KernelBench tasks.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[on-hold music]</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">Hey, everyone, I'm Will.</span></div><div class="tline" data-t="22"><span class="ts">0:22</span><span class="tx">And I'm Cathy, and we're on the fine-tuning team at OpenAI.</span></div><div class="tline" data-t="26"><span class="ts">0:26</span><span class="tx">And we're super excited to talk to you today about Agent RFT, the most powerful way to enhance the performance of your agents. So you're probably joining us today because you're building an agent for your business and you'd like to improve its performance.</span></div><div class="tline" data-t="39"><span class="ts">0:39</span><span class="tx">So let's first start by talking about what an agent actually is. What makes an agent different from a regular model is its ability to interact with the outside world to complete a task, to get things done on its own without having to go through you all the time.</span></div><div class="tline" data-t="52"><span class="ts">0:52</span><span class="tx">So this agent needs to have access to tools. For example, if you're building a coding agent, it's gotta have access to a terminal, a code interpreter, or maybe even an entire code base.</span></div><div class="tline" data-t="61"><span class="ts">1:01</span><span class="tx">But these agents aren't just blindly calling tools. They're reasoning at the same time. The way that we think about these agents is that their interactions with the outside world, such as tool calls, are interleaved with their reasoning traces in the same context window.</span></div><div class="tline" data-t="76"><span class="ts">1:16</span><span class="tx">So an example of an agent that we've built in-house using this paradigm is Codex. Codex is our flagship coding agent. It has access to a wide range of tools to complete coding tasks end to end, like writing unit tests or submitting large diffs to your code base that are hopefully correct.</span></div><div class="tline" data-t="93"><span class="ts">1:33</span><span class="tx">Um, some tools are exposed as terminal commands, and other tools are custom functions the model can call to invoke, say, a planning workflow. So now how do we make our agents better?</span></div><div class="tline" data-t="104"><span class="ts">1:44</span><span class="tx">We're all probably pretty familiar with, uh, frontline techniques to improve the performance of agents. For example, for starters, prompt engineering or prompt optimization. Prompting, you can steer model or agent behavior to align more with your preferences.</span></div><div class="tline" data-t="118"><span class="ts">1:58</span><span class="tx">But let's say you still wanna squeeze more juice out of your task, well, you can then turn to task optimization. You can simplify the task. You can add better guardrails around the task.</span></div><div class="tline" data-t="128"><span class="ts">2:08</span><span class="tx">You can add and subtract tools, or you can change tool behavior to work better for the agent. But let's say you still wanna squeeze even more juice out of that task.</span></div><div class="tline" data-t="138"><span class="ts">2:18</span><span class="tx">You've tried all these approaches, and you still want better performance. So that's where you would turn to fine-tuning. Fine-tuning is a way to train the a- agent end to end on your task to achieve even better performance by changing the weights of the model.</span></div><div class="tline" data-t="153"><span class="ts">2:33</span><span class="tx">And Agent Reinforcement Fine-Tuning, or Agent RFT, is the way to do this, or it's the way that we would like you all to do this. Um, Agent RFT changes the weights of the model according to a learning signal that you specify to teach the model what good behavior and what bad behavior looks like.</span></div><div class="tline" data-t="167"><span class="ts">2:47</span><span class="tx">And during training, the agent will explore many different ways of calling your tools to solve your task. So we've introduced several major new additions to the RFT product. Um, first off, the model can now call your tools via your endpoints that are hosted in the public internet, um, and after each rollout will also invoke your custom reward</span></div><div class="tline" data-t="187"><span class="ts">3:07</span><span class="tx">signal that's hosted via an endpoint. So these two additions actually mark the first time that we, we at OpenAI have allowed models to interact with the outside world during the training process.</span></div><div class="tline" data-t="198"><span class="ts">3:18</span><span class="tx">So I think this is pretty cool. To summarize the benefits of Agent RFT, it helps you improve the performance of your reasoning models, but more specifically, the reasoning models that have to call tools and interact with the outside world to get things done in a multi-step fashion.</span></div><div class="tline" data-t="215"><span class="ts">3:35</span><span class="tx">Agent RFT is also quite sample efficient. We've seen people get success from literally only using, like, ten examples, which is pretty amazing. We'll go over specific examples of this when we deep dive into some of our customer spotlights.</span></div><div class="tline" data-t="226"><span class="ts">3:46</span><span class="tx">And it results in a model that has lower latency and just works better for your tasks. So now let's dive a little bit deeper into how all this works.</span></div><div class="tline" data-t="234"><span class="ts">3:54</span><span class="tx">Uh, one of the challenges with making agents work with your specific business context is that your environment, your world, might just be different from how we train our models in-house.</span></div><div class="tline" data-t="245"><span class="ts">4:05</span><span class="tx">So this phenomenon in ML is called domain shift, and it can result in an agent that doesn't quite call your tools that, that well. Might call a tool too many times, or it might just straight up shove wrong inputs into your tools.</span></div><div class="tline" data-t="258"><span class="ts">4:18</span><span class="tx">Agent RFT can readapt the model to your domain through this weight changing training process that results in an agent that actually understands your environment, and this has some really nice properties, obviously, better ML performance.</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">It trains the model to use tools better, and it trains the model to reason over the outputs of those tools better. All this is learned organically by the model while it explores the search space, all the possible ways of interacting with your environment and hill climbing on your reward.</span></div><div class="tline" data-t="288"><span class="ts">4:48</span><span class="tx">Another really nice property that results from this is the ability to achieve much lower latencies by making sure that the model stays within a given tool call budget and doesn't go over that limit.</span></div><div class="tline" data-t="298"><span class="ts">4:58</span><span class="tx">So we can actually impose this penalty that, you know, penalizes the model for going over that budget. What actually happens is the model learns to stay within that budget while preserving or exceeding the original ML performance.</span></div><div class="tline" data-t="311"><span class="ts">5:11</span><span class="tx">So to dive a little bit deeper into what happens at a systems level, uh, for each agent rollout, we'll produce this unique identifier that specifies that that's that particular rollout, and we will associate all the tool calls that we make into your system with that UUID.</span></div><div class="tline" data-t="327"><span class="ts">5:27</span><span class="tx">And so we do this for every tool call so that you can keep track of a trajectory as it evolves, so that when we emit that final answer at the very end, you can then associate that final answer with all the context that you've maintained so far, and you can just pass this whole thing as a holistic</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">grading context into your grader. Now, we don't recommend everyone or anyone just use Agent RFT right off the bat. Uh, there's a process that we'd like you all to follow.</span></div><div class="tline" data-t="352"><span class="ts">5:52</span><span class="tx">You first wanna make sure that your training data set and your eval data set closely match your production traffic. You do not want any drift whatsoever. Then you want to ground yourself in a baseline.</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">You wanna run your base model against these data sets so that you kind of understand what to expect performance-wise, so that you can then hill climb From there. And then you want to optimize performance using some of the techniques that we talked about prior, like prompt or task optimization, and only then, when you still feel like you've</span></div><div class="tline" data-t="381"><span class="ts">6:21</span><span class="tx">squeezed all the juice out of the task, but you still want more, more juice, you would turn to Agent RFT to push the frontier for your task. So now I'm gonna turn it over to Cathy to talk about how some of our partners have really pushed that frontier.</span></div><div class="tline" data-t="396"><span class="ts">6:36</span><span class="tx">Yeah, so now that we learned how Agent RFT works and how, when you should use it, I'll show you some coding-related examples of how our customers were able to use Agent RFT to make their agents better, and also highlight some key takeaways that you can apply when optimizing your own agents.</span></div><div class="tline" data-t="412"><span class="ts">6:52</span><span class="tx">So a few months ago, we partnered with Cognition, who use Agent RFT on their code-edit planning phase. This is the part where Devin inspects a repo and run sh- runs shell tools like grep and file reads to decide which exact files to edit.</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">To train this behavior, they built a data set of user queries paired with actual files that s- that users has modified, and they used the F1 score of the selected files as the reward.</span></div><div class="tline" data-t="438"><span class="ts">7:18</span><span class="tx">This F1 score is really great because it balances between the pr- precision and the recall. So this ensures that the agent doesn't return too many inaccurate files or misses the critical ones.</span></div><div class="tline" data-t="451"><span class="ts">7:31</span><span class="tx">They also build extremely robust in- r- infrastructure to support this training. So in this case, for each individual trajectory, they spun up a, a VM to manage the code base, to execute the tool calls, and grade the final answer.</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">These VMs make sure that the environment is isolated so that the shell tools will not affect each other in different rollouts. We saw two important takeaways from Cognition's use case.</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">First, data quality and the volume really matters. So at first, they fine-tuned on a data set of around 100 examples and were able to get a five-point improvement. But when they scaled to 1,000 examples, the improvement jumped to 10 points.</span></div><div class="tline" data-t="492"><span class="ts">8:12</span><span class="tx">So the number of high-quality examples you provide can very directly translate to a better agent behavior. Second, we also learned that RFT is really good for learning to call tools in parallel.</span></div><div class="tline" data-t="506"><span class="ts">8:26</span><span class="tx">So in this case, the model would i- initially take eight to 10 steps, alternating between generating tokens in its reasoning to actually calling the tools. After RFT, the agent launches many tool calls in parallel at the very first step, so this was able to reduce that number down to four.</span></div><div class="tline" data-t="526"><span class="ts">8:46</span><span class="tx">And in this use case, the speed-up was especially important because they wanted Devin to start producing edits quickly.</span></div><div class="tline" data-t="535"><span class="ts">8:55</span><span class="tx">And now I wanna highlight a different use case. Qodo is building a code review agent, and a key piece of that is a deep research agent that answers developer questions on large code bases.</span></div><div class="tline" data-t="547"><span class="ts">9:07</span><span class="tx">To improve this deep research agent, they trained GPT-5 to answer coding questions by calling tools like search and retrieve over the repository. They assembled around 1,000 authentic question and answer pairs from eight different, uh, repositories and rewarded the model using the recall of how many relevant facts the agent were able to retrieve.</span></div><div class="tline" data-t="573"><span class="ts">9:33</span><span class="tx">With RFT, the agent improved by 6%, and it was using fewer tool calls and output tokens. And what we found most interesting is this graph, where it shows how RFT shifted the distribution of the number of tool calls.</span></div><div class="tline" data-t="589"><span class="ts">9:49</span><span class="tx">So with base GPT-5, the agent will occasionally fall into these bad runs, where there were more than 15 tool calls in a single sample. This is very slow and also can lead to some inconsistent behaviors.</span></div><div class="tline" data-t="602"><span class="ts">10:02</span><span class="tx">So after RFT, these tool calls that are very long tail, um, disappeared, and the, the sh- the distribution centered to just around two to four tool calls. In this setup, RFT didn't just improve, uh, accuracy, it also stabilized the agent's behavior in elimi- eliminating these P95 long-tail cases, and this is very important for production use cases where</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">your latency will matter. Next, I wanna share how Cosine build coding agents for large and complex enterprise co- uh, enterprise cod- code bases with Agent RFT. To make this work, they trained the agent on a very comprehensive set of 30 tools, such as file read, keyword search, session terminal, browser sessions, et cetera.</span></div><div class="tline" data-t="651"><span class="ts">10:51</span><span class="tx">And they've also built a very strict grader. So they observed that the model, um, originally, when they were providing mo- the model with partial credits and ch- uh, points for just trying out things, um, it didn't get really good results because the model would start to optimize things on coding style and tone.</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">Um, so at first, they want to really make sure the agent ships working code. And so based on that, they give the model the reward only when the final code passes the test.</span></div><div class="tline" data-t="682"><span class="ts">11:22</span><span class="tx">And because the grader is very strict, it can sometimes give sparse rewards. In that case, um, GPT-5 is also, like, is actually very great because it can give us some samples that work.</span></div><div class="tline" data-t="694"><span class="ts">11:34</span><span class="tx">So, um, Cosine also boosted the batch size, and they increased the amount of compute so that there is even more samples that can give us positive rewards. So it's not like every single sample in the batch would give us zero reward.</span></div><div class="tline" data-t="708"><span class="ts">11:48</span><span class="tx">Once the code is correct, um, they also have a custom LLM that would judge by the style and tone, so it will penalize verbosity, emojis, or anything that feels unprofessional.</span></div><div class="tline" data-t="719"><span class="ts">11:59</span><span class="tx">Finally, the grader will reward the agents that validate their own work, so this means running tests, inspecting terminal outputs, and also checking linting before calling out a success.</span></div><div class="tline" data-t="732"><span class="ts">12:12</span><span class="tx">And after training with this very thoughtful set of tools and graders, Cosine was able to reach the state of the art on a lot of different benchmarks over here, and they also got a much much faster agent.</span></div><div class="tline" data-t="747"><span class="ts">12:27</span><span class="tx">So like in earlier examples, RFT shifted this, this distribution of tool calls, and the agent stopped taking these extremely long trajectories. In this case, there was sometimes more than 100 messages in a single trajectory, and it converged to a much tighter and more efficient sequence of steps.</span></div><div class="tline" data-t="766"><span class="ts">12:46</span><span class="tx">Lastly, Maco is a very interesting use case. They're building agents that write high- highly performant GPU kernels, which is traditionally very hard for LLMs because in normal use cases there's a lot more examples, but in this case, there's not a lot of example for kernels, especially if you're using new hardware platforms like NVIDIA B200s.</span></div><div class="tline" data-t="789"><span class="ts">13:09</span><span class="tx">With Agent RFT, Maco trained GPT-5 to write fast kernels using only about 100 PyTorch prompts, and this was a major unlock. So we don't actually need that many samples and kernel data set in order to train a good model that produces kernels, and we just have to specify a good reward function.</span></div><div class="tline" data-t="811"><span class="ts">13:31</span><span class="tx">In this case, specifying a good reward function is also very hard. Early in training, they observed that the model was reward hacking. So what they did was that they inspected the rollouts, and they found seven different cases where the model was hacking, and this include things like just, uh, returning the reference code or returning no-op kernels or</span></div><div class="tline" data-t="833"><span class="ts">13:53</span><span class="tx">identity kernels. And they built a, a judge LLM to catch all of these seven cases and reward them with a zero. They also added a static analysis tool with a ab- abstract syntax tree to verify that the generated kernels actually exist, and they're actually being launched.</span></div><div class="tline" data-t="852"><span class="ts">14:12</span><span class="tx">So after the-- they made sure that there was no reward hacking, they also scored on correctness and real speed-up compared to the PyTorch baseline.</span></div><div class="tline" data-t="862"><span class="ts">14:22</span><span class="tx">Once all of these protections were in place, the agent got significantly better than GPT-5. And c- uh, Maco also used a really smart technique here to improve the performance even more.</span></div><div class="tline" data-t="873"><span class="ts">14:33</span><span class="tx">They ran three different samples, and they took the best one out of the three. This allowed them to beat the state of the art by 72%. And yeah, I'll hand it back to Will.</span></div><div class="tline" data-t="885"><span class="ts">14:45</span><span class="tx">Thanks a lot, Cathy. So, uh, now we want all of you, all of you in this room and beyond, to be as successful as the partners that Cathy just mentioned with Agent RFT.</span></div><div class="tline" data-t="894"><span class="ts">14:54</span><span class="tx">So here are four key principles to ensure your success. First of all, you wanna make sure that your task is well-defined, well-constrained. There should be a clear, unambiguous definition of success.</span></div><div class="tline" data-t="905"><span class="ts">15:05</span><span class="tx">You should have removed all subjectivity out of your task. Taste should not be a requirement to grade your task properly. Next, you do not want the model to feel surprised in production.</span></div><div class="tline" data-t="915"><span class="ts">15:15</span><span class="tx">You wanna make sure that your train and eval data sets mirror your production traffic. So no, none of that domain shift that we talked about. You do not wanna introduce that domain shift on your own.</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">Um, next, and this is a really important part, you wanna make sure that through exploration, the model actually achieves better performance on a given data point if it samples more, so that it can learn from itself.</span></div><div class="tline" data-t="937"><span class="ts">15:37</span><span class="tx">So what this means is if you take the maximum performance on a given data set, that should improve as you sample more from the model. So because of this, you should be able to see the, these variances from a given data point, so the model can learn from itself, learn what the difference between a good and a</span></div><div class="tline" data-t="952"><span class="ts">15:52</span><span class="tx">bad rollout is for a given data point. And, uh, lastly, you wanna make sure that your reward function is not hackable. Hopefully, you've plugged up all the corner cases, all the edge cases, um, but also, hopefully, you've framed your task so that the reward is more continuous than binary.</span></div><div class="tline" data-t="969"><span class="ts">16:09</span><span class="tx">The continuous reward actually allows the model to kind of inch up closer and closer to optimal performance, sort of like giving, giving a student partial credit, um, rather than, you know, slapping them all in the face or giving it a cookie, uh, if it gets stuff wrong or gets stuff right.</span></div><div class="tline" data-t="984"><span class="ts">16:24</span><span class="tx">So now in order to get started with Agent RFT, please contact your friendly neighborhood account director, and we're really excited to see what you all build with us. Thank you so much. [audience applauding] [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

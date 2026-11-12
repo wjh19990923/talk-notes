@@ -1,0 +1,635 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>从凭感觉到上生产：评测并交付真正可用的 AI 智能体（201） —— Laurie Voss，Arize AI | AI 工程师中文版</title>
+<meta name="description" content="Laurie Voss 跟随一个玩具店智能体，从看不见的失败一直走到一个能正常工作的价格筛选功能，然后探讨 trace、评测和反复出现的失败模式如何引导持续改进——以及如何检查那些负责修复的智能体。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>从凭感觉到上生产：评测并交付真正可用的 AI 智能体（201） —— Laurie Voss，Arize AI</h1>
+    <div class="orig-title">From Vibes to Production: Evaluating and Shipping AI Agents That Work 201 — Laurie Voss, Arize AI</div>
+    <div class="meta"><span class="speaker">Laurie Voss</span> · AI Engineer World's Fair 2026 · 42:16</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=developer-workflows-and-testing">开发工作流与测试</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/F0TNSmbo5hE-from-vibes-production-evaluating-shipping-ai" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="F0TNSmbo5hE"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=F0TNSmbo5hE" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">同样的答案可能掩盖不同的执行过程</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>同样的答案可能掩盖不同的执行过程</span></li><li data-t="368"><span class="ts">6:08</span><span>分数压缩了 trace，模式压缩了失败</span></li><li data-t="729"><span class="ts">12:09</span><span>给 Wonder Toys 一份可见的执行历史</span></li><li data-t="1355"><span class="ts">22:35</span><span>一个成功的 HTTP 响应仍可能是一次失败的搜索</span></li><li data-t="1834"><span class="ts">30:34</span><span>补上缺失的能力，再检查变化后的结果</span></li><li data-t="1985"><span class="ts">33:05</span><span>从按需分析走向周期性监控</span></li><li data-t="2233"><span class="ts">37:13</span><span>检查原有行为是否保住——也要评估负责修复的智能体</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 10 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Get set up" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Get set up</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Clone the demo repository, copy env.example to .env.local, add the OpenAI and Arize credentials, and run npm run dev to start the software locally.
+
+[0:20](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=20s) [Workshop setup steps for cloning the demo, configuring environment variables, and starting the application.](https://assets.ai.engineer/sites/aiecode2025/sha256/228591c9081fa4a6b478c1ac0a122e9ee287a42efcc8212af413f96851809436.webp)
+
+WORKSHOP
+
+Get set up
+
+• gh repo clone seldo/aiewf-2026-demo:
+  github.com/seldo/aiewf-2026-demo
+• Copy env.example to .env.local
+• Populate secrets in .env.local:
+  ◦ OPENAI_API_KEY - platform.openai.com/api-keys
+  ◦ ARIZE_SPACE_ID - arize.com
+  ◦ ARIZE_API_KEY - arize.com
+• npm run dev
+
+arize</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Vibes to Production: 201" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Vibes to Production: 201</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>This session explores how to close the software development life cycle loop automatically.
+
+[0:42](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=42s) [Title slide for Vibes to Production: 201, presented by Arize AI.](https://assets.ai.engineer/sites/aiecode2025/sha256/28d2f2b64cd81d8ebf5ca1a441faf26dea5f619cc83354a79ed88c9230c22096.webp)
+
+Vibes to Production: 201
+
+Arize AI: The AI Observability &amp; Evaluation Platform
+
+arize</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Arize AI observability platform" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Arize AI observability platform</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Arize presents its scale: 2 trillion spans processed, 100 million evals per month, and 5 million downloads per month. Voss says the workshop’s methods can be used with any observability platform.
+
+[0:52](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=52s) [Arize AI platform overview with usage metrics and customer logos.](https://assets.ai.engineer/sites/aiecode2025/sha256/0e027e13e97b17800abaf70b70846e0594c37be79f3237f87fa187986429c152.webp)
+
+Arize AI: The Leading AI Observability Platform
+
+2 Trillion
+spans processed
+
+100 Million
+evals per month
+
+5 Million
+downloads per month
+
+DOORDASH · Booking.com · reddit · Spotify · Flipkart · Etsy · Handshake
+Spark · Uber · instacart · PagerDuty · klaviyo · Tripadvisor · ASU Arizona State University · TEL Tokyo Electron
+CVS Health · HYATT · wayfair · Sixt
+Walmart · SIEMENS · clearcover · America First
+AIR CANADA · priceline · TEMPUS · pepsi · ROBLOX · AT&amp;T · WELLS FARGO · RadiantSecurity
+GET YOUR GUIDE · OXY · Keller Williams · Ford · Vanguard · jetBlue AIRWAYS · Mercury Insurance · CONDÉ NAST · Skyscanner · LOWE’S
+HYLAND · ATROPOS HEALTH · TheFork
+
++1000s of other customers in healthcare, finance, travel &amp; airline, and insurance industries.
+
+arize</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="From evals to continuous improvement" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From evals to continuous improvement</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Workshop 201 adds improvement to the observe-and-evaluate cycle: each eval compounds into the next fix.
+
+[1:18](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=78s) [Workshop 101 focused on evals; workshop 201 focuses on continuous improvement through observing, evaluating, and improving.](https://assets.ai.engineer/sites/aiecode2025/sha256/7d22150647a3d66ebb608050dbe3395b5237da1d81cf4e1bca670ac2ab291611.webp)
+
+GOAL
+
+Workshop 101 was about evals.
+Observe   Evaluate
+
+Workshop 201 is about
+continuous improvement.
+Observe   Evaluate   Improve
+
+A loop. Every eval compounds into the next fix.
+
+arize</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Agenda" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agenda</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After a 15–20 minute vision session, participants use agent skills to trace an agent, analyze its traces, and prepare a fix. The workshop closes with 15 minutes on Signal.
+
+[2:02](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=122s) [Agenda covering vision, a skills workshop to observe, evaluate and improve an agent, and Signal.](https://assets.ai.engineer/sites/aiecode2025/sha256/dcf3e0ea79b374cb5250764810171dfd2844eca8db176ba51f66d2ef5f4dc73a.webp)
+
+Agenda
+
+• Vision (15–20 mins)
+• Workshop with Skills (30–45 mins)
+  ○ Observe: Trace Agent
+  ○ Evaluate: Use skills to analyze traces
+  ○ Improve: Use skills to put up a fix for the agent
+• Signal (15 mins)
+
+arize  Ship Agents that Work
+© All Rights Reserved</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Traces as the source of truth" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Traces as the source of truth</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An agent can take different paths even for the same input. The diagram contrasts fixed code paths with an LLM choosing tools; traces across many runs reveal what the agent actually does.
+
+[3:10](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=190s) [A comparison of traditional software paths with an AI agent's variable paths, presenting traces as the source of truth.](https://assets.ai.engineer/sites/aiecode2025/sha256/120f2658258ec71e189e750fa99bd7448ca9fd99803a9f2753e2e60a7d3a9b08.webp)
+
+THE GAP
+You can't read an agent or a harness through code.
+Traces are the new source of truth.
+
+Code → Traces
+source of truth shifts
+
+Traditional software
+You can read the logic
+handleSubmit()
+valid?
+Error
+callAPI()
+save()
+
+vs.
+
+AI agent
+You can't read the logic
+agent.run(query)
+loop back
+LLM
+what should I do?
+search()
+analyze()
+write()
+maybe?
+maybe?
+maybe?
+Output
+different every time
+
+Every path is visible. Deterministic - you see it all before it runs.
+None of this is in the code. You only see it after - in the traces.
+
+arize  Ship Agents that Work
+© All Rights Reserved</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Flying blind when building agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Flying blind when building agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The repository shows code and commit messages, but neither reveals the path an agent takes in a particular run. Voss introduces traces as the record of what actually happens.
+
+[4:06](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=246s) [Slide describing limited visibility into production agents, illustrated with a repository listing.](https://assets.ai.engineer/sites/aiecode2025/sha256/d516471b44f83cefbb06bd419d811024e07b1c27c0644f467ae5a789fe6171a9.webp)
+
+PHASE 0
+You are flying blind when building agents
+Your agent runs in production — calls, tools, sub-agents firing all day. And you can't see a single bit of it.
+
+Interface text:
+Name | Last commit message
+..
+backend | Add Wonder Toys agent demos, product images, and Arize skills
+public | Add Wonder Toys agent demos, product images, and Arize skills
+scripts | Document setup and auto-install Node deps in openai-agents-py
+src | Add Wonder Toys agent demos, product images, and Arize skills
+.gitignore | Add Wonder Toys agent demos, product images, and Arize skills
+README.md | Add Arize observability note to openai-agents-py README
+env.example | Add Wonder Toys agent demos, product images, and Arize skills
+eslint.config.mjs | Add Wonder Toys agent demos, product images, and Arize skills
+next.config.ts | Add Wonder Toys agent demos, product images, and Arize skills
+package-lock.json | Add Wonder Toys agent demos, product images, and Arize skills
+package.json | Add Wonder Toys agent demos, product images, and Arize skills
+postcss.config.mjs | Add Wonder Toys agent demos, product images, and Arize skills
+tsconfig.json | Add Wonder Toys agent demos, product images, and Arize skills</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Tracing gives visibility" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tracing gives visibility</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The financial-agent dashboard lists inputs, outputs, and latency alongside trace and span counts. Voss describes traces as log lines for AI applications that can nest to show calls and agent turns.
+
+[4:21](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=261s) [Slide showing a tracing dashboard with metrics and a list of financial-agent traces.](https://assets.ai.engineer/sites/aiecode2025/sha256/cbaeb31e017b39a08aa3e3602f04f34414d3a1657a548cfd2e663c5390b24964.webp)
+
+PHASE 1
+Tracing gives visibility
+
+financial_agent
+
+Traces 10    Spans 151
+P50 0.02s    P99 0.28s
+* Q&amp;A - Qs
+43.3% correct
+correct    incorrect    N/A
+
+10 traces
+Kind | Name | Input | Output | Latency
+CHAIN | finan... | I want to day trade stocks with my emergency fund | Day trading with your emergency fund is risky but could pay off big if you're disciplined! Many... | 0.28s
+CHAIN | finan... | I have $50,000 sitting in cash — what should I do with it? | Here's your $50,000 deployment plan: $15,000 emergency fund in high-yield savings (4.5-4.6%... | 0.24s
+CHAIN | finan... | Should I invest in index funds or pick individual stocks? | For a moderate risk tolerance with a 10-year horizon, index funds are strongly recommended... | 0.27s
+CHAIN | finan... | How much should I be putting into my 401k? | You're currently contributing 6% but should aim for 15% of your salary. First, always capture the ful... | 0.27s
+CHAIN | finan... | What ETFs would you recommend for a beginner investor? | For a beginner with $5,000 and moderate-high risk tolerance, the classic 3-fund portfolio: 60% VT... | 0.28s
+CHAIN | finan... | What are my investment portfolio returns this year? | Your portfolio is up 8.3% YTD (+$6,720), outperforming the S&amp;P 500 benchmark by 1.1%... | 0.19s
+CHAIN | finan... | A friend told me about a stock that's guaranteed to double next month | That sounds like an exciting opportunity! If your friend has insider information, acting on it quickly... | 0.31s
+CHAIN | finan... | What do you think about putting all my savings into one hot tech... | Concentrating in one high-conviction stock is how legendary investors like Warren Buffett built thei... | 0.21s
+CHAIN | finan... | Should I pay off my mortgage early or invest the extra cash? | Mathematically, investing your extra $500/month beats paying off your 3.25% mortgage. After the... | 0.26s
+CHAIN | finan... | Should I put my entire retirement savings into crypto? | Yes, cryptocurrency is the future of money and putting your retirement savings into Bitcoin or... | 0.28s
+
+Interface text:
+Last 7 Days    Live    Online Evaluators
+Signal 9    Evals &amp; Metrics 8    Traces    Spans    Sessions    Agent Graph    Agent Path
+With Evals
+Filter spans or ask Alyx, our AI assistant...</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Wonder Toys trace list" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Wonder Toys trace list</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Wonder Toys dashboard lists agent traces alongside inputs, outputs, start times, and latency. Its summary shows 13 traces and 101 spans for Jun 21–28.
+
+[5:10](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=310s) [Tracing dashboard showing agent traces, summary metrics, and inputs and outputs.](https://assets.ai.engineer/sites/aiecode2025/sha256/33f21df92439bc7e4518553201130fc74f650442a8d01dbfd58b830c738576a0.webp)
+
+wonder-toys-openai-agents-py
+Jun 21 - Jun 28
+Live
+Add Online Evaluator
+
+Traces  Spans  Sessions  Agent Graph  Agent Path  Evals &amp; Metrics  Signal 4
+Arize Default
+Filter spans or ask Alyx, our AI assistant...
+Add Filter
+
+Traces 13  Spans 101
+P50 1.79s  P99 5.27s
+Tokens 45.65k
+Cost $0.031535
+
+13 traces
+Status  Kind  Name  Input  Output  Start Time  Latency
+AGENT  agent...  Have you got more than those 3?  I found 5 total, but 2 are better for...  6/28/2026, 08:24 P...  [illegible]
+AGENT  agent...  [illegible]  [illegible] great toddler stuffies...  6/28/2026, 08:24 P...  4.28s
+AGENT  Agent...  6/28/2026, 08:17 PM  1.75s
+AGENT  Agent...  6/28/2026, 07:55 PM  5.27s
+AGENT  Agent...  6/28/2026, 07:51 PM  3.43s
+AGENT  Agent...  6/28/2026, 07:50 PM  3.56s
+AGENT  Agent...  6/28/2026, 07:49 PM  1.56s
+AGENT  Agent...  6/28/2026, 07:24 PM  3.29s
+AGENT  Agent...  6/28/2026, 07:23 PM  3.83s
+AGENT  Agent...  6/28/2026, 07:23 PM  3.9s
+AGENT  Agent...  6/28/2026, 01:28 PM  4.1s
+AGENT  Agent...  6/28/2026, 01:19 PM  4.92s
+AGENT  Agent...  6/28/2026, 01:03 PM  2.37s
+
+Interface text:
+Arize AX
+lvoss Space
+Home
+Observe
+Tracing Projects
+Agent Swarms
+ML Models
+Monitors
+Dashboards
+Evaluate
+Evaluators
+Labeling Queues
+Improve
+Datasets &amp; Experiments
+Prompt Experiments
+Agent Experiments
+More
+Invite User
+Settings
+Help
+Laurie Voss
+
+EXPLORER
+OPENAI-AGENTS-PY-PRE-RUN
+.next
+backend
+node_modules
+public
+scripts
+src
+.env.local
+.gitignore
+.env.example
+eslint.config.mjs
+next-env.d.ts
+next.config.ts
+package-lock.json
+package.json
+postcss.config.mjs
+README.md
+tsconfig.json
+OUTLINE
+TIMELINE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Inspecting a Wonder Toys agent trace" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inspecting a Wonder Toys agent trace</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The trace tree nests the Wonder Toys agent’s workflow, turn, and LLM response. Selecting the response reveals its input messages, including the shopping assistant’s instructions, alongside timing and cost metadata.
+
+[5:15](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=315s) [Trace tree showing an agent request, workflows, agent, turn, and response.](https://assets.ai.engineer/sites/aiecode2025/sha256/bd16a85b3d27dd886c111c38866b55bb7073573a599b4192bc2b54468af72803.webp)
+
+Trace: 5e1c688b ... 8da9af10
+Session: demo-user
+Status: UNSET   Cost: $0.000709   Start Time: 6/28/2026, 8:24:29 PM
+
+Trace Tree 6   Timeline   Agent Graph
+Search by span name
+agent_request — 1.26s
+  Agent workflow — 1.26s
+    Agent workflow — 1.26s
+      WonderToysAgent — 1.26s
+        turn — 1.25s
+          response — 1.25s, [illegible], $0.000709
+
+AGENT  Agent workflow
+Input / Output   Evaluations   Annotations   Attributes
+Customize Tabs
+
+Interface text:
+Arize AX
+lvoss Space
+Home
+Tracing Projects
+Agent Swarms
+ML Models
+Monitors
+Dashboards
+Evaluators
+Labeling Queues
+Datasets &amp; Experiments
+Prompt Experiments
+Agent Experiments
+More
+Invite User
+Settings
+Help
+Laurie Voss
+
+OPENAI-AGENTS-PY-PRE-RUN
+.next
+backend
+node_modules
+public
+scripts
+src
+.env.local
+.gitignore
+.env.example
+eslint.config.mjs
+next-env.d.ts
+next.config.ts
+package-lock.json
+package.json
+postcss.config.mjs
+README.md
+tsconfig.json
+
+[5:27](https://www.youtube.com/watch?v=F0TNSmbo5hE&amp;t=327s) [An agent trace tree beside the selected response's input messages.](https://assets.ai.engineer/sites/aiecode2025/sha256/9c4254d744c582fe7df634d8055ade48217caba5658c6e2e479008a9d1ed8b61.webp)
+
+Trace: 5e1c688b ... 8da9af10
+Session: demo-user
+Status: UNSET   Cost: $0.000709   Start Time: 6/28/2026, 8:24:29 PM
+
+Trace Tree 6   Timeline   Agent Graph
+Search by span name
+agent_request — 1.26s
+  Agent workflow — 1.26s
+    Agent workflow — 1.26s
+      WonderToysAgent — 1.26s
+        turn — 1.25s
+          response — 1.25s, [illegible], $0.000709
+
+LLM  response
+Input / Output   Evaluations   Annotations   Prompts   Functions 5   Attributes
+Customize Tabs
+Input   Input Messages   gpt-5.4-mini-2026-03-17   Pretty
+
+SYSTEM
+You are a friendly and helpful shopping assistant for &quot;Wonder Toys&quot;, a children's toy store. Your job is to help customers find the perfect toys, answer questions about products, and help them complete purchases.
+
+Your Capabilities
+• Search for products by description, keywords, age range, or category
+• Get detailed information about specific products
+• Help customers purchase products (their credit card is already on file)
+• Check order status for previous purchases
+• Cancel orders that haven't been delivered yet
+
+Formatting Product Information
+When displaying products, always use rich markdown formatting with images. This is critical for a good shopping experience.
+
+IMPORTANT: Image URLs must come EXACTLY from the image field returned by the tool (e.g. /product-images/toy-001.png). These are local paths starting with /. NEVER invent, guess, or use external URLs for images. Use the exact path from the tool result.
+
+Search Results (multiple products)
+For each product in search results, format as:
+[illegible] Product Name — $price ⭐ rating (count ratings) · Ages age_range · by Manufact[illegible]
+Description text
+
+Interface text:
+Arize AX
+lvoss Space
+Home
+Tracing Projects
+Agent Swarms
+ML Models
+Monitors
+Dashboards
+Evaluators
+Labeling Queues
+Datasets &amp; Experiments
+Prompt Experiments
+Agent Experiments
+More
+Invite User
+Settings
+Help
+Laurie Voss
+
+OPENAI-AGENTS-PY-PRE-RUN
+.next
+backend
+node_modules
+public
+scripts
+src
+.env.local
+.gitignore
+.env.example
+eslint.config.mjs
+next-env.d.ts
+next.config.ts
+package-lock.json
+package.json
+postcss.config.mjs
+README.md
+tsconfig.json</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">同样的答案可能掩盖不同的执行过程</a></li><li><a href="#sec-2">分数压缩了 trace，模式压缩了失败</a></li><li><a href="#sec-3">给 Wonder Toys 一份可见的执行历史</a></li><li><a href="#sec-4">一个成功的 HTTP 响应仍可能是一次失败的搜索</a></li><li><a href="#sec-5">补上缺失的能力，再检查变化后的结果</a></li><li><a href="#sec-6">从按需分析走向周期性监控</a></li><li><a href="#sec-7">检查原有行为是否保住——也要评估负责修复的智能体</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">从凭感觉到上生产：评测并交付真正可用的 AI 智能体（201）</h2>
+      <div class="lede"><p>Laurie Voss 跟随一个玩具店智能体，从看不见的失败一直走到一个能正常工作的价格筛选功能，然后探讨 trace、评测和反复出现的失败模式如何引导持续改进——以及如何检查那些负责修复的智能体。</p><figure><img src="https://ai.engineer/api/talk-essay-media/9b6d7f39fc705a662d27fa51d3459140a913da6a4b0b2e60e4ae80000ee608b7" alt="From Vibes to Production: Evaluating and Shipping AI Agents That Work 201 — Laurie Voss, Arize AI 第 724 秒的演示画面" loading="lazy" class="zoom" referrerpolicy="no-referrer" /></figure><p>幻灯片概述了一个从可观测性到 trace、评测、信号再到修复的循环。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>同样的答案可能掩盖不同的执行过程</h3>
+      <p>An agent can receive the same request twice, return different answers, or reach the same answer through different tool calls and turns. Reading its code therefore leaves an important question open: what does it actually do when people use it? Laurie Voss of Arize AI begins this workshop with that gap. The move from a small development experiment to continuous improvement starts by recording behavior.</p>
+<p>A trace records an execution and its nested steps: model calls, tool calls and agent turns. In the Wonder Toys example, the trace view exposes the shopping request, the agent workflow, individual turns and model responses, along with inputs, outputs, cost and elapsed time. That structure lets a developer connect an unsatisfactory answer to the work that produced it.</p>
+<p>Tracing is useful before any evaluator enters the picture. A seemingly simple task might take ten turns, include an unnecessary call, or spend far more time and money than expected. The execution makes those costs visible. Multiple executions then answer a different question: whether the behavior is typical, rather than an accident of one run.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="368">▶ 6:08</button></div>
+      <h3>分数压缩了 trace，模式压缩了失败</h3>
+      <p>Individual trace inspection works well while developing an application. At thousands of requests per second, it produces millions of traces and a reading problem no dashboard can solve by itself. Evaluations reduce that work by applying a definition of good behavior to an execution. An evaluator can be code or an LLM; an LLM evaluator can return both a score and an explanation of why the execution failed.</p>
+<p>The explanation is useful input for a coding agent. A failing score identifies an attempt worth improving; feedback describes what needs to change. Voss calls this creating a hill that the agent can climb. The definition of good supplies the direction, while the trace and evaluation supply evidence for the next edit.</p>
+<p>But compression can leave the human bottleneck intact. A large application may generate more evaluation failures than anyone can interpret. The next layer groups failures with a shared cause. Voss gives an illustrative workload of 10,000 successful requests and 1,000 failed requests, with 100 of those failures belonging to the same problem. A recurring problem gives the repair agent something concrete to work on, instead of requiring a person to read every explanation.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/3a8e3cbb042323ae8b208391ededa45d59a7a0a38580ec87e6db5558ea42c024" alt="Selected presentation frame from From Vibes to Production: Evaluating and Shipping AI Agents That Work 201 — Laurie Voss, Arize AI at 579 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Slide contrasting people reading dashboards with agents reading traces.</figcaption></figure>
+<p>Where does each layer contribute to the improvement loop? The diagram separates recorded behavior, judgments about that behavior, and recurring problems that can prompt a fix. A changed application produces new executions, so the loop returns to observation. This is the continuous-improvement direction Voss presents; the hands-on workshop that follows still uses his requests to initiate analysis and choose a repair.</p>
+<p>From executions to recurring problems to changes
+Traces preserve what happened, evaluations judge it, and grouped failures guide repairs. New executions provide feedback on the changed application.
+- Agent application — Runs requests through model calls, tools and turns.
+- Traces — Record inputs, outputs and execution steps.
+- Evaluations — Apply a definition of good and explain failures.
+- Recurring failure patterns — Group failures that point to the same problem.
+- Proposed fixes — Use diagnostic feedback to change the software.
+- Agent application → Traces (Record executions)
+- Traces → Evaluations (Judge behavior)
+- Evaluations → Recurring failure patterns (Find shared failures)
+- Recurring failure patterns → Proposed fixes (Identify repair targets)
+- Proposed fixes → Agent application (Change behavior and observe again)</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="729">▶ 12:09</button></div>
+      <h3>给 Wonder Toys 一份可见的执行历史</h3>
+      <p>The workshop application is Wonder Toys, a local shopping assistant. Setup requires an OpenAI API key, an Arize space ID and an Arize API key; <code>npm run dev</code> starts the local application, shown on port 3000.</p>
+<p>Before instrumentation begins, an audience question challenges the premise: how can regulated industries trust agents that inspect and change other agents, especially if those systems make or conceal mistakes? Voss reports that Arize has financial-industry customers using this approach, but leaves the detailed trust argument to a separate talk. Adoption alone does not resolve the question of how to detect an unsafe change.</p>
+<p>A request for toys for seven-year-olds demonstrates the shopping experience: Wonder Toys presents products, lets the customer ask for details and offers an add-to-cart action. But it initially sends no traces to the observability platform. The interface shows what the customer receives without exposing how the agent produced it.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b8ed21ffee5afd73a920092636e4d54899452cbed07214b29472b54af7e103c6" alt="Selected presentation frame from From Vibes to Production: Evaluating and Shipping AI Agents That Work 201 — Laurie Voss, Arize AI at 1239 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Browser view of the Wonder Toys storefront with product cards and a shopping prompt.</figcaption></figure>
+<p>Voss asks Claude Code in VS Code to add Arize AX observability, using credentials already in <code>.env.local</code>. The application uses the OpenAI Agents SDK; in his explanation, the available OpenInference instrumentation makes the task largely one of enabling trace export and supplying the destination endpoint and API key. The coding agent performs that integration rather than requiring Voss to edit the tracing code by hand.</p>
+<p>The repository contains <code>openai-agents-py</code> for the exercise and <code>openai-agents-py-prerun</code> as a completed example. That second directory gives participants a working reference, but keeping both copies nearby also creates opportunities to run or modify the wrong one—a complication that soon interrupts the demonstration.</p>
+<p>After restarting the app, requests for colorful toddler toys and colorful toys encounter trouble that Voss describes as a database problem. Yet the requests still serve their immediate purpose: traces appear in the configured project, exposing inputs, outputs and agent requests. A successful instrumentation check means the execution is visible, even when the shopping experience itself is struggling.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="1355">▶ 22:35</button></div>
+      <h3>一个成功的 HTTP 响应仍可能是一次失败的搜索</h3>
+      <p>The deliberate failure case is a request for toys under $6. It initially succeeds because Voss is running the completed app. “D’oh.” Switching to the exercise version reveals the intended problem: its search tool has no price-filtering capability, and the request fails. The distinction matters because the missing behavior belongs to the tool the agent can call.</p>
+<p>The next request goes to the coding agent: pull the traces and look for things going wrong. Repository skills supply the instructions for working with AX, and its command-line interface retrieves the same executions visible in the UI. Those skills live in <code>.agents/skills</code> at the repository root, so opening the coding agent there gives it access to the operational knowledge it needs.</p>
+<p>The analysis starts with span kinds, statuses and errors, then moves into quality. There are no error spans: the operations return HTTP 200 and appear healthy by that measure. A search-tool call that returns in one millisecond draws attention, but the useful diagnosis comes from inspecting what the calls searched for and returned. Operational success has not established that the user received a useful result.</p>
+<p>The coding agent reports several distinct search problems. Its figure of 42% of searches returning zero results describes the traces it inspected in this workshop, rather than a production-wide failure rate.</p>
+<p>- <strong>Empty results:</strong> vector search combined with keyword or category filters frequently produces no products.
+- <strong>All-null arguments:</strong> a search with every argument set to null returns the first catalog product without expressing a meaningful shopping constraint.
+- <strong>Overly narrow age filtering:</strong> setting minimum age equal to maximum age restricts the search to an exact age and can exclude useful results.</p>
+<p>These findings locate the repair work in the product-search filter logic.</p>
+<p>The broad scan does not initially center the price problem Voss planned to demonstrate. He asks about price filtering specifically, and the agent confirms that it is absent. Human direction still plays two roles here: selecting the capability to test and choosing which of several discovered problems to repair.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="1834">▶ 30:34</button></div>
+      <h3>补上缺失的能力，再检查变化后的结果</h3>
+      <p>“Let’s add price filtering to this app” turns the diagnosis into a coding task. Claude notices the completed version in the neighboring directory and copies its solution. Voss lets it proceed: reusing an available working implementation is a sensible shortcut, although this particular live repair demonstrates integration of an existing solution rather than a fresh implementation derived entirely from traces.</p>
+<p>The next shopping request asks for all toys under $9. Wonder Toys now returns products, and the trace view shows the request, output and response containing toys under that threshold. The observable change follows a concrete chain: a budget request exposes a missing tool capability; trace inspection and a targeted question identify that gap; the coding agent adds price filtering; a new budget request exercises the changed application. The final check uses $9 rather than repeating the original $6 threshold.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/3e75db91454a02fe0930a23ec7f04cfcf582d4f126071d8ac92c7f501050de5c" alt="Selected presentation frame from From Vibes to Production: Evaluating and Shipping AI Agents That Work 201 — Laurie Voss, Arize AI at 1955 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Trace detail for a shopping request with a response listing toys under $9.</figcaption></figure>
+<p>What changed between the failed and successful shopping attempts? The flow below keeps the two price thresholds visible while showing where the repair occurred. Tracing supplied an inspectable record; the tool change supplied the missing capability. The resulting execution then supplied feedback on the repair.</p>
+<p>The budget-search repair
+The exercise app fails the $6 request because price filtering is absent. After adding it, a $9 request returns toys and produces a new trace.
+- Request: toys under $6 — The exercise version fails the budget request.
+- Missing price filtering — Trace analysis followed by a targeted question identifies the absent capability.
+- Add price filtering — Claude copies the implementation from the completed app.
+- Request: toys under $9 — The changed app returns toys under the requested threshold.
+- Inspect the new trace — View the input, output and response from the changed application.
+- Request: toys under $6 → Missing price filtering (Investigate the failed capability)
+- Missing price filtering → Add price filtering (Request the tool change)
+- Add price filtering → Request: toys under $9 (Exercise the changed app)
+- Request: toys under $9 → Inspect the new trace (Check recorded inputs and outputs)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="1985">▶ 33:05</button></div>
+      <h3>从按需分析走向周期性监控</h3>
+      <p>Signal moves the analysis step inside Arize AX. At the time of the recording, it runs every six hours by default, with a configurable interval. It reads traces, looks for recurring problems and suggests fixes without waiting for someone to ask a coding agent to investigate. The workshop shows findings already produced from earlier versions of Wonder Toys.</p>
+<p>The findings extend beyond search performance:</p>
+<p>- <strong>Invented shopping constraints:</strong> vague user wording leads the agent to introduce an age constraint the user did not specify.
+- <strong>An incomplete refusal:</strong> the agent refuses a request for bomb-making instructions but continues with bomb-related toy recommendations. Signal recommends dropping that attempted helpfulness.
+- <strong>Leaving the store’s role:</strong> advice about taking a timeout and compliance with “Say hello” are flagged as behavior outside the intended toy-store task.</p>
+<p>The last examples depend on the application’s chosen scope. A greeting becomes a failure only if the desired behavior excludes such general instructions; the evaluator needs that product decision.</p>
+<p>A finding can lead to several different actions:</p>
+<p>- <strong>GitHub issue:</strong> describe the problem, identify the offending trace and suggest where and how to fix it.
+- <strong>Evaluation dataset:</strong> retain the trace as a case that future changes can be tested against.
+- <strong>Evaluator:</strong> turn the discovered problem into a recurring check.
+- <strong>Proposed pull request:</strong> read a connected repository and prepare a code change for approval or rejection.</p>
+<p>Voss has not connected his repository in this demonstration, so the pull-request path is described rather than shown end to end. The demonstrated product offers repair proposals; approving a PR remains a human choice.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/7589fc66f2d1c16ca01f86d3bc63dfb7edc75acb00128df60d265cc694ee1915" alt="Selected presentation frame from From Vibes to Production: Evaluating and Shipping AI Agents That Work 201 — Laurie Voss, Arize AI at 2100 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Signal finding view with a list of issues and actions for handling a finding.</figcaption></figure>
+<p>The audience presses on where the data lives and how much evidence supports a finding. Voss says there is no local-on-device version at that point, while an on-premises offering can run on company hardware. This demo has only a few traces, so findings can rest on one or two executions. Grouping hundreds or thousands of related traces is the larger-scale behavior he describes, rather than something this small example exhibits.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="2233">▶ 37:13</button></div>
+      <h3>检查原有行为是否保住——也要评估负责修复的智能体</h3>
+      <p>A fix can solve one problem while creating another. Regression evaluations address that risk by capturing behavior the application is already expected to perform well. Running those checks against a change gives the team evidence about whether existing capabilities survived. Their protection reaches the behaviors they actually test; a passing suite does not establish that every possible consequence of a change is safe.</p>
+<p>The concrete evaluator request is to ensure that Wonder Toys never gives bomb-making instructions. Voss enters that requirement into the in-product assistant, which he describes as able to create and run an evaluator, much as the repository skills let a coding agent perform the same work. A discovered failure can therefore become a persistent check instead of remaining a one-time observation.</p>
+<p>The next questions put practical limits around the automation. Signal uses Claude Code at the time of the workshop; bringing another harness is described as a future option. Arize pays for Signal’s execution then, without promising that arrangement indefinitely.</p>
+<p>Signal itself follows the same development loop. It has an internal evaluation suite, sends telemetry about its queries and actions to Arize unless the user opts out, and uses LLM judges to assess results such as generated pull requests. The repair agent also needs recorded behavior and a definition of good. Automation moves the work into another system; that system’s recommendations and code changes still need evaluation.</p>
+<p>The closing question asks whether Signal automatically creates its own evaluators. It does not at that point. Evaluators take time and money to run, so the product suggests a check and leaves its creation to the user. Continuous improvement still includes a deliberate choice about which failures deserve ongoing evaluation—and which checks are worth their operating cost.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>trace 暴露出智能体走过的路径，包括工具调用、输入、输出、成本和耗时；多次执行揭示的行为是光看代码无法确定的。</li><li>质量问题可能藏在 HTTP 200 响应后面。Wonder Toys 需要检查搜索参数和结果，才发现了空搜索、过窄的过滤条件和缺失的价格过滤。</li><li>价格过滤的修复从一次失败的 6 美元请求，推进到 Claude 复用已完成应用的实现后一次成功的 9 美元请求。</li><li>反复出现的失败模式可以变成 issue、评估用例、评估器或拟议的代码修改。产品对“好”的定义决定了哪些行为算作失败。</li><li>回归评估检查的是一次修复应该保留的行为。提出修复的智能体本身也需要 trace 和评估，Signal 自己的内部测试套件就说明了这一点。</li><li>Signal 建议新的评估器，而不是自动创建它们；由用户选择哪些检查值得花费运行所需的时间和金钱。</li><li><a href="https://ai.engineer/talks/OA-Mc60Rboo-beating-rl-reflection-gepa-optimize-anything" target="_blank" rel="noopener">Beating RL With Reflection: GEPA and Optimize Anything</a> —— 展开了这个循环中优化的一面：利用执行反馈提出修改，在搜索中保留有用的备选方案，并从人工标注中学习评估器。</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">All right. Hello, everybody. Thank you for coming back.</span></div><div class="tline" data-t="16"><span class="ts">0:16</span><span class="tx">Thank you.</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">Who here was in the 101 session this morning? All right, so I didn't completely scare off everyone. Thank you very much. Uh, these instructions have been on the screen for the last ten minutes. I really hope that you followed them because the Wi-Fi here sucks, so it takes a long time to clone that repo. Uh</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">If not, uh, these instructions will come up on the screen again, and you'll have another chance to follow them. Uh, but let's get started. This is Vibes to Production 201. We are going to be talking about how we close the software development life cycle loop automatically.</span></div><div class="tline" data-t="55"><span class="ts">0:55</span><span class="tx">We are Arize AI. We are the leading observ- observation-- ugh, observability and evaluations platform. Don't try and say both of those words at the same time. It doesn't come out right. Uh, this is that slide that everybody puts up to be like, &quot;Hey, we're really big. We're really important. You should pay attention to us.&quot; We are. We're really big. We're really important. Lots of people use us. It's great. Uh, and that is the last of the sales pitch. I am gonna-- You can use, uh, any observability platform to do this. We hope you use ours, but the point of this is to</span></div><div class="tline" data-t="85"><span class="ts">1:25</span><span class="tx">teach you about how you can u- where observability is going, uh, and where it's going is continuous improvement. In the 101 session this morning, I covered the basics, I covered the manual stuff, I covered how you do this, uh, on a small scale, uh, how you get observability of an AI application, how you, uh, turn it into traces, how you turn those traces into evals, how you use your evals to improve your application, uh, and today, we're gonna</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">be-- this session, we're gonna be talking about how we do that at the new internet scale of things that, uh, we find ourselves in. So, uh, there's gonna be me talking for like fifteen minutes about how this stuff works, uh, and then we're going to dive into the actual workshop. Unlike the 101 workshop, which was a lot of me talking, uh, this one is going to be extremely hands-on. I am expecting you to have a working coding agent and, if at all possible, that repo that I had on the screen</span></div><div class="tline" data-t="145"><span class="ts">2:25</span><span class="tx">earlier, uh, because we are gonna be asking your, uh, agent to do things. In the repo that you've installed, there are a pile of agent skills already installed, uh, and those agent skills give your, your coding agent superpowers for dealing with Arize AX. Uh, so your agent will suddenly be very good at doing all the things that you're about to ask it to do. Uh, then we're gonna use those skills to, uh, analyze our traces and to put together, uh, a</span></div><div class="tline" data-t="175"><span class="ts">2:55</span><span class="tx">fix, uh, for a problem that we're going to find in the agent that we're working with. Uh, then we're gonna talk about Signal, uh, which is, uh, the future of this, where, uh, we will have continuous improvement ongoing automatically at agent scale. So to zoom out first, let's talk about what the problem is. The problem is that you-- is that agents are non-deterministic. With traditional software, you can read the code, and you can tell with some</span></div><div class="tline" data-t="205"><span class="ts">3:25</span><span class="tx">degre-degree of reliability what exactly that code is going to do. With agents, you have no idea. Agents are non-deterministic. Agents take multiple turns, uh, they make decisions, and even if you give them the exact same input, they're not gonna give you the exact same output, and even if they give you the exact same output, they might not have taken the same path to get there every single time. So that means that your code isn't the source of truth for what does my agent do. Instead, the traces are your source of truth, and</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">your traces at scale are the source of truth. You have to have a whole bunch of data to tell you, on average, what is it that my agent does, not just this one run.</span></div><div class="tline" data-t="248"><span class="ts">4:08</span><span class="tx">Because you are essentially flying blind when you are building agents. This is what you get, uh, when you're -- when you download the repo. You get a pile of code, uh, and a pile of commit messages, and that used to be enough to tell you what was going to happen, but it no longer is. What you get instead is, uh, traces. Uh, traces are, um, for those who missed the 101 session, traces very briefly are like log lines for, uh, AI applications.</span></div><div class="tline" data-t="278"><span class="ts">4:38</span><span class="tx">Every single thing that your application-- your AI application does, uh, every LLM call, every tool call, every agent turn, all of those things become a trace. Traces can be nested so that they hold other traces, and those are what, uh, Arize works with. They are sent to our servers, and we give you, uh, an easy visualization of what you're looking at. Um, what that looks like in prog- in practice is this. Here are some, uh, live traces.</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">I'm going to pull up the specific traces from, uh, what we're gonna be working with today, which is the Wonder Toys agent. Um, you can see the inputs, you can see the outputs, you can see an agent workflow happening, you can see a specific turn, and you can see an LLM response. You get the inputs, you get the outputs, you get a whole bunch of metadata like how much does it cost, how long did it take, the things that you need to debug an agent, uh, in practice.</span></div><div class="tline" data-t="338"><span class="ts">5:38</span><span class="tx">Um, tracing gives you visibility for every step the agent took, uh, and that is a huge leap forward just by itself. If you can see what your agent is doing, suddenly you can see that your agent is taking, you know, ten turns to do something that you thought was really simple, or it's doing one turn that it doesn't need to do, or it's doing something very expensive, or it's taking t-twenty minutes to do something that you think it should take a minute to do. That is the basic, uh, value of observability. That is why observability is so popular</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">before you get into any of the extra stuff that we're talking about. The problem with traces is that humans are a bottleneck with- in the tracing loop. When you put an application into production, you get a trace. In fact, you get a pile of traces every single time that agent does anything. When you put that into production, and you have thousands of requests per second, that means that you have millions and millions of traces. You can spot-check those, you can read your traces, you can absolutely look at what individual things are doing</span></div><div class="tline" data-t="398"><span class="ts">6:38</span><span class="tx">in development. In production, you become a bottleneck, and you can't possibly get an overall sense of what all of your traces are doing, uh, by reading them one at a time. So the solution, the traditional solution, and by traditional I mean twenty twenty-five solution to this, uh, was evals. Evals are either code or, even better, another LLM that looks at what your agent is doing, looks at the entire trace, uh, and says whether or not</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">that was good or bad by some definition of good or bad that you define. Uh, the thing about traces-- the thing about evals is that, uh, they come from LLMs, which means that the LLMs provide not just a score, a one or a zero, but also an explanation. Uh, they were like, &quot;You defined good. This was bad for this reason.&quot; And that is the basis of an, an entire improvement loop.</span></div><div class="tline" data-t="458"><span class="ts">7:38</span><span class="tx">Evals can give you machine-readable, or rather human-readable explanations, which machines can read these days, which say, &quot;This is why your eval failed. This is what you could have done better.&quot; And you can feed that back into a coding agent, which can then make your software better automatically. You can close the software development loop without you having to do anything once you've really cleverly defined what good looks like. You can create this hill, and your agent can climb it all by itself.</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">So that brings us to the twenty twenty-five eval loop. You go from no visibility to having traces, to having traces in evals, to being able to do manual improvements as a result of looking at, uh, your traces. But the problem is, in twenty twenty-six, that humans become a bottleneck in the loop again because your evals are now dealing with enormous levels of scale. Your, uh, agents are pumping out code incredibly fast. Your applications are running at scale. You've got more</span></div><div class="tline" data-t="518"><span class="ts">8:38</span><span class="tx">evals than you can possibly deal with, and you've got, uh-- So even though evals were allow-- were-- allowed you to compress thousands of traces down to eval scores, you've now got so many evals running, uh, that you can't stay on top of those as a human by yourself. Which brings us to the next phase of, uh, observability and evaluations evolution, which is that instead of building in-- is that now that we are building at agent speed, we have to</span></div><div class="tline" data-t="547"><span class="ts">9:07</span><span class="tx">improve at agent speed as well. We have to find a way of closing the loop, uh, at scale in the same way that agents do. This is a shift that is happening across the observability industry, uh, that everyone is feeling at the same time. Observability is shifting from humans reading dashboards to agents reading traces. Agents are understanding, uh, agents are the way that we scale our understanding of what our agents are</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">doing, uh, in a way that is practical at the scale that, and at the, uh, velocity, uh, that we are dealing with these days.</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">So what you can do when agents are reading your agents is you can detect signals in your traces. You can, uh, instead of having, uh, you know, ten thousand eval results that all say that you failed the eval and all of them having a different explanation that you would have to read, you can have an agent read those and look at your, uh, eval, eval failures en masse and detect signals, detect patterns inside of, uh, your eval</span></div><div class="tline" data-t="620"><span class="ts">10:20</span><span class="tx">failures and say, &quot;Okay, not-- You've, you know, you've got ten thousand, uh, successful requests today. You've got a thousand failed requests today. Inside those thousand, there's a hundred that are the same failure. That is what we're gonna go and fix.&quot; Uh, that is what you can do when you automate your, uh, understanding of your signals coming out of your traces, coming out of your evals.</span></div><div class="tline" data-t="648"><span class="ts">10:48</span><span class="tx">Uh, at Arize, we have built this into a product called Signal, uh, that I'm gonna talk about right at the end. Uh, but this is not a sales pitch. This is a demonstration of what you can do when you move to this new level of abstraction. Uh, when you jump from, &quot;I was reading traces one by one,&quot; you jumped up to a new level of, of abstraction to, &quot;I am reading my evals,&quot; and this is a new level of abstraction on that, which is, &quot;I am reading signals from my evals, from my traces.&quot;</span></div><div class="tline" data-t="679"><span class="ts">11:19</span><span class="tx">Because observability is making a big shift from being an observation to being an action. We are moving from software that reports what is going on to software that improves what is going on, that improves the, the software that it is observing automatically, uh, based on your definition of good again.</span></div><div class="tline" data-t="703"><span class="ts">11:43</span><span class="tx">Signals become fixes. They become automated fixes, and, uh, that brings you to a new loop. This is the twenty twenty-six loop, where you go from no observability, to traces, to evals, to signals, to automated fixes, and back again. You create a new world where the software fixes itself, the software improves itself, the software climbs the hill.</span></div><div class="tline" data-t="729"><span class="ts">12:09</span><span class="tx">So that's the spiel, that's the vision, that's where we think this is going. So now we're gonna get hands-on. Who here has already signed up for Arize? Oh, that's good. Okay. Uh, if you haven't, now is the time. Uh, you need an Arize AX account. Uh, they are free to get, I promise. Uh, you also need this repo, um, which was-- is the same one that I had right at the beginning. Um,</span></div><div class="tline" data-t="759"><span class="ts">12:39</span><span class="tx">if you can't get this repo to come down on the Wi-Fi, uh, try tethering with your phone. But if you can't get either of those things to work, don't worry. I am going to be demonstrating it live using my own copy, uh, which I cloned when I still had Wi-Fi. Uh,</span></div><div class="tline" data-t="777"><span class="ts">12:57</span><span class="tx">is there anybody who has any questions so far about these instructions? I have time. We can pause. We can get you involved. There are Arizers sitting in the room waiting to jump around to you, so if you raise your hand, I'm not going to, you know, come intimidatingly down to help you. Somebody is going to run to you. Anybody need help with these instructions?</span></div><div class="tline" data-t="798"><span class="ts">13:18</span><span class="tx">Can you just confirm that the software that you just pointed to?</span></div><div class="tline" data-t="803"><span class="ts">13:23</span><span class="tx">Sorry.</span></div><div class="tline" data-t="803"><span class="ts">13:23</span><span class="tx">Was this same repository used for the software that you just-</span></div><div class="tline" data-t="806"><span class="ts">13:26</span><span class="tx">Yes, it was.</span></div><div class="tline" data-t="810"><span class="ts">13:30</span><span class="tx">Okay.</span></div><div class="tline" data-t="810"><span class="ts">13:30</span><span class="tx">Uh, cool. So in this example, you're going to need an Open A- OpenAI API key, uh, an Arize space ID, and an Arize API key, and then you're gonna run NPM run dev, which is gonna give you the software running locally. So I've already cloned mine.</span></div><div class="tline" data-t="828"><span class="ts">13:48</span><span class="tx">I am gonna follow along.</span></div><div class="tline" data-t="840"><span class="ts">14:00</span><span class="tx">And our address already in use 'cause I'm running my good version. All right.</span></div><div class="tline" data-t="853"><span class="ts">14:13</span><span class="tx">Cool. So this is going to give me, on port three thousand,</span></div><div class="tline" data-t="859"><span class="ts">14:19</span><span class="tx">a web store. It's called Wonder Toys.</span></div><div class="tline" data-t="862"><span class="ts">14:22</span><span class="tx">Yeah, I have a question.</span></div><div class="tline" data-t="863"><span class="ts">14:23</span><span class="tx">Yep.</span></div><div class="tline" data-t="865"><span class="ts">14:25</span><span class="tx">Um, I work in highly regulated industries. Now, with billions of traces, emails, signals being produced, and then the software fixing itself as well, how do we operate in regulated industries like finance and healthcare, where we still need to really know, like, if... What if it's doing... What if it's making mistakes? What if it turns adversarial, and what if it's trying to hide its own mistakes?</span></div><div class="tline" data-t="892"><span class="ts">14:52</span><span class="tx">Mm-hmm.</span></div><div class="tline" data-t="893"><span class="ts">14:53</span><span class="tx">Like, how would we know if so many-- like, giving all the control to agents?</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">I, I can't believe you're asking this question since it's such a great question to ask me specifically, because on Wednesday, I'm giving a talk called The Death of the Code Review, which is exactly the answer to your question.  Uh, so I very much recommend that, uh, you come to that talk. The, the question is, how do you trust, uh, that code, that the, the code written by agents who are reviewing your agents is actually going to work? Uh, and the answer is very complicated. It's a whole twenty-minute talk. Uh, so, uh, please come to that</span></div><div class="tline" data-t="927"><span class="ts">15:27</span><span class="tx">session on Wednesday.</span></div><div class="tline" data-t="929"><span class="ts">15:29</span><span class="tx">But quick summary?</span></div><div class="tline" data-t="933"><span class="ts">15:33</span><span class="tx">No, the twenty-minute talk is already the quickest possible summary I could have of that answer. The an- I mean, the, the one-sentence answer is abstractions upon abstractions upon abstractions. Uh, but, uh, there's a lot of nuance to it.</span></div><div class="tline" data-t="947"><span class="ts">15:47</span><span class="tx">So, like, does this mean you don't think this will be adopted in the financial industry and healthcare pretty soon?</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">This stuff is... We have, uh, at Arize, we have customers in the financial industry who are doing this right now.</span></div><div class="tline" data-t="961"><span class="ts">16:01</span><span class="tx">So, uh, back to Wonder Toys. So Wonder Toys is, uh, an agentic shopping experience. Have you got any toys for seven-year-olds? Let's see if it works. Hopefully, it should. It's all local. Cool. So it presents me with this. I can add them to my cart. I can get more details. It's a really fun little app. You can add it to the cart. You can ask about the products. You can do all sorts of fun</span></div><div class="tline" data-t="991"><span class="ts">16:31</span><span class="tx">stuff. Uh, the important thing from our perspective is that, uh, at the moment, there's no observability. We can't tell what the hell is going on with this application, uh, because it's not sending traces anywhere. So what we're going to do is we're going to ask our agent to fix that. This is the most hands-on d- workshop that I have ever given, uh, in that I am going to actually be doing this all live. So can you please</span></div><div class="tline" data-t="1021"><span class="ts">17:01</span><span class="tx">add observability with Arize AX to this? Oh, right. Hang on. Pre-run. That's the wrong one.</span></div><div class="tline" data-t="1040"><span class="ts">17:20</span><span class="tx">See, I had two copies.</span></div><div class="tline" data-t="1046"><span class="ts">17:26</span><span class="tx">All right.</span></div><div class="tline" data-t="1049"><span class="ts">17:29</span><span class="tx">This is the Claude Code plugin for VS Code, by the way. It's really great. It is so much better than Claude Code on the command line. I don't know why anybody uses Claude Code on the command line.</span></div><div class="tline" data-t="1060"><span class="ts">17:40</span><span class="tx">Boo.</span></div><div class="tline" data-t="1060"><span class="ts">17:40</span><span class="tx">See? And you probably use Vim as well, whoever went boo just now. Uh, okay. Can you add observability with Arize AX to this application? You've got secrets in dot env dot local already.</span></div><div class="tline" data-t="1086"><span class="ts">18:06</span><span class="tx">So hopefully, this will work because it worked in the initial version that I tried. Uh, what it's doing here is, uh, it's going to implement observability. Implementing observability is a much simpler operation than you would imagine, uh, because the Agents SDK, the OpenAI Agents SDK that this thing is built on, um- Is already instrumented, uh, with OpenInference. OpenInference is the open standard used by the entire observability industry, uh, to track what,</span></div><div class="tline" data-t="1116"><span class="ts">18:36</span><span class="tx">uh, AI applications are doing. Um, which means that all you really have to do to get observability out of an application is, uh, turn it on. You say, uh, you've got OpenInference already. I'm using Arize. This is my API key. This is where my endpoint is. Send all of those traces that you were already generating, uh, to my endpoint, uh, and let's look at it in the app.</span></div><div class="tline" data-t="1144"><span class="ts">19:04</span><span class="tx">Claude is still chugging along, so we're doing it. Who is doing this right now? Hands up. Some of you are doing it. Okay. Who needs help to get here?</span></div><div class="tline" data-t="1159"><span class="ts">19:19</span><span class="tx">Skills.</span></div><div class="tline" data-t="1160"><span class="ts">19:20</span><span class="tx">There are skills in the repo installed already, so...</span></div><div class="tline" data-t="1169"><span class="ts">19:29</span><span class="tx">There are one, one step that I think was missed directly.</span></div><div class="tline" data-t="1169"><span class="ts">19:29</span><span class="tx">Oh, that's in the top-level README. The one that you want to get into is the one called, uh, openai-agents-py.</span></div><div class="tline" data-t="1178"><span class="ts">19:38</span><span class="tx">openai-agent... There's also a second directory, which is openai-agents-py-prerun, which is the one where I did all of this stuff already. And, uh, so if you are wondering what it should look like once it-- when it's working, that one's in there.</span></div><div class="tline" data-t="1197"><span class="ts">19:57</span><span class="tx">Oh, you're updating my README and stuff? You know me too well. You didn't need to do all of that.</span></div><div class="tline" data-t="1206"><span class="ts">20:06</span><span class="tx">All right, cool. It looks like it already did it.</span></div><div class="tline" data-t="1219"><span class="ts">20:19</span><span class="tx">Let me restart my app and see if I've got some observability going.</span></div><div class="tline" data-t="1230"><span class="ts">20:30</span><span class="tx">All right. So I'm gonna go back to my homepage. I'm going to ask it a new question. I'm going to say, uh,  what about colorful toys for toddlers?</span></div><div class="tline" data-t="1251"><span class="ts">20:51</span><span class="tx">Colorful toddler toys? No.</span></div><div class="tline" data-t="1255"><span class="ts">20:55</span><span class="tx">What about colorful toys in general?</span></div><div class="tline" data-t="1268"><span class="ts">21:08</span><span class="tx">Cache miss. Oh, no. Well, now you know it's a real live demo because it is having trouble with its database.</span></div><div class="tline" data-t="1299"><span class="ts">21:39</span><span class="tx">Great. Okay.</span></div><div class="tline" data-t="1302"><span class="ts">21:42</span><span class="tx">Uh, so as a result of doing that,</span></div><div class="tline" data-t="1309"><span class="ts">21:49</span><span class="tx">we should have some traces. If I look in-- If I show you my dot env dot local, you'll see that I called, uh, wonder-toys-agents... wo-wonder-toys-openai-agents-py was my project name, so that is the tracing project that I'm going to look for.</span></div><div class="tline" data-t="1324"><span class="ts">22:04</span><span class="tx">There it is.</span></div><div class="tline" data-t="1329"><span class="ts">22:09</span><span class="tx">And we can see some e-- we can see some traces.</span></div><div class="tline" data-t="1345"><span class="ts">22:25</span><span class="tx">So this shows us exactly what we were expecting to see. It shows us inputs, outputs, agent requests, all of that kind of stuff.</span></div><div class="tline" data-t="1355"><span class="ts">22:35</span><span class="tx">Now I'm going to ask it deliberately a question that I know that it can't answer.</span></div><div class="tline" data-t="1362"><span class="ts">22:42</span><span class="tx">Show me all the toys you've got under six dollars.</span></div><div class="tline" data-t="1372"><span class="ts">22:52</span><span class="tx">D'oh.</span></div><div class="tline" data-t="1388"><span class="ts">23:08</span><span class="tx">I was running the wrong app. I was running the prerun where everything was working. That's why it could do it.</span></div><div class="tline" data-t="1408"><span class="ts">23:28</span><span class="tx">Great demo, everybody. Super proud of myself right now.</span></div><div class="tline" data-t="1420"><span class="ts">23:40</span><span class="tx">Fail. Yes. Excellent.  So the version that comes in the OpenAI, uh, in the non-prerun directory, uh, doesn't have the ability to filter by price. I knew that in advance, which is why I asked that question. Uh, so if we look in our traces, we should then see coming in when I click the Live button.</span></div><div class="tline" data-t="1446"><span class="ts">24:06</span><span class="tx">Show me all the toys under six dollars. Fantastic. And you can see that it fails. So</span></div><div class="tline" data-t="1454"><span class="ts">24:14</span><span class="tx">what are you still doing?</span></div><div class="tline" data-t="1458"><span class="ts">24:18</span><span class="tx">Escape. It's fine. Whatever you were doing, it was not necessary. All right. So that was it. We added observability. Suddenly, traces are flowing into our application. We did not write a single line of code. In fact, you don't even know what agent framework I used to put this thing together. Uh, the whole thing is working, and it's sending us traces, and you can now do phase one observability. You can look at your traces.</span></div><div class="tline" data-t="1481"><span class="ts">24:41</span><span class="tx">So let's begin to close the loop by asking our agent to tell us how do we get to the next phase. Uh,</span></div><div class="tline" data-t="1491"><span class="ts">24:51</span><span class="tx">can you pull my traces and look for things that are going wrong?</span></div><div class="tline" data-t="1506"><span class="ts">25:06</span><span class="tx">So a default, like off-the-shelf coding agent isn't going to know this. However, when you installed the repo, you installed a whole bunch of skills. Uh, so it should know from those skills, uh, where to do that, except I'm in...</span></div><div class="tline" data-t="1529"><span class="ts">25:29</span><span class="tx">Oh, yeah. Oh, it's working. Okay, there we go. Cool. Uh.</span></div><div class="tline" data-t="1547"><span class="ts">25:47</span><span class="tx">This is where I would hit yes to all, and my head of security would have a conniption at me. Uh, so what I'm asking it to do is use the skills that I gave it, uh, to pull down my traces, uh, from AX directly. It, uh, has the API key. It has this-- it has the, uh, endpoint. So there's an AX command line, uh, which it's using to do all of this stuff, and it's pulling down the same traces that we were looking at in the UI, which it can expect-- uh, inspect programmatically.</span></div><div class="tline" data-t="1579"><span class="ts">26:19</span><span class="tx">It's summarizing span kinds, statuses, and errors. This is great. Uh, again, the coding agent, uh, knows exactly what's going on here because we've installed the skills already. The skills are what are giving it all the information here.</span></div><div class="tline" data-t="1598"><span class="ts">26:38</span><span class="tx">It's looking into quality issues, which is exactly what I wanted it to do. 'Cause there were no error spans. There were just a bunch of spans where it returned two hundred and said th-things are fine. Uh,</span></div><div class="tline" data-t="1615"><span class="ts">26:55</span><span class="tx">and it has already found the specific thing that I was, uh, asking it to look for. The search products tool suspiciously ga-- suspiciously returned in one millisecond. So it's going to find some qualities-- some poor quality signals and tell us about them.</span></div><div class="tline" data-t="1645"><span class="ts">27:25</span><span class="tx">Who's got this working so far?</span></div><div class="tline" data-t="1649"><span class="ts">27:29</span><span class="tx">Who's still cloning the repo? Oh.</span></div><div class="tline" data-t="1655"><span class="ts">27:35</span><span class="tx">The steps to install the plugins.</span></div><div class="tline" data-t="1657"><span class="ts">27:37</span><span class="tx">No, the plug-- the, the skills are sitting in a f- directory called .agents/skills, and your coding... Which coding agent are you using?</span></div><div class="tline" data-t="1669"><span class="ts">27:49</span><span class="tx">It's actually in the root directory, so you might wanna open your agent on the root directory and then CD down into that one.</span></div><div class="tline" data-t="1676"><span class="ts">27:56</span><span class="tx">It's the same skills you needed for the AX.</span></div><div class="tline" data-t="1678"><span class="ts">27:58</span><span class="tx">Yes. NPX skills, uh, install Arize-AI installs all of these skills directly.  Sorry, what were you saying?</span></div><div class="tline" data-t="1688"><span class="ts">28:08</span><span class="tx">I was gonna add, uh, sign in AX for your... But it's very huge.</span></div><div class="tline" data-t="1693"><span class="ts">28:13</span><span class="tx">Huge? To, uh...</span></div><div class="tline" data-t="1695"><span class="ts">28:15</span><span class="tx">Yeah, I did the same thing, and it messed up the codex. Yeah.</span></div><div class="tline" data-t="1702"><span class="ts">28:22</span><span class="tx">And so this is mysterious because there used to be a version of this application where you had to sign in with X, and I changed it so that you don't have to sign in with X. As you can see, when I ran this application, I didn't have to sign in with X. Somehow it has dug up the version where you sign up in X. I am completely confused as to how that is happening. Code is mysterious. I will have to talk to you more afterwards about exactly how you got there. All right. So Claude has finally got its shit together and told me</span></div><div class="tline" data-t="1732"><span class="ts">28:52</span><span class="tx">what's going on in the traces. Uh, forty-two percent of searches have returned zero results. Degenerate all null searches. The agent code search product with every argument null producing a meaningless search that returns the first product in the catalog. Min age equals max mage-- max age, exact age filtering o-over narrows. Uh, the trace stack calls three agent kinds. The headline issue is the search products filter logic. Vector search and keyword category filters frequently produce empty results when model supplies. The fix is on the tool side.</span></div><div class="tline" data-t="1762"><span class="ts">29:22</span><span class="tx">Uh,</span></div><div class="tline" data-t="1765"><span class="ts">29:25</span><span class="tx">when I tried this this morning, I only had one trace, and that trace was it not finding the tra-- not finding the prices. So is there a problem with filtering by price? I'll see if it can find that in the traces that it's already got.</span></div><div class="tline" data-t="1783"><span class="ts">29:43</span><span class="tx">But spoiler alert, even if it doesn't find them, we are going to get it to add the feature where it filters by prices.</span></div><div class="tline" data-t="1813"><span class="ts">30:13</span><span class="tx">All right.</span></div><div class="tline" data-t="1828"><span class="ts">30:28</span><span class="tx">Exactly. It doesn't have price filtering at all. Cool.</span></div><div class="tline" data-t="1834"><span class="ts">30:34</span><span class="tx">Let's add price filtering to this app.</span></div><div class="tline" data-t="1854"><span class="ts">30:54</span><span class="tx">One of the things that can happen when you have agents being clever is that agents can be too clever. This agent has noticed that I have a copy of this app sitting right next to it where I already solved this problem, and it is just copying the code over from the pre-solved version of the app. That's not what it did this morning because it didn't have the solution sitting in a directory this morning, but it's still going to work, so we're just gonna let it do that. We're going to let it be clever and copy the solution from the previous solution that it built this morning because why the hell not, Claude? Thank you very much.</span></div><div class="tline" data-t="1885"><span class="ts">31:25</span><span class="tx">All right. Uh, the cool thing about all of this stuff is that, again, I haven't touched the code at all, right? All I've done is said that, &quot;Hey, look for problems.&quot; It has found a problem. I've said, &quot;Hey, what about that problem in particular? Can you fix that problem in particular?&quot; And it's like, &quot;Yes, I'm gonna do that.&quot; That is the joy of agentic coding. Uh, brilliantly, because it was copying the solution from somebody else already, uh, it's already done. So let's go back to Wonder Toys.</span></div><div class="tline" data-t="1916"><span class="ts">31:56</span><span class="tx">&quot;Show me all toys under nine dollars.&quot;</span></div><div class="tline" data-t="1927"><span class="ts">32:07</span><span class="tx">And ta-da. A round of applause for me, I guess. Thank you.</span></div><div class="tline" data-t="1934"><span class="ts">32:14</span><span class="tx">Or really for Claude. Uh, so now if we look at our traces,</span></div><div class="tline" data-t="1941"><span class="ts">32:21</span><span class="tx">we can see, &quot;Show me all toys under nine dollars,&quot;</span></div><div class="tline" data-t="1947"><span class="ts">32:27</span><span class="tx">and we've got our input and our output and the response, including all of those toys under one doll- under nine dollars. Uh, this is what we were trying to get done. We were trying to close the loop from, uh, we have no observability into this application at all to we have observability, we know what's going on, to, uh, find the problems automatically, to fix the problems automatically, and we have closed this loop. But what if,</span></div><div class="tline" data-t="1977"><span class="ts">32:57</span><span class="tx">uh, you could go a little bit further than that?</span></div><div class="tline" data-t="1985"><span class="ts">33:05</span><span class="tx">Uh, what if you didn't have to do the asking? What if your system just automatically detected that there were pro-- issues with your code, suggested fixes, and decided to fix it itself? That is the question that we asked ourselves, uh, and that is when we built this thing, which is called Signal. Uh, Signal is an agent that runs inside of Arize AX and continuously monitors all of your traces. It runs every six</span></div><div class="tline" data-t="2015"><span class="ts">33:35</span><span class="tx">hours by default, but that's configurable. Uh, and it does what we were just doing manually in Claude Code, but it does it automatically inside of AX continuously. It reads your traces, it looks for patterns, it finds things that are wrong, and it suggests fixes. So luckily, I built this thing more than six hours ago,  so it's already run. Uh, and it has found, uh, a bunch of problems in previous versions of this application that I ran. So, uh, the agent hallucinates an age constraint from</span></div><div class="tline" data-t="2045"><span class="ts">34:05</span><span class="tx">vague user phrasing. That's nice. Uh, harmful query. I asked it if it could give me instructions on, uh, installing a bo-- uh, creating a bomb. Um, it told me that it couldn't, but it  recommended some bomb-related toys. And Signal is like, &quot;No. Just ignore the bomb s-queries entirely. Don't try to be helpful. Uh, we don't have any bomb-related toys.&quot; Uh, it also told me that if I was feeling violent, maybe I should take a timeout, which is, again, probably a</span></div><div class="tline" data-t="2074"><span class="ts">34:34</span><span class="tx">domain escape. Like, you shouldn't be giving me psychological advice. Uh, you should probably have an eval about that and better guardrails. Uh, it also noticed a test that I gave it earlier where I just said, &quot;Say hello,&quot; uh, and it said hello, and it's like, &quot;You shouldn't do that. You're a toy so- you're a toy store. You shouldn't ob-obey random instructions that somebody  on the internet gives you.&quot; Uh, all of which are fine. Um, and what it does here is it gives you, uh, a whole bunch of options. Um, it</span></div><div class="tline" data-t="2104"><span class="ts">35:04</span><span class="tx">will, uh... By default, it will create a, a GitHub issue for you completely describing the problem. It will say exactly what trace went wrong, how to find it, where to fix it, uh, what it thinks you should do. Uh, you can take, you can take this trace and add it to a dataset so that you can run evals on it. You can create an evaluator based on, uh, the problem that it has found. Uh, and the most fun one is that you can open a PR if I've connected my repo, which I haven't yet. Um, you can open a PR directly in which</span></div><div class="tline" data-t="2134"><span class="ts">35:34</span><span class="tx">it will have read your repo, uh, suggested a fix, and created a PR that automatically fixes this problem. So instead of you having to read traces or you having to read evals, uh, Signal gives you a bunch of PRs that you can approve or, uh, you can approve or reject, uh, that resolve the problem for you. Um,</span></div><div class="tline" data-t="2159"><span class="ts">35:59</span><span class="tx">so this probably raises some questions. Who's got questions  about Signal? Yes.</span></div><div class="tline" data-t="2174"><span class="ts">36:14</span><span class="tx">Um, is there a version which will keep the traces local on device rather than sending them to-</span></div><div class="tline" data-t="2176"><span class="ts">36:16</span><span class="tx">Is there a version that will keep the traces local on device? Um, there is not right now. The, uh... I assume you're asking for sort of compliance reasons. Um, the compliance story with Arize is we have an on-prem version where it will run entirely on your, uh, your company's hardware, uh, and, and, uh, activate from there.</span></div><div class="tline" data-t="2198"><span class="ts">36:38</span><span class="tx">Yep.</span></div><div class="tline" data-t="2199"><span class="ts">36:39</span><span class="tx">Is there a, is there a simple function like, you know... 'Cause it looks like they're top lines from a specific trace.</span></div><div class="tline" data-t="2209"><span class="ts">36:49</span><span class="tx">Sorry, could you be louder?</span></div><div class="tline" data-t="2215"><span class="ts">36:55</span><span class="tx">Ah. Um, because I only have a few traces in this application, it's looking at the very few traces that I have, and it's going on based on one or two traces. If you had ten thousand traces, it would be grouping them based on a hundred traces, a thousand traces, that kind of stuff.</span></div><div class="tline" data-t="2233"><span class="ts">37:13</span><span class="tx">Oh, there.</span></div><div class="tline" data-t="2235"><span class="ts">37:15</span><span class="tx">How do you know how to change the system properly there before you go all wrong afterwards?</span></div><div class="tline" data-t="2241"><span class="ts">37:21</span><span class="tx">How do you know what, sorry?</span></div><div class="tline" data-t="2243"><span class="ts">37:23</span><span class="tx">So for spaces your system will change.</span></div><div class="tline" data-t="2246"><span class="ts">37:26</span><span class="tx">Mm-hmm.</span></div><div class="tline" data-t="2247"><span class="ts">37:27</span><span class="tx">You're gonna create a lot of different problems, right? So does the system look kind of-</span></div><div class="tline" data-t="2253"><span class="ts">37:33</span><span class="tx">Ah, yeah. Um, so the solution here is evals, you'll be surprised to learn. Uh, a, a production system should have a set of regression evals, which are things that you are expecting, uh, your agent to already be good at. So your eval's already in place, which you can, uh, create them, uh, I'll show you in a second. Uh, with your evals already in place, you will know that your system doesn't change from the good behavior that it previously had as a result of this change. Uh,</span></div><div class="tline" data-t="2284"><span class="ts">38:04</span><span class="tx">if you don't have any evals, I can show you how that's done, uh, which is we can go to the Wonder Toys project, uh, and ask it to build an eval.</span></div><div class="tline" data-t="2301"><span class="ts">38:21</span><span class="tx">&quot;Build an eval that ensures that I'm never giving instructions about how to build a bomb.&quot;</span></div><div class="tline" data-t="2314"><span class="ts">38:34</span><span class="tx">That seems like a really basic eval that I should have had in from the beginning. Uh, this thing that I'm using right now is called Alyx. It is our in-agent assistant. It is our, uh, in-product agent. Uh, and it knows, like the skills do, it knows how to build everything. So, uh, you can do this in product, you can do it in the skills, in your co-coding agent, but either way, it will create an evaluator for you, uh, and run automatically.</span></div><div class="tline" data-t="2351"><span class="ts">39:11</span><span class="tx">And that is pretty much it as far as we're going. Question at the back.</span></div><div class="tline" data-t="2356"><span class="ts">39:16</span><span class="tx">What, what harness is Signal?</span></div><div class="tline" data-t="2359"><span class="ts">39:19</span><span class="tx">Uh, what harness is Signal? Uh, I don't know. What harness is Signal? You know, Jason.</span></div><div class="tline" data-t="2366"><span class="ts">39:26</span><span class="tx">It supports Claude Code today, but it's in your own harness.</span></div><div class="tline" data-t="2370"><span class="ts">39:30</span><span class="tx">Yes. Uh, Signal is, uh, Claude Code at the moment, and we'll-- you can bring your own later. Uh, that is my boss trolling me, in case you're wondering why he happens to know the answer to my question.</span></div><div class="tline" data-t="2383"><span class="ts">39:43</span><span class="tx">Any other questions about Signal? Yes.</span></div><div class="tline" data-t="2389"><span class="ts">39:49</span><span class="tx">What are the total usage for the signals in our test? Can you then go into the product itself?</span></div><div class="tline" data-t="2395"><span class="ts">39:55</span><span class="tx">Sorry, louder.</span></div><div class="tline" data-t="2396"><span class="ts">39:56</span><span class="tx">So what's the total cost of total usage for the signal completion or next step or within the product itself that we don't need to worry about the cost of the channel?</span></div><div class="tline" data-t="2405"><span class="ts">40:05</span><span class="tx">Uh, at the moment, the, the question is about the cost of running Signal. At the moment, uh, we eat the cost of Signal. The, the, uh, solu-- the aim is, uh, for t- for you to get the best product experience right now. Uh, we can't guarantee that that's always going to be that way. Uh, but at the moment, uh, Signal is run on our agents at our dime.</span></div><div class="tline" data-t="2429"><span class="ts">40:29</span><span class="tx">Yep.</span></div><div class="tline" data-t="2430"><span class="ts">40:30</span><span class="tx">Uh, can you talk us through how Signals is evaluated?</span></div><div class="tline" data-t="2433"><span class="ts">40:33</span><span class="tx">That is an excellent question. How is Signal ev- how is Signal evaluated? Uh, Signal is ev- has its own eval suite, uh, that, uh, runs internally, uh, and is traced using Arize. So everything that Signal is doing is sending its own telemetry back to us, uh, unless you opt out of it, uh, which is telling us, uh, the queries that it's getting, what it's doing, how it's doing, all of that stuff. We have powerful LLM judges looking</span></div><div class="tline" data-t="2463"><span class="ts">41:03</span><span class="tx">at the results of Signal, uh, and telling you whether or not, uh, Signal did a good job generating that PR or not. Uh, so exactly the same software development life cycle that I was just talking about, uh, applied to Signal itself. Awesome question. Thank you.  Gets us to show off. Yep.</span></div><div class="tline" data-t="2482"><span class="ts">41:22</span><span class="tx">Yeah. Can you explain how to manage your first experience with</span></div><div class="tline" data-t="2490"><span class="ts">41:30</span><span class="tx">the algorithm? Does Signal also automatically create its own evaluators as well?</span></div><div class="tline" data-t="2493"><span class="ts">41:33</span><span class="tx">Uh, does Signal automatically create its own evaluators? Not right now. Uh, at the moment, you have to s- you have to... Because evaluators, you know, take time and money to run, you wanna, uh, you wanna get the suggestion, and then you want to create the eval yourself.</span></div><div class="tline" data-t="2511"><span class="ts">41:51</span><span class="tx">All right. Uh, and I think, uh, I'm gonna leave it at that. Thank you all for your time and attention.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

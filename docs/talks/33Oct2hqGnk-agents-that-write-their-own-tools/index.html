@@ -1,0 +1,1090 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>在运行时自己编写工具的智能体 —— Sandhya Subramani，AWS | AI 工程师中文版</title>
+<meta name="description" content="Sandhya Subramani 演示了 Strands Agents 如何在对话进行中编写并加载新工具，把同样的机制扩展到子智能体，并揭示自我修改系统所需的评测与权限控制。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>在运行时自己编写工具的智能体 —— Sandhya Subramani，AWS</h1>
+    <div class="orig-title">Agents That Write Their Own Tools at Runtime — Sandhya Subramani, AWS</div>
+    <div class="meta"><span class="speaker">Sandhya Subramani</span> · 20:40</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=agent-orchestration">智能体编排</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/33Oct2hqGnk-agents-that-write-their-own-tools" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="33Oct2hqGnk"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=33Oct2hqGnk" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">一个运行中的智能体获得了它起初没有的能力</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>一个运行中的智能体获得了它起初没有的能力</span></li><li data-t="307"><span class="ts">5:07</span><span>元工具把“写代码”与“让代码可被调用”分开</span></li><li data-t="607"><span class="ts">10:07</span><span>缺失的能力也可能需要一个新的子智能体</span></li><li data-t="757"><span class="ts">12:37</span><span>夏威夷行程规划器从一个普通请求中创建出专家智能体</span></li><li data-t="907"><span class="ts">15:07</span><span>评估结果、工具调用以及智能体之间的路径</span></li><li data-t="1026"><span class="ts">17:06</span><span>保护生成的代码执行所在的环境</span></li><li data-t="1116"><span class="ts">18:36</span><span>从生成工具到修改框架本身</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 16 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Agents That Forge Their Own Tools" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agents That Forge Their Own Tools</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Sandhya Subramani introduces the idea of agents writing tools at runtime to fix their own errors, then leads into a demo.
+
+[0:21](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=21s) [Title slide for Sandhya Subramani’s talk, with a portrait and QR code.](https://assets.ai.engineer/sites/aiecode2025/sha256/2c12ba76d45a00921675348b970bccaa47ee42b5265a8cec308113e8922f2a34.webp)
+
+Agents That Forge Their Own Tools
+
+aws
+AI ENGINEER WORLD’S FAIR 2026
+
+Sandhya Subramani
+Senior Developer Advocate
+Amazon Web Services
+https://www.linkedin.com/in/sandhyasubramani/
+
+© 2026, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+
+Interface text:
+PowerPoint Slide Show - [Meta-agents]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Meta-tooling agent instructions" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Meta-tooling agent instructions</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo agent’s system prompt tells it to check for existing tools, write a new tool file, load it, and confirm it is ready. The visible template requires the tool name to match its function and filename.
+
+[1:29](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=89s) [Code editor showing a system prompt for creating and loading tools at runtime.](https://assets.ai.engineer/sites/aiecode2025/sha256/5ad2bc560694cdf5cfe28f8fd82fc8c93de55b218a6df8b3d3cb400e286fe2b7.webp)
+
+&quot;&quot;&quot;Strands Meta-Tooling Demo — agent that creates its own tools at runtime.&quot;&quot;&quot;
+
+from strands import Agent
+from strands_tools import editor, shell, load_tool
+
+SYSTEM_PROMPT = &quot;&quot;&quot;You are a meta-tooling agent that creates and uses custom tools at runtime.
+
+**CREATING TOOLS**
+
+1. Check ./tools/ for existing files, pick the next name (e.g. tools/reverse_text.py).
+2. Use `editor` to write the file. Use `load_tool` to load it. Confirm it's ready.
+
+**TOOL FILE TEMPLATE**
+
+```python
+from typing import Any
+from strands.types.tools import ToolUse, ToolResult
+
+TOOL_SPEC = {
+    &quot;name&quot;: &quot;&lt;tool_name&gt;&quot;,         # must match the function name AND filename (without .py)
+
+Interface text:
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+venv
+agent.py
+README.md
+requirements.txt
+agent.py &gt; main
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+(venv) (base) sansubr@842f578bc513 strands-meta-tooling-demo %
+Ln 53, Col 13  Spaces: 4  UTF-8  LF  Python 3.14.3 ('venv': venv)  Select Python Interpreter  Autocomplete  Report issue  Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Agent initialization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent initialization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent starts with a system prompt and three tools: editor, shell, and load_tool. Its instructions require matching tool names, saving files in ./tools/, and calling loaded tools directly.
+
+[1:51](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=111s) [Code editor showing the agent initialized with editor, shell, and load-tool capabilities.](https://assets.ai.engineer/sites/aiecode2025/sha256/7d73d1956dcd50f6649fd6b0d057583c7f5768c08e9009560ed34eeb9f18894a.webp)
+
+SYSTEM_PROMPT = &quot;&quot;&quot;You are a meta-tooling agent that creates and uses custom tools at [illegible]
+
+- File name, function name, and TOOL_SPEC &quot;name&quot; MUST all match.
+- Always write tools into the ./tools/ directory.
+- When asked to USE a tool, call it directly — it's already loaded.
+&quot;&quot;&quot;
+
+def main():
+    agent = Agent(system_prompt=SYSTEM_PROMPT, tools=[editor, shell, load_tool])
+
+print(&quot;Meta-Tooling Demo — ask me to create a tool, then use it!&quot;)
+    print(&quot;Type 'exit' to quit.\n&quot;)
+
+while True:
+        try:
+            user_input = input(&quot;You&gt; &quot;).strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if not user_input or user_input.lower() in (&quot;exit&quot;, &quot;quit&quot;):
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+venv
+agent.py
+README.md
+requirements.txt
+agent.py &gt; main
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+zsh
+(venv) (base) sansubr@842f578bc513 strands-meta-tooling-demo %
+UTF-8  LF  Python  3.14.3 ('venv': venv)  Select Python Interpreter  Autocomplete  Report Issue  Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Initial tools directory" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Initial tools directory</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The tools folder contains no custom tool files. Subramani shows the agent’s input loop before asking it to create a calculator at runtime.
+
+[1:55](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=115s) [Code editor with the tools directory expanded before the calculator tool is created.](https://assets.ai.engineer/sites/aiecode2025/sha256/16c72913d0266cf6f12c3008a0a2e44272543c33f3ad398417ad5a2045f2218a.webp)
+
+def main():
+    while True:
+        try:
+            user_input = input(&quot;You&gt; &quot;).strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if not user_input or user_input.lower() in (&quot;exit&quot;, &quot;quit&quot;):
+            break
+        agent(user_input)
+        print()
+
+if __name__ == &quot;__main__&quot;:
+    main()
+
+Interface text:
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-D...
+.claude
+.venv
+tools
+  __pycache__
+  .gitkeep
+venv
+agent.py
+README.md
+requirements.txt
+~/Documents/strands-meta-tooling-demo/agent.py
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+(venv) (base) [illegible] strands-meta-tooling-demo %
+UTF-8  LF  Python  3.14.3 ('.venv': venv)  Select Python Interpreter  Autocomplete  Report issue  Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Calculator tool created" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Calculator tool created</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent creates and loads a calculator tool at runtime, then lists its supported operations. The presenter starts entering a square calculation to try it.
+
+[3:15](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=195s) [Terminal shows the agent creating and loading a calculator tool, followed by its supported operations.](https://assets.ai.engineer/sites/aiecode2025/sha256/62ca6168dd96032f2b0248477f36a785a883f201a09c44f416fe3517f0f5adcd.webp)
+
+def math_calculator(tool_use: ToolUse, **kwargs: Any) -&gt; ToolResult:
+# Format the result nicely
+
+(venv) (base) sansubr@842f578bc513 strands-meta-tooling-demo % python3 agent.py
+Meta-Tooling Demo - ask me to create a tool, then use it!
+Type 'exit' to quit.
+
+You&gt; help me calculate some complex math equation
+I'll help you create a tool for calculating complex math equations! Let me first check what tools are already available and then create a math calculator tool.
+Tool #1: editor
+Now let me create a comprehensive math calculator tool that can handle complex equations:
+Tool #2: editor
+Now let me load this tool:
+Tool #3: load_tool
+Perfect! I've created a comprehensive math calculator tool that can handle complex equations. Now you can give me any mathematical expression and I'll calculate it for you.
+
+The calculator supports:
+- **Basic operations**: +, -, *, /, ** (power), % (modulo)
+- **Trigonometric functions**: sin, cos, tan, asin, acos, atan, sinh, cosh, tanh
+- **Logarithmic functions**: log, log10, log2, ln (natural log), exp
+- **Other functions**: sqrt, abs, floor, ceil, factorial, min, max, round
+- **Constants**: pi, e
+- **Complex numbers**: Use 'j' for the imaginary unit (e.g., 3+4j)
+- **Angle conversions**: degrees, radians
+
+What mathematical expression would you like me to calculate? For example:
+- `sqrt(25) + 3**2`
+- `sin(pi/4) * cos(pi/4)`
+- `log(e**2) + sqrt(-1+0j)`
+- `(3+4j) * (2-1j)`
+You&gt; whats the square of 4
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+__pycache__
+.gitkeep
+math_calculator.py
+venv
+agent.py
+README.md
+requirements.txt
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+Python
+UTF-8  LF  Python 3.14.3 ('venv': venv)
+Select Python Interpreter  Autocomplete  Report issue  Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Calculator result" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Calculator result</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent calls its newly created calculator to square 456,789, then the user asks it to count characters in a word.
+
+[3:31](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=211s) [Terminal shows a calculator tool call, its square calculation result, and a new character-counting request.](https://assets.ai.engineer/sites/aiecode2025/sha256/f1ad5b98b6b4d7a4d3b4bc8b4f0432ce2199fe7095b629b1c0dc4b467fb6ec61.webp)
+
+I'll help you create a tool for calculating complex math equations! Let me first check what tools are already available and then create a math calculator tool.
+Tool #1: editor
+Now let me create a comprehensive math calculator tool that can handle complex equations:
+Tool #2: editor
+Now let me load this tool:
+Tool #3: load_tool
+Perfect! I've created a comprehensive math calculator tool that can handle complex equations. Now you can give me any mathematical expression and I'll calculate it for you.
+
+The calculator supports:
+- **Basic operations**: +, -, *, /, ** (power), % (modulo)
+- **Trigonometric functions**: sin, cos, tan, asin, acos, atan, sinh, cosh, tanh
+- **Logarithmic functions**: log, log10, log2, ln (natural log), exp
+- **Other functions**: sqrt, abs, floor, ceil, factorial, min, max, round
+- **Constants**: pi, e
+- **Complex numbers**: Use 'j' for the imaginary unit (e.g., 3+4j)
+- **Angle conversions**: degrees, radians
+
+What mathematical expression would you like me to calculate? For example:
+- `sqrt(25) + 3**2`
+- `sin(pi/4) * cos(pi/4)`
+- `log(e**2) + sqrt(-1+0j)`
+- `(3+4j) * (2-1j)`
+You&gt; whats the square of 456789
+
+Tool #4: math_calculator
+The square of 456,789 is **208,656,190,521**.
+You&gt; cool, whatever. count number of characters in my word
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+  __pycache__
+  .gitkeep
+  math_calculator.py
+venv
+agent.py
+README.md
+requirements.txt
+agent.py
+math_calculator.py
+tools &gt; math_calculator.py &gt; Any
+def math_calculator(tool_use: ToolUse, **kwargs: Any) -&gt; ToolResult:
+# Format the result nicely
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+(venv) (base) sansubr@842f578bc513 strands-meta-tooling-demo % python3 agent.py
+UTF-8  LF  Python 3.14.3 ('venv': venv)  Select Python Interpreter  Autocomplete  Report issue  Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Creating and testing the character counter" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Creating and testing the character counter</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent creates and loads a character counter after the request. It then calls the tool for a random string and, without another instruction, counts three characters in “rty.”
+
+[4:05](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=245s) [Editor displays the character-counter file while the terminal reports that the tool is ready for a word.](https://assets.ai.engineer/sites/aiecode2025/sha256/1cc9117ad77a2c82a74fbd95be3672792f982a64baab6574bd10f55c35596790.webp)
+
+from typing import Any
+from strands.types.tools import ToolUse, ToolResult
+
+The calculator supports:
+- **Basic operations**: +, -, *, /, ** (power), % (modulo)
+- **Trigonometric functions**: sin, cos, tan, asin, acos, atan, sinh, cosh, tanh
+- **Logarithmic functions**: log, log10, log2, ln (natural log), exp
+- **Other functions**: sqrt, abs, floor, ceil, factorial, min, max, round
+- **Constants**: pi, e
+- **Complex numbers**: Use 'j' for the imaginary unit (e.g., 3+4j)
+- **Angle conversions**: degrees, radians
+
+What mathematical expression would you like me to calculate? For example:
+- `sqrt(25) + 3**2`
+- `sin(pi/4) * cos(pi/4)`
+- `log(e**2) + sqrt(-1+0j)`
+- `(3+4j) * (2-1j)`
+
+You&gt; whats the square of 456789
+Tool #4: math_calculator
+The square of 456,789 is **208,656,190,521**.
+You&gt; cool, whatever. count number of characters in my word
+I'll create a tool to count characters in text for you. Let me check the tools directory and create a character counter tool.
+Tool #5: editor
+Tool #6: editor
+Tool #7: load_tool
+Great! I've created a character counter tool. Now I can count the characters in your word. What word would you like me to count the characters for?
+You&gt;
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-D...
+.claude
+.venv
+tools
+__pycache__
+.gitkeep
+character_counter.py
+math_calculator.py
+venv
+agent.py
+README.md
+requirements.txt
+agent.py | character_counter.py
+tools &gt; character_counter.py &gt; Any
+PROBLEMS OUTPUT DEBUG CONSOLE TERMINAL PORTS
+(venv) (base) sansubr@842f578bc513 strands-meta-tooling-demo % python3 agent.py
+UTF-8 LF Python 3.14.3 ('venv': venv) Select Python Interpreter Autocomplete Report Issue Kiro Power 0 / 10000 updated 5h ago
+
+[4:35](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=275s) [Editor with character counter code and terminal results for two inputs.](https://assets.ai.engineer/sites/aiecode2025/sha256/eca0d80e9ec529609a937eed14d0ae96c12c4e87245f1a33e068fec4ca8a1a8e.webp)
+
+TOOL_SPEC = {
+[lines 5–14 not visible]
+            &quot;include_spaces&quot;: {
+                &quot;type&quot;: &quot;boolean&quot;,
+                &quot;description&quot;: &quot;Whether to include spaces in the character count ([clipped]
+            },
+            &quot;detailed&quot;: {
+                &quot;type&quot;: &quot;boolean&quot;,
+                &quot;description&quot;: &quot;Whether to provide detailed analysis including let[clipped]
+            }
+        },
+        &quot;required&quot;: [&quot;text&quot;]
+    }
+  }
+}
+
+def character_counter(tool_use: ToolUse, **kwargs: Any) -&gt; ToolResult:
+    tool_use_id = tool_use[&quot;toolUseId&quot;]
+    text = tool_use[&quot;input&quot;][&quot;text&quot;]
+
+You&gt; do it for this word: sdyujkbvfdrtyuikmnbvgftyuiol
+Tool #8: character_counter
+Your word &quot;sdyujkbvfdrtyuikmnbvgftyuiol&quot; has **28 characters**.
+You&gt; rty
+Tool #9: character_counter
+The word &quot;rty&quot; has **3 characters**.
+You&gt;
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+__pycache__
+.gitkeep
+character_counter.py
+math_calculator.py
+venv
+agent.py
+README.md
+requirements.txt
+agent.py | character_counter.py
+tools &gt; character_counter.py &gt; Any
+PROBLEMS OUTPUT DEBUG CONSOLE TERMINAL PORTS
+(venv) (base) sansubr@842f578bc513 strands-meta-tooling-demo % python3 agent.py
+UTF-8 LF Python 3.14.3 ('venv': venv) Select Python Interpreter Autocomplete Report Issue Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Meta-tooling agent setup" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Meta-tooling agent setup</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent imports editor, shell and load_tool. Its system prompt tells it to check existing tools, write a new file and load it, using a tool specification as a template.
+
+[5:43](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=343s) [Editor showing agent imports, tool creation instructions, and the start of a tool template.](https://assets.ai.engineer/sites/aiecode2025/sha256/f3c58cf8ea1c21b413a4c93842aca70c2c7ec05b8ab995ec6689b5272a244aea.webp)
+
+&quot;&quot;&quot;Strands Meta-Tooling Demo — agent that creates its own tools at runtime.&quot;&quot;&quot;
+
+from strands import Agent
+from strands_tools import editor, shell, load_tool
+
+SYSTEM_PROMPT = &quot;&quot;&quot;You are a meta-tooling agent that creates and uses custom tools at [illegible]
+
+**CREATING TOOLS**
+
+1. Check ./tools/ for existing files, pick the next name (e.g. tools/reverse_text.py).
+2. Use `editor` to write the file. Use `load_tool` to load it. Confirm it's ready.
+
+**TOOL FILE TEMPLATE**
+
+```python
+from typing import Any
+from strands.types.tools import ToolUse, ToolResult
+
+TOOL_SPEC = {
+    &quot;name&quot;: &quot;&lt;tool_name&gt;&quot;,          # must match the function name AND filename (with[illegible]
+    &quot;description&quot;: &quot;&lt;what it does&gt;&quot;,
+    &quot;inputSchema&quot;: {
+        &quot;json&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+  __pycache__
+  .gitkeep
+  character_counter.py
+  math_calculator.py
+venv
+agent.py
+README.md
+requirements.txt
+agent.py
+character_counter.py
+agent.py &gt; editor
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+Python
+[redacted] % python3 agent.py
+The word &quot;rty&quot; has **3 characters**.
+You&gt;
+UTF-8  LF  Python  3.14.3 ('venv': venv)  Select Python Interpreter  Autocomplete  Report issue  Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Tool file template" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tool file template</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The system prompt tells the agent to check existing tool files, write a new one with editor, and load it with load_tool. The template defines the tool’s name, description, and input schema.
+
+[5:53](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=353s) [Editor showing tool creation instructions and a template for a tool's input schema.](https://assets.ai.engineer/sites/aiecode2025/sha256/d1d25fcf35c8c19c370b9674aac5d6602f0d3d3edf1a78c89e1b4c84e6fddfb1.webp)
+
+SYSTEM_PROMPT = &quot;&quot;&quot;You are a meta-tooling agent that creates and uses custom tools at [illegible]
+
+**CREATING TOOLS**
+
+1. Check ./tools/ for existing files, pick the next name (e.g. tools/reverse_text.py).
+2. Use `editor` to write the file. Use `load_tool` to load it. Confirm it's ready.
+
+**TOOL FILE TEMPLATE**
+
+python
+from typing import Any
+from strands.types.tools import ToolUse, ToolResult
+
+TOOL_SPEC = {
+    &quot;name&quot;: &quot;&lt;tool_name&gt;&quot;,          # must match the function name AND filename (with[illegible]
+    &quot;description&quot;: &quot;&lt;what it does&gt;&quot;,
+    &quot;inputSchema&quot;: {
+        &quot;json&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;properties&quot;: {
+                &quot;&lt;param&gt;&quot;: {&quot;type&quot;: &quot;&lt;type&gt;&quot;, &quot;description&quot;: &quot;&lt;desc&gt;&quot;}
+            },
+            &quot;required&quot;: [&quot;&lt;param&gt;&quot;]
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+  __pycache__
+  .gitkeep
+  character_counter.py
+  math_calculator.py
+venv
+agent.py
+README.md
+requirements.txt
+agent.py
+character_counter.py
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+The word &quot;rty&quot; has **3 characters**.
+You&gt;
+UTF-8  LF  Python  3.14.3 ('venv': venv)
+Select Python Interpreter
+Autocomplete
+Report issue
+Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Strands Agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Strands Agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Strands Agents is an open-source agent harness that lets developers swap models without rewriting the agent’s architecture. The slide also highlights MCP and A2A support.
+
+[6:03](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=363s) [Slide introduces Strands Agents as an open-source agent SDK, alongside a laptop displaying its project page.](https://assets.ai.engineer/sites/aiecode2025/sha256/466e575466f0e4ec9bed90be11a31f0560713bfd012843fb147f4b2e391dc297.webp)
+
+&lt; Hello, World! &gt;
+
+Strands Agents
+
+Strands Agents is an open-source Agent Harness SDK for building agents using just a few lines of code
+
+Model agnostic, supports MCP and A2A, production-ready
+
+Laptop screenshot:
+Strands Agents
+License Apache 2.0  python 3.10+
+
+A model-driven approach to building AI agents in just a few lines of code.
+
+Docs • Samples • Tools • Agent Builder
+
+Strands Agents is a simple yet powerful SDK that takes a model-driven approach to building and running AI agents. From simple conversational assistants to complex autonomous workflows, from local development to production deployment, Strands Agents scales with your needs.
+
+Feature Overview
+• Lightweight &amp; Flexible: Simple agent loop that just works and is fully customizable
+• Model Agnostic: Support for Amazon Bedrock, Anthropic, Ollama, and custom providers
+• Advanced Capabilities: Multi-agent systems, autonomous agents, and streaming support
+• Built-in MCP: Native support for Model Context Protocol (MCP) servers, enabling access to thousands of [illegible]
+
+AWS
+© 2026, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+
+Interface text:
+PowerPoint Slide Show - [Meta-agents]
+README  Code of conduct  License  Security</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Starting with a basic agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Starting with a basic agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A few lines create a Strands agent with the shell tool and ask what it can do. Subramani introduces shell to give the agent access to its working directory and codebase.
+
+[6:45](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=405s) [Python example creates a Strands agent with a shell tool and asks what it can do.](https://assets.ai.engineer/sites/aiecode2025/sha256/3c4f040318e3fbf063eae1330c607c29a23a8a58fd57a1e66eb20418598edf84.webp)
+
+Starting with a basic agent
+
+from strands import Agent
+from strands_tools import shell
+
+agent = Agent(tools=[shell])
+
+agent(&quot;What can you do?&quot;)
+
+aws
+© 2026, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+
+Interface text:
+PowerPoint Slide Show - [Meta-agents]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Tool creation template" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tool creation template</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The system prompt tells the agent to check existing tools, write a new file with editor, and load it with load_tool. A template specifies the tool’s name, description, and input schema.
+
+[8:51](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=531s) [Code editor shows instructions for creating and loading tools, followed by a tool specification template.](https://assets.ai.engineer/sites/aiecode2025/sha256/a3f81933a158e1ae81a6e280d562633e4aedf9dfbd429484464e3d1875ba0e35.webp)
+
+SYSTEM_PROMPT = &quot;&quot;&quot;You are a meta-tooling agent that creates and uses custom tools at [illegible]
+
+**CREATING TOOLS**
+
+1. Check ./tools/ for existing files, pick the next name (e.g. tools/reverse_text.py).
+2. Use `editor` to write the file. Use `load_tool` to load it. Confirm it's ready.
+
+**TOOL FILE TEMPLATE**
+
+```python
+from typing import Any
+from strands.types.tools import ToolUse, ToolResult
+
+TOOL_SPEC = {
+    &quot;name&quot;: &quot;&lt;tool_name&gt;&quot;,        # must match the function name AND filename (with[illegible]
+    &quot;description&quot;: &quot;&lt;what it does&gt;&quot;,
+    &quot;inputSchema&quot;: {
+        &quot;json&quot;: {
+            &quot;type&quot;: &quot;object&quot;,
+            &quot;properties&quot;: {
+                &quot;&lt;param&gt;&quot;: {&quot;type&quot;: &quot;&lt;type&gt;&quot;, &quot;description&quot;: &quot;&lt;desc&gt;&quot;}
+            },
+            &quot;required&quot;: [&quot;&lt;param&gt;&quot;]
+        }
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+  __pycache__
+  .gitkeep
+  character_counter.py
+  math_calculator.py
+venv
+agent.py
+README.md
+requirements.txt
+agent.py
+character_counter.py
+agent.py &gt; SYSTEM_PROMPT
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+Python
+The word &quot;rty&quot; has **3 characters**.
+You&gt;
+UTF-8  LF  Python 3.14.3 ('.venv': venv)
+Select Python Interpreter
+Autocomplete  Report Issue  Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Self-extending agent demo" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Self-extending agent demo</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent creates and loads a character counter, then uses it twice. The user next asks it to create five random tools; the agent is configured with an editor, shell and loader.
+
+[9:30](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=570s) [Code editor highlights agent initialization and shows part of an interactive input loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/33ec96f6febd55b9ee2fcc459caad3fa38f59af4984971db688c30831d01c24f.webp)
+
+SYSTEM_PROMPT = &quot;&quot;&quot;You are a meta-tooling agent that creates and uses custom tools at [illegible]
+
+value = tool_use[&quot;input&quot;][&quot;&lt;param&gt;&quot;]
+    return {&quot;toolUseId&quot;: tool_use_id, &quot;status&quot;: &quot;success&quot;, &quot;content&quot;: [{&quot;text&quot;: str([illegible]
+```
+
+**RULES**
+
+- File name, function name, and TOOL_SPEC &quot;name&quot; MUST all match.
+- Always write tools into the ./tools/ directory.
+- When asked to USE a tool, call it directly — it's already loaded.
+&quot;&quot;&quot;
+
+def main():
+    agent = Agent(system_prompt=SYSTEM_PROMPT, tools=[editor, shell, load_tool])
+
+print(&quot;Meta-Tooling Demo — ask me to create a tool, then use it!&quot;)
+    print(&quot;Type 'exit' to quit.\n&quot;)
+
+while True:
+        try:
+            user_input = input(&quot;You&gt; &quot;).strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+        if not user_input or user_input.lower() in (&quot;exit&quot;, &quot;quit&quot;):
+
+The word &quot;rty&quot; has **3 characters**.
+You&gt;
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+__pycache__
+.gitkeep
+character_counter.py
+math_calculator.py
+venv
+agent.py
+README.md
+requirements.txt
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+UTF-8  LF  Python 3.14.3 ('venv': venv)  Select Python Interpreter  Autocomplete  Report Issue  Kiro Power 0 / 10000 updated 5h ago
+
+[9:42](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=582s) [An editor and terminal show character counter results and a request for the agent to create five tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/4d4b435b320c816258e0647f732188f7e168ced499039c9ee4ee30dbdfe6e776.webp)
+
+def main():
+    agent = Agent(system_prompt=SYSTEM_PROMPT, tools=[editor, shell, load_tool])
+
+print(&quot;Meta-Tooling Demo — ask me to create a tool, then use it!&quot;)
+    print(&quot;Type 'exit' to quit.\n&quot;)
+
+while True:
+        try:
+            user_input = input(&quot;You&gt; &quot;).strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+
+Tool #5: editor
+Tool #6: editor
+Tool #7: load_tool
+Great! I've created a character counter tool. Now I can count the characters in your word. What word would you like me to count the characters for?
+You&gt; do it for this word: sdyujkbvfdrtyuikmnbvgftyuiol
+
+Tool #8: character_counter
+Your word &quot;sdyujkbvfdrtyuikmnbvgftyuiol&quot; has **28 characters**.
+You&gt; rty
+
+Tool #9: character_counter
+The word &quot;rty&quot; has **3 characters**.
+You&gt; create 5 random tools for yourself
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+__pycache__
+.gitkeep
+character_counter.py
+math_calculator.py
+venv
+agent.py
+README.md
+requirements.txt
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+python3 agent.py
+UTF-8  LF  Python 3.14.3 ('venv': venv)  Select Python Interpreter  Autocomplete  Report Issue  Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Creating tools" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Creating tools</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Asked to create five random tools, the agent lists a text reverser, password generator, color converter, Base64 codec and word frequency counter, calling the editor for each.
+
+[10:28](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=628s) [The terminal lists four tools in an ongoing creation sequence, while the editor displays the agent code and tool files.](https://assets.ai.engineer/sites/aiecode2025/sha256/4aebd8798565f09a34b6d2911b66f5efe4e9c58f5e6f078d9bb131d2792e5db7.webp)
+
+agent.py:
+def main():
+    agent = Agent(system_prompt=SYSTEM_PROMPT, tools=[editor, shell, load_tool])
+
+print(&quot;Meta-Tooling Demo — ask me to create a tool, then use it!&quot;)
+    print(&quot;Type 'exit' to quit.\n&quot;)
+
+while True:
+        try:
+            user_input = input(&quot;You&gt; &quot;).strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+
+Terminal:
+(venv) (base) sansubr@842f578bc513 strands-meta-tooling-demo % python3 agent.py
+The word &quot;rty&quot; has **3 characters**.
+You&gt; create 5 random tools for yourself
+I'll create 5 random useful tools for myself. Let me check the current tools directory first and then create some diverse tools.
+Tool #10: editor
+Great! I'll create 5 diverse tools. Let me start:
+
+**Tool 1: Text Reverser**
+
+Tool #11: editor
+
+**Tool 2: Random Password Generator**
+
+Tool #12: editor
+
+**Tool 3: Color Code Converter**
+
+Tool #13: editor
+
+**Tool 4: Base64 Encoder/Decoder**
+
+Tool #14: editor
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+__pycache__
+.gitkeep
+base64_codec.py
+character_counter.py
+color_converter.py
+math_calculator.py
+password_generator.py
+text_reverser.py
+venv
+agent.py
+README.md
+requirements.txt
+agent.py
+character_counter.py
+agent.py &gt; main
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+Python
+UTF-8  LF  Python 3.14.3 ('.venv': venv)  Select Python Interpreter  Autocomplete  Report issue  Kiro Power 0 / 10000 updated 5h ago
+
+[10:39](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=639s) [Code editor and terminal showing an agent creating several tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/fe48a3f7acd8c9f29267c0b7bfc706730aeb607a1519f54ecd71c033ec8aa047.webp)
+
+agent.py:
+def main():
+    agent = Agent(system_prompt=SYSTEM_PROMPT, tools=[editor, shell, load_tool])
+
+print(&quot;Meta-Tooling Demo — ask me to create a tool, then use it!&quot;)
+    print(&quot;Type 'exit' to quit.\n&quot;)
+
+while True:
+        try:
+            user_input = input(&quot;You&gt; &quot;).strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+
+Terminal:
+(venv) (base) sansubr@842f578bc513 strands-meta-tooling-demo % python3 agent.py
+I'll create 5 random useful tools for myself. Let me check the current tools directory first and then create some diverse tools.
+Tool #10: editor
+Great! I'll create 5 diverse tools. Let me start:
+
+**Tool 1: Text Reverser**
+
+Tool #11: editor
+
+**Tool 2: Random Password Generator**
+
+Tool #12: editor
+
+**Tool 3: Color Code Converter**
+
+Tool #13: editor
+
+**Tool 4: Base64 Encoder/Decoder**
+
+Tool #14: editor
+
+**Tool 5: Word Frequency Counter**
+
+Tool #15: editor
+
+Interface text:
+strands-meta-tooling-demo
+EXPLORER
+OPEN EDITORS
+STRANDS-META-TOOLING-DEMO
+.claude
+.venv
+tools
+__pycache__
+.gitkeep
+base64_codec.py
+character_counter.py
+color_converter.py
+math_calculator.py
+password_generator.py
+text_reverser.py
+venv
+agent.py
+README.md
+requirements.txt
+agent.py
+character_counter.py
+agent.py &gt; main
+PROBLEMS  OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS
+Python
+UTF-8  LF  Python 3.14.3 ('.venv': venv)  Select Python Interpreter  Autocomplete  Report issue  Kiro Power 0 / 10000 updated 5h ago</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Multi-agent patterns" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Multi-agent patterns</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Swarms split work among parallel subagents, graphs pass results between them, and workflows can combine these patterns in a fixed sequence of tasks.
+
+[10:57](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=657s) [Three panels describe swarms, graphs, and workflows.](https://assets.ai.engineer/sites/aiecode2025/sha256/e59624284f6c2a7b74434d5cf4586328e0327a6d27db2d452b6062e42b003179.webp)
+
+Multi-agent patterns
+
+SWARMS
+A collaborative system where a group of specialized agents work together to solve complex tasks
+
+GRAPHS
+A directed graph-based system where agents act as nodes, and edges define dependencies and information flow
+
+WORKFLOWS
+A deterministic pipeline of tasks where the order and dependencies are fixed to achieve repeatable, reliable automations
+
+aws
+© 2026, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+
+Interface text:
+PowerPoint Slide Show - [Meta-agents]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Workflows" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Workflows</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A workflow can combine branching sub-agents, repeated cycles, a swarm, and a graph. The diagram starts each path with create_subagent and shows use_agent calls in the branching and graph paths.
+
+[11:30](https://www.youtube.com/watch?v=33Oct2hqGnk&amp;t=690s) [Diagram showing subagents used in branching, repeated cycles, a swarm, and a graph.](https://assets.ai.engineer/sites/aiecode2025/sha256/4b061bc4b9d39eac035aed78f5e3bcf16d4d32f580f336124f40dd5496d6d130.webp)
+
+Workflows
+
+create_subagent → use_agent → use_agent / use_agent
+create_subagent → think 10 cycles
+create_subagent → swarm
+create_subagent → graph → use_agent
+
+aws
+© 2026, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+
+Interface text:
+PowerPoint Slide Show - [Meta-agents]</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">一个运行中的智能体获得了它起初没有的能力</a></li><li><a href="#sec-2">元工具把“写代码”与“让代码可被调用”分开</a></li><li><a href="#sec-3">缺失的能力也可能需要一个新的子智能体</a></li><li><a href="#sec-4">夏威夷行程规划器从一个普通请求中创建出专家智能体</a></li><li><a href="#sec-5">评估结果、工具调用以及智能体之间的路径</a></li><li><a href="#sec-6">保护生成的代码执行所在的环境</a></li><li><a href="#sec-7">从生成工具到修改框架本身</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">在运行时自己编写工具的智能体</h2>
+      <div class="lede"><p>Sandhya Subramani 演示了 Strands Agents 如何在对话进行中编写并加载新工具，把同样的机制扩展到子智能体，并揭示自我修改系统所需的评测与权限控制。</p><figure><img src="https://ai.engineer/api/talk-essay-media/f048189853594e7c8c1065bce98a71edb9c024b0b3058b605f947ab44b7a6e97" alt="Agents That Write Their Own Tools at Runtime — Sandhya Subramani, AWS 第 672 秒的演示画面" loading="lazy" class="zoom" referrerpolicy="no-referrer" /></figure><p>幻灯片图示：多智能体系统的蜂群、图和工作流模式。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>一个运行中的智能体获得了它起初没有的能力</h3>
+      <p>Generating code is already familiar. The harder question is what happens when a running application encounters a task its existing tools cannot handle. Sandhya Subramani, an AWS developer advocate, opens with the possibility of an agent recognizing that gap, writing the missing code, and using it without restarting. Her first Strands Agents demonstration makes that smaller, concrete capability visible before turning to the larger ambition of self-repair.</p>
+<p>The agent begins with an empty directory of task-specific tools. It already has a system prompt and three tools for creating and loading code, so “zero tools” describes its starting application capabilities rather than its entire tool inventory. There is no calculator waiting to be called. A request for help with a complex mathematical expression prompts the agent to create one.</p>
+<p>The observable change is a new calculator tool in the tools directory. The agent describes its supported operations, including minimum and maximum, and then receives a follow-up request to square a number. It calls the calculator it just wrote and returns an answer within the same running session. Code generation has changed the set of actions available to the agent.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/1f10678eb025ddb7accd793683a2bce8af6c3a8bf98e2155624f6a202e862e68" alt="Selected presentation frame from Agents That Write Their Own Tools at Runtime — Sandhya Subramani, AWS at 212 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The demo shows a newly created math calculator tool and its use in the same session.</figcaption></figure>
+<p>A character-counting request tests whether that expansion can happen again. The agent checks its available tools, finds that the calculator does not supply the needed capability, and creates a character counter. It reports 28 letters for a random input. Subramani immediately notices the weakness of that test: she should have chosen something she could count herself. She follows with three letters, letting the conversation carry forward the counting task without restating it. The exchange illustrates tool creation, invocation, and conversational continuity; the random-input result alone does not establish counting accuracy.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="307">▶ 5:07</button></div>
+      <h3>元工具把“写代码”与“让代码可被调用”分开</h3>
+      <p>This pattern is called meta-tooling. Strands Agents supplies the agent harness: the structure that connects a model to tools and runs the interaction. Subramani presents it as an open-source, AWS-maintained framework with multiple model providers and community-written tools. Keeping that structure separate from the model lets developers experiment with another model without rebuilding the surrounding architecture.</p>
+<p>The starting toolkit divides the work into three mechanisms:</p>
+<p>- <strong>Editor:</strong> writes the new tool’s code.
+- <strong>Shell:</strong> gives the agent access to its directory and codebase so it can inspect what is already there.
+- <strong>Load tool:</strong> loads a tool from the directory dynamically, making generated code available during the running session.</p>
+<p>The system prompt supplies the construction rules. It describes a tool template and specification, tells the agent where to write files, and includes the <code>@tool</code> decorator that identifies a function as a tool. It also tells the agent to check whether a suitable tool exists before creating another. That instruction keeps the character-counter example from becoming “write new code for every message”: reuse comes first, and generation fills a missing capability.</p>
+<p>Dynamic loading is the crucial step between a file appearing and the agent being able to use it. Subramani describes an earlier directory-loading option, then explains that loading became a tool in its own right. The agent can therefore write code and explicitly load it as part of its work. The small agent constructor combines the system prompt with the three tools; the surrounding chat loop keeps the conversation running.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f8b2fbb35b7540b8c9839ace9487c8210eca67e8f3a909c969d6a1b704da7cb7" alt="Selected presentation frame from Agents That Write Their Own Tools at Runtime — Sandhya Subramani, AWS at 495 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Code slide highlighting dynamic tool loading from a directory.</figcaption></figure>
+<p>How does a request become a new callable capability? The diagram follows the character counter through the same session. Inspecting the existing inventory, writing a file, and loading that file are separate steps. The important relationship is the return from generated code to the live agent: the next invocation can use something that was unavailable at startup.</p>
+<p>From a counting request to a callable character counter
+The editor creates the code; dynamic loading makes it usable without restarting the conversation.
+- Count characters — The user introduces a task the existing tools do not cover.
+- Check existing tools — Inspect the inventory and reuse a suitable tool if one exists.
+- Write the counter — The editor creates a tool file using the prompted template and storage rules.
+- Load into the running agent — The load tool makes the generated tool available dynamically.
+- Call the counter — The agent uses the new tool for the input and continues the counting conversation.
+- Count characters → Check existing tools (Find a usable capability)
+- Check existing tools → Write the counter (No suitable tool exists)
+- Write the counter → Load into the running agent (Load the generated file)
+- Load into the running agent → Call the counter (Use it in the same session)</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="607">▶ 10:07</button></div>
+      <h3>缺失的能力也可能需要一个新的子智能体</h3>
+      <p>The production motivation is a request that falls outside the original application design. Subramani imagines a domestic flight-booking app receiving a request to travel from India to Hong Kong. A fixed toolset may leave the agent unable to proceed, sending the problem back to engineering. Meta-tooling offers a way to create missing functionality during the interaction. This is a proposed use case, rather than a demonstrated international booking.</p>
+<p>The same construction mechanism can write sub-agents. Before demonstrating that, the talk distinguishes several ways agents can cooperate:</p>
+<p>- <strong>Swarm:</strong> sub-agents work in parallel and take different parts of a shared task.
+- <strong>Graph:</strong> one sub-agent’s result feeds into another, making the dependency between stages explicit.
+- <strong>Handoff:</strong> another named coordination pattern, though its mechanics are not developed here.
+- <strong>Workflow:</strong> a combination of patterns, potentially mixing parallel work with dependent stages.</p>
+<p>The second demo deliberately keeps the orchestration small. Its prompt asks for two to four sub-agents and supplies a template, specification, and rules for creating them. The agent again starts with the three code-writing and loading tools. The change is what the generated code represents: a focused agent rather than a standalone utility. There is no elaborate swarm in this example.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="757">▶ 12:37</button></div>
+      <h3>夏威夷行程规划器从一个普通请求中创建出专家智能体</h3>
+      <p>The user-facing request is simply to plan an itinerary for Hawaii. It does not ask the system to create agents. The planning agent chooses that implementation itself and announces three focused sub-agents: a flight agent, an activities agent, and an itinerary agent. It calls the editor three times, once for each, turning a general travel request into newly written specialists.</p>
+<p>The running system then calls the activities agent and produces travel guidance, including airports and beaches. Creating specialists does not create access to current facts: this demo has no tool connected to a real-world API, so it cannot retrieve real-time information. A weather-aware extension would need that access before a generated weather tool could fetch current conditions and use them to recommend activities.</p>
+<p>That distinction matters for the flight-booking ambition. An agent can reorganize its work and write new code using the facilities it has been given. It still needs the external access required by the task. The Hawaii example demonstrates self-assembly and a sub-agent invocation, while live weather retrieval remains a proposed extension.</p>
+<p>The next ambition is self-healing: inspect errors and edit the tool or agent that caused them. Subramani describes longer sessions in which audience requests break the system, it recognizes the errors, and it tries to repair its code. She also notes excessive chatter and the possible need for a maximum-token setting. Those accounts motivate the repair loop; this recording’s travel demonstration does not establish how reliably it recovers from failures. Changing the destination is another suggested reason to update an agent already created.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="907">▶ 15:07</button></div>
+      <h3>评估结果、工具调用以及智能体之间的路径</h3>
+      <p>Once a system can change its own capabilities, a plausible answer becomes a weak test. A booking agent might discuss flights without booking one. A balance lookup might return a sensible-looking amount for the wrong account. Subramani says Strands has eight built-in evaluations and uses the following concerns to explain what needs inspection, without enumerating all eight by name.</p>
+<p>- <strong>Session goal:</strong> did the requested action happen? For a flight-booking request, success means achieving the booking goal.
+- <strong>Response usefulness and correctness:</strong> does a balance answer address the question, and does its amount match the actual balance rather than an invented value?
+- <strong>Tool selection and parameters:</strong> did the agent choose the right tool and pass the right account ID? A correct tool with the wrong parameter can still produce the wrong result.
+- <strong>Inter-agent flow:</strong> did tools and sub-agents run in the required sequence, and did the messages between them carry suitable information?</p>
+<p>These checks connect the final response to the execution that produced it. In the travel planner, inspecting only the itinerary would miss whether a specialist actually ran or whether dependent work received the information it needed. The complete session trace gives developers a way to distinguish a good-looking response from a system that performed the intended work.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="1026">▶ 17:06</button></div>
+      <h3>保护生成的代码执行所在的环境</h3>
+      <p>Evaluation reveals behavior; it does not prevent damage. The permission to create code can also enable modification and deletion. A meta-tooling agent that writes into the wrong place could destroy existing work, even if its intended task sounds harmless. The ability demonstrated by the editor tool therefore creates a second design problem: how much of the environment should generated code be able to affect?</p>
+<p>Subramani emphasizes sandboxing the code-execution environment itself. The protection must apply where the generated program runs, rather than stopping at a container around the agent process. She describes a recently introduced Strands feature intended to keep that execution from affecting other environments or writing and deleting in unintended locations. The talk does not develop its isolation mechanism or configuration, so that protection depends on how the execution sandbox is implemented and used.</p>
+<p>The remaining controls address different parts of the system:</p>
+<p>- <strong>Tools and permissions:</strong> constrain the actions the agent and its generated code can perform.
+- <strong>User access and requests:</strong> constrain who can ask the system to act and what kinds of requests it accepts.
+- <strong>Observability:</strong> retain evaluations, OpenTelemetry, and other telemetry so developers can inspect what happened.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/1cce77ab6b6e551e72cf32186a3276a6e0b61e986e531a3c41957dfa841f3ebf" alt="Selected presentation frame from Agents That Write Their Own Tools at Runtime — Sandhya Subramani, AWS at 1062 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Slide listing guardrails for environment, tools, permissions, and observability.</figcaption></figure>
+<p>Together, these controls make experimentation more accountable. The sandbox limits where execution can cause changes, permissions limit what actions are available, and telemetry supports the evaluations of outcomes and intermediate calls. Runtime adaptation needs all of those: repairing one tool is little comfort if the repair can damage unrelated code or cannot be inspected afterward.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1116">▶ 18:36</button></div>
+      <h3>从生成工具到修改框架本身</h3>
+      <p>The ending expands the idea in three stages: agents create tools, then create other agents, then update their own source code. Subramani frames that progression as the beginning of self-improving and self-evolving systems. Here, improvement means changing the software the system can use or execute; the demonstrations center on generated capabilities and agent code.</p>
+<p>The most ambitious closing example concerns Strands itself. Subramani says the framework began internally three years earlier, was later opened to the community, and that its Python version wrote the TypeScript version. This is a reported development outcome rather than a demonstrated porting process; the recording does not specify the human involvement or validation behind it. It nevertheless brings the central subject back to developer tooling: the same framework used to generate a calculator can participate in building another implementation of the framework.</p>
+<p>The closing invitation is to explore the code and slides with Subramani. The useful starting point is the modest version shown at the beginning: supply a tool template, let the agent inspect and write within a constrained environment, and load the result into the running conversation. Expanding from that mechanism to sub-agents and repairs raises the importance of checking both what the system accomplished and what it changed along the way.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>元工具把一个由提示词驱动的工具模板与编辑器、shell 和动态加载工具结合起来，让智能体无需重启就能创建并使用一项新能力。</li><li>同样的机制可以创建子智能体：夏威夷行程规划器根据一个普通的旅行请求，写出了航班、活动和行程智能体。</li><li>生成的代码无法提供缺失的外部访问。旅行演示如果没有连接真实世界 API 的工具，就无法获取实时信息。</li><li>评估目标完成度、答案正确性、工具选择、参数以及智能体之间的消息；一个令人信服的最终回答可能掩盖错误的执行路径。</li><li>会自我修改的智能体需要沙箱化的代码执行、受约束的工具和权限、受控的用户访问以及遥测，因为能写入也就意味着能修改和删除。</li><li><a href="https://ai.engineer/talks/OA-Mc60Rboo-beating-rl-reflection-gepa-optimize-anything" target="_blank" rel="noopener">Beating RL With Reflection: GEPA and Optimize Anything</a> —— 探讨执行轨迹和评估器反馈如何指导对提示词和智能体程序的修改，与本演讲在运行时编写和加载能力的机制形成互补。</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Hi, everyone. Um, welcome, welcome. Agents that forge their own tools. What is so great about this? Can't your Cloud code do this, or can't your cursor or your code editors, can't they all write their own tools? So what am I even talking about here? Why is this such a big deal, right? Like, any, all of your co- um, agents can write tools by themselves, but how many agents do you know that can</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">fix code at runtime? Let's say you've got something in production. It's running, everything looks great, but something is failing, then what happens? You have to probably bring it down, fix it by yourself, and then restart it, and then work with your Cloud code or whichever editor you're using, and then bring it back up, right? But imagine if your agent was smart enough to figure out, &quot;Oh man, there is a bug here. Something's not working. I'm falling,&quot; fe- uh, &quot;falling into an error. I need to fix myself.&quot; And</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">it realizes what it can do to fix itself, writes its own tools or writes its own agents and fixes itself. How cool would that be, right? And that's what I'm here to talk to you about today. Let me quickly show you a demo because I think I like leading in with demos so you know what you're getting into. So let's start with that, right? So here I have a... And you can see my screen. I'm hoping it's big enough. I can zoom in. Okay. So I have a simple agent</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">here called agents.py. This agent, we can go over the code in a bit, but this agent has nothing. It's just got, it's just got a, a pretty cool system prompt, and then it's calling the system prompt, and it's got three tools. And if you look at the tools package, there are actually no tools files that are written. So technically, this agent has no capability by itself, right? It shouldn't be able to do anything, right? All it should technically hallucinate because of the LLM that is</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">running under the hood. But let's say I say something like... Okay. So first, I'm gonna start running this so we know it's running. Okay. So in runtime, right now this is running. Now I'm going to say, &quot;Hey, you know what? Um, help me calculate something, uh, some complex math equation.&quot; Right?</span></div><div class="tline" data-t="157"><span class="ts">2:37</span><span class="tx">When I say this, this agent, which technically has nothing available, is going to be calling the three tools that it's got, and we'll look into the tools that it's got in just a bit. And it's going to say, &quot;Oh, you know what? Let me create a math calculator tool because that's what you're asking for.&quot; And it's not just going to create, it's going to let me use this tool that I'm creating right now at runtime without having to rerun it. So okay. So it's clearly gone ahead and created. So let's look at tools again.</span></div><div class="tline" data-t="187"><span class="ts">3:07</span><span class="tx">It's created the mathcalculator.tool, and it's saying, &quot;Okay. I do all these things. I've got min, max, blah, blah, blah.&quot; It's gone and created this entire new tool, so it's saying I can do all these things, right? So let's say calculate, uh, oh, yikes, uh, what's the square of blah, blah, blah. Some number, right? I'm just typing out a random number. So now it- it's calling that math calculator tool that it just wrote by itself, and it's giving me the answer.</span></div><div class="tline" data-t="217"><span class="ts">3:37</span><span class="tx">Not just that, right? So let's say I give it something completely out of blue, and I say, uh, cool whatever, count number of characters in my word. Okay? So then, so then it's like, okay, so it's gonna check if it can use any of the tools that it's currently got access to. It doesn't. So what it's saying is, &quot;Okay, let me write a tool to count the number of characters you want,&quot; because clearly it knows that it does not have the capability to do it.</span></div><div class="tline" data-t="248"><span class="ts">4:08</span><span class="tx">And so it's going ahead, and it's creating... Ah, there we go. Even before I could finish speaking, it created a character counter for us. So let's say, um, do it for this word, and it's not even a word. I'm just gonna put random things. You know what? I should have actually done something that I could count so I can validate it, but the thing is, it's calling a tool. It's calling the cha- character counter tool, and it's telling me that it's got 28 letters. Let's do it something we can test, so I'm just gonna do it for these</span></div><div class="tline" data-t="277"><span class="ts">4:37</span><span class="tx">three letters, right? We'll see if it knows. So I'm not even telling it what to do. I'm just typing three letters. It knows that it has to do it, and it's doing it. How powerful is this? So what I want to leave you with today is show you how you can build something like this, where you can use it, I think it's pretty powerful, and how we can implement it in our work, day-to-day work. Very niche. So now let's get down to the code. This is an idea called meta-tooling, and I'm</span></div><div class="tline" data-t="307"><span class="ts">5:07</span><span class="tx">using an open source framework called Strands Agents. And my name is Sandhya, and I work at AWS, and we at AWS built Strands Agents as an open source a- agentic harness that you can use to run your LLMs with. Right? And so, l- um, how, show of hands, how many developers do we have in the room? A quick show. Oh, most of you. Brilliant. I'm talking to the right audience. If not, I will change things around a little bit. So if</span></div><div class="tline" data-t="338"><span class="ts">5:38</span><span class="tx">you guys like getting to the code, I'm gonna get into the code with me, right? So the main thing we need here for agents, and I have a slide deck that goes with it, is we need just three types of tools, the editor, the shell, and the load tool, along with the system prompt that lets us implement this function. So I'm gonna quickly go to my slide deck that helps us understand this better Like I mentioned, this is Strands Agents. This is our agentic</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">AI harness, and y- you can use your own LLMs, bring your own models. Another cool part, because this is a, a, an harness, is the fact that if, let's say tomorrow there's a new, the state-of-the-art LLM that comes out, you don't have to rewrite all of your system prompts. You don't have to rewrite the structure. You don't have to change your entire architecture. You can keep it as it is, and whichever model you use, you can just replace it. So it also lets you experiment with model performance without really</span></div><div class="tline" data-t="397"><span class="ts">6:37</span><span class="tx">rewriting your entire architecture. So it's super, super powerful. It supports MCP, A0A, all of that cool stuff. It has a bunch of model providers. Um, you can get started. So what do we do? Very simple, right? Five lines of code. Uh, import agent. From there, import shell. Shell is the very first tool that we need, because we need to give it access to the directory. We need to give it access. It needs to know what it's running, where it's running, where your code base is located. So that is just one of the tools that you</span></div><div class="tline" data-t="427"><span class="ts">7:07</span><span class="tx">need. And then if you ask it what can you do, it understands what's going on under the hood. So to techniques- technically start being able to use it on the fly, right? So then let's get into what I actually just built a couple of minutes ago and I showed you. Over here, what am I trying to do? The idea, because this is community-driven, AWS manages it and maintains it for you, people write a lot of pre-built inbuilt tools, but there's also community-written tools. And so</span></div><div class="tline" data-t="457"><span class="ts">7:37</span><span class="tx">all you need is three tools to be able to start implementing meta-tooling. So what do you need? First of all, you need to have a system prompt that tells your agent what a good tool looks like. How does that work? We have to start with the @tool decorator function. That's how it knows it's a tool. Uh, excuse me. That's how it knows it's a tool, and then you tell it what a tool looks like and where it should be stored, right? And so you call the system prompt there. That's all you say,</span></div><div class="tline" data-t="487"><span class="ts">8:07</span><span class="tx">and then you can give it access to different tools. I highlighted load tools from directory equals true, because that is what enables you to, uh, enables the agent to start letting it run the tools that it's generated at runtime dynamically. And we later on decided we should just make this into a func- uh, into a tool by itself, so now that's become the load tool. So now when you go and say, &quot;Hey, create tool, create five new tools for yourself and start</span></div><div class="tline" data-t="517"><span class="ts">8:37</span><span class="tx">using them,&quot; it's going to know what it's going to do. So let's go back to the code that I showed you earlier, right? Same thing. It's got the system prompt, and here I'm saying, &quot;You are the meta-tooling agent that creates your own tools and custom tools at runtime.&quot; So I'm defining the tool template. I'm telling it what a tool looks like. I'm giving it the tool specification of what it's supposed to look like, and then I'm giving it rules for what it's supposed to do and where it's supposed to write into. And I'm also telling it, &quot;Always check if it, if it</span></div><div class="tline" data-t="547"><span class="ts">9:07</span><span class="tx">exists or not. Only if it doesn't exist, then write a new tool.&quot; And I'm telling it, so I'm giving it three tools: editor, which allows it to write; the shell tool, which shows it what it has; and the load tool, which allows it to load from the directory, the tool from the directory dynamically. And this is all you need, and it takes just one line of code, right? System prompt equals system prompt, three different tools, and this is just</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">code so that I can chat with it continuously. And so when I do this, it's actually able to start running. &quot;Create five random tools for yourself.&quot; And so it's going to start creating these five new tools, and the power of this is, like I said, when you're, uh, deploying code into production, you m- you might want to wait for the agent to be smart enough to figure out what's wrong and to be able to answer questions for</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">itself. Let's say you're b- you're building this app that's supposed to book flight tickets domestically. But let's say you have one user who is saying, &quot;No, no, I want a flight ticket from, I don't know, India to Hong Kong.&quot; And your agent gives up because it's not been explicitly programmed to do that or it's not been trained to have access to be able to do that. But do you just want it to fail? Do you want it to run into an error? Do you want to give it back to your deployment, to your engineering team, uh, and have a, uh, turnaround of two weeks and then come back? No, you want to be able to solve it.</span></div><div class="tline" data-t="637"><span class="ts">10:37</span><span class="tx">So this is one of the ways by which you can handle that, right? So again, let's get back to the code, and we have more cool things coming up. Now, I was speaking about tools that can-- this agent that can write it own-- write its own tools. Can it also write its own agents? Yes, it can. And I have another demo for that, but wait until the last few minutes for that, right? So when we talk about agents that write their own, uh, agents also, we want to understand agentic patterns. We have three primary patterns. The first</span></div><div class="tline" data-t="667"><span class="ts">11:07</span><span class="tx">one is swarm, where you have sub-agents that work with each other in parallel. So they work on a task in a combined fashion, and they take different parts of the task themselves. Then you have a graph where the result of one sub-agent gets fed into the other sub-agent, and then there's the handoff. And then you could also have workflows that have a combination of all of these, right? So with the workflow, you could have a parallel set of sub-agents calling each other, and then there could be nodes and graphs and</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">all of that cool stuff. And so this, and so they, all of this can be created by just the agent itself. We don't need to. We can do it our ownselves, but we don't necessarily need to. So, um, let's quickly go check how that looks. Um, so this is the exact same thing. This is for my meta-agents. I'm doing the exact same thing. I've given it three tools. Over here I'm actually, if you look at my agents file, it's pretty empty. And I'm saying</span></div><div class="tline" data-t="727"><span class="ts">12:07</span><span class="tx">agent is the tool file template. So I'm saying just break it into two to four sub-agents. I'm keeping it simple. No swarm, nothing fancy here. A simple demo. And use it, and this is the tool spec for what an agent should look like. And I'm happy to share the code with you after this, right? And these are the rules that it follows. Same thing, right? One line is all it takes. System prompt, equal system prompt, three tools, and then same. So I'm gonna start running this now. Python3 agent.py.</span></div><div class="tline" data-t="757"><span class="ts">12:37</span><span class="tx">And so I'm flying to Hawaii or whichever place, to some, uh, to Hawaii. Let's just say Hawaii. Help me plan my itinerary. Okay. So this is all I'm telling it. I'm not even telling it, &quot;Hey, go make your own agent,&quot; or, &quot;Go create your own tool.&quot; This is all I'm telling it. This is how your customers would chat with it, right? They just tell them what their problem is, and they expect you to figure it out, right? So</span></div><div class="tline" data-t="787"><span class="ts">13:07</span><span class="tx">this agent is gonna be like, &quot;Oh, great. Um, here I'm going to be printing out... I'm gonna be creating these into three focused sub-agents, the flight agent, the activities agent, the itinerary agent,&quot; and it's calling the editor tool three times, one for each of these. So I see that it's already created the activities. Yeah, it's creating... It's pretty fast. It's creating the activities agent. It's created, like, a flight agent that's doing something. It's created an itinerary agent. The w- let me call out the one thing this</span></div><div class="tline" data-t="817"><span class="ts">13:37</span><span class="tx">can't currently do right now is access real-time information because I haven't given it a tool that has access to real-world API, right? So assuming you add that on, you can ask it, &quot;What's the weather like?&quot; And it'll be like, &quot;You know what? Let me write a tool that can always grab the latest weather in whichever location and recommend stuff.&quot; So based off of that, it created those agents, and if you look at it somewhere here, it should technically be calling those agents. There we go. See, it's calling the activities agents, and then it's</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">saying, &quot;These are the ma- main airports. These are the best beaches. These are what it is, and this is what you have to do.&quot; And so how amazing is, is it that you can now have your agent... So y- now your focus is not just building a good agentic system that can get the job done. You would also maybe want to start thinking about healing, writing self-healing code, about creating an agent that can sort of go over itself, look at what bugs are there, and fix itself. Had this been a longer session,</span></div><div class="tline" data-t="877"><span class="ts">14:37</span><span class="tx">I usually do longer sessions, I usually ask the audience to ask it to do crazy stuff, and I try breaking it, and what happens is this actually ends up breaking. You would see a bunch of errors coming up, and this thing is just talking, chatting away. So I need to probably set the max token somewhere here. But, um, and so it actually ends up erroring and breaking, but it r- recognizes that it's erroring, and it says, &quot;Oh, man, I'm erroring. Let me fix myself.&quot; And it would go and fix the same, uh, fix this exact same, uh, tool or agent that it's</span></div><div class="tline" data-t="907"><span class="ts">15:07</span><span class="tx">got here. So now if I'm like, &quot;I don't want Hawaii. Why do you make it for Hawaii? Do it for something else,&quot; it's gonna be like, &quot;Sure, let me do it. Let me update the agent.&quot; So it's super, super powerful, but then again, we have to keep in mind that this is just autonomously doing things by itself. With great power also comes great responsibility, even greater responsibility. So what do we need to do with it, right? We need, A, evals. What are some inbuilt evals that Strands Agents has? We w- we have totally eight different evals. The</span></div><div class="tline" data-t="937"><span class="ts">15:37</span><span class="tx">first one is at an overall session level. We want to figure out if I told it, &quot;Hey, book my flight tickets,&quot; is it actually booking? Did it achieve the end goal? That is part one of it, right? End goal achievement. Second thing we wanna look at it is at a trace level. Um, was it actually helpful? If I say, &quot;What is my balance?&quot; It then says, &quot;My balance is 500 bucks.&quot; Is that the expected type of answer? Part one. Part two, did it make up the answer? Is that the actual answer that you're supposed to get? You need to be able to evaluate that. But it doesn't</span></div><div class="tline" data-t="967"><span class="ts">16:07</span><span class="tx">just end there. What about tool access, right? What about did it use the right tool to get to that answer, or did it use a wrong tool? And within that specific tool, did it use the right parameter? Is the account ID actually 123, or is it supposed to be... Is it messing up? We want insight into what is going on so that we can trust it and reliably give it access. Again, not just, it doesn't just end there. We also want to understand inter-agent dependency. When we're building</span></div><div class="tline" data-t="996"><span class="ts">16:36</span><span class="tx">multi-agentic systems, we wanna look at the f- overall outcome and the overall response, if it's the way you wanted it to be. You want to make sure that it's calling the different tools and the different sub-agents in the right sequence, and you also want to take a deeper dive into what the messages, the inter-agent communication looks like and if that's up to the mark. All of this together gives us the full end-to-end agent conversation within our session. This gives us the insight. Again,</span></div><div class="tline" data-t="1026"><span class="ts">17:06</span><span class="tx">this also isn't good enough, right? We want to make sure it doesn't cause undue damage. If this meta-tooling or this meta-agent can spin off tools and agents, it can also modify and delete. Do I want it to delete my data? Do I want it to delete stuff that I have put all of my effort into building? No. So what do I do? I have to have guardrails in place. Four different types of guardrails. The first one is your environment. We need to make sure that we're sandboxing the environment. And when I say</span></div><div class="tline" data-t="1056"><span class="ts">17:36</span><span class="tx">sandboxing the environment, it's not your typical sandbox where your agent is in one container, and you're protecting it from the rest of the world. We want the environment in which this code is executing to be sandboxed. And Strands recently launched a feature about, I think, a few weeks ago where we can sandbox the, uh, code execution environment, and that is what guarantees that it doesn't touch the rest of your code execution environments, and</span></div><div class="tline" data-t="1086"><span class="ts">18:06</span><span class="tx">it doesn't mess up everything else, and it doesn't write into wrong places and delete from the wrong places, right? Next, we have to constrain the tools. We have to constrain permissions. We have to constrain the gu- who's got access and who can ask it questions and what types of questions we need to ask, and observability. All of your evals, your OTEL, your telemetry, all of that data needs to be there in order to be able to say that, &quot;Hey,&quot; reliably and say, &quot;Hey, I think I can go</span></div><div class="tline" data-t="1116"><span class="ts">18:36</span><span class="tx">ahead and build-&quot;An agentic system that can think for itself, that it can do more than what it's just been set out to do because it can fix things when things are broken on the fly, on the run, and it can solve more capabilities than it has been initially taught to. This is the starting of self-improving, uh, agents and the self-evolving agents. At some point, I'm convinced they will take over the world,</span></div><div class="tline" data-t="1146"><span class="ts">19:06</span><span class="tx">and I'm, I'm going to be at risk, but until then, I think this is incredible. And if anything, if I want to leave you with anything, I would want you to-- I would want to leave you with a quick idea of where Strands is, where Strands started with, and where we are right now. We started with building their own tools. We, we moved to getting them to update-- uh, to create agents by themselves. Now it's at a point where they can update their own source code. Fun fact, we created Strands agents three years ago</span></div><div class="tline" data-t="1176"><span class="ts">19:36</span><span class="tx">internally. It was really this internal thing before agents was even a thing, and it was so powerful that we said, &quot;You know what? Let's just open source it and give it back to the community.&quot; And we wrote the Python version of Strands, and the Python version of Strands wrote by itself the TypeScript version of Strands. So it did update its own source code. It's pretty powerful. I'm pretty psyched. And if, if-- this is my call to action. If, uh, this sounds interesting to you, reach out to me,</span></div><div class="tline" data-t="1206"><span class="ts">20:06</span><span class="tx">scan these, and we can have a conversation later. I'm happy to share my s- uh, slide deck and my code with you, um, and we can chat offline. Um, thank you very much. This is my LinkedIn. Uh, we have thirty seconds to go, I think.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

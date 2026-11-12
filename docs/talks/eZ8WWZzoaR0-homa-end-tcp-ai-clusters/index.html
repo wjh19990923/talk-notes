@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Homa：AI 集群中 TCP 的终结 —— John Ousterhout，斯坦福大学 | AI 工程师中文版</title>
+<meta name="description" content="John Ousterhout 解释了一条延迟的协调消息如何让一组 GPU 闲置，为什么 TCP 和 RoCE 难以应对混合流量，以及 Homa 如何结合可见的消息边界、由接收方发放的授权和交换机优先级来降低尾延迟。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>Homa：AI 集群中 TCP 的终结 —— John Ousterhout，斯坦福大学</h1>
+    <div class="orig-title">Homa: The End of TCP for AI Clusters — John Ousterhout, Stanford</div>
+    <div class="meta"><span class="speaker">John Ousterhout</span> · 18:48</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a><a class="tag" href="../../index.html#topic=gpu-programming-and-kernel-optimization">GPU 编程与内核优化</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/eZ8WWZzoaR0-homa-end-tcp-ai-clusters" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="eZ8WWZzoaR0"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=eZ8WWZzoaR0" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">当吞吐量取决于延迟</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="37"><span class="ts">0:37</span><span>当吞吐量取决于延迟</span></li><li data-t="363"><span class="ts">6:03</span><span>incast 如何困住一条短消息</span></li><li data-t="423"><span class="ts">7:03</span><span>发送方很晚才得知拥塞</span></li><li data-t="604"><span class="ts">10:04</span><span>字节流掩盖了真正重要的工作</span></li><li data-t="695"><span class="ts">11:35</span><span>可见的消息长度构成一个调度单位</span></li><li data-t="809"><span class="ts">13:29</span><span>接收方授予发送许可</span></li><li data-t="897"><span class="ts">14:57</span><span>优先级队列让短消息先通过</span></li><li data-t="957"><span class="ts">15:57</span><span>这个基准证明了什么——又没有证明什么</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 5 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Overview" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Overview</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>As AI workloads add small request-response exchanges, latency matters alongside throughput. Ousterhout contrasts TCP and RDMA’s 1–10 ms tail latency with Homa’s ~100 µs and its message-oriented API.
+
+[1:01](https://www.youtube.com/watch?v=eZ8WWZzoaR0&amp;t=61s) [Overview of changing AI network workloads, high tail latency in TCP and RDMA, and Homa's proposed improvements.](https://assets.ai.engineer/sites/aiecode2025/sha256/60ce520cfc52b303b2171a645cfad3a8489c30b63fb563d535136b9dc4f88d63.webp)
+
+Overview
+
+AI workloads depend on high network performance
+
+• AI workloads are evolving (especially with agents):
+  ▪ Historically dominated by very large transfers
+    • Key metric is throughput
+  ▪ Small request-response exchanges becoming more common
+    • Latency is crucial
+• TCP and RDMA have high tail latency (1-10 ms)
+  ▪ Poor congestion control
+  ▪ Streaming API
+• Homa: new transport protocol with tail latency ~100 µs
+  ▪ Better congestion control
+  ▪ Message-oriented API
+
+July 2, 2026
+TCP and RDMA are Killing Inference Throughput; Homa can Fix It
+Slide 2</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="AI Workloads Are Evolving" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Workloads Are Evolving</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Large AI transfers, such as weight gradients and checkpoints, can amortize setup overhead. Network throughput becomes the limiting metric, and TCP and RDMA (RoCE) perform well.
+
+[2:16](https://www.youtube.com/watch?v=eZ8WWZzoaR0&amp;t=136s) [Examples of large AI data transfers and why throughput limits their performance.](https://assets.ai.engineer/sites/aiecode2025/sha256/a4d5b26f26c8cc1b5bbb4c40dd7f3bf9020ea65010cabe2f8ac23e9ec4b86478.webp)
+
+AI Workloads Are Evolving
+
+• Traditionally dominated by large transfers (Gbytes):
+  ▪ Weight gradients
+  ▪ Model weights
+  ▪ KV cache entries
+  ▪ Checkpoints
+
+• Performance limited by network throughput (Gbits/sec)
+  ▪ Large transfers “easy” for networks to handle
+  ▪ E.g., can amortize startup/coordination overheads
+  ▪ TCP and RDMA (RoCE) perform well
+
+July 2, 2026
+TCP and RDMA are Killing Inference Throughput; Homa can Fix It
+Slide 3</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Incast Congestion" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Incast Congestion</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Multiple senders converge on one switch egress queue, where a short message can get stuck behind long ones. Senders must throttle their output to limit congestion.
+
+[7:02](https://www.youtube.com/watch?v=eZ8WWZzoaR0&amp;t=422s) [Multiple senders converge on a switch queue, delaying a short message; senders must throttle output to limit congestion.](https://assets.ai.engineer/sites/aiecode2025/sha256/5e738d98b097e78a90c2ac247c16c83b094807d71203935b445c423d400c5f24.webp)
+
+Incast Congestion
+
+Short Message
+Long Messages
+Sending Nodes
+Datacenter Network
+Top-of-Rack Switch
+Egress Port
+Receiving Node
+Short message delayed
+Packets accumulate in queue
+
+Sending nodes must throttle output to limit congestion
+
+July 2, 2026
+TCP and RDMA are Killing Inference Throughput; Homa can Fix It
+Slide 5</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Sender-Driven Congestion Control" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Sender-Driven Congestion Control</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>When a switch queue reaches a threshold, it marks packets with ECN. The receiver passes the signal back to the sender, which slows transmission.
+
+[7:16](https://www.youtube.com/watch?v=eZ8WWZzoaR0&amp;t=436s) [Senders detect congestion and slow transmission using notifications from switches; a diagram illustrates ECN feedback.](https://assets.ai.engineer/sites/aiecode2025/sha256/e7d01f996395de170ac95d128f8afe52db70610b1bee49267793055f1a5bd90f.webp)
+
+Sender-Driven Congestion Control
+
+• In TCP and RDMA (RoCE), senders must detect congestion and self-limit
+• Originally: queues overflow, packets dropped (expensive, slow)
+• Now: switches send notifications when queues reach threshold length
+• Senders use notifications to slow transmission
+
+Top-of-Rack Switch
+Egress Port
+Early Congestion Notification (ECN)
+Sending Node
+Receiving Node
+
+July 2, 2026
+TCP and RDMA are Killing Inference Throughput; Homa can Fix It
+Slide 6</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Problems with Sender-Driven CC" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Problems with Sender-Driven CC</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Senders adjust independently using one congestion bit. Delayed feedback can take several round trips to converge, while congestion signals require queues to form.
+
+[8:40](https://www.youtube.com/watch?v=eZ8WWZzoaR0&amp;t=520s) [Sender-driven congestion control faces rate-setting and stability challenges and queue buildup.](https://assets.ai.engineer/sites/aiecode2025/sha256/8b4a6f3dc2a847e43da1b0f09b36493a740e073d7da9198d63643626a193df61.webp)
+
+Problems with Sender-Driven CC
+
+• Hard to set rates accurately:
+  ▪ Only one bit of information about congestion!
+  ▪ Multiple senders to same destination all making adjustments independently
+  ▪ How much to cut back?
+  ▪ When to ramp up again?
+• Stability is challenging:
+  ▪ Control lag: time delay for ECN bits to get back to senders
+  ▪ Several round-trips needed to converge
+  ▪ By the time adjustments are made, things may have changed!
+• Significant queue buildup inevitable
+  ▪ No congestion signal without queuing
+
+July 2, 2026
+TCP and RDMA are Killing Inference Throughput; Homa can Fix It
+Slide 7</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">当吞吐量取决于延迟</a></li><li><a href="#sec-2">incast 如何困住一条短消息</a></li><li><a href="#sec-3">发送方很晚才得知拥塞</a></li><li><a href="#sec-4">字节流掩盖了真正重要的工作</a></li><li><a href="#sec-5">可见的消息长度构成一个调度单位</a></li><li><a href="#sec-6">接收方授予发送许可</a></li><li><a href="#sec-7">优先级队列让短消息先通过</a></li><li><a href="#sec-8">这个基准证明了什么——又没有证明什么</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">Homa：AI 集群中 TCP 的终结</h2>
+      <div class="lede"><p>John Ousterhout 解释了一条延迟的协调消息如何让一组 GPU 闲置，为什么 TCP 和 RoCE 难以应对混合流量，以及 Homa 如何结合可见的消息边界、由接收方发放的授权和交换机优先级来降低尾延迟。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="37">▶ 0:37</button></div>
+      <h3>当吞吐量取决于延迟</h3>
+      <p>Moving gigabytes of gradients between machines gives a network a relatively forgiving job: sustain high throughput over a long transfer. Connection setup and ramp-up time contribute little to the total. John Ousterhout begins by acknowledging that TCP and RDMA perform reasonably well for these workloads; in this talk, his references to RDMA concern RoCE, or RDMA over Converged Ethernet.</p>
+<p>Ousterhout sees a different traffic mix emerging in inference and agentic applications. Smaller pieces of computation alternate with smaller exchanges of metadata and coordination data. He gives two examples: checking whether an item is present in a distributed KV cache and synchronizing workers at a barrier. Training remains an important exception in his account because it is still dominated by massive transfers. The claim is a growing mixture of message sizes, not the disappearance of bulk traffic.</p>
+<p>A short exchange calls for a different metric. The relevant latency includes sending a small request, doing a little remote computation, and returning a small response. Average latency can still hide the message that determines progress, so Ousterhout focuses on P99 latency: the time within which 99% of messages complete.</p>
+<p>Consider several nodes that compute on their GPUs, exchange metadata, and then start another compute phase. The GPUs sit idle during synchronization, and the group cannot continue until every required exchange finishes. A few milliseconds of waiting barely matter after five seconds of computation. When the compute phase itself approaches the millisecond scale, millisecond-scale synchronization consumes a meaningful fraction of the cycle. One slow message can reduce application throughput even while the network continues moving bulk data quickly.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/2b71d616a696c1107f593713382556fe0b5cb86ca0807ce2584e8d9ae694be98" alt="Shows the compute-and-synchronize example in which GPUs remain idle until every exchange completes." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Shows the compute-and-synchronize example in which GPUs remain idle until every exchange completes.</figcaption></figure>
+<p>An informal audience poll produces more raised hands than Ousterhout expected from people who suspected small-message latency was already limiting their applications. The poll does not establish prevalence, but it sharpens the diagnostic question for the rest of the talk: how does a nominally tiny exchange become a tail-latency outlier?</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="363">▶ 6:03</button></div>
+      <h3>incast 如何困住一条短消息</h3>
+      <p>Ousterhout’s answer begins with <strong>incast</strong>: several machines send to one destination simultaneously. If three incoming links each transmit at the rate of the destination’s single downlink, packets can arrive three times faster than that destination can receive them. The excess accumulates at the top-of-rack switch’s egress queue for the destination.</p>
+<p>A short message sent to the same destination joins the queue behind packets from the large transfers. Its own transmission time may be tiny, but that no longer matters when waiting time is dominated by the backlog. If the switch exhausts its buffer space, it drops packets; timeouts and retransmissions then extend the delay. The problem is traffic already waiting at the final hop, not the amount of data in the short message.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f8be13cd0856eaabf1011ba6a614ac4b322d65c83f8cf9f09a969ea566dd1930" alt="Shows the key failure mode in which a short message is trapped behind long transfers in the top-of-rack egress queue." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Shows the key failure mode in which a short message is trapped behind long transfers in the top-of-rack egress queue.</figcaption></figure>
+<p>Incast concentrates traffic at one constrained downlink
+Several senders can feed a destination faster than its final link can drain, trapping a short message behind bulk traffic.
+- Concurrent bulk senders — Several nodes transmit large messages to the same destination.
+- Short-message sender — Another node sends a latency-sensitive message to that destination.
+- Top-of-rack egress queue — Packets accumulate because aggregate arrivals exceed the destination downlink rate.
+- Destination node — Its single downlink drains the shared queue.
+- Buffer overflow — Drops can trigger timeouts and retransmissions.
+- Concurrent bulk senders → Top-of-rack egress queue (simultaneous large transfers)
+- Short-message sender → Top-of-rack egress queue (joins behind queued packets)
+- Top-of-rack egress queue → Destination node (drains over one downlink)
+- Top-of-rack egress queue → Buffer overflow (can exceed buffer capacity)</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="423">▶ 7:03</button></div>
+      <h3>发送方很晚才得知拥塞</h3>
+      <p>Preventing the queue from growing requires the senders to slow down. TCP and the RDMA transport discussed here put that responsibility at the senders, even though the troublesome queue may be at the other end of the data-center network. Older schemes inferred congestion only after overflow caused packet loss: missing acknowledgments told the sender to reduce its rate.</p>
+<p>Switch feedback can warn the sender before packets are lost. With <strong>Explicit Congestion Notification (ECN)</strong>, a switch marks packets after an egress queue crosses a threshold. The receiver sees the marks and returns that information to the sender, for example in an acknowledgment. ECN avoids using overflow as the first warning, but the signal still appears only after a queue has begun to form and must travel through the receiver before the sender can act.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ba8971aea7f30e41eded4647ce9b742fe42e834efbeda9449abc5f5bff68f17f" alt="Supports the discussion of control lag, multi-round-trip convergence, and unstable sender rate adjustment." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Supports the discussion of control lag, multi-round-trip convergence, and unstable sender rate adjustment.</figcaption></figure>
+<p>Two difficulties make the resulting control loop unstable:</p>
+<p>- <strong>Incomplete rate information.</strong> A sender learns that congestion exists somewhere, but not precisely how far to slow down or when to accelerate again. Multiple senders adjust at the same time even though their combined rates determine the queue.
+- <strong>Control lag.</strong> Ousterhout says reaching a suitable rate typically takes several round trips. During that time, old transfers finish and new ones begin, changing the available capacity.</p>
+<p>The senders can therefore oscillate between transmitting too much and too little instead of settling. Ousterhout acknowledges improvements from more than twenty years of research, but argues that sender-side control remains poorly placed for rapidly changing data-center traffic. In the feedback scheme he describes, queue buildup supplies the evidence needed to react. By the time that evidence returns, the queue has already introduced delay.</p>
+<p>The delayed sender-control loop
+Congestion becomes visible at the receiver’s switch, but control returns to remote senders only after queueing has begun.
+- Senders transmit — Multiple senders independently choose transmission rates.
+- Queue grows — Aggregate traffic exceeds the destination’s available downlink capacity.
+- Switch marks packets — ECN indicates that the egress queue crossed a threshold.
+- Receiver returns feedback — The congestion indication travels back with an acknowledgment or other response.
+- Senders adjust rates — Several senders cut or later raise rates with limited information.
+- Senders transmit → Queue grows (aggregate arrivals exceed capacity)
+- Queue grows → Switch marks packets (crosses ECN threshold)
+- Switch marks packets → Receiver returns feedback (marked packets reach receiver)
+- Receiver returns feedback → Senders adjust rates (signal reaches sender)
+- Senders adjust rates → Senders transmit (traffic has changed meanwhile)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="604">▶ 10:04</button></div>
+      <h3>字节流掩盖了真正重要的工作</h3>
+      <p>Congestion control is only one mismatch. TCP and the RDMA transport in Ousterhout’s comparison expose a byte stream without transport-visible message boundaries. An application may write distinct messages, but TCP serializes their bytes. If two large messages precede a small one, the small message cannot pass them. This <strong>head-of-line blocking</strong> is separate from waiting behind packets in a switch queue, but it produces the same outcome: a short operation inherits the delay of long work before it.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/4b51e611eb141ccad97c94020b24b03128a72b5dda391bd910ede60144d4d6ed" alt="Illustrates head-of-line blocking, with a small message unable to pass earlier large messages in a stream." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Illustrates head-of-line blocking, with a small message unable to pass earlier large messages in a stream.</figcaption></figure>
+<p>Without message boundaries, the transport also lacks the information needed to tell how much work remains in each application message. It cannot prefer a nearly complete short message on that basis. <strong>Homa</strong> begins its clean-slate data-center design by changing this data model rather than adding another feedback algorithm to the byte stream.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="695">▶ 11:35</button></div>
+      <h3>可见的消息长度构成一个调度单位</h3>
+      <p>Homa’s fundamental unit is a remote procedure call: a request message travels from client to server, followed by a response message from server to client. Message lengths remain visible throughout the transport. As soon as the receiver gets the first packet, it knows how much more data the sender wants to transmit. An incoming message becomes a known amount of pending work rather than an undifferentiated continuation of a stream.</p>
+<p>That knowledge supports two related choices:</p>
+<p>- <strong>Shortest Remaining Processing Time (SRPT).</strong> Homa favors messages with less work left to complete.
+- <strong>Independent progress.</strong> Messages are not serialized into one stream, so a short message can pass a long one instead of waiting for every earlier byte.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/8ff8ee33ca6a8dc7c1ccc57247533e98793b1c47e78341f06bde9b35127e4dd7" alt="Supports SRPT scheduling and the claim that independent short messages can bypass long ones." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Supports SRPT scheduling and the claim that independent short messages can bypass long ones.</figcaption></figure>
+<p>The project began as Behnam Montazeri’s PhD dissertation. Ousterhout says the results convinced him to make production adoption his own programming project. He created a Linux kernel module, made it available on GitHub, and was working through the upstreaming process at the time of the talk.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="809">▶ 13:29</button></div>
+      <h3>接收方授予发送许可</h3>
+      <p>Homa moves congestion control to the receiver, close to the final downlink where Ousterhout says congestion primarily occurs. The receiver sees the messages competing for that link and learns their remaining lengths from their initial packets. It can coordinate their progress directly instead of waiting for each remote sender to infer congestion from delayed feedback.</p>
+<p>The packet flow has two stages. A sender breaks a message into packets and transmits only the first few immediately; Homa calls these <strong>unscheduled packets</strong>. The remaining <strong>scheduled packets</strong> wait until the receiver asks for them. The receiver sends paced grant packets back over time, with each grant authorizing another chunk.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/913ceff5815291306cc766456ea287fda3124b7b770f4928a43831af970b3f48" alt="Illustrates unscheduled initial packets, scheduled later packets, and receiver-issued grants." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Illustrates unscheduled initial packets, scheduled later packets, and receiver-issued grants.</figcaption></figure>
+<p>Suppose ten messages are arriving at one receiver. Granting all ten at once would recreate congestion in the top-of-rack queue. The receiver can instead delay some grants and favor shorter messages when deciding which grants to issue. Grant timing therefore serves two purposes: it limits simultaneous incoming traffic and implements SRPT. The initial unscheduled packets remain a qualification—the receiver controls the subsequent scheduled traffic, not every packet from the outset.</p>
+<p>Initial packets reveal the work; grants pace the rest
+The sender transmits a small initial portion immediately. The receiver then chooses when to authorize later chunks and which message should progress first.
+- Sender has a message — The sender divides an independent, length-known message into packets.
+- Unscheduled packets — The first few packets leave without waiting for permission.
+- Receiver scheduler — The receiver learns the remaining length and compares incoming messages.
+- Paced grant — The receiver authorizes a later chunk and may delay other messages.
+- Scheduled packets — The sender transmits additional data only after receiving a grant.
+- Sender has a message → Unscheduled packets (send first few packets)
+- Unscheduled packets → Receiver scheduler (reveal message and remaining length)
+- Receiver scheduler → Paced grant (choose message and timing)
+- Paced grant → Scheduled packets (authorize next chunk)
+- Scheduled packets → Receiver scheduler (deliver authorized data)</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="897">▶ 14:57</button></div>
+      <h3>优先级队列让短消息先通过</h3>
+      <p>Receiver grants regulate future transmissions, but a short message also needs a way around long-message packets already waiting in a switch. Homa uses the multiple hardware queues available at each egress port—typically eight in Ousterhout’s description. Packet fields select a queue, and the switch serves higher-priority queues preferentially.</p>
+<p>Homa assigns those priorities dynamically to favor shorter messages. In the incast example, long-message packets accumulate in the lowest-priority queue. A short message enters a higher-priority queue and bypasses that backlog on its way to the same receiver. The three mechanisms now fit together: message boundaries reveal how much work remains, receiver grants regulate how much traffic proceeds, and switch queues enforce the chosen order at the congested hop.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/63cb7550f9c40c43e70fd450fbc74e7c20bcd0ea9f74cfec289323eaacad3149" alt="Illustrates short-message packets using higher priority to bypass bulk packets queued at lower priority." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Illustrates short-message packets using higher priority to bypass bulk packets queued at lower priority.</figcaption></figure>
+<p>Two priorities share one receiver downlink
+The simplified two-queue example shows a short message bypassing queued bulk traffic while both queues feed the same destination.
+- Long-message packets — Concurrent large transfers create a backlog toward one receiver.
+- Lower-priority queue — Holds packets from the long-message backlog.
+- Short-message packets — Homa assigns these packets a higher priority.
+- Higher-priority queue — Receives preferential service at the egress port.
+- Destination receiver — Both queues drain through the shared final downlink.
+- Long-message packets → Lower-priority queue (queue bulk packets)
+- Short-message packets → Higher-priority queue (select higher priority)
+- Higher-priority queue → Destination receiver (served before lower priority)
+- Lower-priority queue → Destination receiver (drains afterward on shared link)</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="957">▶ 15:57</button></div>
+      <h3>这个基准证明了什么——又没有证明什么</h3>
+      <p>Ousterhout closes with one benchmark used to tune and evaluate Homa. Multiple machines exchange request and response messages of equal length, ranging from about 50 bytes to one megabyte. The graph plots round-trip time against message length and includes P50 and P99 curves for TCP and Homa. P50 is the median; P99 describes the slower tail. Lower is better.</p>
+<p>Two results stand out:</p>
+<p>- <strong>Short-message tail latency.</strong> TCP’s P99 exceeds one millisecond, while Homa’s remains below 100 microseconds. Ousterhout reports an improvement of about 13×.
+- <strong>Longest-message latency.</strong> Homa is almost a factor of two better than TCP at the largest message sizes shown. Favoring short messages did not create the expected long-message penalty in this experiment.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/fa167f01bbd85eba9624ade01c6ee88f59f4a916fc2e0dba57ed3163b7ae4ec8" alt="Supports the reported results: roughly 13× lower short-message P99 and nearly 2× improvement for the longest messages." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Supports the reported results: roughly 13× lower short-message P99 and nearly 2× improvement for the longest messages.</figcaption></figure>
+<p>Ousterhout attributes the long-message result to Homa’s run-to-completion approach, which he contrasts with TCP’s fair scheduling, but he does not develop that mechanism further in this talk. The result therefore supports a narrow conclusion: this workload improved at both ends of the message-size range. It does not establish the tradeoff for every traffic mix, and the displayed figures compare Homa with TCP rather than quantifying an advantage over RoCE.</p>
+<p>The benchmark also does not demonstrate a 13× end-to-end AI application speedup. Application throughput improves only to the extent that short-message waiting occupies its critical path. If communication is already a small part of a five-second compute phase, faster transport changes little. If synchronization consumes much of a millisecond-scale cycle, the same transport improvement can free meaningful GPU time.</p>
+<p>Ousterhout’s closing recommendation is diagnostic before architectural: measure whether short-message tail latency is limiting application throughput. He expects these messages to become more important, while explicitly leaving that forecast to be tested over the following year or two. For teams that find the bottleneck, he recommends experimenting with Homa and offers help with setup, questions, and bug fixes. The implementation still has a material qualification for the talk’s central scenario: the <a href="https://github.com/PlatformLab/HomaModule" target="_blank" rel="noopener">kernel-module repository</a> says the SIGCOMM paper’s incast optimization is not implemented and asks teams planning large-incast tests to contact the maintainer. Ousterhout says he moved into semi-retirement so he could spend all of his time working on the protocol.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>A barrier makes the slowest required exchange determine when GPU computation resumes. Short-message P99 latency matters most when compute phases themselves approach the millisecond scale.</li><li>Incast builds a queue at the receiver’s last hop, where a short message can become trapped behind packets from simultaneous bulk transfers.</li><li>Sender-driven congestion control reacts after congestion creates a signal, while byte streams hide the message boundaries needed to prioritize short work.</li><li>Homa combines independent RPC messages, SRPT scheduling, receiver-issued grants, and switch priority queues so short messages can bypass long work without every sender transmitting freely.</li><li>The presented benchmark reports about 13× lower short-message P99 latency and almost 2× better latency for the longest messages versus TCP. Equivalent AI application gains and comparisons with RoCE require separate measurements.</li></ul></section>
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/PlatformLab/HomaModule" target="_blank" rel="noopener">Homa Linux kernel module</a> — The implementation Ousterhout invites developers to try, with installation guidance, protocol documentation, API details, and benchmarking utilities. Its API differs from TCP sockets. The README also says the SIGCOMM paper’s incast optimization is not implemented and asks users planning large-incast tests to contact the maintainer, an important constraint when evaluating the talk’s central congestion scenario.</li><li><a href="https://arxiv.org/abs/1803.09615" target="_blank" rel="noopener">Homa: A Receiver-Driven Low-Latency Transport Protocol Using Network Priorities</a> — The complete 2018 paper by Behnam Montazeri, Yilong Li, Mohammad Alizadeh, and John Ousterhout develops Homa’s receiver-driven flow control, network priorities, and evaluation in substantially more detail.</li><li><a href="https://web.stanford.edu/~ouster/cgi-bin/home.php" target="_blank" rel="noopener">John Ousterhout’s Stanford home page</a> — Ousterhout’s research page collects Homa publications, project information, and contact details for following up on his invitation to potential adopters.</li><li><a href="https://x.com/johnousterhout" target="_blank" rel="noopener">John Ousterhout on X</a> — Ousterhout’s public social profile, supplied with the recording metadata.</li><li><strong>Related talks</strong></li><li><a href="https://ai.engineer/talks/3j1dHivahFQ-build-your-own-ai-data-center" target="_blank" rel="noopener">How to Build Your Own AI Data Center in 2025</a> — Adds infrastructure context on AI data-center fabrics and RoCEv2 congestion management using PFC and ECN.</li><li><a href="https://ai.engineer/talks/pOvWgX7IJsc-llms-write-fast-multi-gpu-kernels-simran" target="_blank" rel="noopener">Can LLMs Write Fast Multi-GPU Kernels? — Simran Arora, Together AI</a> — Examines the same communication bottleneck from the kernel side, including multi-GPU ordering, partitioning, scheduling, and transfer mechanisms.</li><li><a href="https://ai.engineer/talks/tQTB4MU_z8w-accelerating-mixture-experts-training-rail" target="_blank" rel="noopener">Accelerating Mixture of Experts Training With Rail-Optimized InfiniBand Networking in Crusoe Cloud</a> — Provides a complementary view of high-bandwidth, low-latency cluster topology for distributed AI training.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Please welcome to the stage the Professor Emeritus at Stanford University, John Ousterhout.</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">Good morning. It's really great to be here to talk about the network side of AI applications, and in particular, to make the case that latency matters, and it's probably gonna be mattering more in the future. But I just wanna say this is a talk that's unusual for me. I've never before given a talk where there are fog generators in the auditorium.  Just a really San Francisco experience, I guess.</span></div><div class="tline" data-t="61"><span class="ts">1:01</span><span class="tx">So it's, it's well known that AI workloads depend on really great networking performance in order to achieve their own performance. And of course, that's because the workloads are so large that they have to be distributed across machines, and then you have to communicate between the machines. But what I wanna talk about today is that it seems that those workloads are changing. And so I hope to do three things over the next fifteen or twenty minutes. First, to convince you that in fact the workloads are changing, and that whereas the workloads used to be completely dominated by large transfers, where</span></div><div class="tline" data-t="91"><span class="ts">1:31</span><span class="tx">throughput is the key metric that matters, that we're seeing more and more smaller transfers where the latency is crucial. The second thing I hope to do is to convince you that legacy protocols like TCP and RDMA are poorly suited to this environment. They weren't designed for this environment, and unfortunately, they suffer from very high tail latency when you mix small messages with large ones. And I'll talk a little bit about why that's the case. Then third, I'd like to introduce Homa, which is a new</span></div><div class="tline" data-t="121"><span class="ts">2:01</span><span class="tx">protocol we've developed at Stanford that actually was designed in a clean slate redesign to handle data center workloads like these. And in fact, it does quite well on those workloads and can reduce tail latency by an order of magnitude or more. So I'll tell you a little bit about Homa. So let's dive in. First, workloads. Historically, AI workloads have consisted of enormous transfers between machines, and that's all that really mattered. Gigabytes of data for things like weight gradients and, and so on.</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">In these workloads, what you really care about is throughput, how many gigabits per second you can pump through the pipes. And these are relatively easy workloads for networks because if it takes a while to set up the connection and start the transfer, it doesn't matter. The transfers go on for so long that all that really matters is the throughput. And so in these environments, TCP and RDMA perform pretty well. Uh, by the way, when I say RDMA, what I really mean is RoCE, RDMA over converged Ethernet,</span></div><div class="tline" data-t="183"><span class="ts">3:03</span><span class="tx">which is the underlying transport that's used by RDMA for most purposes today. So anyhow, the old workloads, big transfers, throughput matters, uh, the legacy protocols work pretty well. However, it appears that the workloads are changing. They're becoming more granular with smaller chunks of computation and smaller exchanges of data, and this seems to be particularly true in the world of inference and also in agentic workloads. Not so much for... Training workloads are still massive</span></div><div class="tline" data-t="213"><span class="ts">3:33</span><span class="tx">transfers. And so what's happening is that more and more there are small message exchanges, typically for things like metadata and coordination, such as checking to see if a particular entry is present in a KV cache that's distributed or doing barrier synchronization at the end of, uh, periods of compute. And for these workloads, what really matters is latency. That is, what's the round trip time to send some small piece of data across the network, do a little bit of computation and get a small result back again?</span></div><div class="tline" data-t="243"><span class="ts">4:03</span><span class="tx">And in fact, it isn't ju-just latency or average latency that matters. What really matters is tail latency. That is, you'd like to know that if we send a whole lot of small messages, all of them will complete quickly. So for example, we typically measure things like ninety-ninth percentile latency, and if we have high tail latency, that can limit the overall throughput of the system. So here's an example. Suppose a common thing is to take a workload and split it up across several nodes, which do intensive computation using their GPUs</span></div><div class="tline" data-t="273"><span class="ts">4:33</span><span class="tx">for some period of time. And then once they've all finished their computation, you do some small exchange between the nodes, exchange data, metadata, and then it'll go on to the next round of computation. And while that exchange is happening, that synchronization is happening, the GPUs are sitting idle. So if even one of those exchanges takes a long time, it turns out the whole process stalls. You need all of those exchanges to complete before you can go on to the next phase of</span></div><div class="tline" data-t="303"><span class="ts">5:03</span><span class="tx">computation. Now, if the computation phase is, say, five seconds, and it takes a few milliseconds for the exchange, you know, not a, not a problem, and that's historically what it's been. But now with the agentic workloads where you're trying to pump out tokens relatively rapidly at a regular rate, the periods of computation are getting down into sort of the millisecond timescale. And if it also takes milliseconds to do that synchronization, then you're wasting a significant fraction of your GPU resources waiting</span></div><div class="tline" data-t="333"><span class="ts">5:33</span><span class="tx">for the, the synchronization to occur. So I'm curious, I'd like to just do a, a quick audience poll here. Is there anybody here where you have reason to believe that the latency of small messages is impacting the overall throughput of your applications? If so, can you just raise your hand? See if there's anybody out there today. Actually, more hands than I expected, so f-- quite a few people out there are raising their hands. I think this problem is likely to get worse as the trends continue. So what's going on? Why is tail</span></div><div class="tline" data-t="363"><span class="ts">6:03</span><span class="tx">latency bad? Well, typically the cause is congestion resulting from incast. So incast is when several nodes all decide simultaneously to transfer data to some destination node. And if they all send large messages, well, the links are the same everywhere in the network, so three nodes can transfer three times as fast as one node can possibly receive. And so what happens is that packets accumulate at the last hop</span></div><div class="tline" data-t="393"><span class="ts">6:33</span><span class="tx">going to that destination in the top-of-rack switch at its egress port for the destination node. Then, if some other node decides it wants to send a short message to that same destination, the short message gets stuck behind the long ones in the queue there. And actually, that causes delay. In, in the worst case, so many packets arrive that the switch runs out of buffer space that it has to drop packets, and then there are, you know, timeouts and retransmissions that make everything even worse.</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">So somehow, we need some way to reduce the congestion in those queues. Somehow, we have to get the sending nodes to stop sending so fast, so the queues don't just build up without limit. So the way this is done historically, virtually all network protocols before Homa, including TCP and RDMA, congestion control is the responsibility of the sender. So senders somehow have to figure out that congestion is happening, and they have to slow down their</span></div><div class="tline" data-t="453"><span class="ts">7:33</span><span class="tx">rate of transmission. Now you, you might wonder, why are senders doing it? 'Cause the congestion is way over at the other end of the data center network. How does the, the sender find out? Well, in the, in the old, really old days, the way they would find out is the queues would overflow and packets would get dropped. The sender would detect the packets got lost 'cause it wouldn't get acknowledgments back, and it would assume that means there's congestion and then slow down its rate of transfer. That's really expensive, so today there are better techniques that mostly involve the switches providing information.</span></div><div class="tline" data-t="484"><span class="ts">8:04</span><span class="tx">So a top-of-rack switch, when it sees that the queue length for an ingress port has reached some threshold, starting to fill, long before the queue overflows, it starts marking all of the packets that pass through with what's called early congestion notification, ECN marking. And so when those packets pass through to the receiver, the receiver sees the marking in the packets, and then when it communicates back to the sender next, for example, to send an acknowledgment, then it includes that marking that goes back to the sender,</span></div><div class="tline" data-t="514"><span class="ts">8:34</span><span class="tx">and now the sender sees-- The sender realizes, &quot;Oh, there's congestion someplace. I've got to slow down my rate of transmission.&quot; So that's the basic idea. Unfortunately, getting this right is really hard. Really hard. It's very hard for the congestion to figure out exactly how to set its rates 'cause it gets one bit of information. There's congestion someplace, and there are multiple senders all sending to the same destination. They're all trying to make adjustments simultaneously. How much do you cut back, and how do I know when I can ramp up again? And</span></div><div class="tline" data-t="544"><span class="ts">9:04</span><span class="tx">even worse, it's really hard to do this in a way that's stable because there's control lag. That is, it takes time before the sender finds out that there's congestion. And in fact, using this process, it typically takes several round trips for the sender to gradually adjust its rate to get just the right rate to match the available bandwidth. But by the time you do that in a network, things have changed. New transmissions have started, old ones have finished, and so these systems tend to never stabilize. They're constantly oscillating between</span></div><div class="tline" data-t="574"><span class="ts">9:34</span><span class="tx">sending too much and, and sending too little. Now, this problem's been around for a long time. It's been known in the research community for more than twenty years now. There have been tons of papers published on it. There have been some improvements made, that's undeniable, but we're still a long ways from anything that works well, and the problem is with the fundamental nature of doing the, the congestion control on the sender side. It just doesn't work very well. So you end up with a lot of queue buildup. And in fact, you can see the only way to find out that there's congestion is if there's queues. And so by that</span></div><div class="tline" data-t="604"><span class="ts">10:04</span><span class="tx">point, we're already experiencing delays. So that's a problem. There's one other problem with TCP and RDMA also is that their, their basic data model is a byte stream. Just a stream of bytes with no differentiation in it. So if you send a series of messages, say, through a TCP socket, they get serialized into that stream, and on this slide I've, you know, I've shown the messages appear like they have different colors in the stream. Well, there are no colors in real life. TCP has no idea where the message</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">boundaries are. And that also makes life hard. For example, you don't know how much more data is coming. If you knew how big the message was, you'd know how much more is coming. And you can't prioritize short messages, which we'd really like to do, get the short messages through faster. And you can end up with what's called head-of-line blocking, where somebody sends a series of messages to the same destination, and they send two really large ones and then a small one after that that gets stuck behind them in that stream, and so it gets delayed, and again, you have tail latency issues.</span></div><div class="tline" data-t="665"><span class="ts">11:05</span><span class="tx">So all in all, TCP and RDMA are just not well suited to this environment. So what do we do? Well, what I'd like to do next is tell you about a new protocol called Homa that we've developed at Stanford, which was based on a completely clean slate redesign for network transport. If you could start from scratch and rethink how you do transport for data centers, how would you do it? And it turns out in Homa, virtually every major design decision is different from TCP and RDMA. TCP, for all the</span></div><div class="tline" data-t="695"><span class="ts">11:35</span><span class="tx">amazing things it's done, is just not a good match to today's data centers, nor RDMA. So what Homa does particularly well is to manage the combination of large and small messages and to make sure that the messages have re-- short messages have really low latency. So this started off as a PhD dissertation for one of my students, Behnam Montazeri, and then the results were so great that I decided to make it my personal project to see if we could get it out of the lab and into production. As you may know, I'm, I'm not like</span></div><div class="tline" data-t="725"><span class="ts">12:05</span><span class="tx">most professors in that I love to code, and so I turned this into my, my own programming project. I have created a kernel module for Linux. I'm currently working through the process of getting that upstreamed into the kernel. It's available on GitHub for download. So let me tell you just a little bit about how Homa works. I want to mention three things. First, it's message-based, not stream-based. In fact, the fundamental unit at Homa is a remote procedure call, which consists of two things, a request message sent from a</span></div><div class="tline" data-t="755"><span class="ts">12:35</span><span class="tx">client to a server, and then a response message returned back from the server to the client. So the key thing here is that Homa knows about message lengths. They're buried in the transport all the way down to the bottom, and this has a bunch of advantages. First, it allows us to predict the future. As soon as a receiver gets the first packet of a message, it knows exactly how much more data the sender wants to send, and that's so-- provides so much more information for doing congestion control.</span></div><div class="tline" data-t="785"><span class="ts">13:05</span><span class="tx">Second, Homa prioritizes shorter messages. It uses SRPT, Shortest Remaining Processing Time, first to try and prioritize shorter messages. And third, because messages are all independent, they're not s-serialized into a stream, every message is independent, shorter messages can bypass long ones, so they don't get queued behind long messages.</span></div><div class="tline" data-t="809"><span class="ts">13:29</span><span class="tx">S- the second thing about Homa that's different is that it controls congestion from the receiver. Now, when you think about it, this makes sense because the congestion happens primarily at that last downlink to the receiver. And so the receiver has way more information. In fact, with Homa, as soon as it gets the first packet of a message, it knows exactly how much more is coming. So it has essentially complete information about congestion, and it can therefore respond to congestion much more quickly and much more precisely.</span></div><div class="tline" data-t="840"><span class="ts">14:00</span><span class="tx">The way things work with Homa is that when a sender has a message to send, it breaks it up into packets, but it only transmits the first few packets, those are called unscheduled packets, to the receiver. Packets after that are called scheduled packets, and they only get transmitted when the receiver asks for them. So the receiver will send grant packets back. It'll pace them out and send those back to the sender over time, telling the sender, &quot;It's now time for you to send me the next chunk of data.&quot; And the receiver</span></div><div class="tline" data-t="870"><span class="ts">14:30</span><span class="tx">can delay those grants. So for example, if the receiver has ten messages that are incoming, there's no point in sending grants to all ten of them because then you'll just get congestion in the, in the top of rack queues. So it can use the grants to reduce congestion, and then it can also use the grants to give preference to its most favorite messages, which would be the shorter ones. So it's a way of, of implementing SRPT by favoring short messages.</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">The third aspect of Homa is that it takes advantage of the priority queues in modern switches. So modern data center switches have more than one queue at each egress port, typically eight, and they can be used in a priority mechanism where packets get transmitted, uh, preferentially from the highest priority queue. So I've shown only two queues on the slide here, but typically, there's more than that. You can specify in packets, using the various fields of the packet, you can specify which queue it should go into. And so Homa dynamically makes those</span></div><div class="tline" data-t="927"><span class="ts">15:27</span><span class="tx">choices in a way to give priority to shorter messages. So if we go back to the incast example from a few slides ago, all of those long messages will pile up in the lowest priority queue. But if there's a short message coming, it will use a higher priority queue. And so it will immediately bypass all of the queued packets from the short-- from the, uh, the longer messages and get through to the destination more quickly. So how much of a difference does this make? Uh, here's a-- on this slide I've got</span></div><div class="tline" data-t="957"><span class="ts">15:57</span><span class="tx">one sample benchmark that I use as part of my tuning and evaluation of Homa. It consists of a workload of a bunch of machines on a network that are exchanging messages back and forth of different sizes, ranging from very small to very large. And on this graph, you can see on the x-axis is the message length, so from about fifty bytes up to a megabyte. The y-axis shows you the round trip time for messages of that length. So this reque-- this uses request and response messages that are the same length. You can see TCP in green, Homa in</span></div><div class="tline" data-t="986"><span class="ts">16:26</span><span class="tx">blue, and the y-axis is, is round trip time, so lower is better. And for each protocol, I've got two curves. One curve is the P50 curve. That's the median latency for messages of this length. And then P99 is the ninety-ninth percentile, i.e. tail latency for messages of this length. So I want to point out two things. First, the P99 for short messages is dramatically better for Homa. So with TCP, it's more than a millisecond tail latency. Homa is less than a hundred</span></div><div class="tline" data-t="1016"><span class="ts">16:56</span><span class="tx">microseconds, about thirteen times faster. Second, interestingly, you might think that because Homa favors shorter messages, that long messages suffer and get worse performance. It turns out that's actually not the case. Even on the longest messages, Homa is almost a factor of two better than TCP. I don't have time to explain that today, but it has to do with the fact that Homa uses run-to-completion approaches, which are much more effective than fair, than the fair scheduling used by TCP.</span></div><div class="tline" data-t="1048"><span class="ts">17:28</span><span class="tx">So just to wrap up, the role of short messages in AI appears to be increasing. I think, I think it's likely that it's going to continue to increase. We'll see over the next year or two if that happens. And I just want to pose a question to you. You know, as you're running your applications and measuring performance and seeing what the bottlenecks are, ask yourself, is high latency for short messages affecting your throughput? If the answer is yes, then just know there is a solution available. You should give Homa a try. You can probably</span></div><div class="tline" data-t="1077"><span class="ts">17:57</span><span class="tx">reduce your tail latency by an order of magnitude or more. And by the way, this is-- Homa is basically my life mission right now. I'm sort of semi-retired from Stanford, and the reason I did that is so I can spend one hundred percent of my time hacking on Homa. So I'd be delighted to work with you and help you if you decide you want to experiment with Homa. If you need help getting started, answer questions, bug fixes, whatever, you know, I'd be happy to work with you to try and make you successful with it. So, uh, if that is interesting, feel free to contact me. My email's on the slide, or you can Google me too and find me over the internet.</span></div><div class="tline" data-t="1108"><span class="ts">18:28</span><span class="tx">So thanks very much for listening, and hope to hear from some of you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

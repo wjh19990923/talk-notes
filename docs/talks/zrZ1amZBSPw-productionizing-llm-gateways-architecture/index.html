@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>让 LLM 网关走向生产：架构、取舍与惨痛教训 —— Kanish Manuja，Twilio | AI 工程师中文版</title>
+<meta name="description" content="Kanish Manuja 讲解了服务商故障切换、流式传输、按路由设置的超时和护栏的放置位置，如何改变 LLM 网关的故障行为——以及为什么集中治理并不意味着全公司只走一条流量路径。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>让 LLM 网关走向生产：架构、取舍与惨痛教训 —— Kanish Manuja，Twilio</h1>
+    <div class="orig-title">Productionizing LLM Gateways: Architecture, Tradeoffs and Hard Lessons — Kanish Manuja, Twilio</div>
+    <div class="meta"><span class="speaker">Kanish Manuja</span> · AI Engineer World's Fair 2026 · 16:23</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=model-routing-and-llm-gateways">模型路由与网关</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=ai-cost-and-performance-engineering">AI 成本与性能</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/zrZ1amZBSPw-productionizing-llm-gateways-architecture" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="zrZ1amZBSPw"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=zrZ1amZBSPw" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">“出错了”背后的系统</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="13"><span class="ts">0:13</span><span>“出错了”背后的系统</span></li><li data-t="110"><span class="ts">1:50</span><span>在耗尽不健康的供应商之前先用健康的那个</span></li><li data-t="275"><span class="ts">4:35</span><span>当输出已经泄出时，回退就不再透明</span></li><li data-t="390"><span class="ts">6:30</span><span>推理模型的正常状态可能是聊天模型的故障</span></li><li data-t="585"><span class="ts">9:45</span><span>护栏需要失败策略和自己的时间预算</span></li><li data-t="779"><span class="ts">12:59</span><span>网关变成又一个依赖</span></li><li data-t="874"><span class="ts">14:34</span><span>集中治理，但不把所有流量都集中起来</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 15 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Productionizing LLM Gateways" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Productionizing LLM Gateways</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Kanish Manuja introduces productionizing LLM gateways against the backdrop of provider outages. The opening diagram shows a gateway router connected to a primary provider and two alternatives.
+
+[0:18](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=18s) [Title slide introducing Kanish Manuja and showing a gateway routing to a primary and two other providers.](https://assets.ai.engineer/sites/aiecode2025/sha256/9de645ada25b5d576e1c8b7aa4039c7f394f1145f7efcf62a74249f7fa05fea6.webp)
+
+Productionizing LLM Gateways
+
+Architecture, tradeoffs, and hard lessons from the trenches
+
+Kanish Manuja
+Principal Engineer, twilio
+
+Gateway
+router
+Primary
+Provider B
+Provider C
+
+2026 Twilio Inc. All rights reserved</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="What is an LLM gateway?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is an LLM gateway?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An LLM gateway sits between apps and model providers, giving them one API and a central place for routing, credentials, fallback, limits, guardrails, and observability.
+
+[0:49](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=49s) [Apps connect through an LLM gateway to three providers; six boxes list gateway functions.](https://assets.ai.engineer/sites/aiecode2025/sha256/6fec08434fcbce4bb75dd9130ec399d87744caca2ad61190e5380027fdc06f99.webp)
+
+First: what is an LLM gateway?
+One entry point between your apps and the model providers behind them
+
+App / service A
+App / service B
+
+LLM Gateway
+one API · one place for policy
+
+Provider A
+Provider B
+Provider C
+
+WHAT A GATEWAY CONSOLIDATES
+
+ROUTING
+Pick the model or provider per request.
+
+AUTH &amp; KEYS
+One credential boundary; rotate keys centrally.
+
+FALLBACK
+Reroute when a provider fails or slows.
+
+RATE LIMITS &amp; COST
+Throttle callers; attribute spend per workload.
+
+GUARDRAILS
+Run input / output safety checks in one place.
+
+OBSERVABILITY
+Tokens, latency, and errors tracked per model.
+
+2026 Twilio Inc. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="A gateway is where four things fight" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A gateway is where four things fight</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A gateway puts availability, latency, guardrails and cost on the critical path. During degradation, users must choose their tradeoffs; designers should give callers those choices.
+
+[1:08](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=68s) [A gateway sits between availability, latency, guardrails and cost, with guidance for gateway users and designers.](https://assets.ai.engineer/sites/aiecode2025/sha256/6ba41178a11a02f8dc35f16558c38d1adb05018a6cef665891f59fd79e4236b3.webp)
+
+A gateway is where four things fight
+
+Availability, latency, security, and cost. Every safeguard buys you one and charges you another. You cannot max all four at once.
+
+IF YOU USE A GATEWAY
+You’ll know which axis to trade away for your use case.
+
+IF YOU DESIGN A GATEWAY
+You’ll know which levers to provide so callers can choose.
+
+Availability
+fallbacks
+
+Latency
+timeouts
+
+Gateway
+critical path
+
+Guardrails
+input, output
+
+Cost
+limits
+
+2026 Twilio Inc. All rights reserved</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Availability: fallback done right" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Availability: fallback done right</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A single model provider’s outage becomes your outage. Favor a primary with the strongest guarantees, then fall back to another provider only when it fails.
+
+[1:45](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=105s) [Section slide recommends a strong primary provider and fallback when it fails.](https://assets.ai.engineer/sites/aiecode2025/sha256/d9ed7bd768961f48f538bc13435a39477280a857554be5ff2e146c2aed81e2c5.webp)
+
+Availability: fallback done right
+
+01
+
+One provider means one ceiling. Favor a primary with the strongest guarantees, then fall back only when it fails.
+
+2026 Twilio Inc. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="The standard playbook: retries + circuit breaker" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The standard playbook: retries + circuit breaker</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Retries consume latency and cost, while a tripped circuit breaker can fail a request even when another provider is available.
+
+[2:00](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=120s) [The slide defines retries and circuit breakers and lists three limitations for LLM calls.](https://assets.ai.engineer/sites/aiecode2025/sha256/6f3d4a2d600bb68460114e73b61f065c54eae90abe3a5940119020696e9491e2.webp)
+
+The standard playbook: retries + circuit breaker
+
+You already know these. They were built for stateless, homogeneous, low-latency calls.
+
+RETRIES
+Retry the same provider on a transient error.
+
+CIRCUIT BREAKER
+Trip after N failures; stop calling a dead dependency.
+
+Three reasons that isn’t enough for LLMs →
+
+PROBLEM 1
+Retrying the same provider during its outage just burns your latency budget.
+
+PROBLEM 2
+A tripped breaker fails the request even though a second provider was available the whole time.
+
+PROBLEM 3
+Calls are slow and expensive, so blind retries multiply both cost and tail latency.
+
+2026 Twilio Inc. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Per-request fallback and a breaker that ejects the primary" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Per-request fallback and a breaker that ejects the primary</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An open per-model breaker removes the primary from the request path and routes directly to the secondary. Fleet-wide state needs shared infrastructure; local state requires each instance to fail first.
+
+[2:58](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=178s) [A breaker routes requests to a secondary when the primary is open, with notes on per-request decisions and breaker state.](https://assets.ai.engineer/sites/aiecode2025/sha256/d62be73ec3b73d202f9e17b31602a35c592b852973f276d6ab3d56c6d614abbb.webp)
+
+Better: per-request fallback + a breaker that ejects the primary
+When the breaker trips, the primary leaves the path, so requests route straight to secondary
+
+Request
+
+Breaker
+per-model state
+
+Primary (open)
+ejected, not even tried
+
+Secondary
+direct route while open
+
+Response
+
+PER-REQUEST
+Decided on every call. Try providers in sequence, or fire in parallel for speed (faster, but you pay for every call).
+
+EJECT, DON’T RETRY
+Open breaker removes the primary from the path entirely, with no wasted attempt.
+
+WHERE STATE LIVES
+Fleet-wide trips once for everyone (needs shared infra); local needs no infra but each instance must fail first.
+
+2026 Twilio Inc. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Fallback and streaming trade-offs" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fallback and streaming trade-offs</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Provider differences call for normalization; once streaming starts, a failure reaches the user without a clean retry. Manuja also urges teams to provision and test fallback capacity, which often gets less attention.
+
+[4:33](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=273s) [Three considerations: provider differences, streaming limitations, and fallback provider capacity.](https://assets.ai.engineer/sites/aiecode2025/sha256/7dfe344dff1efed9494c993b5e8509bbe0974dce74e0fc9831ee56b8d496f72e.webp)
+
+From the trenches: what the clean diagram doesn’t show you
+
+01 Fallback is not transparent
+Falling from one provider to the next means different tool-calling schemas, token limits, and stop reasons. Without a normalization layer, the response shape shifts under your application.
+
+02 Streaming trades away your levers
+Once the first token is out, you can’t fall back, retry, or rewrite. A mid-response failure is one the user sees. Stream only when latency demands it; if you don’t, you keep every lever to fix a bad response before you ship it.
+
+03 Fallback Provider capacity
+Teams are cognizant of the primary provider capacity but not the secondary provider for the throughput.
+
+2026 Twilio Inc. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Latency across mixed workloads" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Latency across mixed workloads</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In the illustrative chart, p99 ranges from 0.3s for embeddings to 38s for reasoning; a blended ~9s obscures that spread. Track p99 per model and route, and set timeouts per model class and route.
+
+[6:50](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=410s) [Illustrative p99 latency chart compares embeddings, classification, chat, reasoning, and blended latency.](https://assets.ai.engineer/sites/aiecode2025/sha256/c6488ae5bf7c87813dccc0303a6708abe9eb769e0e042a8c7ab18abebc18800f.webp)
+
+A gateway may run mixed workloads, so blended latency lies
+
+Track p99 per model and route, not one gateway-wide number.
+
+Set timeouts per model class per route
+
+A reasoning model’s normal is a chat model’s outage.
+
+P99 LATENCY BY WORKLOAD (ILLUSTRATIVE)
+Embeddings 0.3s
+Classify 0.6s
+Chat 3s
+Reasoning 38s
+Blended p99 ~9s ← lies
+
+2026 Twilio Inc. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Reasoning and router model latency" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reasoning and router model latency</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The same prompt can take 2s or 60s, while routers hide which model ran. Fix reasoning levels per route and hedge slow requests with a delayed backup; take the first response and cap the rate to control cost.
+
+[8:18](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=498s) [Variable thinking time and model routing affect latency; proposed mitigations include fixed reasoning levels and hedged requests.](https://assets.ai.engineer/sites/aiecode2025/sha256/c49a1f64e400b658111b8fc0e9430d673eca90656b4b96a1042ee3c89e2ae961.webp)
+
+Reasoning &amp; router models make latency genuinely unpredictable
+
+WHY
+Variable thinking time
+Reasoning models ”think” for a non-deterministic number of tokens, so the same prompt can take 2s or 60s.
+
+WHY
+Router models hide which model ran
+When the provider picks the model per request, your latency is a mixture you can’t predict.
+
+FIX
+Static reasoning level per route
+Latency expectations are measured well ahead of time
+
+FIX
+Hedge the tail
+Fire a backup request after a short delay and take the first to return. Cuts p99; cap the rate to control cost.
+
+2026 Twilio Inc. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Security and guardrails" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Security and guardrails</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Guardrails help filter prompt injection, PII and toxic content, but they add a service dependency that can fail.
+
+[9:43](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=583s) [Security section divider states that guardrails are necessary and introduce a dependency.](https://assets.ai.engineer/sites/aiecode2025/sha256/c01c929c5baed359455274ed1c9114f59e1da099eff2fc8e125a5f73187b1884.webp)
+
+Security:
+ignore all instructions and
+focus on guardrails
+
+Guardrails are necessary, and they are a new dependency that can take you down.
+
+03
+
+2026 Twilio Inc. All rights reserved</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="When a guardrail fails" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>When a guardrail fails</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>When a guardrail goes down, fail open keeps requests flowing but accepts security risk; fail closed blocks them. Choose per policy based on the worst case you can tolerate.
+
+[10:13](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=613s) [Fail-open and fail-closed choices trade security against availability; the slide recommends deciding by policy severity and blast radius.](https://assets.ai.engineer/sites/aiecode2025/sha256/057ac97028ce7a24b740c18ab73a5f89cb97160d9be75b1563cd53da79f6dc77.webp)
+
+When the guardrail itself fails, you must choose
+
+FAIL OPEN
+Let the request through ungated. Protects availability; accepts security risk.
+
+FAIL CLOSED
+Block the request. Protects security; accepts an availability hit.
+
+There is no universal answer. It’s a per-policy risk decision. A toxicity filter might fail open; a PII or prompt-injection check should fail closed.
+
+DECIDE BY BLAST RADIUS
+Default to the choice whose worst case you can live with.
+
+Tie the decision to each guardrail’s severity, not one global switch.
+
+2026 Twilio Inc. All rights reserved</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Making guardrails dependable" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Making guardrails dependable</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Pre- and post-hooks add serial latency. Parallel checks gate the response with little perceived latency, but work poorly with streaming. Deadlines and fallbacks help manage guardrail failures.
+
+[11:01](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=661s) [Guardrail design considerations include time budgets, fallback, and running checks before, alongside, or after the model.](https://assets.ai.engineer/sites/aiecode2025/sha256/3d15c3bf57bab05cdefe3b61fcd300f6ec186fd7b741f7f76003040cc6b6b991.webp)
+
+Make guardrails safe to depend on
+
+TIME BUDGET
+Give each guardrail a hard deadline. A slow check must never become your app’s latency.
+
+FALLBACK
+Guardrails are services too. Have a secondary check or cached decision when one is down.
+
+PLACEMENT →
+When you run them decides how much latency users feel.
+
+WHEN TO RUN GUARDRAILS
+
+PRE-HOOK (BEFORE THE MODEL)
+Safest for inputs; serial latency on every call.
+
+IN PARALLEL (ALONGSIDE THE MODEL) ★
+Run concurrently, gate the response. Virtually no perceived latency. The preferred default.
+
+POST-HOOK (AFTER THE MODEL)
+Needed to inspect output; serial on the response.
+
+2026 Twilio Inc. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Shared limits and load shedding" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Shared limits and load shedding</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Where permissible, separate keys by team or workload to contain noisy tenants. Bound queues and shed excess requests with a fast 429; unbounded queues can grow during retry storms and make scaling out difficult.
+
+[12:57](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=777s) [Slide contrasts shared rate limits and unbounded queues with isolated usage and bounded queues that shed excess load.](https://assets.ai.engineer/sites/aiecode2025/sha256/5092e684eb05c80c433516278e103c18267627d91f3cfffc2714dfef19879a4d.webp)
+
+Shared limits are a trap, shared infra is a risk
+
+SHARED RATE LIMITS
+One noisy tenant starves the rest. Where permissible, isolate usage with separate keys per team or workload. This is the simplest path to cost attribution and blast-radius control.
+
+LOAD SHEDDING
+Under resource pressure, shed early with bounded queues. Never queue unboundedly.
+
+UNBOUNDED QUEUE + RETRY STORM = Disaster
+
+UNBOUNDED
+queue grows → can’t scale out
+
+BOUNDED + SHED
+shed past limit → fast 429, stable, scalable
+
+2026 Twilio Inc. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="A central gateway is a single point of failure" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A central gateway is a single point of failure</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Centralizing fallback, guardrails and routing lets one bad deploy or shared breaker state affect every workload. Manuja recommends local resilience and a shared control plane for cost and guardrail events.
+
+[14:32](https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=872s) [Slide recommends decentralized gateways with local resilience and centralized governance.](https://assets.ai.engineer/sites/aiecode2025/sha256/eca7ebca839223856835eba6bb4249f60505cdafdb41a0066c34e043c778fe46.webp)
+
+A central gateway is a single point of failure
+
+Centralizing fallback, guardrails, and routing concentrates blast radius: one bad deploy or shared breaker state can take down every workload at once.
+
+Decentralize the gateway. Each service owns and maintains its own fallback, timeouts, and load shedding.
+
+Centralize governance, not traffic. Integrations for cost attributions and guardrail-failure events, etc without the SPOF.
+
+Decentralized gateway, centralized governance.
+
+Keep resilience local; emit cost and guardrail events to a shared control plane.
+
+2026 Twilio Inc. All rights reserved</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/e3c9c767202d6914647b3070fb4145c6db47d0e6ba189981bd0de2523dcf5e7e.webp" alt="AI Engineer World's Fair logo on a black background, with the AI Engineer website below." loading="lazy" data-lb="14" data-cap="AI Engineer World's Fair" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer World's Fair</h3>
+        <p>AI Engineer World's Fair logo on a black background, with the AI Engineer website below.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+World’s Fair
+
+HTTPS://AI.ENGINEER</pre></details>
+        <button class="ts" data-t="975">▶ 16:15</button>
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">“出错了”背后的系统</a></li><li><a href="#sec-2">在耗尽不健康的供应商之前先用健康的那个</a></li><li><a href="#sec-3">当输出已经泄出时，回退就不再透明</a></li><li><a href="#sec-4">推理模型的正常状态可能是聊天模型的故障</a></li><li><a href="#sec-5">护栏需要失败策略和自己的时间预算</a></li><li><a href="#sec-6">网关变成又一个依赖</a></li><li><a href="#sec-7">集中治理，但不把所有流量都集中起来</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">让 LLM 网关走向生产：架构、取舍与惨痛教训</h2>
+      <div class="lede"><p>Kanish Manuja 讲解了服务商故障切换、流式传输、按路由设置的超时和护栏的放置位置，如何改变 LLM 网关的故障行为——以及为什么集中治理并不意味着全公司只走一条流量路径。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="13">▶ 0:13</button></div>
+      <h3>“出错了”背后的系统</h3>
+      <p>“Something went wrong. Please try again” is a familiar ending to an AI interaction. <a href="https://www.linkedin.com/in/kanish-manuja-a99bb923/" target="_blank" rel="noopener">Kanish Manuja</a>, a principal engineer at Twilio, opens with that message because the system behind it can be much more carefully engineered than the message suggests. A gateway may route around provider failures and still reach a point where it cannot recover a response already underway.</p>
+<p>An <strong>LLM gateway</strong> sits between applications and model providers. It handles routing, authentication, fallback, rate limits and governance. Those responsibilities bring four goals into the same request path: availability, latency, guardrails and cost. During degradation, improving one can worsen another. Sending a second model request may preserve availability while adding latency and expense; continuing without a failed guardrail may preserve service while weakening protection.</p>
+<p>The gateway needs controls that callers can choose for their use cases. One recovery policy cannot express every application’s willingness to wait, spend or accept a weaker check. Productionizing the gateway means making those choices available before an incident forces them.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="110">▶ 1:50</button></div>
+      <h3>在耗尽不健康的供应商之前先用健康的那个</h3>
+      <p>With one model provider, its availability limits the application’s availability: its outage becomes your outage. Conventional dependency handling starts with retries, exponential backoff and jitter, then opens a circuit breaker after enough failures. For a fast, inexpensive API, another attempt can absorb a transient fault. A slow, expensive model call consumes the request’s remaining time and spend much faster.</p>
+<p>The basic recovery example uses providers A and B. The gateway sends a request to A. If A fails, it sends that request to B. The observable change is that A’s failure no longer immediately becomes an application failure: another provider gets a chance to answer. This <strong>per-request fallback</strong> avoids spending the entire recovery effort repeatedly calling A while B remains healthy. <a href="https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=180s" target="_blank" rel="noopener">3:00</a></p>
+<p>Two dispatch strategies expose different tradeoffs:</p>
+<p>- <strong>Sequential fallback:</strong> Try A, then B after A fails. The request pays for the time spent on A before B can begin.
+- <strong>Parallel requests:</strong> Start both providers together when latency matters enough to justify duplicate work. Manuja describes this as doubling cost: both model calls run even when the primary might have succeeded.</p>
+<p>Circuit breaking still has a role. Once A has been failing for some time, remove it from the request path, let it cool down and try reintroducing it after a few minutes. Per-request fallback handles the current failure; cooldown keeps later requests from repeatedly discovering the same unhealthy dependency.</p>
+<p>Where should the failure counts live?</p>
+<p>- <strong>Instance-local counters:</strong> Each serving instance keeps its own history in memory. Changing the deployment size changes how failures accumulate across instances, so the same configuration can produce different failover behavior.
+- <strong>Fleet-wide counters:</strong> Shared infrastructure collects failure history across the deployment. This can help the fleet recognize an outage and fail over quickly.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="275">▶ 4:35</button></div>
+      <h3>当输出已经泄出时，回退就不再透明</h3>
+      <p>A successful HTTP exchange with B is only part of a successful fallback. Providers can differ in tool-calling schemas, token limits and stop reasons even when they expose an OpenAI-compatible API format. A normalization layer can reconcile those differences, but the fallback path still needs testing against the application’s actual expectations. Similar request shapes do not guarantee interchangeable behavior.</p>
+<p>Now change the A-to-B example by enabling streaming. A begins generating, and the gateway forwards its output to the client. The user sees progress instead of waiting thirty seconds for a wall of text. If A fails after that output arrives, the gateway cannot transparently replace the response with B’s answer: the client already has part of A’s response, and those tokens cannot be recalled. In this streaming design, the continuing response is committed to A. <a href="https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=314s" target="_blank" rel="noopener">5:14</a></p>
+<p>Where does the recovery path change? The diagram separates a failure before output reaches the client from one after streaming begins. The first path can move to B; the second leaves an interrupted response because switching providers cannot undo the text already delivered.</p>
+<p>That is the mechanism behind the opening error message. Streaming improves perceived speed by giving away a recovery lever. The tradeoff can be worthwhile—some use cases require streaming—but it must be part of the application’s failure design.</p>
+<p>B also needs enough capacity to be a real last line of defense. Teams often provision and test the primary thoroughly while giving the backup less attention. Manuja recommends even more throughput, capacity or headroom for the fallback provider. Once the primary is unavailable, an inadequate backup can turn a recoverable provider failure into an application outage.</p>
+<p>The same provider failure has two recovery paths
+Before delivery, fallback can give B a chance to answer. After A’s output reaches the client, a transparent switch cannot retract it.
+- Request to provider A — The primary provider starts handling the request.
+- A fails before delivery — The request can follow the sequential fallback path.
+- Try provider B — A second provider gets a chance to serve the request.
+- A’s tokens reach the client — Streaming makes progress visible; delivered output cannot be recalled.
+- A fails mid-stream — The response is interrupted; transparent provider switching is unavailable.
+- Request to provider A → A fails before delivery (Failure before delivery)
+- A fails before delivery → Try provider B (Sequential fallback)
+- Request to provider A → A’s tokens reach the client (Forward streaming output)
+- A’s tokens reach the client → A fails mid-stream (Later failure cannot undo delivered tokens)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="390">▶ 6:30</button></div>
+      <h3>推理模型的正常状态可能是聊天模型的故障</h3>
+      <p>Availability failures announce themselves with errors and pages. Latency failures can stay quiet: a request remains in progress while the customer waits. Mixed workloads make that problem harder to recognize. Manuja’s examples include embedding and classification requests taking less than a second, chat requests taking three seconds and reasoning requests taking much longer. These illustrate different workload expectations rather than universal performance targets.</p>
+<p>A gateway-wide latency number blends those expectations. It cannot tell you whether a chat route has become unusually slow or whether the gateway simply served more long-running reasoning requests. Track <strong>P99 per model, per route</strong> instead. P99 describes the slow tail of a particular request population; choosing the population is as important as choosing the percentile. As Manuja puts it, “A reasoning model’s normal is actually a chat model’s outage.” <a href="https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=444s" target="_blank" rel="noopener">7:24</a></p>
+<p>Timeouts need the same specificity: set them per model class and route. Without a timeout, the gateway can continue treating an outstanding request as healthy even when it is no longer serving the application usefully. Manuja identifies missing timeouts as his leading cause of silent outages. A route-specific timeout gives the gateway a point at which waiting becomes failure and recovery can begin.</p>
+<p>Reasoning and router models add another source of variation. Manuja reports production behavior where the same prompt could take two to sixty seconds and P99 suddenly rose to sixty seconds without an identified explanation. That experience concerns the systems he encountered, rather than a universal range for reasoning models. His first recommendation is to fix the reasoning level per route. Some controls may be unavailable: in many cases, he notes, temperature cannot be set to zero. Router models also choose underlying models behind an abstraction, so constrain the request settings you can control to avoid adding unnecessary variation.</p>
+<p><strong>Tail hedging</strong> offers a different response to a slow primary. Start the primary normally, then launch another request after the primary has spent enough time outstanding to trigger a delay threshold. Unlike starting two requests immediately, this duplicates work only after waiting. Unlike failure-triggered fallback, it acts while the primary is still running. The aim is to reduce the P99 tail, while accepting the cost of additional model work.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="585">▶ 9:45</button></div>
+      <h3>护栏需要失败策略和自己的时间预算</h3>
+      <p>Guardrails check for prompt injection, personally identifiable information and toxic output—including the practical problem of a model swearing at customers. Those checks add services to the system, and those services can fail too. Their failure forces an explicit choice:</p>
+<p>- <strong>Fail open:</strong> Serve the request despite the unavailable check. Availability continues with reduced protection.
+- <strong>Fail closed:</strong> Block the request because the check cannot run. Protection takes priority over serving it. <a href="https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=615s" target="_blank" rel="noopener">10:15</a></p>
+<p>There is no universal answer across checks and applications. A toxicity-filter outage might be tolerable for one use case, allowing requests to continue; another use case may require blocking them. Choose the worst case you can live with as the default. That decision concerns the consequence of an unavailable check, rather than an assumption that the check will always be available.</p>
+<p>Give each guardrail a specific time budget and timeout so it cannot become the component that determines how long the entire request takes. Manuja’s intended design keeps the LLM as the rate-determining step. Guardrails can also have fallback arrangements: secondary providers, secondary checks or cached decisions can preserve service when the primary guardrail provider is down.</p>
+<p>Placement changes both latency and what the check can inspect:</p>
+<p>- <strong>Pre-hook:</strong> Check the input before the model runs. Manuja considers this probably the safest placement, but its runtime adds serial latency before generation.
+- <strong>Parallel check:</strong> Run the guardrail concurrently with model work. This overlaps their runtimes and is his preferred latency-saving option for structured output, with a recommendation to avoid streaming that output.
+- <strong>Post-hook:</strong> Inspect output after generation. This placement suits output monitoring and auditing.</p>
+<p>Why does parallel placement save time, and why is streaming awkward? The diagram shows the input splitting into two concurrent paths. The check no longer has to finish before model work starts. But streaming can let delivery get ahead of the checking decision—the same irreversible delivery problem that limited provider fallback.</p>
+<p>Parallel guardrails overlap checking with generation
+Concurrent work removes the serial wait before generation. Streaming can expose output while the guardrail decision is still pending.
+- Request input — Starts both paths in the parallel placement.
+- Guardrail check — Runs within a specific time budget; failure invokes the chosen open or closed policy.
+- Model generation — Runs concurrently with the guardrail.
+- Guardrail decision — The check can complete after generation has begun.
+- Streamed client output — Delivery can precede completion of the concurrent check; delivered tokens cannot be recalled.
+- Request input → Guardrail check (Start checking)
+- Request input → Model generation (Start generation concurrently)
+- Guardrail check → Guardrail decision (Complete check)
+- Model generation → Streamed client output (Streaming may precede check completion)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="779">▶ 12:59</button></div>
+      <h3>网关变成又一个依赖</h3>
+      <p>Routing around provider and guardrail failures does not remove the gateway’s own failure modes. It is another dependency in the request path. Shared limits are one way it can spread trouble: a noisy tenant can consume capacity needed by unrelated requests. Segregate API keys as granularly as possible by route and use case so those workloads do not unnecessarily share the same limits.</p>
+<p>A retry storm creates a different problem. Repeated attempts pile more work onto an already stressed service, and scaling out alone is insufficient as a recovery strategy. The gateway needs <strong>load shedding</strong>: the ability to stop accepting more work under overload. Its web-server queues must be bounded, rather than letting requests accumulate without a limit. <a href="https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=824s" target="_blank" rel="noopener">13:44</a></p>
+<p>Traffic prioritization can determine which work survives that pressure. Under load, the most important use cases should continue receiving service rather than competing indiscriminately with every retry. Put load shedding into runbooks and game days so operators know the gateway supports it and can use it during an incident.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="874">▶ 14:34</button></div>
+      <h3>集中治理，但不把所有流量都集中起来</h3>
+      <p>The final architectural question is whether the entire company needs one central gateway deployment at all. A common request path can become a single point of failure. Before putting every application behind it, identify the requirement that motivated the design. Manuja’s experience is that teams often want centralized governance: consistent cost tracking, rate-limit management and related controls. <a href="https://www.youtube.com/watch?v=zrZ1amZBSPw&amp;t=874s" target="_blank" rel="noopener">14:34</a></p>
+<p>Those controls can live in plugins or shared custom code while gateways remain decentralized. One team can manage the gateway system without operating one company-wide deployment. Even a deployment distributed across instances can remain a shared dependency for every caller; distributing instances does not by itself separate the applications’ request paths. Explore separate deployments with shared governance before making all company traffic depend on the same gateway deployment.</p>
+<p>The ending brings those decisions back to the customer. Manuja asks the audience to “prevent one incident.” The next step is small enough to act on: find one route without a timeout, one backup without enough headroom or one gateway queue that can grow without a bound, and fix the failure before customers encounter it.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Prefer per-request provider fallback to blind retries, while using cooldown to keep a repeatedly failing primary out of later request paths.</li><li>Streaming commits delivered output to the selected provider. A mid-stream failure cannot be recovered through a transparent provider switch; provision the backup thoroughly for requests that can fail over.</li><li>Measure P99 per model and route, set corresponding timeouts and constrain available reasoning settings. Tail hedging launches another request after waiting for a slow primary.</li><li>Treat guardrails as fallible services: choose fail-open or fail-closed behavior, bound their runtime, consider fallback checks and place them deliberately relative to generation.</li><li>Protect the gateway with granular API keys, bounded queues, load shedding and traffic priorities. Shared governance can coexist with separate gateway deployments.</li></ul></section>
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://www.linkedin.com/posts/kanish-manuja-a99bb923_conversationrelay-activity-7339233014209462272-NbbD" target="_blank" rel="noopener">Kanish Manuja’s restaurant voice-agent prototype lessons</a> — A separate account of a restaurant order-taking prototype comparing a speech-to-text → LLM → text-to-speech pipeline with an end-to-end realtime audio approach. Useful for extending the talk’s latency, cost and control tradeoffs to voice applications; its conclusions reflect that prototype and the models used then.</li><li><strong>Related talks</strong></li><li><a href="https://ai.engineer/talks/QHBjufYK8TA-state-model-routing-nvidia-cognition-openrouter" target="_blank" rel="noopener">The State of Model Routing — NVIDIA, Cognition, OpenRouter</a> — Continues the model-routing subject introduced by provider fallback and router-model latency.</li><li><a href="https://ai.engineer/talks/YZHPEkfy2kc-1-ai-guardrails-unreasonable-effectiveness" target="_blank" rel="noopener">$1 AI Guardrails: The Unreasonable Effectiveness of Finetuned ModernBERTs – Diego Carpintero</a> — A companion on guardrail models for readers considering the cost and implementation of checks placed around generation.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="1"><span class="ts">0:01</span><span class="tx">[music]</span></div><div class="tline" data-t="13"><span class="ts">0:13</span><span class="tx">I'm Kanesh Manuja. I'm a principal</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">engineer at Twilio.</span></div><div class="tline" data-t="18"><span class="ts">0:18</span><span class="tx">Let's start with a quick show of hands.</span></div><div class="tline" data-t="20"><span class="ts">0:20</span><span class="tx">Who here has seen the message, something</span></div><div class="tline" data-t="23"><span class="ts">0:23</span><span class="tx">went wrong. Please try again.</span></div><div class="tline" data-t="27"><span class="ts">0:27</span><span class="tx">Well, we have a few lucky ones and a few</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">that have had a good lunch. Um, so</span></div><div class="tline" data-t="34"><span class="ts">0:34</span><span class="tx">behind that simple message is actually a</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">system that is very complex</span></div><div class="tline" data-t="40"><span class="ts">0:40</span><span class="tx">that serves you that message despite the</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">model providers being down.</span></div><div class="tline" data-t="45"><span class="ts">0:45</span><span class="tx">And that's what we're going to</span></div><div class="tline" data-t="46"><span class="ts">0:46</span><span class="tx">productionize today or discuss</span></div><div class="tline" data-t="48"><span class="ts">0:48</span><span class="tx">productionizing today.</span></div><div class="tline" data-t="50"><span class="ts">0:50</span><span class="tx">So what is an LM gateway? An LLM gateway</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">is an entry point or a middleware</span></div><div class="tline" data-t="55"><span class="ts">0:55</span><span class="tx">between your apps and the model</span></div><div class="tline" data-t="57"><span class="ts">0:57</span><span class="tx">providers behind them. It does a bunch</span></div><div class="tline" data-t="60"><span class="ts">1:00</span><span class="tx">of things. Routing, authentication,</span></div><div class="tline" data-t="62"><span class="ts">1:02</span><span class="tx">fallback, rate limits, all kinds of</span></div><div class="tline" data-t="64"><span class="ts">1:04</span><span class="tx">governance that you can think of.</span></div><div class="tline" data-t="68"><span class="ts">1:08</span><span class="tx">And right at the heart of the gateway is</span></div><div class="tline" data-t="71"><span class="ts">1:11</span><span class="tx">a fight between four things. It's</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">availability, latency, your guardrails</span></div><div class="tline" data-t="77"><span class="ts">1:17</span><span class="tx">and costs.</span></div><div class="tline" data-t="78"><span class="ts">1:18</span><span class="tx">In case of a degradation, you cannot</span></div><div class="tline" data-t="81"><span class="ts">1:21</span><span class="tx">maximize all four. You need to pick what</span></div><div class="tline" data-t="84"><span class="ts">1:24</span><span class="tx">you want. So with this talk, if you use</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">an LLM gateway, I want you I want to</span></div><div class="tline" data-t="92"><span class="ts">1:32</span><span class="tx">help you to make that trade-off for your</span></div><div class="tline" data-t="94"><span class="ts">1:34</span><span class="tx">use case. And if you design a gateway, I</span></div><div class="tline" data-t="97"><span class="ts">1:37</span><span class="tx">want you to design or provide those</span></div><div class="tline" data-t="99"><span class="ts">1:39</span><span class="tx">levers to your callers and customers u</span></div><div class="tline" data-t="103"><span class="ts">1:43</span><span class="tx">so that your customers are happy.</span></div><div class="tline" data-t="106"><span class="ts">1:46</span><span class="tx">Let's start with availability.</span></div><div class="tline" data-t="110"><span class="ts">1:50</span><span class="tx">If you have a single model provider,</span></div><div class="tline" data-t="114"><span class="ts">1:54</span><span class="tx">their ceiling is your ceiling. Their</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">outage is your outage.</span></div><div class="tline" data-t="123"><span class="ts">2:03</span><span class="tx">So in typical software engineering, the</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">way you tackle unreliable dependency is</span></div><div class="tline" data-t="128"><span class="ts">2:08</span><span class="tx">by retrying.</span></div><div class="tline" data-t="131"><span class="ts">2:11</span><span class="tx">Retrying with exponential backoffs, with</span></div><div class="tline" data-t="134"><span class="ts">2:14</span><span class="tx">jitters. And when all of that fails, you</span></div><div class="tline" data-t="137"><span class="ts">2:17</span><span class="tx">have a circuit breaker that trips after</span></div><div class="tline" data-t="139"><span class="ts">2:19</span><span class="tx">you've seen sufficient failures and you</span></div><div class="tline" data-t="141"><span class="ts">2:21</span><span class="tx">stop calling the damn thing.</span></div><div class="tline" data-t="144"><span class="ts">2:24</span><span class="tx">This is not enough for LLMs. LLMs are</span></div><div class="tline" data-t="147"><span class="ts">2:27</span><span class="tx">very different compared to your fast</span></div><div class="tline" data-t="149"><span class="ts">2:29</span><span class="tx">cheap APIs that you retry on. Retrying</span></div><div class="tline" data-t="153"><span class="ts">2:33</span><span class="tx">an LLM API eats into your latency budget</span></div><div class="tline" data-t="157"><span class="ts">2:37</span><span class="tx">really fast. And also tripping over a</span></div><div class="tline" data-t="160"><span class="ts">2:40</span><span class="tx">circuit breaker when you have another</span></div><div class="tline" data-t="163"><span class="ts">2:43</span><span class="tx">perfectly fine model provider to route</span></div><div class="tline" data-t="165"><span class="ts">2:45</span><span class="tx">to doesn't make sense. You should use</span></div><div class="tline" data-t="167"><span class="ts">2:47</span><span class="tx">the second model provider. And third, as</span></div><div class="tline" data-t="171"><span class="ts">2:51</span><span class="tx">I said, the calls are slow and</span></div><div class="tline" data-t="173"><span class="ts">2:53</span><span class="tx">expensive. So blind retries just</span></div><div class="tline" data-t="176"><span class="ts">2:56</span><span class="tx">multiply your cost and your tail</span></div><div class="tline" data-t="177"><span class="ts">2:57</span><span class="tx">latencies.</span></div><div class="tline" data-t="180"><span class="ts">3:00</span><span class="tx">So what is a better idea here? It is</span></div><div class="tline" data-t="183"><span class="ts">3:03</span><span class="tx">actually a per request fallback. What</span></div><div class="tline" data-t="186"><span class="ts">3:06</span><span class="tx">that means is you can actually try model</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">provider A and then in sequence try</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">model provider B if your request to</span></div><div class="tline" data-t="193"><span class="ts">3:13</span><span class="tx">model provider A fails. Another option</span></div><div class="tline" data-t="196"><span class="ts">3:16</span><span class="tx">to consider here is you can fire</span></div><div class="tline" data-t="198"><span class="ts">3:18</span><span class="tx">requests to both the providers in</span></div><div class="tline" data-t="199"><span class="ts">3:19</span><span class="tx">parallel. But that's only if you're</span></div><div class="tline" data-t="201"><span class="ts">3:21</span><span class="tx">highly highly obsessed with latencies</span></div><div class="tline" data-t="205"><span class="ts">3:25</span><span class="tx">because that's just going to double your</span></div><div class="tline" data-t="206"><span class="ts">3:26</span><span class="tx">cost.</span></div><div class="tline" data-t="208"><span class="ts">3:28</span><span class="tx">Some of the similar circuit breaking</span></div><div class="tline" data-t="210"><span class="ts">3:30</span><span class="tx">patterns apply here to LMS as well. If</span></div><div class="tline" data-t="214"><span class="ts">3:34</span><span class="tx">you know that your primary has been</span></div><div class="tline" data-t="217"><span class="ts">3:37</span><span class="tx">failing for some time, it doesn't make</span></div><div class="tline" data-t="219"><span class="ts">3:39</span><span class="tx">sense to try it again. You put it, you</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">take it out of the load balancer or your</span></div><div class="tline" data-t="225"><span class="ts">3:45</span><span class="tx">request path and put it in a cool down</span></div><div class="tline" data-t="228"><span class="ts">3:48</span><span class="tx">and then after a few minutes have</span></div><div class="tline" data-t="230"><span class="ts">3:50</span><span class="tx">passed, try putting that back again.</span></div><div class="tline" data-t="233"><span class="ts">3:53</span><span class="tx">One interesting choice that you have to</span></div><div class="tline" data-t="236"><span class="ts">3:56</span><span class="tx">make here is where your failure counts</span></div><div class="tline" data-t="238"><span class="ts">3:58</span><span class="tx">live.</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">You can decide to have the failure</span></div><div class="tline" data-t="241"><span class="ts">4:01</span><span class="tx">counts live in memory on the instances</span></div><div class="tline" data-t="244"><span class="ts">4:04</span><span class="tx">that are serving your traffic or you can</span></div><div class="tline" data-t="247"><span class="ts">4:07</span><span class="tx">have shared infra where your failure</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">counts are shared across the fleet.</span></div><div class="tline" data-t="253"><span class="ts">4:13</span><span class="tx">There are trade-offs.</span></div><div class="tline" data-t="255"><span class="ts">4:15</span><span class="tx">If you want quick failovers, then</span></div><div class="tline" data-t="258"><span class="ts">4:18</span><span class="tx">fleetwide helps. And with instance uh</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">with local state counters the issue that</span></div><div class="tline" data-t="265"><span class="ts">4:25</span><span class="tx">you run into is whenever you change your</span></div><div class="tline" data-t="266"><span class="ts">4:26</span><span class="tx">deployment size your configuration and</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">your expectations change. So something</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">to consider.</span></div><div class="tline" data-t="275"><span class="ts">4:35</span><span class="tx">What that clean diagram did not really</span></div><div class="tline" data-t="277"><span class="ts">4:37</span><span class="tx">show you are some of the other gotchas</span></div><div class="tline" data-t="279"><span class="ts">4:39</span><span class="tx">that I'm going to discuss. So fallbacks</span></div><div class="tline" data-t="281"><span class="ts">4:41</span><span class="tx">are not transparent.</span></div><div class="tline" data-t="283"><span class="ts">4:43</span><span class="tx">While the industry is converging on an</span></div><div class="tline" data-t="285"><span class="ts">4:45</span><span class="tx">OpenAI API compatible format, I would</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">say there are still nuances. So you need</span></div><div class="tline" data-t="290"><span class="ts">4:50</span><span class="tx">to really test your fallbacks well. They</span></div><div class="tline" data-t="293"><span class="ts">4:53</span><span class="tx">can have differences in your tool</span></div><div class="tline" data-t="295"><span class="ts">4:55</span><span class="tx">calling schemas, token limits, stop</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">reasons and what have you. So with LM</span></div><div class="tline" data-t="299"><span class="ts">4:59</span><span class="tx">gateways, you can have a normalization</span></div><div class="tline" data-t="302"><span class="ts">5:02</span><span class="tx">layer that can ensure that you can do</span></div><div class="tline" data-t="305"><span class="ts">5:05</span><span class="tx">cross provider fallbacks as well.</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">Another thing is streaming</span></div><div class="tline" data-t="314"><span class="ts">5:14</span><span class="tx">it.</span></div><div class="tline" data-t="316"><span class="ts">5:16</span><span class="tx">So essentially nobody wants to wait for</span></div><div class="tline" data-t="320"><span class="ts">5:20</span><span class="tx">30 seconds to have a wall of text appear</span></div><div class="tline" data-t="322"><span class="ts">5:22</span><span class="tx">in front of them. So there are use cases</span></div><div class="tline" data-t="324"><span class="ts">5:24</span><span class="tx">where streaming is absolutely required.</span></div><div class="tline" data-t="327"><span class="ts">5:27</span><span class="tx">But it comes as at a cost. You trade</span></div><div class="tline" data-t="329"><span class="ts">5:29</span><span class="tx">away your levers. You cannot once you</span></div><div class="tline" data-t="331"><span class="ts">5:31</span><span class="tx">have decided to go with provider A, you</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">have to continue going with provider A.</span></div><div class="tline" data-t="337"><span class="ts">5:37</span><span class="tx">You cannot mid-stream change the</span></div><div class="tline" data-t="339"><span class="ts">5:39</span><span class="tx">providers. Whatever has been sent to the</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">client, it's done. And that's where the</span></div><div class="tline" data-t="345"><span class="ts">5:45</span><span class="tx">something uh went wrong message, that's</span></div><div class="tline" data-t="347"><span class="ts">5:47</span><span class="tx">the one that you see. It's not because</span></div><div class="tline" data-t="350"><span class="ts">5:50</span><span class="tx">of laziness. It's by design uh that you</span></div><div class="tline" data-t="352"><span class="ts">5:52</span><span class="tx">see that and it's one of the trade-offs.</span></div><div class="tline" data-t="355"><span class="ts">5:55</span><span class="tx">I would like to call out one other thing</span></div><div class="tline" data-t="357"><span class="ts">5:57</span><span class="tx">where I've seen teams trip over and over</span></div><div class="tline" data-t="360"><span class="ts">6:00</span><span class="tx">again. They really provision and test</span></div><div class="tline" data-t="363"><span class="ts">6:03</span><span class="tx">their primary providers really well, but</span></div><div class="tline" data-t="367"><span class="ts">6:07</span><span class="tx">they the second provider, the fallback</span></div><div class="tline" data-t="369"><span class="ts">6:09</span><span class="tx">provider doesn't necessarily get the</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">same level of love. And I would argue</span></div><div class="tline" data-t="373"><span class="ts">6:13</span><span class="tx">that your throughputs or your capacity</span></div><div class="tline" data-t="375"><span class="ts">6:15</span><span class="tx">or your headroom should be even higher</span></div><div class="tline" data-t="378"><span class="ts">6:18</span><span class="tx">for the second provider or the fallback</span></div><div class="tline" data-t="381"><span class="ts">6:21</span><span class="tx">provider because that's your last line</span></div><div class="tline" data-t="383"><span class="ts">6:23</span><span class="tx">of defense. If that goes down, your</span></div><div class="tline" data-t="385"><span class="ts">6:25</span><span class="tx">application goes down.</span></div><div class="tline" data-t="390"><span class="ts">6:30</span><span class="tx">Let's discuss latencies.</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">Availability failures are right in your</span></div><div class="tline" data-t="394"><span class="ts">6:34</span><span class="tx">face. They fail. You get alarmed. You</span></div><div class="tline" data-t="398"><span class="ts">6:38</span><span class="tx">get paged. But high latencies can be the</span></div><div class="tline" data-t="402"><span class="ts">6:42</span><span class="tx">quiet ones. And they need to receive</span></div><div class="tline" data-t="405"><span class="ts">6:45</span><span class="tx">more love um than I would say tuning</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">your services for just availability.</span></div><div class="tline" data-t="414"><span class="ts">6:54</span><span class="tx">One thing to call out, a gateway may run</span></div><div class="tline" data-t="418"><span class="ts">6:58</span><span class="tx">mixed workloads</span></div><div class="tline" data-t="420"><span class="ts">7:00</span><span class="tx">and you can have embedding embedding</span></div><div class="tline" data-t="422"><span class="ts">7:02</span><span class="tx">requests that takes just less than a</span></div><div class="tline" data-t="424"><span class="ts">7:04</span><span class="tx">second. You can have classification</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">requests that take less than a second.</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">Uh you have chat requests taking 3</span></div><div class="tline" data-t="430"><span class="ts">7:10</span><span class="tx">seconds and reasoning requests taking a</span></div><div class="tline" data-t="433"><span class="ts">7:13</span><span class="tx">long time.</span></div><div class="tline" data-t="435"><span class="ts">7:15</span><span class="tx">Quick show of hands. If you measure</span></div><div class="tline" data-t="438"><span class="ts">7:18</span><span class="tx">your aggregate latency for your entire</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">service.</span></div><div class="tline" data-t="442"><span class="ts">7:22</span><span class="tx">Well, that was a trick question. Sorry.</span></div><div class="tline" data-t="444"><span class="ts">7:24</span><span class="tx">You shouldn't. It doesn't make sense.</span></div><div class="tline" data-t="445"><span class="ts">7:25</span><span class="tx">It's a lie. You should be tracking your</span></div><div class="tline" data-t="448"><span class="ts">7:28</span><span class="tx">P99 per model per route, not a gateway</span></div><div class="tline" data-t="452"><span class="ts">7:32</span><span class="tx">wide number. Gateway wide number doesn't</span></div><div class="tline" data-t="454"><span class="ts">7:34</span><span class="tx">make sense, especially if you're running</span></div><div class="tline" data-t="456"><span class="ts">7:36</span><span class="tx">mixed workloads. And I hope you're not u</span></div><div class="tline" data-t="458"><span class="ts">7:38</span><span class="tx">for those who raise your hand. Another</span></div><div class="tline" data-t="461"><span class="ts">7:41</span><span class="tx">thing that can really I cannot emphasize</span></div><div class="tline" data-t="464"><span class="ts">7:44</span><span class="tx">this enough is for you to set timeouts</span></div><div class="tline" data-t="467"><span class="ts">7:47</span><span class="tx">on per model class per route.</span></div><div class="tline" data-t="470"><span class="ts">7:50</span><span class="tx">That's where that's the number one root</span></div><div class="tline" data-t="472"><span class="ts">7:52</span><span class="tx">cause of your silent outage. If you</span></div><div class="tline" data-t="474"><span class="ts">7:54</span><span class="tx">don't have a timeout, your gateway</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">thinks you're hap your request is being</span></div><div class="tline" data-t="478"><span class="ts">7:58</span><span class="tx">happily served while it is not. And I'll</span></div><div class="tline" data-t="482"><span class="ts">8:02</span><span class="tx">leave you with this message for for</span></div><div class="tline" data-t="483"><span class="ts">8:03</span><span class="tx">latencies. Um, specifically a reasoning</span></div><div class="tline" data-t="487"><span class="ts">8:07</span><span class="tx">models normal is actually a chat models</span></div><div class="tline" data-t="490"><span class="ts">8:10</span><span class="tx">outage. So you definitely need to track</span></div><div class="tline" data-t="492"><span class="ts">8:12</span><span class="tx">latency per route.</span></div><div class="tline" data-t="497"><span class="ts">8:17</span><span class="tx">Okay, this is the most painful or this</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">the slide that has given me the most</span></div><div class="tline" data-t="500"><span class="ts">8:20</span><span class="tx">scarse which is reasoning and router</span></div><div class="tline" data-t="504"><span class="ts">8:24</span><span class="tx">models. So this is where truly the</span></div><div class="tline" data-t="508"><span class="ts">8:28</span><span class="tx">latency is unpredictable</span></div><div class="tline" data-t="510"><span class="ts">8:30</span><span class="tx">and reasoning models they do not give</span></div><div class="tline" data-t="514"><span class="ts">8:34</span><span class="tx">you</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">they they're highly undeterministic more</span></div><div class="tline" data-t="518"><span class="ts">8:38</span><span class="tx">deterministic undeterministic than your</span></div><div class="tline" data-t="520"><span class="ts">8:40</span><span class="tx">normal models. You cannot set the</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">temperature to zero in many cases and</span></div><div class="tline" data-t="524"><span class="ts">8:44</span><span class="tx">the same prompt can take somewhere from</span></div><div class="tline" data-t="527"><span class="ts">8:47</span><span class="tx">2 seconds to 60 seconds and we've seen</span></div><div class="tline" data-t="529"><span class="ts">8:49</span><span class="tx">that in production where P99 suddenly</span></div><div class="tline" data-t="531"><span class="ts">8:51</span><span class="tx">popped to 60 seconds for no good reason.</span></div><div class="tline" data-t="534"><span class="ts">8:54</span><span class="tx">So that's</span></div><div class="tline" data-t="536"><span class="ts">8:56</span><span class="tx">while there's no magical solution to it.</span></div><div class="tline" data-t="539"><span class="ts">8:59</span><span class="tx">I would recommend that you at least</span></div><div class="tline" data-t="541"><span class="ts">9:01</span><span class="tx">start with fixing the reasoning level</span></div><div class="tline" data-t="543"><span class="ts">9:03</span><span class="tx">per route. So with router models, they</span></div><div class="tline" data-t="547"><span class="ts">9:07</span><span class="tx">hide that abstraction behind you. Like</span></div><div class="tline" data-t="549"><span class="ts">9:09</span><span class="tx">they pick which models to run and I</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">would highly recommend that you at least</span></div><div class="tline" data-t="555"><span class="ts">9:15</span><span class="tx">make as much uh you make requests as</span></div><div class="tline" data-t="558"><span class="ts">9:18</span><span class="tx">determinist deterministic as possible</span></div><div class="tline" data-t="560"><span class="ts">9:20</span><span class="tx">with an undeterministic system.</span></div><div class="tline" data-t="564"><span class="ts">9:24</span><span class="tx">Another idea is hedging the tail. You</span></div><div class="tline" data-t="568"><span class="ts">9:28</span><span class="tx">can have a you can fire another request</span></div><div class="tline" data-t="570"><span class="ts">9:30</span><span class="tx">if your primary request actually</span></div><div class="tline" data-t="572"><span class="ts">9:32</span><span class="tx">consumed let's say P90 of your latency</span></div><div class="tline" data-t="575"><span class="ts">9:35</span><span class="tx">budget.</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">This can hedge the t this can really</span></div><div class="tline" data-t="579"><span class="ts">9:39</span><span class="tx">hedge the P99 tail u for for your</span></div><div class="tline" data-t="583"><span class="ts">9:43</span><span class="tx">services.</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">All right. This is one of my favorite</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">ones. Um</span></div><div class="tline" data-t="589"><span class="ts">9:49</span><span class="tx">to keep your model secure you need to</span></div><div class="tline" data-t="592"><span class="ts">9:52</span><span class="tx">have guardrails.</span></div><div class="tline" data-t="594"><span class="ts">9:54</span><span class="tx">And with that, guardrails are necessary</span></div><div class="tline" data-t="597"><span class="ts">9:57</span><span class="tx">for preventing your services from prompt</span></div><div class="tline" data-t="599"><span class="ts">9:59</span><span class="tx">injection attacks, keeping PII filters</span></div><div class="tline" data-t="603"><span class="ts">10:03</span><span class="tx">in place, having toxicity filters,</span></div><div class="tline" data-t="605"><span class="ts">10:05</span><span class="tx">keeping the LMS to stop swearing at your</span></div><div class="tline" data-t="608"><span class="ts">10:08</span><span class="tx">customers, all those good things. But</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">just like a model provider, there are</span></div><div class="tline" data-t="614"><span class="ts">10:14</span><span class="tx">trade-offs, too. Guardrails are just</span></div><div class="tline" data-t="617"><span class="ts">10:17</span><span class="tx">like another service that can go down</span></div><div class="tline" data-t="620"><span class="ts">10:20</span><span class="tx">that can be unreliable and that's where</span></div><div class="tline" data-t="623"><span class="ts">10:23</span><span class="tx">you need to choose do you fail open or</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">do you fail close when I say fail open</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">you can still serve the request even if</span></div><div class="tline" data-t="631"><span class="ts">10:31</span><span class="tx">your guardrails are down fail close you</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">block the request and say hey I'm not</span></div><div class="tline" data-t="636"><span class="ts">10:36</span><span class="tx">available that's the trade-off between</span></div><div class="tline" data-t="638"><span class="ts">10:38</span><span class="tx">availability and security to certain</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">extent while there's a no universal</span></div><div class="tline" data-t="642"><span class="ts">10:42</span><span class="tx">answer it really depends on your use</span></div><div class="tline" data-t="645"><span class="ts">10:45</span><span class="tx">case you can decide like for example a</span></div><div class="tline" data-t="648"><span class="ts">10:48</span><span class="tx">toxicity filter if it's not up and</span></div><div class="tline" data-t="650"><span class="ts">10:50</span><span class="tx">running you can still serve that</span></div><div class="tline" data-t="652"><span class="ts">10:52</span><span class="tx">request.</span></div><div class="tline" data-t="654"><span class="ts">10:54</span><span class="tx">So the default choice should be the</span></div><div class="tline" data-t="657"><span class="ts">10:57</span><span class="tx">worst case that you can live with.</span></div><div class="tline" data-t="663"><span class="ts">11:03</span><span class="tx">There are a few things that you can</span></div><div class="tline" data-t="665"><span class="ts">11:05</span><span class="tx">actually do to improve the behavior of</span></div><div class="tline" data-t="669"><span class="ts">11:09</span><span class="tx">your systems in face of uh you know</span></div><div class="tline" data-t="672"><span class="ts">11:12</span><span class="tx">guardrails being down and and managing</span></div><div class="tline" data-t="674"><span class="ts">11:14</span><span class="tx">just unreliability of the guardrails</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">themselves. So the first is time budget.</span></div><div class="tline" data-t="681"><span class="ts">11:21</span><span class="tx">Your request should never be bound by</span></div><div class="tline" data-t="684"><span class="ts">11:24</span><span class="tx">your guardrail timing. It should always</span></div><div class="tline" data-t="687"><span class="ts">11:27</span><span class="tx">be the LM that is the rate determining</span></div><div class="tline" data-t="689"><span class="ts">11:29</span><span class="tx">step. So make sure that you have</span></div><div class="tline" data-t="692"><span class="ts">11:32</span><span class="tx">timeouts in place and those guardrails</span></div><div class="tline" data-t="695"><span class="ts">11:35</span><span class="tx">run with a specific time budget.</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">Another important thing is fallback.</span></div><div class="tline" data-t="701"><span class="ts">11:41</span><span class="tx">You've heard, you probably know and I've</span></div><div class="tline" data-t="703"><span class="ts">11:43</span><span class="tx">talked about it. We always discuss</span></div><div class="tline" data-t="705"><span class="ts">11:45</span><span class="tx">fallbacks with regards to model</span></div><div class="tline" data-t="707"><span class="ts">11:47</span><span class="tx">providers, but guardrails are critical</span></div><div class="tline" data-t="710"><span class="ts">11:50</span><span class="tx">services too where you can consider</span></div><div class="tline" data-t="713"><span class="ts">11:53</span><span class="tx">fallbacks, have secondary provider,</span></div><div class="tline" data-t="715"><span class="ts">11:55</span><span class="tx">secondary checks, cache decisions uh to</span></div><div class="tline" data-t="718"><span class="ts">11:58</span><span class="tx">keep your service available when a</span></div><div class="tline" data-t="721"><span class="ts">12:01</span><span class="tx">guardrail provider is down.</span></div><div class="tline" data-t="724"><span class="ts">12:04</span><span class="tx">Another interesting choice that pops up</span></div><div class="tline" data-t="726"><span class="ts">12:06</span><span class="tx">with regards to guardrails is the</span></div><div class="tline" data-t="728"><span class="ts">12:08</span><span class="tx">placement of the guardrails.</span></div><div class="tline" data-t="731"><span class="ts">12:11</span><span class="tx">Typically, you can place the guardrail</span></div><div class="tline" data-t="734"><span class="ts">12:14</span><span class="tx">in three ways. You can have a pre- hook</span></div><div class="tline" data-t="737"><span class="ts">12:17</span><span class="tx">that runs where the guardrail actually</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">runs on the input. You can and that's</span></div><div class="tline" data-t="742"><span class="ts">12:22</span><span class="tx">probably the safest uh but it does add</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">serial latency uh to your requests.</span></div><div class="tline" data-t="748"><span class="ts">12:28</span><span class="tx">Another one is in parallel. This is one</span></div><div class="tline" data-t="750"><span class="ts">12:30</span><span class="tx">of my favorites, but just to call out,</span></div><div class="tline" data-t="753"><span class="ts">12:33</span><span class="tx">streaming wouldn't work well here with</span></div><div class="tline" data-t="755"><span class="ts">12:35</span><span class="tx">with parallel. So if you're specially</span></div><div class="tline" data-t="758"><span class="ts">12:38</span><span class="tx">producing structured output, please</span></div><div class="tline" data-t="759"><span class="ts">12:39</span><span class="tx">don't stream them. Uh try to save your</span></div><div class="tline" data-t="761"><span class="ts">12:41</span><span class="tx">latencies and run run these guardrails</span></div><div class="tline" data-t="764"><span class="ts">12:44</span><span class="tx">concurrently for your structured</span></div><div class="tline" data-t="765"><span class="ts">12:45</span><span class="tx">outputs. Another one is post hooks. The</span></div><div class="tline" data-t="768"><span class="ts">12:48</span><span class="tx">these are best for um output monitoring,</span></div><div class="tline" data-t="772"><span class="ts">12:52</span><span class="tx">auditing your outputs and and so forth.</span></div><div class="tline" data-t="778"><span class="ts">12:58</span><span class="tx">So, so far we've all I've discussed all</span></div><div class="tline" data-t="782"><span class="ts">13:02</span><span class="tx">the things that can go wrong with</span></div><div class="tline" data-t="784"><span class="ts">13:04</span><span class="tx">regards to our dependencies.</span></div><div class="tline" data-t="787"><span class="ts">13:07</span><span class="tx">We haven't discussed that we are</span></div><div class="tline" data-t="789"><span class="ts">13:09</span><span class="tx">actually adding another dependency in</span></div><div class="tline" data-t="791"><span class="ts">13:11</span><span class="tx">the request path itself which is the</span></div><div class="tline" data-t="793"><span class="ts">13:13</span><span class="tx">central or which is the LM gateway</span></div><div class="tline" data-t="795"><span class="ts">13:15</span><span class="tx">itself. There are a few things where we</span></div><div class="tline" data-t="797"><span class="ts">13:17</span><span class="tx">have been bitten by u and we've learned</span></div><div class="tline" data-t="799"><span class="ts">13:19</span><span class="tx">some lessons that I want to share with</span></div><div class="tline" data-t="801"><span class="ts">13:21</span><span class="tx">you. If you're working on an LLM gateway</span></div><div class="tline" data-t="804"><span class="ts">13:24</span><span class="tx">or using one, one is shared limits.</span></div><div class="tline" data-t="809"><span class="ts">13:29</span><span class="tx">Make sure that your API keys are</span></div><div class="tline" data-t="811"><span class="ts">13:31</span><span class="tx">segregated per route, per use case to</span></div><div class="tline" data-t="815"><span class="ts">13:35</span><span class="tx">the most granular possible uh to the</span></div><div class="tline" data-t="819"><span class="ts">13:39</span><span class="tx">most granular thing that you can</span></div><div class="tline" data-t="820"><span class="ts">13:40</span><span class="tx">imagine. U</span></div><div class="tline" data-t="824"><span class="ts">13:44</span><span class="tx">having a noisy tenant can be one of the</span></div><div class="tline" data-t="827"><span class="ts">13:47</span><span class="tx">biggest problems here.</span></div><div class="tline" data-t="829"><span class="ts">13:49</span><span class="tx">Another thing is load shedding. This is</span></div><div class="tline" data-t="832"><span class="ts">13:52</span><span class="tx">a feature that you should uh as part of</span></div><div class="tline" data-t="834"><span class="ts">13:54</span><span class="tx">your runbooks, game days, uh make sure</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">that the gateway that you're using</span></div><div class="tline" data-t="838"><span class="ts">13:58</span><span class="tx">supports load shedding because when you</span></div><div class="tline" data-t="841"><span class="ts">14:01</span><span class="tx">have a retry storm, it becomes really</span></div><div class="tline" data-t="843"><span class="ts">14:03</span><span class="tx">hard to just scale out. You cannot</span></div><div class="tline" data-t="845"><span class="ts">14:05</span><span class="tx">simply scale out services that is under</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">a retry storm and all these web servers</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">they have an internal queue and they're</span></div><div class="tline" data-t="853"><span class="ts">14:13</span><span class="tx">configurable. Make sure that they're</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">bounded and they cannot request they</span></div><div class="tline" data-t="858"><span class="ts">14:18</span><span class="tx">cannot accept requests that are</span></div><div class="tline" data-t="859"><span class="ts">14:19</span><span class="tx">unbounded. And if you want to have some</span></div><div class="tline" data-t="861"><span class="ts">14:21</span><span class="tx">custom logic, you can even have traffic</span></div><div class="tline" data-t="864"><span class="ts">14:24</span><span class="tx">prioritization here as well to make sure</span></div><div class="tline" data-t="866"><span class="ts">14:26</span><span class="tx">under load your most important use cases</span></div><div class="tline" data-t="869"><span class="ts">14:29</span><span class="tx">get served. Well,</span></div><div class="tline" data-t="874"><span class="ts">14:34</span><span class="tx">last thing that I wanted to discuss is</span></div><div class="tline" data-t="877"><span class="ts">14:37</span><span class="tx">the whole idea of a central gateway</span></div><div class="tline" data-t="878"><span class="ts">14:38</span><span class="tx">itself. It is a single point of failure.</span></div><div class="tline" data-t="881"><span class="ts">14:41</span><span class="tx">So if you're thinking of having a</span></div><div class="tline" data-t="883"><span class="ts">14:43</span><span class="tx">central gateway for your entire company</span></div><div class="tline" data-t="885"><span class="ts">14:45</span><span class="tx">for to LLMs, I would recommend rethink</span></div><div class="tline" data-t="889"><span class="ts">14:49</span><span class="tx">that and see what are the reasons that</span></div><div class="tline" data-t="891"><span class="ts">14:51</span><span class="tx">you want it. What I've noticed is that</span></div><div class="tline" data-t="894"><span class="ts">14:54</span><span class="tx">in most scenarios, it's not the central</span></div><div class="tline" data-t="896"><span class="ts">14:56</span><span class="tx">gateway that they want. They want</span></div><div class="tline" data-t="898"><span class="ts">14:58</span><span class="tx">centralized governance.</span></div><div class="tline" data-t="900"><span class="ts">15:00</span><span class="tx">And there is a path forward where you</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">can actually decentralize the gateway</span></div><div class="tline" data-t="905"><span class="ts">15:05</span><span class="tx">and still centralize government</span></div><div class="tline" data-t="907"><span class="ts">15:07</span><span class="tx">governance. So do not try to centralize</span></div><div class="tline" data-t="911"><span class="ts">15:11</span><span class="tx">your traffic but you can have plugins,</span></div><div class="tline" data-t="914"><span class="ts">15:14</span><span class="tx">you can have custom code that can</span></div><div class="tline" data-t="916"><span class="ts">15:16</span><span class="tx">centralize your governance. Uh</span></div><div class="tline" data-t="918"><span class="ts">15:18</span><span class="tx">governance can be in the form of cost</span></div><div class="tline" data-t="920"><span class="ts">15:20</span><span class="tx">tracking, rate limit managing management</span></div><div class="tline" data-t="923"><span class="ts">15:23</span><span class="tx">and there are other solutions possible.</span></div><div class="tline" data-t="925"><span class="ts">15:25</span><span class="tx">So explore those before you chart on</span></div><div class="tline" data-t="928"><span class="ts">15:28</span><span class="tx">having one central gateway for your</span></div><div class="tline" data-t="930"><span class="ts">15:30</span><span class="tx">entire company. It can be managed by a</span></div><div class="tline" data-t="933"><span class="ts">15:33</span><span class="tx">single team, but I wouldn't recommend</span></div><div class="tline" data-t="935"><span class="ts">15:35</span><span class="tx">deploying it as a single deployment for</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">the entire company even though it's</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">distributed.</span></div><div class="tline" data-t="943"><span class="ts">15:43</span><span class="tx">With that said, I want to end this talk</span></div><div class="tline" data-t="946"><span class="ts">15:46</span><span class="tx">on a personal note. So, it is my son's</span></div><div class="tline" data-t="949"><span class="ts">15:49</span><span class="tx">birthday today and I'm here talking to</span></div><div class="tline" data-t="952"><span class="ts">15:52</span><span class="tx">strangers about circuit breaking. So the</span></div><div class="tline" data-t="956"><span class="ts">15:56</span><span class="tx">least you can do for me is please go and</span></div><div class="tline" data-t="958"><span class="ts">15:58</span><span class="tx">prevent one incident for me and for your</span></div><div class="tline" data-t="961"><span class="ts">16:01</span><span class="tx">customers. Thank you. If you have any</span></div><div class="tline" data-t="964"><span class="ts">16:04</span><span class="tx">questions. Yeah.</span></div><div class="tline" data-t="981"><span class="ts">16:21</span><span class="tx">&gt;&gt; [music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

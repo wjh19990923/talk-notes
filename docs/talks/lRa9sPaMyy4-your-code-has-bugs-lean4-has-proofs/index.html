@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>你的代码有 bug，Lean4 有证明：面向工程师的形式化验证 —— Varun Pant，AWS | AI 工程师中文版</title>
+<meta name="description" content="Varun Pant 讲解了规格说明、机器生成的证明和小巧的独立检查器如何组合在一起——以及当生产代码用 Rust 而不是 Lean 编写时，验证会发生什么变化。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>你的代码有 bug，Lean4 有证明：面向工程师的形式化验证 —— Varun Pant，AWS</h1>
+    <div class="orig-title">Your Code Has Bugs. Lean4 Has Proofs: Formal Verification for Engineers — Varun Pant, AWS</div>
+    <div class="meta"><span class="speaker">Varun Pant</span> · AI Engineer World's Fair 2026 · 10:06</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=code-review-and-verification">代码审查与验证</a><a class="tag" href="../../index.html#topic=spec-driven-development">规格驱动开发</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/lRa9sPaMyy4-your-code-has-bugs-lean4-has-proofs" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="lRa9sPaMyy4"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=lRa9sPaMyy4" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">在要求机器证明之前先定义正确性</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>在要求机器证明之前先定义正确性</span></li><li data-t="131"><span class="ts">2:11</span><span>一种语言同时容纳函数和它的定理</span></li><li data-t="196"><span class="ts">3:16</span><span>像下棋一样搜索，再独立检查结果</span></li><li data-t="270"><span class="ts">4:30</span><span>一次压缩往返变成了 32000 行证明</span></li><li data-t="358"><span class="ts">5:58</span><span>Cedar 把 Lean 语义与生产 Rust 连接起来</span></li><li data-t="419"><span class="ts">6:59</span><span>从 Rust 到演绎验证的两条路线</span></li><li data-t="506"><span class="ts">8:26</span><span>把不同的语言降级到一个共享的验证核心</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 20 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="The problem" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The problem</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>LLM judging is probabilistic, tests cover only some inputs, and human review struggles to match agent speed. None establishes correctness for all inputs.
+
+[0:12](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=12s) [Slide lists limitations of LLM judging, tests, and human review for proving code correct for all inputs.](https://assets.ai.engineer/sites/aiecode2025/sha256/82ad3171c18681d56195281234b079e6d946c7b65f23e613bd9ff3361cf55c21.webp)
+
+The problem
+
+Coding agents are generating more code than ever. How do you know it's correct?
+
+LLM-as-judge? Probabilistic.
+Tests? Only checks some inputs, not all.
+Human code review? Doesn't scale to match agent speed.
+
+None can say: &quot;for ALL inputs, this is correct.&quot;
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="The problem" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The problem</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>As coding agents produce more code, LLM judgments are probabilistic, tests cover selected inputs, and human review struggles to keep pace. Formal verification can prove code meets a specification for all inputs.
+
+[0:36](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=36s) [Slide contrasts code review methods with formal verification for proving correctness.](https://assets.ai.engineer/sites/aiecode2025/sha256/2837b382e0e13396d67b59b204ef4108e62bf8fabfa497c855252bab97b089c7.webp)
+
+The problem
+
+Coding agents are generating more code than ever. How do you know it's correct?
+
+LLM-as-judge? Probabilistic.
+Tests? Only checks some inputs, not all.
+Human code review? Doesn't scale to match agent speed.
+
+None can say: &quot;for ALL inputs, this is correct.&quot;
+Formal verification can.
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Formal verification" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Formal verification</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A developer defines correctness in a specification; a verification tool then proves that the code satisfies it for every possible input.
+
+[0:49](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=49s) [Slide explains that a tool proves code satisfies a specification, alongside logos of verification tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/4e9fb96e1b83da748b0d823facec76b7fd9d727b1e8cdfc2cd935c0a4fc5895c.webp)
+
+Formal verification
+
+Mathematical proof that code is correct — for ALL inputs.
+
+You write WHAT correct means (the spec).
+A tool proves your code satisfies it.
+
+If the proof passes → it holds for every possible input.
+
+Z3
+CVC5
+LEAN THEOREM PROVER
+Dafny
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="How do you use formal verification?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How do you use formal verification?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Humans write and validate a specification. An AI coding agent implements it, and a verification tool proves the implementation matches the spec.
+
+[2:02](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=122s) [Slide lists four steps from writing and validating a specification to proving an implementation matches it.](https://assets.ai.engineer/sites/aiecode2025/sha256/98a7ee9c1c5fa57fe9c9816bcafdb85fe2b0e828488ecac0165d7eab5bf054bc.webp)
+
+How do you use formal verification?
+
+Spec-driven development (e.g. with Kiro):
+
+1. Write a SPEC — what &quot;correct&quot; means (write it formally, or describe intent and let AI autoformalize)
+2. Validate the spec (human reviews it + test it holds on inputs)
+3. AI coding agent implements from the specification
+4. PROVE implementation matches spec
+
+Humans own the spec. Machines own the code and proof.
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="What is Lean?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is Lean?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Lean uses one language for definitions and proofs, with no translation layer. It is implemented in Lean and has a small trusted kernel; proofs can be exported for independent checking.
+
+[2:12](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=132s) [Slide describes Lean as a programming language and proof assistant with a small trusted kernel.](https://assets.ai.engineer/sites/aiecode2025/sha256/ef4785984d1bd527363ed2c4d48d9cdac5d476961dc851b1ae34ff62a492c885.webp)
+
+What is Lean?
+
+LEAN
+
+A programming language and a proof assistant.
+
+• Same language for definitions and proofs. No translation layer.
+• Lean is implemented in Lean. Very extensible.
+• Small trusted kernel. Proofs can be exported and independently checked.
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Code and proof in the same language" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Code and proof in the same language</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A Lean file defines list reversal and proves that reversing appended lists yields the reverse of each list in opposite order. Tactics do the proof work; the kernel checks it.
+
+[2:31](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=151s) [Lean code reverses a list and proves a property of reversing appended lists.](https://assets.ai.engineer/sites/aiecode2025/sha256/88107f3a0adc1fe5a998ec4776347105e1fc5cb4c79f7d78bd15fa6b769cd6ed.webp)
+
+Code and proof in the same language
+
+def reverse : List α → List α
+  | [] =&gt; []
+  | x :: xs =&gt; reverse xs ++ [x]
+
+Code!
+
+theorem reverse_append (xs ys : List α)
+    : reverse (xs ++ ys) = reverse ys ++ reverse xs := by
+  induction xs with
+  | nil =&gt; simp [reverse]
+  | cons x xs ih =&gt; simp [reverse, ih]
+
+Proof!
+
+#eval reverse [1, 2, 3]
+[3, 2, 1]
+
+All goals completed! 🐙
+
+Here's a function that reverses a list in Lean. reverse [1,2,3] gives [3,2,1]
+
+Using the theorem prover, we proved a property: reverse(A + B) = reverse(B) + reverse(A) — holds for every possible list.
+
+Tactics do the work, kernel checks
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Lean proof assistant" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Lean proof assistant</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Like chess moves, tactics explore branches toward a goal. In the diagram, an LLM tries three tactics; omega proves the goal, and the kernel checks the result.
+
+[3:27](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=207s) [A chessboard accompanies a diagram of an LLM trying tactics, proving a goal, and having the kernel confirm it.](https://assets.ai.engineer/sites/aiecode2025/sha256/2199b0bcbb972ce761c7756bd7e42091802a56eed7e38ec2deb9a10139b86cbf.webp)
+
+Lean proof assistant
+
+LLM
+
+tactic (simp) X
+tactic (omega)
+tactic (rw) X
+
+Goal proved ✓
+Kernel confirms ✓
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="The kernel catches mistakes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The kernel catches mistakes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A false claim that reversing [1, 2, 3] leaves it unchanged produces an unsolved goal. Lean’s small kernel checks proofs; the slide also lists independent kernels in C++, Rust and Lean.
+
+[4:01](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=241s) [A false list-reversal claim produces an unsolved goal, alongside notes about the kernel and a checker comparison.](https://assets.ai.engineer/sites/aiecode2025/sha256/f8393e4416126e83cc76bc46f7f75ba32073b7503d81cb026125392356a79d02.webp)
+
+The kernel catches mistakes
+
+example : reverse [1, 2, 3] = [1, 2, 3] := by simp [reverse]
+unsolved goals
+⊢ False
+
+• Incorrect proofs are rejected immediately.
+• You only need to trust the small kernel.
+• Multiple independent kernels: C++, Rust, Lean (https://arena.lean-lang.org/).
+
+Checkers
+Checker | Version | [illegible] | [illegible] | [illegible] | [illegible] | [illegible]
+nanoda | master ([illegible]) | 100/100 | 43/43 | 9 | 23.4m | 7.9 GB
+nanobruijn | master ([illegible]) | 102/102 | 50/50 | 0 | 27.7m | 5.5 GB
+official-nightly | 2026-04-11 | 102/102 | 50/50 | 0 | 31.9m | 9.2 GB
+official | 4.29.0 | 102/102 | 49/49 | 1 | 32.8m | 9.1 GB
+official-v4.28.0 | 4.28.0 | 102/102 | 49/49 | 1 | 42.0m | 9.3 GB
+mini | master ([illegible]) | 94/94 | 50/50 | 8 | - | -
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Example 1: Spec and code in Lean" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Example 1: Spec and code in Lean</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The first example puts both the specification and the code in Lean.
+
+[4:28](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=268s) [Section title: Example 1: Spec and code in Lean.](https://assets.ai.engineer/sites/aiecode2025/sha256/b138de7b32ea76a55bc6ef2f1876917279fb512bf179486812ad57d854079a1a.webp)
+
+Example 1: Spec and code in Lean
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="AI converted zlib to Lean" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI converted zlib to Lean</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Pant presents the open-source lean-zip repository as an AI conversion of the C compression library zlib to Lean. He says the conversion took about a week.
+
+[4:39](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=279s) [A repository screenshot accompanies the claim that AI converted the zlib C compression library to Lean.](https://assets.ai.engineer/sites/aiecode2025/sha256/13208fa03c0790da4b118e6706faaa4ad704e63274bf0e477d1ec815f33a3a57.webp)
+
+AI converted zlib (a C compression library) to Lean
+
+AWS Builder Center
+
+Interface text:
+kim-em / lean-zip  Public
+Notifications  Fork 9  Star 91
+Code  Issues 63  Pull requests 16  Actions  Projects  Security and quality  Insights
+master  834 Branches  10 Tags  Go to file  Code
+kim-em  feat: edits to README  [illegible]  8 hours ago  1,464 Commits
+.claude  bench: sweep libdeflate over levels 1-12 (#2713)  last week
+.github/workflows  Fix: master CI failing on lake exe test (Lean 4.29.1 regressi...  2 months ago
+.pod  chore: ignore pod runtime caches; untrack accidentally co...  3 weeks ago
+Zip  perf(matcher): use the updateHashesFast hot writes (~2...  5 days ago
+ZipTest  refactor(wide): drop unused ugetUInt64LE reader (#2712)  last week
+bench  perf(matcher): use the updateHashesFast hot writes (~2...  5 days ago
+c  refactor(wide): drop unused ugetUInt64LE reader (#2712)  last week
+plans  perf: pre-size packed-token array; retire UInt32-tables su...  2 weeks ago
+progress  feat(decode): verified tree-free canonical Huffman decode...  last week
+references  doc: restructure verification plan around roundtrip theorem  4 months ago
+rust/miniz_oxide_shim  human-oversight: Track D Phase 0c — wire miniz_oxide vi...  2 months ago
+scripts  Track E silent-skip family: tar-skipped-padded.tar fixture p...  last month
+testdata  Track E silent-skip family: tar-skipped-padded.tar fixture p...  last month
+.envrc  chore: add shell.nix and direnv support for NixOS builds  4 months ago
+.gitattributes  feat: add comprehensive test suite, CI, Zstd/ZIP64/PAX su...  4 months ago
+
+About
+No description, website, or topics provided.
+Readme
+Apache-2.0 license
+Activity
+91 stars
+1 watching
+9 forks
+Report repository
+Releases
+10 tags
+Packages
+No packages published
+Contributors 2
+kim-em Kim Morrison
+claude Claude
+Languages</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="AI generated specifications" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI generated specifications</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AI translates the compression round-trip requirement into a Lean equality with an output-size bound. The theorem ends in sorry, a proof placeholder; Pant stresses checking the specification.
+
+[4:51](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=291s) [A natural-language compression round-trip specification alongside its AI-generated Lean formal specification.](https://assets.ai.engineer/sites/aiecode2025/sha256/c0498a1d2328530dc1e577fb5168f095da3718d0fb5520a59460acea11f479be.webp)
+
+AI generated specifications
+
+Natural Language Spec
+&quot;Decompressing the output of compress returns the original data, for every input and every compression level.&quot;
+
+AI generated formal spec
+theorem zlib_decompressSingle_compress
+    (data : ByteArray) (level : UInt8) (maxOutputSize : Nat)
+    (hsize : data.size ≤ maxOutputSize) :
+    Zip.Native.ZlibDecode.decompressSingle
+        (Zip.Native.ZlibEncode.compress data level) maxOutputSize
+      = Except.ok data := by sorry
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="AI generated proofs" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI generated proofs</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AI generated helper lemmas to prove the compression round-trip theorem. The slide shows a successful Lean build and identifies the proof as verified by the Lean kernel.
+
+[5:18](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=318s) [Lean proof code and a successful build result, presented as verification by the Lean kernel.](https://assets.ai.engineer/sites/aiecode2025/sha256/7ef853bce9ec6f16edceda1ddde03a4f59183541aa28be992fcc12da0ca2b58d.webp)
+
+AI generated proofs
+
+AI generated helper lemmas → theorem proved
+
+theorem zlib_decompressSingle_compress (data : ByteArray) (level : UInt8)
+    (maxOutputSize : Nat) (hsize : data.size ≤ maxOutputSize) :
+    ZlibDecode.decompressSingle (ZlibEncode.compress data level)
+maxOutputSize = .ok data := by
+  unfold ZlibDecode.decompressSingle
+  rw [zlib_inflate_ok data level maxOutputSize hsize]
+  have hsz := zlib_size_ge data level
+  have htr := zlib_trailer_fits data level
+  simp only [zlib_check, zlib_cm, zlib_win, zlib_fdict, zlib_adler,
+if_true,
+    bind, Except.bind, pure, Except.pure, beq_self_eq_true]
+  have h1 : ¬ (2 + (Deflate.deflateRaw data level).size + 4 &gt;
+(ZlibEncode.compress data level).size) := by omega
+  rw [if_neg h1, if_neg (by omega : ¬ (ZlibEncode.compress data level).size
+&lt; 6)]
+
+Proof verified with Lean Kernel
+
+$ lake build
+Build completed successfully (73 jobs)
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="What you just saw" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What you just saw</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AI broke the problem into lemma subgoals, proved them with tactics, and assembled a theorem that the kernel checked. The example spans 1,100 theorems and ~32k lines of proof.
+
+[5:32](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=332s) [Summary of AI-generated lemmas, tactics and theorem assembly, followed by kernel checking.](https://assets.ai.engineer/sites/aiecode2025/sha256/9547d964df453cda4d2772c1cc3f3ee225ebe1b5be0fe50cbde84eef9b2805a3.webp)
+
+What you just saw
+
+AI decomposed problem → lemmas
+Proved each → tactics
+Assembled → final theorem
+Kernel checked → √
+
+AI did the work. Kernel kept it honest.
+
+(1,100 theorems across ~32k lines of proof!)
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Example 2: Code in Rust, functional specification in Lean" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Example 2: Code in Rust, functional specification in Lean</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Rust code can be paired with a functional specification or model written in Lean. Cedar is the example.
+
+[5:56](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=356s) [Section title introducing Rust code with a functional specification in Lean.](https://assets.ai.engineer/sites/aiecode2025/sha256/c39822a9d67107f67f0ebf4d43cbec9e8932686bea11ae7e12367fbc5cb9771b.webp)
+
+Example 2: Code in Rust, functional specification in Lean
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Cedar: proved properties - verified authorization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Cedar: proved properties - verified authorization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Cedar’s Lean specification describes authorization properties: a satisfied forbid policy denies a request, while permission requires a satisfied permit policy. Its production code runs in Rust.
+
+[6:05](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=365s) [Cedar authorization properties and verified components, with a screenshot of the Cedar website.](https://assets.ai.engineer/sites/aiecode2025/sha256/bd77f2cf9ed2a73c5e96f802616d8776f991d28ed6ca200fdbb52a2169e4c7e2.webp)
+
+Cedar: proved properties - verified authorization
+
+Cedar — open-source authorization policy language. Used by AWS Verified Permissions and AWS Verified Access.
+
+Cedar spec: the model is written in Lean.
+
+Three examples of verified components: evaluator, authorizer, validator.
+
+• forbid_trumps_permit — if any forbid policy is satisfied, the request is denied.
+• allowed_only_if_explicitly_permitted — a request is allowed only if at least one permit policy is satisfied.
+• typecheck_is_sound — if the validator accepts a policy, evaluation produces a boolean.
+
+FAST, SCALABLE ACCESS CONTROL
+
+Cedar is a language for defining permissions as policies, which describe who should have access to what. It is also a specification for evaluating those policies. Use Cedar policies to control what each user of your application is permitted to do and what resources they may access.
+
+Do the tutorial
+Try it out in playground
+
+May 10, 2023: Amazon Web Services announces the Open-Source release of the Cedar SDK. Learn more
+
+AWS Builder Center
+
+Interface text:
+CEDAR
+Overview
+Learn
+Policy playground
+Integrations
+Cedar SDK</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Example 3: Code in Rust, verify with Lean/solvers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Example 3: Code in Rust, verify with Lean/solvers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The next example asks how to deductively verify Rust code using Lean or solvers.
+
+[6:34](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=394s) [Section title introducing verification of Rust code with Lean or solvers.](https://assets.ai.engineer/sites/aiecode2025/sha256/76718d9d60730a7cd2038a2d59e7ef61b1bf3d2473a1dd7f67833b195bf71caf.webp)
+
+Example 3: Code in Rust, verify with Lean/solvers
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Verifying Rust: Verus and Z3" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Verifying Rust: Verus and Z3</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example requires an index to be within the vector and ensures the updated element equals t. Verus checks these conditions statically and erases them at runtime.
+
+[8:01](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=481s) [Verus code example highlights preconditions and postconditions, which are statically checked and erased at runtime.](https://assets.ai.engineer/sites/aiecode2025/sha256/6695ff44674e2456c8afafc7fde1fc54666f9a9136360c4d1c334bcd989942f6.webp)
+
+Verifying Rust: Verus-&gt;Z3 Solver
+
+Verus allows the programmer to add specifications:
+
+fn vec_update_at_idx&lt;T&gt;(
+    v: &amp;mut Vec&lt;T&gt;,
+    idx: usize,
+    t: T
+)
+    requires
+        idx &lt; v.len(),
+    ensures
+        v[idx] == t,
+{
+    // ...
+}
+
+Static check, enforced by verifier
+Erased at runtime
+
+requires (precondition) = what must be true BEFORE
+ensures (postcondition) = what must be true AFTER
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Verifying Rust: Aeneas and Lean" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Verifying Rust: Aeneas and Lean</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Aeneas translates Rust’s mid-level intermediate representation into Lean, where the resulting program can be proved with a theorem prover.
+
+[8:07](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=487s) [Pipeline from Rust through Charon and Aeneas to Lean and proof.](https://assets.ai.engineer/sites/aiecode2025/sha256/a1f4af053a5bf64477c5b3865783d4952e9b5fa1e8cfc7fe1f06cd70de6bdfb9.webp)
+
+Verifying Rust: Aeneas → Lean
+
+Rust → Charon (Mid-level IR) → Aeneas (functional translation) → Lean → Prove
+
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Verifying programming languages with Strata" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Verifying programming languages with Strata</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Strata is a work in progress that lowers language dialects to a common Core, then routes programs to SMT solvers, model checkers or Lean proofs.
+
+[8:23](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=503s) [Work-in-progress Strata diagram connects language frontends through dialects and core to solvers, model checkers, and Lean proofs.](https://assets.ai.engineer/sites/aiecode2025/sha256/ba6b5c898e8d72da84937705def31c43fb176d23d135b72a744f8aceb739f77a.webp)
+
+Verifying any programming language -&gt; Strata (WIP!)
+
+Frontends
+Python
+…
+Java
+Specifications
+Rust
+
+Strata Dialects
+Python Dialect
+Java Dialect
+Laurel
+Boole
+Core
+SMT
+GOTO
+
+Analyses
+SMT Solvers
+Model Checkers
+Lean Proofs
+…
+
+translate
+transform
+
+https://github.com/strata-org/Strata
+AWS Builder Center</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Get started" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Get started</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Open Lean in your browser, pick critical code, and specify what correctness means. Then have a coding agent implement it and a formal verification tool prove it.
+
+[9:15](https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=555s) [Lean browser link and three steps: choose critical code, specify correctness, and have a coding agent implement and prove it.](https://assets.ai.engineer/sites/aiecode2025/sha256/ec87996a5e7aafb00dca422514a8fa6111531cff96dbaaa7061780a8c2128fc4.webp)
+
+Get started
+
+Lean in browser: https://live.lean-lang.org/
+
+1. Pick your most critical code
+2. Write what &quot;correct&quot; means
+3. Let your coding agent implement it and prove it
+
+AWS Builder Center</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">在要求机器证明之前先定义正确性</a></li><li><a href="#sec-2">一种语言同时容纳函数和它的定理</a></li><li><a href="#sec-3">像下棋一样搜索，再独立检查结果</a></li><li><a href="#sec-4">一次压缩往返变成了 32000 行证明</a></li><li><a href="#sec-5">Cedar 把 Lean 语义与生产 Rust 连接起来</a></li><li><a href="#sec-6">从 Rust 到演绎验证的两条路线</a></li><li><a href="#sec-7">把不同的语言降级到一个共享的验证核心</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">你的代码有 bug，Lean4 有证明：面向工程师的形式化验证</h2>
+      <div class="lede"><p>Varun Pant 讲解了规格说明、机器生成的证明和小巧的独立检查器如何组合在一起——以及当生产代码用 Rust 而不是 Lean 编写时，验证会发生什么变化。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>在要求机器证明之前先定义正确性</h3>
+      <p>Coding agents can produce hundreds or thousands of pull requests a week. Checking that output creates a different bottleneck: an LLM judge gives a probabilistic assessment, tests exercise selected inputs, and human review struggles to keep pace. Varun Pant, who builds AI products and leads formal-verification teams at AWS, introduces formal verification as a way to prove that an implementation satisfies a specified property across every input covered by that property. <a href="https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=12s" target="_blank" rel="noopener">0:12</a></p>
+<p>The first engineering task is to write what “correct” means. In the spec-driven workflow Pant introduces with Kiro, a human can write a formal specification directly in <strong>Lean</strong> or write natural-language requirements that an AI formalizes. The specification then needs validation: someone reviews it, or tests whether it describes the expected behavior on concrete inputs. A proof establishes agreement with the specification; a mistaken specification can therefore produce a proved implementation of the wrong requirement.</p>
+<p>That order matters because the specification sits upstream of both implementation and verification. It remains a “living, breathing artifact” that the builder works with as requirements develop. Once its meaning is settled, the coding agent implements it and the verification tool proves the implementation matches it. Pant’s division of labor is compact: “humans own the specification, and machines own the code and proof.”</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="131">▶ 2:11</button></div>
+      <h3>一种语言同时容纳函数和它的定理</h3>
+      <p>Lean is both a programming language and a proof assistant. Definitions and proofs use the same language, so a Lean implementation does not need a separate translation into a proof language. Pant also emphasizes extensibility—Lean is implemented in Lean—and a small trusted kernel that checks proofs. Proofs can be exported for independent checking.</p>
+<p>List reversal supplies the first concrete example. Reversing <code>[1, 2, 3]</code> produces <code>[3, 2, 1]</code>. The accompanying theorem describes how reversal interacts with concatenation: reversing <code>A</code> followed by <code>B</code> gives the reverse of <code>B</code> followed by the reverse of <code>A</code>. Here, the talk’s “plus” means joining lists, rather than adding their elements.</p>
+<p>To see the change, split that same list into <code>A = [1, 2]</code> and <code>B = [3]</code>. Concatenation places the <code>A</code> block before the <code>B</code> block. Reversing the combined list moves the <code>B</code> block to the front and reverses the order inside <code>A</code>, yielding <code>[3, 2, 1]</code>. Reversing the blocks separately and joining them in the opposite order produces the same result: <code>[3] ++ [2, 1]</code>. This instance makes the property visible; the theorem expresses it for every pair of lists, rather than only these three elements.</p>
+<p>Tactics construct the proof, and the kernel checks it. This separation provides a way to accept machine-generated proofs: the machine searches for an argument, while a much smaller component checks whether that argument establishes the theorem.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="196">▶ 3:16</button></div>
+      <h3>像下棋一样搜索，再独立检查结果</h3>
+      <p>Pant’s analogy is chess. The theorem is the goal, like checkmate; tactics are the moves used to reach it. Proof construction is interactive and branches into a search tree. A tactic may advance the proof, but a branch can also leave a goal unresolved. The prover then backtracks and tries another route. A plausible sequence of moves alone does not finish the job: the resulting proof must pass the kernel.</p>
+<p>The kernel rejects an incorrect proof in Pant’s example. Confidence in the generator therefore does not substitute for checking its output. Pant describes open-source kernel implementations in C++, Rust, and Lean, and the possibility of writing an independent checker yourself. The trusted component remains the checker, even when proof search becomes large or complicated. <a href="https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=243s" target="_blank" rel="noopener">4:03</a></p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="270">▶ 4:30</button></div>
+      <h3>一次压缩往返变成了 32000 行证明</h3>
+      <p>The next example puts both specification and implementation in Lean. Pant describes an open-source project in which AI converted zlib, the C compression library, to Lean over about a week. Its natural-language requirement is easy to understand: decompressing compressed data should return the original data. Written as an intended property, the round trip is <code>decompress(compress(data)) = data</code>. The <a href="https://leodemoura.github.io/static/nfm2026/" target="_blank" rel="noopener">Lean theorem in Leo de Moura’s separate May 6, 2026 NFM presentation</a> proves that round trip across compression levels for inputs satisfying <code>data.size &lt; 1024 * 1024 * 1024</code>: strictly below 1 GiB. The proved claim therefore includes an input-size precondition that the plain-language requirement leaves unstated. <a href="https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=281s" target="_blank" rel="noopener">4:41</a></p>
+<p>The AI first turns that requirement into a formal specification. After the specification is checked, it writes the Lean code and breaks the proof into helper lemmas—smaller claims that serve as subgoals. Tactics prove those claims, the claims assemble into the final theorem, and the independent kernel checks the result. Pant reports 32,000 lines of proof for this example. That quantity describes the proof artifact, rather than a count of test cases.</p>
+<p>How does one readable requirement lead to such a large proof? The flow below separates the initial decision about meaning from the generated implementation and proof. Specification validation comes first. The AI then expands the problem into code and lemmas, and the kernel checks the assembled argument. The checker’s position at the end explains why validating the requirement cannot be delegated to proof checking.</p>
+<p>From round-trip requirement to checked theorem
+Validation precedes implementation. Helper lemmas divide the proof into manageable claims; the kernel checks their assembled result. The theorem in Leo de Moura’s separate NFM presentation, rather than one shown in Pant’s recording, covers inputs strictly below 1 GiB across compression levels.
+- Round-trip requirement — Decompressing compressed data returns the original data.
+- Formal specification — AI formalizes the requirement; a human reviews it or tests its meaning on inputs.
+- Lean implementation — AI writes code after specification validation.
+- Helper lemmas — AI decomposes the proof into subgoals and proves them with tactics.
+- Final theorem — The proved lemmas assemble into the complete argument.
+- Independent kernel — Checks the completed proof.
+- Round-trip requirement → Formal specification (Formalize)
+- Formal specification → Lean implementation (Implement after validation)
+- Lean implementation → Helper lemmas (Generate proof subgoals)
+- Helper lemmas → Final theorem (Assemble)
+- Final theorem → Independent kernel (Check)</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="358">▶ 5:58</button></div>
+      <h3>Cedar 把 Lean 语义与生产 Rust 连接起来</h3>
+      <p>Production code can stay in Rust while Lean supplies its functional specification. Cedar, an open-source authorization policy language, illustrates this arrangement: its specification is written in Lean and its production implementation runs in Rust. The critical example is “forbid trumps permit.” Whenever a forbid policy is satisfied, the request must be denied, even when permission would otherwise be available. <a href="https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=358s" target="_blank" rel="noopener">5:58</a></p>
+<p>The connection between the two implementations uses differential random testing. Each generated input goes to both the Rust production code and the Lean model, and their outputs are compared. Pant reports about 100 million such tests nightly and says no version ships until the agreement requirement is satisfied. This checks the Rust implementation against the formal model on sampled inputs; it does not establish a deductive proof that the Rust code agrees with the model for every input.</p>
+<p>The practical choice is to keep a shipping implementation in Rust and use a Lean model as the reference for its behavior. For the forbid example, agreement means both paths return denial for the same request and policies. A difference exposes a disagreement that must be resolved before release. The model gives testing a precise expected result, rather than requiring each test author to invent one.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="419">▶ 6:59</button></div>
+      <h3>从 Rust 到演绎验证的两条路线</h3>
+      <p>Deductive verification offers another way to work with Rust. Before introducing the tools, Pant distinguishes a solver from Lean’s interactive proof search. Lean resembles a chessboard on which tactics advance a goal. A solver resembles a powerful calculator: it receives a formula and answers whether that formula is satisfiable or unsatisfiable—whether its constraints can hold together. <a href="https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=419s" target="_blank" rel="noopener">6:59</a></p>
+<p>- <strong>Verus: specifications alongside code.</strong> Verus uses Z3 to verify Rust code with annotations expressing preconditions and postconditions. A precondition states what must hold before the operation; a postcondition states what must hold afterward. These specifications are checked statically by the verifier and erased at runtime, so they do not become runtime assertions.</p>
+<p>- <strong>Aeneas: translate Rust into Lean.</strong> Aeneas starts from Rust’s mid-level intermediate representation and translates it into a functional form in Lean. The translated program can then use the theorem-proving approach introduced earlier: goals, tactics, and checked proofs.</p>
+<p>These paths place the specification in different working environments. Verus keeps it close to the Rust code and uses a solver; Aeneas brings a functional translation into Lean for theorem proving. Both differ from Cedar’s differential-testing arrangement, where the production program and model are run on matching inputs and their outputs compared.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="506">▶ 8:26</button></div>
+      <h3>把不同的语言降级到一个共享的验证核心</h3>
+      <p>The final technical proposal extends the compiler idea beyond Rust. Pant describes <a href="https://raw.githubusercontent.com/strata-org/Strata/main/README.md" target="_blank" rel="noopener">Strata</a>, an open-source AWS tool. A language-specific dialect represents a program at a high level, then lowers it into Strata Core, a common low-level representation written in Lean. The intended architecture lets that representation feed different verification engines: Lean proofs, SMT solvers, or model checkers. The <a href="https://raw.githubusercontent.com/strata-org/Strata/main/docs/Architecture.md" target="_blank" rel="noopener">architecture documentation</a> describes the implemented analysis as a verification-condition generator with an SMT interface; broader Lean reasoning and other engine integrations remain architectural goals. Support for arbitrary languages is likewise the intention of this work in progress, rather than a claim that every language is already supported. <a href="https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=506s" target="_blank" rel="noopener">8:26</a></p>
+<p>What does a shared core buy? The diagram shows where language-specific work ends and analysis begins, distinguishing the implemented SMT route from proposed engine choices. Each language needs a dialect and lowering path, but the resulting program reaches the same core. That common representation allows an analysis to be reused across languages, with additional engines intended to extend the choice of verification method.</p>
+<p>The closing recommendation starts smaller than that infrastructure: pick your most critical code and write what correct means. Pant points to using Lean in a browser, then having a coding agent implement the specification and a verification tool prove the result. A useful first target is a property whose meaning you can inspect and care about—a compression round trip or a denial rule—before asking a machine to expand it into a proof. That is the route toward the ending’s ambition of software that is “provably correct.” <a href="https://www.youtube.com/watch?v=lRa9sPaMyy4&amp;t=557s" target="_blank" rel="noopener">9:17</a></p>
+<p>A shared core supports reusable analysis
+Language-specific translation precedes Strata Core. The documented implementation generates verification conditions and interfaces with SMT solvers; broader Lean reasoning and model-checker routes are architectural goals.
+- Language-specific dialect — Represents a source program in a high-level intermediate form.
+- Strata Core — Common low-level program representation written in Lean; implemented analysis generates verification conditions.
+- Lean reasoning — goal — Broader theorem-proving support is a long-term architectural goal.
+- SMT interface — implemented — Verification conditions are encoded for SMT solvers.
+- Model checkers — goal — An intended external-engine integration.
+- Language-specific dialect → Strata Core (Lower)
+- Strata Core → Lean reasoning — goal (Architectural goal)
+- Strata Core → SMT interface — implemented (Generate conditions and encode for SMT)
+- Strata Core → Model checkers — goal (Architectural goal)</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>A proof establishes that code satisfies its specification. Validate what the specification means before generating implementation and proof.</li><li>Tactics construct proofs through search and backtracking; a small independent kernel checks the completed argument.</li><li>Cedar compares production Rust with a Lean model using about 100 million differential random tests nightly. Verus and Aeneas provide different routes toward deductive verification of Rust.</li><li>Start with critical code and a concrete property you can explain, then let the agent implement it and the verification tool prove it.</li></ul></section>
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://raw.githubusercontent.com/strata-org/Strata/main/README.md" target="_blank" rel="noopener">Strata setup and verification guide</a> — The project README provides prerequisites, build commands, and an example verification invocation for experimenting with Strata. This is a practical next step for the shared-core proposal, separate from the talk’s invitation to try Lean in a browser.</li><li><a href="https://raw.githubusercontent.com/strata-org/Strata/main/docs/Architecture.md" target="_blank" rel="noopener">Strata Architecture</a> — Explains dialect definitions, composition, transformations, and Strata Core. It distinguishes the broader engine architecture from the implemented verification-condition generator and SMT interface.</li><li><strong>Related talks</strong></li><li><a href="https://ai.engineer/talks/HY_JyxAZsiE-spec-driven-development-agentic-coding-at-faang" target="_blank" rel="noopener">Spec-Driven Development: Agentic Coding at FAANG Scale and Quality — Al Harris, Amazon Kiro</a> — A companion on the specification-driven development workflow Pant introduces before adding formal proof.</li><li><a href="https://ai.engineer/talks/OMGPvW8TBHc-fuzzing-in-genai-era" target="_blank" rel="noopener">Fuzzing in the GenAI Era</a> — A related testing topic to explore alongside Cedar’s randomized comparisons between implementation and model.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="1"><span class="ts">0:01</span><span class="tx">[music]</span></div><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">&gt;&gt; Coding agents are generating more code</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">than ever.</span></div><div class="tline" data-t="16"><span class="ts">0:16</span><span class="tx">Builders are generating hundreds and</span></div><div class="tline" data-t="18"><span class="ts">0:18</span><span class="tx">thousands of PRs every week.</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">How do you know that this is correct?</span></div><div class="tline" data-t="24"><span class="ts">0:24</span><span class="tx">Using LM as a judge for the code? Well,</span></div><div class="tline" data-t="26"><span class="ts">0:26</span><span class="tx">that's probabilistic.</span></div><div class="tline" data-t="29"><span class="ts">0:29</span><span class="tx">Tests?</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">They only check some inputs, not all.</span></div><div class="tline" data-t="33"><span class="ts">0:33</span><span class="tx">Human code review doesn't scale to match</span></div><div class="tline" data-t="35"><span class="ts">0:35</span><span class="tx">agent speed.</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">None of these can say for all inputs the</span></div><div class="tline" data-t="40"><span class="ts">0:40</span><span class="tx">code is correct.</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">Formal verification can.</span></div><div class="tline" data-t="44"><span class="ts">0:44</span><span class="tx">Hi, I'm Varun Pant. I build AI products</span></div><div class="tline" data-t="46"><span class="ts">0:46</span><span class="tx">at AWS leading teams at in formal</span></div><div class="tline" data-t="49"><span class="ts">0:49</span><span class="tx">verification.</span></div><div class="tline" data-t="51"><span class="ts">0:51</span><span class="tx">Formal verification provides</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">mathematical proof that code is correct.</span></div><div class="tline" data-t="56"><span class="ts">0:56</span><span class="tx">For all inputs.</span></div><div class="tline" data-t="57"><span class="ts">0:57</span><span class="tx">You write what correct means, which is</span></div><div class="tline" data-t="59"><span class="ts">0:59</span><span class="tx">the specification, and a formal</span></div><div class="tline" data-t="61"><span class="ts">1:01</span><span class="tx">verification tool proves that your code</span></div><div class="tline" data-t="64"><span class="ts">1:04</span><span class="tx">satisfies it.</span></div><div class="tline" data-t="65"><span class="ts">1:05</span><span class="tx">If the proof passes, it holds for every</span></div><div class="tline" data-t="68"><span class="ts">1:08</span><span class="tx">possible input.</span></div><div class="tline" data-t="71"><span class="ts">1:11</span><span class="tx">How do you use this?</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">Well, one way is back driven</span></div><div class="tline" data-t="75"><span class="ts">1:15</span><span class="tx">development, for example, with Kiro.</span></div><div class="tline" data-t="79"><span class="ts">1:19</span><span class="tx">You write what the specification is,</span></div><div class="tline" data-t="81"><span class="ts">1:21</span><span class="tx">which is what correct means.</span></div><div class="tline" data-t="83"><span class="ts">1:23</span><span class="tx">Either you write it formally, for</span></div><div class="tline" data-t="85"><span class="ts">1:25</span><span class="tx">example, directly in Lean, or you write</span></div><div class="tline" data-t="87"><span class="ts">1:27</span><span class="tx">it in natural language, and you let the</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">AI auto formalize it.</span></div><div class="tline" data-t="92"><span class="ts">1:32</span><span class="tx">Now, this is really important. You then</span></div><div class="tline" data-t="94"><span class="ts">1:34</span><span class="tx">validate the specification. So, either</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">the human reviews it, or you test that</span></div><div class="tline" data-t="99"><span class="ts">1:39</span><span class="tx">it holds on some inputs. And this is</span></div><div class="tline" data-t="101"><span class="ts">1:41</span><span class="tx">important because the specification is</span></div><div class="tline" data-t="103"><span class="ts">1:43</span><span class="tx">upstream. It's a living, breathing</span></div><div class="tline" data-t="105"><span class="ts">1:45</span><span class="tx">artifact that the builder interacts</span></div><div class="tline" data-t="107"><span class="ts">1:47</span><span class="tx">with. You want this to be correct.</span></div><div class="tline" data-t="109"><span class="ts">1:49</span><span class="tx">Everything else is downstream from this.</span></div><div class="tline" data-t="112"><span class="ts">1:52</span><span class="tx">The AI coding agent then goes and</span></div><div class="tline" data-t="114"><span class="ts">1:54</span><span class="tx">implements from the specification.</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">And the formal verification tool proves</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">that the implementation matches the</span></div><div class="tline" data-t="121"><span class="ts">2:01</span><span class="tx">specification.</span></div><div class="tline" data-t="124"><span class="ts">2:04</span><span class="tx">So, humans own the specification and</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">machines own the code and proof.</span></div><div class="tline" data-t="130"><span class="ts">2:10</span><span class="tx">Lean is a programming language and a</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">proof assistant.</span></div><div class="tline" data-t="134"><span class="ts">2:14</span><span class="tx">It is the same language for the</span></div><div class="tline" data-t="136"><span class="ts">2:16</span><span class="tx">definitions and proofs. There's no</span></div><div class="tline" data-t="138"><span class="ts">2:18</span><span class="tx">translation layer.</span></div><div class="tline" data-t="140"><span class="ts">2:20</span><span class="tx">It is implemented in Lean, which means</span></div><div class="tline" data-t="142"><span class="ts">2:22</span><span class="tx">it's very extensible. And this is</span></div><div class="tline" data-t="144"><span class="ts">2:24</span><span class="tx">important. It has a small trusted</span></div><div class="tline" data-t="146"><span class="ts">2:26</span><span class="tx">kernel.</span></div><div class="tline" data-t="147"><span class="ts">2:27</span><span class="tx">Proofs can be exported and independently</span></div><div class="tline" data-t="149"><span class="ts">2:29</span><span class="tx">checked.</span></div><div class="tline" data-t="153"><span class="ts">2:33</span><span class="tx">So, here's an example of a Lean file</span></div><div class="tline" data-t="156"><span class="ts">2:36</span><span class="tx">which has both the code and proof in the</span></div><div class="tline" data-t="158"><span class="ts">2:38</span><span class="tx">same language. At the top, you'll see</span></div><div class="tline" data-t="160"><span class="ts">2:40</span><span class="tx">the code, which is a function that</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">reverses a list in Lean. So, reverse of</span></div><div class="tline" data-t="165"><span class="ts">2:45</span><span class="tx">one, two, and three gives three, two,</span></div><div class="tline" data-t="166"><span class="ts">2:46</span><span class="tx">and one.</span></div><div class="tline" data-t="167"><span class="ts">2:47</span><span class="tx">And right in the middle, you'll see a</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">theorem. This is the proof.</span></div><div class="tline" data-t="172"><span class="ts">2:52</span><span class="tx">And this theorem prover approves a</span></div><div class="tline" data-t="175"><span class="ts">2:55</span><span class="tx">property which says that reverse of A</span></div><div class="tline" data-t="177"><span class="ts">2:57</span><span class="tx">plus B is in fact reverse of B plus</span></div><div class="tline" data-t="179"><span class="ts">2:59</span><span class="tx">reverse of A.</span></div><div class="tline" data-t="180"><span class="ts">3:00</span><span class="tx">And this holds for every possible input.</span></div><div class="tline" data-t="184"><span class="ts">3:04</span><span class="tx">How do you do this? You have something</span></div><div class="tline" data-t="186"><span class="ts">3:06</span><span class="tx">called as tactics which do the work,</span></div><div class="tline" data-t="187"><span class="ts">3:07</span><span class="tx">which we'll get to in a second. And the</span></div><div class="tline" data-t="189"><span class="ts">3:09</span><span class="tx">kernel, remember the small trusted</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">kernel?</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">That checks the work.</span></div><div class="tline" data-t="196"><span class="ts">3:16</span><span class="tx">A good analogy to understand the Lean</span></div><div class="tline" data-t="197"><span class="ts">3:17</span><span class="tx">proof assistant is that of chess. So, in</span></div><div class="tline" data-t="200"><span class="ts">3:20</span><span class="tx">chess, your goal is to checkmate the</span></div><div class="tline" data-t="202"><span class="ts">3:22</span><span class="tx">opponent. And you make a bunch of moves.</span></div><div class="tline" data-t="204"><span class="ts">3:24</span><span class="tx">You move the knight, you move the</span></div><div class="tline" data-t="206"><span class="ts">3:26</span><span class="tx">bishop.</span></div><div class="tline" data-t="207"><span class="ts">3:27</span><span class="tx">Similarly, in Lean, you have a bunch of</span></div><div class="tline" data-t="210"><span class="ts">3:30</span><span class="tx">tactics which are your moves. And it's</span></div><div class="tline" data-t="213"><span class="ts">3:33</span><span class="tx">the same chess board. It's interactive.</span></div><div class="tline" data-t="216"><span class="ts">3:36</span><span class="tx">You want to prove the goal, the theorem,</span></div><div class="tline" data-t="218"><span class="ts">3:38</span><span class="tx">checkmate. And you're kind of going down</span></div><div class="tline" data-t="221"><span class="ts">3:41</span><span class="tx">a tree. So, you're traversing the tree,</span></div><div class="tline" data-t="223"><span class="ts">3:43</span><span class="tx">you're trying different tactics. Maybe</span></div><div class="tline" data-t="225"><span class="ts">3:45</span><span class="tx">for some goals, you're not able to prove</span></div><div class="tline" data-t="227"><span class="ts">3:47</span><span class="tx">it, so you backtrack and then you try</span></div><div class="tline" data-t="229"><span class="ts">3:49</span><span class="tx">another a branch of the tree. Very</span></div><div class="tline" data-t="231"><span class="ts">3:51</span><span class="tx">similar to chess.</span></div><div class="tline" data-t="233"><span class="ts">3:53</span><span class="tx">And finally, you get a goal that</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">hopefully proves the theorem, and then</span></div><div class="tline" data-t="237"><span class="ts">3:57</span><span class="tx">that small independent kernel confirms</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">and checks it.</span></div><div class="tline" data-t="243"><span class="ts">4:03</span><span class="tx">The kernel catches the mistake. So,</span></div><div class="tline" data-t="245"><span class="ts">4:05</span><span class="tx">here's an example at the top where an</span></div><div class="tline" data-t="247"><span class="ts">4:07</span><span class="tx">incor- incorrect proof is rejected</span></div><div class="tline" data-t="250"><span class="ts">4:10</span><span class="tx">immediately. And you only need to trust</span></div><div class="tline" data-t="252"><span class="ts">4:12</span><span class="tx">the small kernel.</span></div><div class="tline" data-t="254"><span class="ts">4:14</span><span class="tx">The good thing is that you can have</span></div><div class="tline" data-t="256"><span class="ts">4:16</span><span class="tx">multiple independent kernels. You</span></div><div class="tline" data-t="257"><span class="ts">4:17</span><span class="tx">yourself can actually go write one. It's</span></div><div class="tline" data-t="259"><span class="ts">4:19</span><span class="tx">completely open source. You have kernels</span></div><div class="tline" data-t="261"><span class="ts">4:21</span><span class="tx">in C++, Rust, Lean. That's uh a link to</span></div><div class="tline" data-t="265"><span class="ts">4:25</span><span class="tx">the Arena Lang where you can go and add</span></div><div class="tline" data-t="268"><span class="ts">4:28</span><span class="tx">a kernel.</span></div><div class="tline" data-t="270"><span class="ts">4:30</span><span class="tx">So, let's look at some examples where</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">you can put this to practice. The first</span></div><div class="tline" data-t="275"><span class="ts">4:35</span><span class="tx">one is having the specification and code</span></div><div class="tline" data-t="278"><span class="ts">4:38</span><span class="tx">both being in Lean.</span></div><div class="tline" data-t="281"><span class="ts">4:41</span><span class="tx">Now, this is open source Andreo. AI</span></div><div class="tline" data-t="284"><span class="ts">4:44</span><span class="tx">converted zlib, which is a C compression</span></div><div class="tline" data-t="286"><span class="ts">4:46</span><span class="tx">library, to Lean. Now, granted this</span></div><div class="tline" data-t="288"><span class="ts">4:48</span><span class="tx">happened over a week or so.</span></div><div class="tline" data-t="292"><span class="ts">4:52</span><span class="tx">But, kind of going back to our</span></div><div class="tline" data-t="294"><span class="ts">4:54</span><span class="tx">specification methodology that we</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">mentioned where you had specification at</span></div><div class="tline" data-t="298"><span class="ts">4:58</span><span class="tx">the top and then verification for the</span></div><div class="tline" data-t="300"><span class="ts">5:00</span><span class="tx">code, we'll kind of see the same thing</span></div><div class="tline" data-t="302"><span class="ts">5:02</span><span class="tx">here. So, the natural language</span></div><div class="tline" data-t="304"><span class="ts">5:04</span><span class="tx">specification says that you decompress</span></div><div class="tline" data-t="306"><span class="ts">5:06</span><span class="tx">the output</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">of compress returning the original data.</span></div><div class="tline" data-t="311"><span class="ts">5:11</span><span class="tx">And then, you have an AI that generates</span></div><div class="tline" data-t="313"><span class="ts">5:13</span><span class="tx">the formal spec. Now, remember this is</span></div><div class="tline" data-t="315"><span class="ts">5:15</span><span class="tx">important. Checking the specification is</span></div><div class="tline" data-t="317"><span class="ts">5:17</span><span class="tx">key.</span></div><div class="tline" data-t="319"><span class="ts">5:19</span><span class="tx">After you do that, the AI goes and</span></div><div class="tline" data-t="321"><span class="ts">5:21</span><span class="tx">writes your code in Lean, and then</span></div><div class="tline" data-t="323"><span class="ts">5:23</span><span class="tx">generates these helper lemma subgoals,</span></div><div class="tline" data-t="326"><span class="ts">5:26</span><span class="tx">and proves the theorem.</span></div><div class="tline" data-t="328"><span class="ts">5:28</span><span class="tx">And at the bottom, you can see that it's</span></div><div class="tline" data-t="330"><span class="ts">5:30</span><span class="tx">verified with that small independent</span></div><div class="tline" data-t="332"><span class="ts">5:32</span><span class="tx">kernel.</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">So, what you just saw was that AI</span></div><div class="tline" data-t="336"><span class="ts">5:36</span><span class="tx">decomposed the problem into lemmas,</span></div><div class="tline" data-t="338"><span class="ts">5:38</span><span class="tx">which are subgoals. It proved each of</span></div><div class="tline" data-t="340"><span class="ts">5:40</span><span class="tx">them using tactics. Remember the chess</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">moves that we were making?</span></div><div class="tline" data-t="344"><span class="ts">5:44</span><span class="tx">And it assembled it into a final</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">theorem.</span></div><div class="tline" data-t="347"><span class="ts">5:47</span><span class="tx">Checkmate.</span></div><div class="tline" data-t="349"><span class="ts">5:49</span><span class="tx">And the kernel checked it.</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">And this particular example had 32,000</span></div><div class="tline" data-t="354"><span class="ts">5:54</span><span class="tx">lines of proof. So, it was</span></div><div class="tline" data-t="355"><span class="ts">5:55</span><span class="tx">pretty big.</span></div><div class="tline" data-t="358"><span class="ts">5:58</span><span class="tx">Let's take another example. What if you</span></div><div class="tline" data-t="360"><span class="ts">6:00</span><span class="tx">have code in Rust? Well, you can write</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">the functional specification of it or</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">the model in Lean.</span></div><div class="tline" data-t="366"><span class="ts">6:06</span><span class="tx">An example of that is Cedar.</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">Cedar is an open-source authorization</span></div><div class="tline" data-t="371"><span class="ts">6:11</span><span class="tx">policy language, which is used by AWS</span></div><div class="tline" data-t="373"><span class="ts">6:13</span><span class="tx">verified permissions and access.</span></div><div class="tline" data-t="375"><span class="ts">6:15</span><span class="tx">The specification of Cedar is written in</span></div><div class="tline" data-t="378"><span class="ts">6:18</span><span class="tx">Lean. The production code runs in Rust.</span></div><div class="tline" data-t="382"><span class="ts">6:22</span><span class="tx">Why is this important? Because</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">let's take an example. You have forbid</span></div><div class="tline" data-t="386"><span class="ts">6:26</span><span class="tx">Trump's permit. You want to make sure</span></div><div class="tline" data-t="388"><span class="ts">6:28</span><span class="tx">that for any forbid policy being</span></div><div class="tline" data-t="390"><span class="ts">6:30</span><span class="tx">satisfied, the request is always denied.</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">This is key.</span></div><div class="tline" data-t="396"><span class="ts">6:36</span><span class="tx">Here you can see the example of what I</span></div><div class="tline" data-t="397"><span class="ts">6:37</span><span class="tx">was talking about, which is you have the</span></div><div class="tline" data-t="399"><span class="ts">6:39</span><span class="tx">Rust production code and you have the</span></div><div class="tline" data-t="401"><span class="ts">6:41</span><span class="tx">functional specification in Lean, and</span></div><div class="tline" data-t="403"><span class="ts">6:43</span><span class="tx">you run differential random testing to</span></div><div class="tline" data-t="405"><span class="ts">6:45</span><span class="tx">check that both of those for the same</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">inputs give the same output.</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">And there's about 100 million</span></div><div class="tline" data-t="411"><span class="ts">6:51</span><span class="tx">differential random tests uh run</span></div><div class="tline" data-t="413"><span class="ts">6:53</span><span class="tx">nightly.</span></div><div class="tline" data-t="414"><span class="ts">6:54</span><span class="tx">No version ships until this is</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">satisfied.</span></div><div class="tline" data-t="419"><span class="ts">6:59</span><span class="tx">Let's take another example. What if you</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">have code in Rust and you want to</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">deductively verify with Lean or solvers?</span></div><div class="tline" data-t="427"><span class="ts">7:07</span><span class="tx">Before we go there, let's quickly talk</span></div><div class="tline" data-t="429"><span class="ts">7:09</span><span class="tx">about this new term solvers. So,</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">remember we spoke of Lean being this</span></div><div class="tline" data-t="433"><span class="ts">7:13</span><span class="tx">chessboard interactive where you're</span></div><div class="tline" data-t="435"><span class="ts">7:15</span><span class="tx">making a bunch of moves trying to</span></div><div class="tline" data-t="436"><span class="ts">7:16</span><span class="tx">checkmate.</span></div><div class="tline" data-t="437"><span class="ts">7:17</span><span class="tx">A solver is a calculator, a very</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">powerful one. You feed in a formula and</span></div><div class="tline" data-t="443"><span class="ts">7:23</span><span class="tx">it returns an output. In this case,</span></div><div class="tline" data-t="446"><span class="ts">7:26</span><span class="tx">satisfiable or unsatisfiable.</span></div><div class="tline" data-t="450"><span class="ts">7:30</span><span class="tx">So, an example of this is Verus, also an</span></div><div class="tline" data-t="453"><span class="ts">7:33</span><span class="tx">open-source tool.</span></div><div class="tline" data-t="455"><span class="ts">7:35</span><span class="tx">It uses this solver, this very powerful</span></div><div class="tline" data-t="457"><span class="ts">7:37</span><span class="tx">calculator, Z3.</span></div><div class="tline" data-t="459"><span class="ts">7:39</span><span class="tx">And if folks are familiar with adding</span></div><div class="tline" data-t="462"><span class="ts">7:42</span><span class="tx">annotations, it's kind of similar to</span></div><div class="tline" data-t="463"><span class="ts">7:43</span><span class="tx">that where you can add specifications in</span></div><div class="tline" data-t="466"><span class="ts">7:46</span><span class="tx">the form of that. And the code is in</span></div><div class="tline" data-t="469"><span class="ts">7:49</span><span class="tx">line. So, you see these two requires and</span></div><div class="tline" data-t="472"><span class="ts">7:52</span><span class="tx">ensure keywords, that's what we call a</span></div><div class="tline" data-t="474"><span class="ts">7:54</span><span class="tx">pre and post condition. What must be</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">true before and what must be true after.</span></div><div class="tline" data-t="481"><span class="ts">8:01</span><span class="tx">And this is a static check. It's</span></div><div class="tline" data-t="482"><span class="ts">8:02</span><span class="tx">enforced by the verifier and erased at</span></div><div class="tline" data-t="485"><span class="ts">8:05</span><span class="tx">runtime. So, almost like ghost code.</span></div><div class="tline" data-t="489"><span class="ts">8:09</span><span class="tx">Another example of this is Eneus,</span></div><div class="tline" data-t="492"><span class="ts">8:12</span><span class="tx">which uses the mid-level intermediate</span></div><div class="tline" data-t="494"><span class="ts">8:14</span><span class="tx">representation for Rust and does a</span></div><div class="tline" data-t="496"><span class="ts">8:16</span><span class="tx">functional translation to Lean. And</span></div><div class="tline" data-t="498"><span class="ts">8:18</span><span class="tx">right after that, you use the same</span></div><div class="tline" data-t="500"><span class="ts">8:20</span><span class="tx">theorem prover, the same chessboard that</span></div><div class="tline" data-t="501"><span class="ts">8:21</span><span class="tx">we spoke of.</span></div><div class="tline" data-t="506"><span class="ts">8:26</span><span class="tx">Now, you may be asking, well, what if I</span></div><div class="tline" data-t="508"><span class="ts">8:28</span><span class="tx">have any programming language?</span></div><div class="tline" data-t="512"><span class="ts">8:32</span><span class="tx">We at AWS have been working on an</span></div><div class="tline" data-t="514"><span class="ts">8:34</span><span class="tx">open-source tool called Strata. This is</span></div><div class="tline" data-t="517"><span class="ts">8:37</span><span class="tx">work in progress, but the idea is that</span></div><div class="tline" data-t="520"><span class="ts">8:40</span><span class="tx">you can have any programming language</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">and you yourself can create what we call</span></div><div class="tline" data-t="524"><span class="ts">8:44</span><span class="tx">a dialect.</span></div><div class="tline" data-t="526"><span class="ts">8:46</span><span class="tx">Think of this like a compiler. You have</span></div><div class="tline" data-t="528"><span class="ts">8:48</span><span class="tx">a high-level intermediate representation</span></div><div class="tline" data-t="530"><span class="ts">8:50</span><span class="tx">and you lower it down to a low-level</span></div><div class="tline" data-t="531"><span class="ts">8:51</span><span class="tx">intermediate representation, which is</span></div><div class="tline" data-t="533"><span class="ts">8:53</span><span class="tx">what Strata core is. Now, this is</span></div><div class="tline" data-t="536"><span class="ts">8:56</span><span class="tx">written in Lean.</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">After you have all of these programs</span></div><div class="tline" data-t="540"><span class="ts">9:00</span><span class="tx">talking in the same language, which is</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">the Strata core, you can dispatch it to</span></div><div class="tline" data-t="544"><span class="ts">9:04</span><span class="tx">any of the engines. For example, the</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">Lean proof, remember the chessboard, or</span></div><div class="tline" data-t="549"><span class="ts">9:09</span><span class="tx">the very powerful calculator, SMT</span></div><div class="tline" data-t="551"><span class="ts">9:11</span><span class="tx">solvers, or model checkers.</span></div><div class="tline" data-t="557"><span class="ts">9:17</span><span class="tx">So, you can get started with this today.</span></div><div class="tline" data-t="559"><span class="ts">9:19</span><span class="tx">You can go to Lean in in your browser</span></div><div class="tline" data-t="562"><span class="ts">9:22</span><span class="tx">with the link I pasted, and you can pick</span></div><div class="tline" data-t="565"><span class="ts">9:25</span><span class="tx">your most critical code,</span></div><div class="tline" data-t="567"><span class="ts">9:27</span><span class="tx">write what correct means, which is the</span></div><div class="tline" data-t="568"><span class="ts">9:28</span><span class="tx">specification, which is very important,</span></div><div class="tline" data-t="571"><span class="ts">9:31</span><span class="tx">and then you can let your coding agent</span></div><div class="tline" data-t="572"><span class="ts">9:32</span><span class="tx">implement it and your formal</span></div><div class="tline" data-t="574"><span class="ts">9:34</span><span class="tx">verification tool prove it.</span></div><div class="tline" data-t="578"><span class="ts">9:38</span><span class="tx">So, hopefully in this brave new world,</span></div><div class="tline" data-t="581"><span class="ts">9:41</span><span class="tx">we have software and systems that are</span></div><div class="tline" data-t="583"><span class="ts">9:43</span><span class="tx">not probably correct, but probably</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">correct. Thank you.</span></div><div class="tline" data-t="601"><span class="ts">10:01</span><span class="tx">&gt;&gt; [music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

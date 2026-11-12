@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>通往 500 万 token 之路：突破长上下文训练的壁垒 —— Max Ryabinin，Together AI | AI 工程师中文版</title>
+<meta name="description" content="长上下文训练之所以变得可行，是因为缩减了必须同时驻留在一块 GPU 上的东西：先是参数，然后是保存的激活值、中间缓冲区，最后是一组组注意力头。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>通往 500 万 token 之路：突破长上下文训练的壁垒 —— Max Ryabinin，Together AI</h1>
+    <div class="orig-title">Road to 5 Million Tokens: Breaking Barriers in Long Context Training — Max Ryabinin, Together AI</div>
+    <div class="meta"><span class="speaker">Max Ryabinin</span> · AI Engineer Europe 2026 · 15:50</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a><a class="tag" href="../../index.html#topic=gpu-programming-and-kernel-optimization">GPU 编程与内核优化</a><a class="tag" href="../../index.html#topic=pretraining-and-midtraining">预训练与中期训练</a><a class="tag" href="../../index.html#topic=transformers-and-attention">Transformer 与注意力</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/TUnPNY4E2fw-road-5-million-tokens-breaking-barriers" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="TUnPNY4E2fw"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=TUnPNY4E2fw" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">在长得多的上下文上训练需要什么？</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="15"><span class="ts">0:15</span><span>在长得多的上下文上训练需要什么？</span></li><li data-t="222"><span class="ts">3:42</span><span>二次方的计算量，不断增长的活跃内存</span></li><li data-t="311"><span class="ts">5:11</span><span>一个节点上三百万个 token</span></li><li data-t="468"><span class="ts">7:48</span><span>重计算、卸载，然后分块</span></li><li data-t="600"><span class="ts">10:00</span><span>在不同注意力头组之间复用注意力缓冲区</span></li><li data-t="706"><span class="ts">11:46</span><span>五百万 token 这个结果衡量的是什么</span></li><li data-t="780"><span class="ts">13:00</span><span>找到下一个会占主导的内存分配</span></li><li data-t="847"><span class="ts">14:07</span><span>QKV 指的是查询、键和值</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 21 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/0a97a967269b157b886cc2d1f28e744633a2eeb6c43c4d2e1d2d260cc232e028.webp" alt="AI Engineer Europe logo on a black background." loading="lazy" data-lb="0" data-cap="AI Engineer Europe" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer Europe</h3>
+        <p>AI Engineer Europe logo on a black background.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+EUROPE</pre></details>
+        <button class="ts" data-t="0">▶ 0:00</button>
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Presenting Sponsor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting Sponsor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Google DeepMind is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=5s) [Google DeepMind presenting sponsor card.](https://assets.ai.engineer/sites/aiecode2025/sha256/b4e272c11aa2d84985fac713b754c97180365596249118ffc451fec55a40e22f.webp)
+
+PRESENTING SPONSOR
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/656e2782f7a2c65ac95dbe6a993593fea52d23058246b1702ca3e0d915cd2dfc.webp" alt="Platinum sponsors Braintrust, WorkOS and OpenAI." loading="lazy" data-lb="2" data-cap="Platinum Sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Platinum Sponsors</h3>
+        <p>Platinum sponsors Braintrust, WorkOS and OpenAI.</p>
+        <details><summary>幻灯片原文</summary><pre>PLATINUM SPONSORS
+
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        <button class="ts" data-t="10">▶ 0:10</button>
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Road to 5M Sequence Length" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Road to 5M Sequence Length</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Max Ryabinin introduces Together AI’s research project on breaking memory barriers in context parallelism on the road to a sequence length of 5 million.
+
+[0:24](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=24s) [Talk title slide about breaking memory barriers in context parallelism, presented by Max Ryabinin.](https://assets.ai.engineer/sites/aiecode2025/sha256/e1518dba38b68f71c1f3fed7bb12d5d407477c226b58263a5c8c20aaef81cacc.webp)
+
+Road to 5M Sequence Length
+Breaking Memory Barriers in Context Parallelism
+
+Max Ryabinin
+VP R&amp;D, Model Shaping
+
+together.ai
+The AI Native Cloud
+
+AIE
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="AI Native Cloud" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Native Cloud</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Together AI presents services spanning model building and app development: GPU clusters for training, model shaping for customization, and inference for launching models.
+
+[0:33](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=33s) [Together AI overview of GPU clusters, model shaping and inference services.](https://assets.ai.engineer/sites/aiecode2025/sha256/2ff983a1f2c088fc8fe81bdd0cee6c1cd54b0a72a916ec4178a72e379073c18b.webp)
+
+AI Native Cloud
+
+Model Builders ↔ App Developers
+
+GPU Clusters
+GPUs as a service with accelerated training stack
+✓ Accelerate model training
+✓ Observability
+✓ B200 + GB200 Leader
+✓ Storage services
+
+Model Shaping
+Tailored customization for your tasks
+✓ Complete ownership
+✓ Fine-tuning + distillation
+✓ RL (private beta)
+
+Inference
+The fastest way to launch AI models
+✓ 200+ leading models
+✓ Serverless and Dedicated
+✓ Advanced optimizations
+
+Trusted by: CURSOR, Runware, hedra, Decagon, KREA
+
+AIE
+Google DeepMind
+
+[0:54](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=54s) [Overview of GPU clusters, model shaping, and inference services for AI builders and developers.](https://assets.ai.engineer/sites/aiecode2025/sha256/dda0a8c45df59985bdcc1f0b045fffab54f41ebaa492008beff231623297e344.webp)
+
+AI Native Cloud
+
+Model Builders ↔ App Developers
+
+GPU Clusters
+GPUs as a service with accelerated training stack
+✓ Accelerate model training
+✓ Observability
+✓ B200 + GB200 Leader
+✓ Storage services
+
+Model Shaping
+Tailored customization for your tasks
+✓ Complete ownership
+✓ Fine-tuning + distillation
+✓ RL (private beta)
+
+Inference
+The fastest way to launch AI models
+✓ 200+ leading models
+✓ Serverless and Dedicated
+✓ Advanced optimizations
+
+Trusted by: CURSOR, Runware, hedra, Decagon, KREA
+
+AIE
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Why do we want to long-context training?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why do we want to long-context training?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Agent tools and messages consume context; video generation adds many frames and calls for temporal consistency over time.
+
+[1:55](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=115s) [A context usage display alongside a cat video illustrates long-context applications.](https://assets.ai.engineer/sites/aiecode2025/sha256/f9989fc777b2de0c8bb6fd77f4bc0d9dd5e7892e47ef713384f56efa1e2a914d.webp)
+
+Why do we want to long-context training?
+
+&gt; /context
+Context Usage
+claude-sonnet-4-5-20250929 · 163k/200k [illegible]
+System prompt: 2.6k tokens (1.3%)
+System tools: 15.2k tokens (7.6%)
+MCP tools: 94.2k tokens (47.1%)
+Custom agents: 758 tokens (0.4%)
+Messages: 5.4k tokens (2.7%)
+Free space: 37k (18.4%)
+Autocompact buffer: 45.0k tokens (22.5%)
+
+Did the car actually do this? 😂
+
+Interface text:
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="What’s stopping us?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What’s stopping us?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Longer contexts face quadratic computation from pairwise sequence interactions and growing memory use. The 8B-model chart shows activations rising with sequence length across four data-parallel configurations.
+
+[3:41](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=221s) [Title-only slide asking what's stopping long-context training.](https://assets.ai.engineer/sites/aiecode2025/sha256/b203f35365b3af90a5885a1d738b84566f16a795e25e6858753fec62f05dcd9d.webp)
+
+What’s stopping us?
+
+Interface text:
+AIE
+AI Engineer EUROPE
+
+[4:29](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=269s) [Long context leads to quadratic computation and linear memory growth, above a chart comparing memory usage across sequence lengths and data-parallel configurations.](https://assets.ai.engineer/sites/aiecode2025/sha256/8a40f38fa81d449491c7068500cfa91aca15c7b8ec4a538dbc2798be6e9058d3.webp)
+
+What’s stopping us?
+
+Long Context
+O(N^2) Computation
+O(N) Memory
+
+Memory Usage for 8B Model
+DP=8
+DP=8 Zero-1
+DP=8 Zero-2
+DP=8 Zero-3
+Y-axis: Memory Usage (GB)
+Y-axis ticks: 0, 20, 40, 60, 80, 100, 120, 140, 160
+X-axis: Sequence Length
+Sequence lengths for each configuration: 1024, 4096, 16384
+Legend: Model Parameters, Gradients, Optimizer States, Activations
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="With FSDP" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>With FSDP</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>FSDP shards the model across eight H100 GPUs, reducing model memory to 15.0 GiB. For Llama 3-8B at 3M tokens, attention activations still cause an out-of-memory error.
+
+[5:43](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=343s) [A peak-memory chart compares the default configuration with FSDP; both run out of memory, with attention activations dominating the FSDP bar.](https://assets.ai.engineer/sites/aiecode2025/sha256/0ab13903acbfb8bc34a26ff78fc47f3f733f7346cdafce218ac8a45a9d4f5dbc.webp)
+
+With FSDP
+
+Peak memory (GiB)
+Y-axis ticks: 0, 20, 40, 60, 80
+X-axis: Default, FSDP
+Default: OOM (119)
+FSDP: 15.0; OOM (7684)
+Legend: Model, Attn act., Other
+
+Llama 3-8B, 3M tokens, 8xH100
+
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="DeepSpeed Ulysses" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>DeepSpeed Ulysses</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>All-to-all exchanges distribute attention heads across GPUs. Each GPU runs Flash Attention over the full sequence, then a second exchange redistributes the outputs.
+
+[7:04](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=424s) [Query and key blocks pass through all-to-all redistribution, full Flash Attention, and a second all-to-all operation to produce output blocks.](https://assets.ai.engineer/sites/aiecode2025/sha256/2ed838d5c1616fae985e0be6e96aa25544c23708cee39a5625fd232084864ad5.webp)
+
+DeepSpeed Ulysses
+
+q0, k0
+q1, k1
+q2, k2
+q3, k3
+
+All2All
+Full Flash Attention
+All2All
+
+o0
+o1
+o2
+o3
+
+What if we divide by num_heads dim?
+
+DeepSpeed Ulysses: System Optimizations for Enabling Training of Extreme Long Sequence Transformer Models. Jacobs et al., 2023
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="With Ulysses context parallelism" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>With Ulysses context parallelism</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Ulysses reduces the displayed attention-activation memory from 7,684 to 964 GiB, roughly 8×, but Llama 3-8B with 3M tokens still runs out of memory on 8×H100.
+
+[7:26](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=446s) [Peak-memory chart compares default, FSDP, and FSDP plus Ulysses for Llama 3-8B with three million tokens on eight H100 GPUs; all three configurations are labeled out of memory.](https://assets.ai.engineer/sites/aiecode2025/sha256/2764596cc10e5a1e1779bec4ee4e02533e7348e640501a8d2a24722788ee1174.webp)
+
+With Ulysses context parallelism
+
+Peak memory (GiB)
+Y-axis ticks: 0, 20, 40, 60, 80
+Default: OOM (119)
+FSDP: 15.0; OOM (7684)
+FSDP + Ulysses: 15.0; OOM (964)
+Legend: Model; Attn act.; Other
+
+Llama 3-8B, 3M tokens, 8xH100
+
+AIE
+Google DeepMind
+
+[7:36](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=456s) [Peak memory chart compares default, FSDP, and FSDP with Ulysses for Llama 3-8B at three million tokens.](https://assets.ai.engineer/sites/aiecode2025/sha256/99e28360b063c8e0eee636d0bf3687325685a6509f7db0e0103f55119d271267.webp)
+
+With Ulysses context parallelism
+
+Peak memory (GiB)
+Y-axis ticks: 0, 20, 40, 60, 80
+Default: OOM (119)
+FSDP: 15.0; OOM (7684)
+FSDP + Ulysses: 15.0; OOM (964)
+Legend: Model; Attn act.; Other
+
+Llama 3-8B, 3M tokens, 8xH100
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="With activation checkpointing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>With activation checkpointing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Activation checkpointing recomputes activations during the backward pass, cutting activation usage by about 8× further. The 3M-token Llama 3-8B configuration on 8 H100s still runs out of memory.
+
+[8:17](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=497s) [Peak memory chart adds FSDP with Ulysses and activation checkpointing, still marked out of memory.](https://assets.ai.engineer/sites/aiecode2025/sha256/4890f0c8c93404b2327e04c7f454d5ad0c2baf0e286c5aa92c7238e3cb758bb2.webp)
+
+With activation checkpointing
+
+Peak memory (GiB)
+Y-axis ticks: 0, 20, 40, 60, 80
+
+Default: OOM (119)
+FSDP: 15.0, OOM (7684)
+FSDP + Ulysses: 15.0, OOM (964)
+FSDP + Ulysses + AC: 15.0, OOM (130)
+
+Legend: Model, Attn act., Other
+
+Llama 3-8B, 3M tokens, 8xH100
+
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="What if the activations are still too big?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What if the activations are still too big?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Transformer block inputs can be offloaded to CPU when not needed, then prefetched before backpropagation reaches the layer. The slide credits Unsloth with the first implementation.
+
+[8:30](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=510s) [Slide explains offloading transformer block inputs to CPU and prefetching them before use.](https://assets.ai.engineer/sites/aiecode2025/sha256/788015340c86fcc7fb5dd1e6843bc6a2d965df62a27bfa92cef58e061e90eacb.webp)
+
+What if the activations are still too big?
+
+1. Inputs to each Transformer block can’t be recomputed quickly
+2. Still, we can offload to CPU
+   ○ Prefetch before we reach the layer, similar to weights for FSDP
+   ○ First implemented in:
+
+Blog
+Unsloth Gradient Checkpointing - 4x longer context windows
+Apr 9, 2024 • By Daniel &amp; Mike
+
+unsloth.ai/blog/long-context
+
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="With offloading" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>With offloading</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>With offloading, attention activations reach 37.5 GiB, but other memory still causes an out-of-memory error for Llama 3-8B at 3M tokens on 8 H100s.
+
+[9:20](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=560s) [Peak memory chart adds an offloading configuration with 15.0 GiB for the model and 37.5 GiB for attention activations; other memory remains out of memory.](https://assets.ai.engineer/sites/aiecode2025/sha256/7f730896c42b2acf04d62f369e5551016d32abac326e49a123893b647a07759a.webp)
+
+With offloading
+
+Peak memory (GiB)
+Y-axis ticks: 0, 20, 40, 60, 80
+Legend: Model; Attn act.; Other
+
+Default: OOM (119)
+FSDP: 15.0; OOM (7684)
+FSDP + Ulysses: 15.0; OOM (964)
+FSDP + Ulysses + AC: 15.0; OOM (130)
+FSDP + Ulysses + AO: 15.0; 37.5; OOM (363)
+
+Llama 3-8B, 3M tokens, 8xH100
+
+Event branding: AIE; Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="After ALST" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>After ALST</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>ALST fits Llama 3-8B training at 3M tokens on 8 H100s; every earlier configuration runs out of memory. Its peak memory includes 15.0 GiB for the model, 37.5 GiB for attention activations and 15.4 GiB for other uses.
+
+[9:53](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=593s) [Peak memory comparison for Llama 3-8B at three million tokens; ALST fits within 80 GiB while the other configurations run out of memory.](https://assets.ai.engineer/sites/aiecode2025/sha256/b7e4349caf41212bf63a777d8290e0f12d1d68d60be2e44d7d8d0385ad5b24c1.webp)
+
+After ALST
+
+Peak memory (GiB)
+Y-axis ticks: 0, 20, 40, 60, 80
+Legend: Model; Attn act.; Other
+
+Default: OOM (119)
+FSDP: 15.0; OOM (7684)
+FSDP + Ulysses: 15.0; OOM (964)
+FSDP + Ulysses + AC: 15.0; OOM (130)
+FSDP + Ulysses + AO: 15.0; 37.5; OOM (363)
+ALST: 15.0; 37.5; 15.4
+
+Llama 3-8B, 3M tokens, 8xH100
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Untied Ulysses: Intermediate Buffers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Untied Ulysses: Intermediate Buffers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Ulysses exchanges Q, K and V across devices before attention, doubling intermediate buffers and risking OOM. The proposed optimization chunks attention heads; one set can already saturate a GPU.
+
+[10:03](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=603s) [Diagram of Ulysses attention and all-to-all communication, showing intermediate buffers causing an out-of-memory condition.](https://assets.ai.engineer/sites/aiecode2025/sha256/4135e05305b4c6873f2b55263b31f42b7197383baa210f431d6adadf4ceea417.webp)
+
+Untied Ulysses
+
+• Intermediate buffers are too large! (all Q,K,V, x2 because of all-to-all)
+• Let’s leverage the multi-head aspect of attention:
+
+Diagram:
+X0, X1
+Q, K, V
+H0, H1, H2, H3
+Inp-All-to-All
+Attention
+Out-All-to-All
+Out0, Out1
+HBM
+init
+QKV
+All-to-All
+OOM ☹
+(a)
+
+Untied Ulysses: Memory-Efficient Context Parallelism via Headwise Chunking. Ghadia et al., 2026
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Untied Ulysses" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Untied Ulysses</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Untied Ulysses processes attention heads in stages, stores partial outputs, and reuses buffers across iterations. This saves activation memory without significantly affecting throughput at smaller scales.
+
+[11:09](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=669s) [Two stages process groups of attention heads sequentially and reuse communication buffers between stages.](https://assets.ai.engineer/sites/aiecode2025/sha256/5c430974dbf9c3bee2df21c17891e0d05ecaefbc1962b9875c106c1f99d978d8.webp)
+
+Untied Ulysses
+
+• Intermediate buffers are too large! (all Q,K,V, x2 because of all-to-all)
+• Let’s leverage the multi-head aspect of attention:
+
+Stage-0
+Proj + Communication | Attention | Communication
+X₀, X₁; H₀, H₁
+Inp-All-to-All; Attn; Out-All-to-All
+Out₀, Out₁
+HBM: init, QKV, All-to-All
+Memory Reuse ☺
+
+Stage-1
+Proj + Communication | Attention | Communication
+X₀, X₁; H₂, H₃
+Inp-All-to-All; Attn; Out-All-to-All
+Out₀, Out₁
+init; Buffers reused
+
+Untied Ulysses: Memory-Efficient Context Parallelism via Headwise Chunking. Ghadia et al., 2026
+
+Interface text: AIE; AI Engineer EUROPE
+
+[11:24](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=684s) [Two-stage diagram showing attention heads processed in chunks while communication buffers are reused.](https://assets.ai.engineer/sites/aiecode2025/sha256/431310064fe3bcfe5fed1148e45ae6298c032cd50f074aab4a78bbc7b08bb32e.webp)
+
+Untied Ulysses
+
+• Intermediate buffers are too large! (all Q,K,V, x2 because of all-to-all)
+• Let’s leverage the multi-head aspect of attention:
+
+Stage-0
+Proj + Communication | Attention | Communication
+X₀, X₁; H₀, H₁
+Inp-All-to-All; Attn; Out-All-to-All
+Out₀, Out₁
+HBM: init, QKV, All-to-All
+Memory Reuse ☺
+
+Stage-1
+Proj + Communication | Attention | Communication
+X₀, X₁; H₂, H₃
+Inp-All-to-All; Attn; Out-All-to-All
+Out₀, Out₁
+init; Buffers reused
+
+Untied Ulysses: Memory-Efficient Context Parallelism via Headwise Chunking. Ghadia et al., 2026
+
+Interface text: AIE; Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Does it hurt performance?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Does it hurt performance?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>UPipe stays close to Ulysses in throughput through 1M tokens and reaches 5M on Llama3-8B. On Qwen3-32B, UPipe runs out of memory at 5M.
+
+[11:45](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=705s) [Table comparing context parallelism methods across context lengths for Llama3-8B and Qwen3-32B.](https://assets.ai.engineer/sites/aiecode2025/sha256/015484020097f5c29a3fbc0ef8ef5387b5323d3f4c21b7fb78f316a1a175315c.webp)
+
+Does it hurt performance?
+
+Model | 128K | 256K | 512K | 1M | 2M | 3M | 4M | 5M
+
+Llama3-8B
+Native PyTorch | 1373.87 | 845.99 | 474.30 | 249.85 | OOM | – | – | –
+Ring | 2064.90 | 1387.67 | 841.05 | 458.51 | 237.99 | 159.96 | OOM | –
+Ulysses | 2320.47 | 1503.80 | 878.63 | 475.33 | 246.05 | 162.41 | OOM | –
+FPDT | 1171.68 | 884.75 | 621.20 | 382.42 | 219.53 | 153.48 | 119.76 | –
+UPipe | 2281.05 | 1487.29 | 867.17 | 472.53 | 246.07 | 166.32 | 125.56 | 98.25
+
+Qwen3-32B
+Native PyTorch | 127.03 | 112.20 | 91.39 | OOM | – | – | – | –
+Ring | 418.39 | 308.88 | 194.44 | 110.27 | 58.45 | OOM | – | –
+Ulysses | 545.29 | 370.70 | 217.04 | 117.02 | 59.98 | OOM | – | –
+FPDT | 286.40 | 217.85 | 151.91 | 95.88 | 55.41 | 38.86 | 27.66 | –
+UPipe | 483.29 | 339.56 | 204.46 | 113.26 | 59.56 | 40.42 | 29.97 | OOM
+
+Untied Ulysses: Memory-Efficient Context Parallelism via Headwise Chunking. Ghadia et al., 2026
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Chunk size ablations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Chunk size ablations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Larger chunks compute more heads at once, using more memory while increasing throughput.
+
+[12:09](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=729s) [Bar charts show memory use and throughput increasing as chunk size rises from 4 to 32.](https://assets.ai.engineer/sites/aiecode2025/sha256/e7ec58dc9b9a1db16bc02c09accc9b3b35a44de86c38ecaf4ab64a9effd6cad8.webp)
+
+Chunk size ablations
+
+Memory (GiB)
+Y-axis ticks: 0, 5, 10, 15, 20
+Chunk size: 4, 8, 16, 32
+
+Throughput (TPS)
+Y-axis ticks: 800, 810, 820, 830, 840
+Chunk size: 4, 8, 16, 32
+
+Untied Ulysses: Memory-Efficient Context Parallelism via Headwise Chunking. Ghadia et al., 2026
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Memory comparison at 3M tokens" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Memory comparison at 3M tokens</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For Llama 3-8B at 3M tokens on 8 H100s, UPipe cuts attention activation memory from 37.5 GiB with ALST to 19.5 GiB, freeing memory that can be used elsewhere in training.
+
+[12:28](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=748s) [Stacked bars compare peak memory across training techniques for Llama 3-8B at 3M tokens on eight H100 GPUs.](https://assets.ai.engineer/sites/aiecode2025/sha256/fae4c71fde351c6f206093b112f2f66f7388917940b0b31910c6e63016be1035.webp)
+
+Stacking everything together
+
+Peak memory (GiB)
+Y-axis ticks: 0, 20, 40, 60, 80
+Legend: Model; Attn act.; Other
+
+Default: OOM (119)
+FSDP: 15.0; OOM (7684)
+FSDP + Ulysses: 15.0; OOM (964)
+FSDP + Ulysses + AC: 15.0; OOM (130)
+FSDP + Ulysses + AO: 15.0; 37.5; OOM (363)
+ALST: 15.0; 37.5; 15.4
+UPipe (Ours): 15.0; 19.5; 15.4
+
+Llama 3-8B, 3M tokens, 8xH100
+
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Memory comparison at 5M tokens" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Memory comparison at 5M tokens</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For Llama 3-8B at 5M tokens on 8 H100s, UPipe is the only configuration shown that fits below 80 GiB. Its memory consists of 15.0 GiB for the model, 32.5 GiB for attention activations, and 24.8 GiB for other uses.
+
+[12:46](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=766s) [Stacked bars compare peak memory across training techniques for Llama 3-8B at 5M tokens on eight H100 GPUs; only UPipe fits within the chart's 80 GiB limit.](https://assets.ai.engineer/sites/aiecode2025/sha256/5887da761e38b2d9633a3ef1687a3d244eae2ff1082c8932c43f5d602ce1a83a.webp)
+
+Stacking everything together
+
+Peak memory (GiB)
+Y-axis ticks: 0, 10, 20, 30, 40, 50, 60, 70, 80
+Legend: Model; Attn act.; Other
+
+Default: OOM (119)
+FSDP: 15.0; OOM (12800)
+FSDP + Ulysses: 15.0; OOM (1600)
+FSDP + Ulysses + AC: 15.0; OOM (210)
+FSDP + Ulysses + AO: 15.0; 55.0; OOM (613)
+ALST: 15.0; 55.0; OOM (25)
+UPipe (Ours): 15.0; 32.5; 24.8
+
+Llama 3-8B, 5M tokens, 8xH100
+
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Takeaways" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Takeaways</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Long-context training can encounter unexpected bottlenecks. The PyTorch Memory Profiler can help investigate out-of-memory failures, even in smaller setups.
+
+[13:00](https://www.youtube.com/watch?v=TUnPNY4E2fw&amp;t=780s) [Takeaways highlight long-context training challenges, unexpected bottlenecks, and the value of the PyTorch Memory Profiler.](https://assets.ai.engineer/sites/aiecode2025/sha256/e337eac83b589c14ca110f61290bdc2908687b90b7f1a987ee31266d2dc95e23.webp)
+
+Takeaways
+
+• Training models with large context lengths can be challenging
+• The bottlenecks appear where you least expect
+• PyTorch Memory Profiler helps a ton!
+  ◦ ... even if you run OOM in much smaller setups
+• Check out our paper for more :)
+
+AIE
+Google DeepMind</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">在长得多的上下文上训练需要什么？</a></li><li><a href="#sec-2">二次方的计算量，不断增长的活跃内存</a></li><li><a href="#sec-3">一个节点上三百万个 token</a></li><li><a href="#sec-4">重计算、卸载，然后分块</a></li><li><a href="#sec-5">在不同注意力头组之间复用注意力缓冲区</a></li><li><a href="#sec-6">五百万 token 这个结果衡量的是什么</a></li><li><a href="#sec-7">找到下一个会占主导的内存分配</a></li><li><a href="#sec-8">QKV 指的是查询、键和值</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">通往 500 万 token 之路：突破长上下文训练的壁垒</h2>
+      <div class="lede"><p>长上下文训练之所以变得可行，是因为缩减了必须同时驻留在一块 GPU 上的东西：先是参数，然后是保存的激活值、中间缓冲区，最后是一组组注意力头。</p><p>熟悉 Transformer 注意力、GPU 显存以及神经网络训练的前向和反向传播会有帮助。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="15">▶ 0:15</button></div>
+      <h3>在长得多的上下文上训练需要什么？</h3>
+      <p>How can a model train on the growing history an agent needs, or the many frames a video model must keep consistent? That is the problem behind Max Ryabinin’s work on breaking memory barriers in context parallelism. Ryabinin introduces himself as Together AI’s VP of Research and Development and places the project within its training and customization work. Together supplies GPU clusters for model creation, fine-tuning and reinforcement learning for model shaping, and serverless or dedicated inference. At the recording, he describes an inference portfolio of more than 200 models, but inference optimization is outside this discussion.</p>
+<p>Agents create demand for longer histories that models can actually use. Video creates another pressure: multiple frames per second quickly consume tokens, while temporal consistency requires access to events seconds or minutes earlier. Those capabilities require models to process long contexts during training. Even when a workload never reaches millions of tokens, understanding where training memory goes can uncover capacity that can be reinvested in speed.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/67d932eb598aea5a23e41b030d99e89c892ce9f27af467ee32e86fa1fe8b0b06" alt="Slide asking why long-context training is wanted, with a terminal context-usage grid on the left and a cat image on the right." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Long-context motivation illustrated with a context-usage display and a cat image.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="222">▶ 3:42</button></div>
+      <h3>二次方的计算量，不断增长的活跃内存</h3>
+      <p>Extending a transformer’s sequence exposes two different bottlenecks. Attention computes pairwise interactions across sequence positions, so its computation grows quadratically. Separately, the sequence-dependent activations that must be stored grow with context length. Linear growth sounds manageable beside quadratic work, but sufficiently long tensors still exhaust GPU memory.</p>
+<p>| Bottleneck | Source | Consequence |
+| --- | --- | --- |
+| Quadratic computation | Pairwise attention interactions | More work as the sequence grows |
+| Linear memory growth | Sequence-dependent activations | Larger live allocations |</p>
+<p>These are distinct constraints: avoiding a stored quadratic attention matrix does not remove the linear-sized tensors elsewhere in training. Ryabinin illustrates the memory pressure with a Hugging Face training-memory chart before asking how far established techniques, followed by additional optimizations, can push the limit.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/3c7d57272a14a3513e65ce51c30168666af10f18824e384512ae7f9da7b8154b" alt="What's stopping us slide linking Long Context to O(N^2) Computation and O(N) Memory, above stacked memory-usage charts." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Long context brings quadratic computation and linear memory growth.</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="311">▶ 5:11</button></div>
+      <h3>一个节点上三百万个 token</h3>
+      <p>The worked target is a three-million-token training sequence on one node containing eight H100 GPUs. Ryabinin calls the architecture <strong>Llama 3B</strong> in the spoken introduction; Figure 2 of the matching <a href="https://arxiv.org/html/2602.21196v1" target="_blank" rel="noopener">Untied Ulysses paper</a> identifies the example as <strong>Llama3-8B</strong>. That distinction matters when interpreting the memory budget. He describes the initial configuration as running out of memory while placing the model, but the account does not establish that three-billion-parameter weights alone exceed the node’s capacity.</p>
+<p>The first intervention is <strong>fully sharded data parallelism</strong>, or FSDP. Instead of keeping the model’s parameters replicated on every GPU, it shards them across the eight devices. Model memory falls, but the training configuration still runs out of memory because attention activations remain too large. Reducing parameter storage has exposed the next allocation that dominates the budget.</p>
+<p><a href="https://github.com/deepspeedai/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md" target="_blank" rel="noopener">DeepSpeed Ulysses</a>, introduced by Microsoft, applies parallelism to the context itself. GPUs begin with portions of the sequence. All-to-all communication rearranges the attention inputs so that each GPU receives the full sequence for an assigned subset of heads. Each device computes those heads, and a reverse redistribution returns the results to the sequence-partitioned layout. <strong>The heads are distributed; their access to the sequence is preserved.</strong></p>
+<p>That arrangement can use optimized attention kernels such as FlashAttention inside each device’s assigned computation, then aggregate the results. Ryabinin names FlashAttention versions one through four as examples; the measured throughput discussed later uses FlashAttention 3. In the eight-GPU walkthrough, Ryabinin reports approximately an eightfold reduction in memory utilization after applying Ulysses, still short of making the target fit on one node.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="468">▶ 7:48</button></div>
+      <h3>重计算、卸载，然后分块</h3>
+      <p><strong>Activation checkpointing</strong> changes what training saves for the backward pass. Rather than retaining every intermediate activation, it retains enough information to recompute the needed values later. The tradeoff is additional computation, so checkpoint boundaries must be chosen to avoid excessive recomputation. In the worked example, Ryabinin reports a further roughly eightfold reduction in activation memory from checkpointing. That still leaves another storage problem.</p>
+<p>Checkpointing needs inputs from which to reconstruct a transformer block’s activations. Those inputs need not remain on the GPU while other layers execute. They can be offloaded to CPU memory, then prefetched before backpropagation reaches the corresponding layer. Overlapping transfers with useful work limits their performance impact. Ryabinin credits <a href="https://www.unsloth.ai/blog/long-context" target="_blank" rel="noopener">Unsloth’s checkpoint offloading</a> as the first such implementation to the team’s knowledge; that is a qualified attribution, not an established priority claim for activation offloading generally.</p>
+<p>After offloading, Ryabinin puts the displayed memory usage near 37 GB, without specifying whether that figure is per device, aggregate, or a subset of allocations. Other operations can still create an out-of-memory peak. In particular, an MLP or loss computation can materialize an intermediate with a dimension spanning all three million sequence positions.</p>
+<p>The next intervention is <strong>tiling across sequence positions</strong>. An MLP operates independently on each token’s feature vector, so it can process slices of the sequence instead of expanding all tokens into its larger hidden dimension at once. Loss computation can likewise be chunked, with the appropriate reduction across chunks. This does not make attention local: it applies to operations that do not require interactions between sequence positions.</p>
+<p>A PyTorch implementation can combine sequence tiling with checkpointing so that the expanded MLP intermediates are recomputed during backward rather than retained for every tile:</p>
+<p>```python
+import torch
+from torch import nn
+from torch.utils.checkpoint import checkpoint</p>
+<p>def tiled_mlp(
+    x: torch.Tensor,
+    mlp: nn.Module,
+    chunk_tokens: int = 4096,
+) -&gt; torch.Tensor:
+    # x: [batch, sequence, hidden]
+    if chunk_tokens &lt;= 0:
+        raise ValueError(&quot;chunk_tokens must be positive&quot;)</p>
+<p>outputs = [
+        checkpoint(mlp, tile, use_reentrant=False)
+        for tile in x.split(chunk_tokens, dim=1)
+    ]
+    return torch.cat(outputs, dim=1)
+```</p>
+<p>The output still spans the full sequence, and concatenation itself needs storage. The saving comes from limiting the MLP’s expanded intermediates, not eliminating every sequence-sized tensor. In the walkthrough, stacking tiling on the earlier techniques finally makes the three-million-token target fit.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="600">▶ 10:00</button></div>
+      <h3>在不同注意力头组之间复用注意力缓冲区</h3>
+      <p>Going beyond that target requires another look inside context parallelism. The additional method is <strong>Untied Ulysses</strong>, called <strong>UPipe</strong> in the paper and later in the talk. The key observation is that one group of attention heads can already saturate the GPU’s computational capacity. If a device has several groups assigned to it, allocating working space for all of them at once may consume memory without providing a corresponding throughput benefit.</p>
+<p>UPipe processes those groups over time:</p>
+<p>1. Recompute the attention inputs for one group of heads.
+2. Compute attention for that group over the full sequence.
+3. Store its partial result.
+4. Advance to the next group, reusing the working buffers from the previous group.</p>
+<p>The allocation becomes smaller because it serves one group at a time instead of every assigned head simultaneously. The earlier MLP tiling divided work along the sequence dimension; this optimization divides attention work along the head dimension while preserving full-sequence attention.</p>
+<p>The benefit depends on whether each smaller group still supplies enough work to keep the GPU busy. Ryabinin reports additional activation-memory savings without a significant throughput impact at smaller scales, then turns to measurements across context-parallel training implementations.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="706">▶ 11:46</button></div>
+      <h3>五百万 token 这个结果衡量的是什么</h3>
+      <p>Ryabinin describes competitive throughput at both eight-billion- and 32-billion-parameter scales, sometimes with better performance at shorter contexts. The five-million-token result needs a more specific reading: it applies to Llama3-8B, not to both model sizes. The original paper reports Llama3-8B training at five million tokens and 98.25 tokens/s/GPU on eight 80 GiB H100s. That measurement uses BF16, FlashAttention 3, FSDP, checkpoint offloading, Ulysses degree <code>U=8</code>, chunk count <code>C=8</code>, and 1.9 TiB of host RAM; offloading is unpinned at five million tokens. The paper’s <strong>Qwen3-32B</strong> configuration uses 16 H100s and runs out of memory at five million tokens. These results measure training feasibility and throughput, not successful reasoning or retrieval over a five-million-token input.</p>
+<p>Head-group size provides a practical tuning choice:</p>
+<p>| Heads computed together | Working memory | Throughput tendency |
+| --- | --- | --- |
+| Fewer | Lower | May be lower |
+| More | Higher | Can be higher |</p>
+<p>Larger chunks consume more memory but can run the model faster. Smaller chunks are useful when the next allocation would otherwise exceed capacity. The goal is not the smallest possible buffer; it is enough memory savings while keeping each chunk computationally efficient.</p>
+<p>UPipe therefore adds another adjustable layer to the existing stack. At a context length that already fits, the saved memory can be used elsewhere in training. At the larger target, it can make the difference between fitting and failing. The final comparison slide identifies Llama 3–8B at five million tokens on eight H100s: the first six configurations are marked out of memory, while the UPipe configuration’s stacked bar remains below 80 GiB. The complete stack matters—parameter sharding, context parallelism, checkpointing, offloading, tiling, and headwise buffer reuse address different allocations.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/66c0d66cd425f133159814233bb39b4f8dd0416a5a385ebd44da756de76ca1b9" alt="Stacking everything together chart comparing seven configurations; the first six show OOM labels, while UPipe has a stacked bar below 80 GiB." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Memory comparison for Llama 3–8B at 5M tokens on 8×H100.</figcaption></figure>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="780">▶ 13:00</button></div>
+      <h3>找到下一个会占主导的内存分配</h3>
+      <p>Long-context training repeatedly shifts the bottleneck. Once one allocation is reduced, another that previously looked secondary can become the reason training fails. Ryabinin recommends tools such as <a href="https://docs.pytorch.org/tutorials/recipes/recipes/profiler_recipe.html" target="_blank" rel="noopener">PyTorch Profiler</a> to find those unexpected costs; the paper discusses profiling in detail. At the recording, the paper and additional results are public, and he announces a forthcoming thread explaining the method more deeply.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="847">▶ 14:07</button></div>
+      <h3>QKV 指的是查询、键和值</h3>
+      <p>The audience Q&amp;A returns to the tensors themselves. Asked whether QKV refers to quantization parameters, Ryabinin clarifies that it means the transformer layer’s <strong>query, key, and value matrices</strong>. Query–key interactions produce the pairwise attention computation; QKV is not a quantization setting.</p>
+<p>With a three-million-token sequence, even an intermediate tensor that has three million entries along just one axis is a substantial allocation. That is why attention buffer reuse cannot carry the entire training system by itself. The computation needs several approaches working together, each controlling which tensors exist, where they live, and how long they remain allocated. The engineering problem is to execute the required computation without requiring all of its intermediate state to fit on the GPU at once.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://arxiv.org/html/2602.21196v1" target="_blank" rel="noopener">Untied Ulysses: Memory-Efficient Context Parallelism via Headwise Chunking</a> — Original paper explaining headwise chunking, memory reuse and long-context training benchmarks.</li><li><a href="https://github.com/ghadiaravi13/Untied-Ulysses" target="_blank" rel="noopener">Untied Ulysses implementation and benchmark scripts</a> — Official implementation with installation instructions and single-node and multinode benchmark scripts for Llama 8B and Qwen3 32B.</li><li><a href="https://github.com/deepspeedai/DeepSpeed/blob/master/blogs/deepspeed-ulysses/README.md" target="_blank" rel="noopener">DeepSpeed Ulysses</a> — Explains how all-to-all communication converts sequence partitions into attention-head partitions and back.</li><li><a href="https://www.unsloth.ai/blog/long-context" target="_blank" rel="noopener">Unsloth Gradient Checkpointing</a> — Unsloth's account of asynchronous activation offloading, with long-context fine-tuning examples and benchmark conditions.</li><li><a href="https://docs.pytorch.org/tutorials/recipes/recipes/profiler_recipe.html" target="_blank" rel="noopener">PyTorch Profiler tutorial</a> — Current instructions for measuring operator execution time, tracking memory and exporting traces.</li><li><a href="https://huggingface.co/spaces/nanotron/ultrascale-playbook/blob/main/ultra_blog.md" target="_blank" rel="noopener">The Ultra-Scale Playbook</a> — A detailed guide to distributed model training, memory accounting and parallelism strategies.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Hi, everyone.</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">My name is Max. I am VP of Research and Development at Together AI, and today I'm going to tell you about our research project, which is called Road to Five Million Sequence Length: Breaking Memory Barriers in Context Parallelism.</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">So to begin, uh, I'll first say a few words about Together AI and who we are. Together AI is an AI-native cloud which provides, uh, services and infrastructure for AI developers and builders at all stages of development, starting from, uh, creating a model where you just might need a GPU cluster with heavily optimized computes and, uh,</span></div><div class="tline" data-t="55"><span class="ts">0:55</span><span class="tx">highly reliable, uh, systems, uh, all the way through model shaping, where you can take existing models and customize them for your tasks in terms of performance, in terms of speed, in terms of quality through services such as the fine-tuning or, uh, uh, reinforcement learning.</span></div><div class="tline" data-t="75"><span class="ts">1:15</span><span class="tx">Also, we are an inference provider, so if you have an app which is reliant on open source model inference, uh, you can, uh, work with us, and we'll provide you with the fastest way to launch and use AI models with more than 200 models in our portfolio, uh, options for deployment, which include serverless and</span></div><div class="tline" data-t="100"><span class="ts">1:40</span><span class="tx">dedicated inference, and a ton of advanced optimizations, which I will not be able to speak about today. Um, the purpose of this talk is, uh, focused on model training, customization, and fine-tuning in particular.</span></div><div class="tline" data-t="116"><span class="ts">1:56</span><span class="tx">And, uh, I'll start by asking a question. Uh, I think in the last few months or, like, at least a year or so, we're seeing a lot of interest in the community, uh, both on the system side and on the research side in training long context models.</span></div><div class="tline" data-t="133"><span class="ts">2:13</span><span class="tx">Um, the primary reasons for that are twofold, I would say. First of all, with the, uh, like, explosion in popularity of agents, you can see a lot of different applications where you might want to put as many tokens as you want in your context, and you want the model to leverage that context effectively.</span></div><div class="tline" data-t="155"><span class="ts">2:35</span><span class="tx">Um, second, with the development of applications such as video generation, you might often need to keep track of multiple, uh, like, uh, different frames, which... or, like, even, uh, multiple frames per second, which can, um, occupy quite a few tokens in your context pretty quickly.</span></div><div class="tline" data-t="177"><span class="ts">2:57</span><span class="tx">And you also need models that have good, uh, sense of, uh, temporal consistency, which means that they're able to see what was happening a few seconds or ideally a few minutes ago.</span></div><div class="tline" data-t="190"><span class="ts">3:10</span><span class="tx">Um, to do that all effectively, you need to make sure that the models are able to process that context and work with it correctly at the training time. Um, but even if you're not at the scales of, like, millions of, uh, tokens in the context length, it's still quite important to understand where the memory goes, because</span></div><div class="tline" data-t="215"><span class="ts">3:35</span><span class="tx">who knows, maybe you might be able to reinvest it in some other ways and speed up your training overall.</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">So the problem here is that if you are taking a standard transformer-based language model and trying to extend its context, you can run [coughs] into two bottlenecks.</span></div><div class="tline" data-t="237"><span class="ts">3:57</span><span class="tx">Bottleneck number one is that you are faced with quadratic computation because, well, long story short, for transformer-based models, uh, you have pairwise interactions a-across all the elements in a sequence.</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">The second problem is more insidious, one might say. Uh, as you continue scaling your context, your memory keeps growing linearly, which is not as bad, but still pretty difficult to deal with unless you apply a range of specific techniques.</span></div><div class="tline" data-t="270"><span class="ts">4:30</span><span class="tx">Um, and this is an example from Hugging Face's blog post on model training, which shows that the sequence length, uh, growth can affect your memory limits pretty considerably.</span></div><div class="tline" data-t="286"><span class="ts">4:46</span><span class="tx">Um, yeah, here's the slide. And our goal of that project was to see, uh, how far exactly we are able to get with a range of existing techniques that are pretty well known to some in the community, as well as some further optimizations that we wanted to leverage to push this a bit, uh, further ahead.</span></div><div class="tline" data-t="311"><span class="ts">5:11</span><span class="tx">So, um, let's say you're taking a model which is a standard Llama 3B architecture. You're trying to fit three million training tokens into your context, and you're taking, uh, all of this on an 8, uh, X, uh, H100 GPU node.</span></div><div class="tline" data-t="330"><span class="ts">5:30</span><span class="tx">Um, the first stage you'll see is that even with, uh, just the model parameters, you're not able to fit, uh, it into the GPU. Uh, you run out of memory just by trying to place the model.</span></div><div class="tline" data-t="343"><span class="ts">5:43</span><span class="tx">Of course, the next stage is to apply fully sharded data parallelism, where all the parameters are, like, basically chunked across the eight GPUs that you have, which is great, but, uh, still doesn't solve the problem.</span></div><div class="tline" data-t="357"><span class="ts">5:57</span><span class="tx">You see that, uh, the memory usage for the model drops quite significantly, but you still are running out of memory because of all the attention activations.</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">The next point that, uh, we leveraged and I encourage you to use as well is, uh, taking advantage of, uh, context parallelism. In particular, there is a pretty well-known technique called DeepSpeed Ulysses, first, uh, introduced by Microsoft.</span></div><div class="tline" data-t="386"><span class="ts">6:26</span><span class="tx">The idea is that instead of computing, uh, all of your multi-head attention, like, on every GPU separately for the whole sequence, you can do something more clever. In particular, you can try to compute the attention for different heads at different points in time, uh, or, like, on different GPUs, uh, through communicating these</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">activations as, uh, they are required in such a way that one GPU is only responsible for one attention head here, but it's still computing the attention over the whole sequence.</span></div><div class="tline" data-t="424"><span class="ts">7:04</span><span class="tx">Um, that technique is quite effective at, uh, addressing the problem, and it also allows you to utilize the best possible attention implementation, like Flash Attention one, two, three, four, um, to optimize that part of the computation, and then you aggregate the results as, uh, you would've, uh, previously.</span></div><div class="tline" data-t="447"><span class="ts">7:27</span><span class="tx">So if you apply Ulysses context parallelism, the utilization drops quite significantly, like approximately 8X, uh, here, as, uh, it should. But we are still quite far from our goal of being able to fit that onto just a single, uh, H100 node.</span></div><div class="tline" data-t="468"><span class="ts">7:48</span><span class="tx">So what happens next is that we can try to recompute the activations as they, uh, are needed to us at the backward pass. That technique is known as activation checkpointing, and, uh, it's available in pretty much all of the different frameworks these days that you could use.</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">You just need to enable it in a correct way that does not, uh, impose too much of a computational burden on you.</span></div><div class="tline" data-t="498"><span class="ts">8:18</span><span class="tx">Um, with that, with activation checkpointing, you can drop the activation usage by, like, a further factor of eight, but still something else needs to be done. Uh, the next optimization is, um, also connected to the storage of activations.</span></div><div class="tline" data-t="518"><span class="ts">8:38</span><span class="tx">You can try to, uh, store some of the inputs to each transformer block, not on the GPU, but instead offload them to CPU when they are not required. Uh, this is not very impactful for the performance because you can offload the...</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">it, uh, and prefetch when you are trying to back propagate to that, to the corresponding layer. Um, this optimization, to the best of our knowledge, was first implemented, uh, by Unsloth, and, uh, it allows you to drastically expand the context window.</span></div><div class="tline" data-t="556"><span class="ts">9:16</span><span class="tx">Um, the next point is that you're getting, uh, with offloading next to 37, uh, gigabytes of data, but then comes the other part of out-of-memory usage. Uh, what happens next is that you can essentially tile all, all of the computations across the sequence length in case they are element-wise.</span></div><div class="tline" data-t="579"><span class="ts">9:39</span><span class="tx">So all the loss computations, all the MLPs, they can be chunked to avoid creating these huge buffers that would be 3 million along one of the dimensions. Um, that's our target sequence length training, and even with these optimizations, you're finally getting to a point where 3 million is possible.</span></div><div class="tline" data-t="600"><span class="ts">10:00</span><span class="tx">But what if you wanted to go further? And here we actually need to do something else, which is the primary, uh, optimization we've done in our work, dubbed the Untitled Ulysses, and you could describe it as a further deeper, uh, analysis and expansion of, uh, this context parallelism technique.</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">So what we found was that even trying to compute one set of heads at a time, uh, is already enough to saturate the computational capacity of the GPU with- within one iteration, which means that if you have multiple different heads scheduled to be executed on, uh, one GPU, you can divide it in chunks and then, uh,</span></div><div class="tline" data-t="651"><span class="ts">10:51</span><span class="tx">essentially iterate through these chunks over time. So you have one group of heads which are being recomputed, then you compute attention over them, you store the partial result, then you follow up with the next stage, which can reuse all the buffers you've allocated at the previous stage.</span></div><div class="tline" data-t="671"><span class="ts">11:11</span><span class="tx">Um, so the advantage here is that instead of allocating this huge buffer as, uh, you would've before, like here in this slide, you allocate a buffer which is smaller, but you reuse it across, like, two or more different iterations.</span></div><div class="tline" data-t="688"><span class="ts">11:28</span><span class="tx">And that allows you to further save on the activation memory for your training without any significant impact to the throughput at smaller scales. So here you can see the results that we've, uh, measured across different context parallelism techniques.</span></div><div class="tline" data-t="706"><span class="ts">11:46</span><span class="tx">As you can see, both at the 8 billion scale and at the 32 billion scale, we are matching quite closely the most memory optimized implementations of transformer training while being able to scale even further, like 5 million tokens, and, uh, sometimes even being more performant at small, uh, at shorter context lengths.</span></div><div class="tline" data-t="730"><span class="ts">12:10</span><span class="tx">Um, the relation between the chunk size or the number of heads you compute at the same time and the throughput is quite straightforward. So if your chunk is larger, your memory utilization is higher, but at the same time, you can run the whole model a bit faster.</span></div><div class="tline" data-t="749"><span class="ts">12:29</span><span class="tx">Um, so by stacking all of these, uh, techniques together and applying UPipe on top, you can, for example, uh, free up a bit of additional memory in, uh, your training if you need it and reinvest it somewhere else, uh, for example, among the stages.</span></div><div class="tline" data-t="766"><span class="ts">12:46</span><span class="tx">Or, uh, you could say that we're interested in training across not 3 but 5 million context lengths, and then, uh, UPipe is the technique that will save you, uh, by contrast to everything else.</span></div><div class="tline" data-t="780"><span class="ts">13:00</span><span class="tx">So, um, as a takeaway, uh, I think one of the things that, uh, could be quite insightful here is that training models with large context lengths is a very interesting and challenging goal.</span></div><div class="tline" data-t="796"><span class="ts">13:16</span><span class="tx">Uh, but the bottlenecks might appear where you least expect. So tooling like the PyTorch Profiler, which, uh, we, uh, elaborate on a ton in our paper, uh, or other te- or other techniques can help you a lot.</span></div><div class="tline" data-t="811"><span class="ts">13:31</span><span class="tx">Uh, and also check out our paper for more results. All of that is public at the moment, and we have an upcoming thread which will illustrate the method in more depth.</span></div><div class="tline" data-t="823"><span class="ts">13:43</span><span class="tx">Thank you very much for listening, and now we are ready for questions.</span></div><div class="tline" data-t="832"><span class="ts">13:52</span><span class="tx">Thank you. Do you guys have any questions 'cause we're Together AI employees? [laughs]</span></div><div class="tline" data-t="841"><span class="ts">14:01</span><span class="tx">Sorry, we, we joined in from the middle, so we, we lack some certain context.</span></div><div class="tline" data-t="846"><span class="ts">14:06</span><span class="tx">Yeah. Got it.</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">But I'm just curious about the, the... So the QKV-</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">Yeah</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">... that was, uh, quantization, uh, parameters. Is that correctly understood?</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">Uh, not exactly. It was just the query, key, and value matrices-</span></div><div class="tline" data-t="859"><span class="ts">14:19</span><span class="tx">Okay</span></div><div class="tline" data-t="860"><span class="ts">14:20</span><span class="tx">... of the transformer layer. So, uh, you multiply them here in the attention part, which, uh, creates most of the complexity because all of the queries have to, like, result in all of these pairwise activ- uh, interactions with, uh, uh, like, keys.</span></div><div class="tline" data-t="877"><span class="ts">14:37</span><span class="tx">Uh, and the problem is that if you have a se- [coughs]</span></div><div class="tline" data-t="882"><span class="ts">14:42</span><span class="tx">a sequence which is, like, 3 million in length, it means that technically, like, in the standard most, uh, vanilla way, you would've just, like, allocated that whole big tensor which has 3 million in...</span></div><div class="tline" data-t="895"><span class="ts">14:55</span><span class="tx">Which is 3 million in size, uh, along one of the axes. And, like, that's pretty significant, as you could imagine, which means that you have to resort to, like, not just one technique, which is UPipe, but a range of other approaches to somehow help you, like, uh, lever- like, execute these computations without running out of your memory.</span></div><div class="tline" data-t="919"><span class="ts">15:19</span><span class="tx">So yeah, that's the key idea and the key challenge of, uh, working with transformers at, uh, this scale.</span></div><div class="tline" data-t="930"><span class="ts">15:30</span><span class="tx">Cool. Um, in that case, thank you very much for questions and for listening. [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>当所有上下文都重要时：扩展的缓存增强生成（ECAG） | AI 工程师中文版</title>
+<meta name="description" content="ECAG 把一个快速变化的文档集合分布到多个缓存的上下文桶中，再用一个监督模型去探索它们的内容并拼装出答案。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>当所有上下文都重要时：扩展的缓存增强生成（ECAG）</h1>
+    <div class="orig-title">When all context matters: Extended Cache Augmented Generation (ECAG)</div>
+    <div class="meta"><span class="speaker">Luis Romero-Sevilla</span> · AI Engineer World's Fair 2026 · 5:52</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=inference">推理</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/XovaGv4f39A-when-all-context-matters-extended-cache-augmented" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="XovaGv4f39A"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=XovaGv4f39A" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">一个每份文档都重要的文档集</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="0"><span class="ts">0:00</span><span>一个每份文档都重要的文档集</span></li><li data-t="45"><span class="ts">0:45</span><span>向量 RAG 让替换变得可行</span></li><li data-t="115"><span class="ts">1:55</span><span>GraphRAG 揭示关系——但必须重建它们</span></li><li data-t="188"><span class="ts">3:08</span><span>把文档保存在缓存的上下文里</span></li><li data-t="226"><span class="ts">3:46</span><span>用并行的上下文分桶扩展 CAG</span></li><li data-t="280"><span class="ts">4:40</span><span>通过追问建立理解</span></li><li data-t="306"><span class="ts">5:06</span><span>缓存生命周期是架构的一部分</span></li></ol>
+    </aside>
+  </section>
+
+  
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">一个每份文档都重要的文档集</a></li><li><a href="#sec-2">向量 RAG 让替换变得可行</a></li><li><a href="#sec-3">GraphRAG 揭示关系——但必须重建它们</a></li><li><a href="#sec-4">把文档保存在缓存的上下文里</a></li><li><a href="#sec-5">用并行的上下文分桶扩展 CAG</a></li><li><a href="#sec-6">通过追问建立理解</a></li><li><a href="#sec-7">缓存生命周期是架构的一部分</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">当所有上下文都重要时：扩展的缓存增强生成</h2>
+      <div class="lede"><p>ECAG 把一个快速变化的文档集合分布到多个缓存的上下文桶中，再用一个监督模型去探索它们的内容并拼装出答案。</p><p>对 LLM 上下文窗口和文档检索有基本了解会有帮助；嵌入向量、图检索和 KV 缓存会在出现时讲解。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="0">▶ 0:00</button></div>
+      <h3>一个每份文档都重要的文档集</h3>
+      <p>Suppose you have a large collection of documents describing an event. Answering the user's questions requires information from every document. Then add a second constraint: the collection becomes obsolete quickly, and the whole set must be replaced. A system must preserve access to the entire collection without making each replacement prohibitively expensive. This is the knowledge-representation problem Luis Romero-Sevilla, who introduces himself as VP of AI at Orbis Operations, sets out to solve.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/3b0ec8f9d15f00c3f13aad14318283b8d374e3ebe754dc560496121efc474ac0" alt="A bronze robot sits amid scattered papers while more documents cascade overhead." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A robot surrounded by a downpour of documents.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="45">▶ 0:45</button></div>
+      <h3>向量 RAG 让替换变得可行</h3>
+      <p>Start with ordinary <strong>retrieval-augmented generation</strong>, or RAG. An embedding model and a vector database provide a straightforward pipeline:</p>
+<p>1. Convert each document into a learned numerical vector.
+2. Store those vectors in a database designed for vector operations.
+3. Embed the user's question into the same representation space.
+4. Retrieve documents whose vectors meet a similarity threshold, then supply their content to the LLM to answer the question.</p>
+<p>Romero-Sevilla describes vector insertion as relatively fast, making it practical to replace an obsolete collection with a new one. But the retrieval step creates a mismatch with this workload: it selects material by similarity when the answer needs information from the whole collection. A document can matter to the global explanation without looking sufficiently similar to the initial question. Simply passing everything to the LLM would bypass that selection problem, but it would also move the burden into the model's context window.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="115">▶ 1:55</button></div>
+      <h3>GraphRAG 揭示关系——但必须重建它们</h3>
+      <p>If all the documents contribute to a global question, relationships between their details become useful structure. <a href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener"><strong>GraphRAG</strong></a> builds that structure by having an LLM read the documents and extract entities and relationships into a knowledge graph. Answering can then draw on connections across the collection instead of relying only on similarity to the question.</p>
+<p>Romero-Sevilla describes the answering process as navigating the graph to synthesize a complete response. More specifically, Microsoft's <a href="https://microsoft.github.io/graphrag/query/global_search/" target="_blank" rel="noopener">GraphRAG global search</a> uses pregenerated community reports, produces partial answers, and aggregates their useful content into a final answer. The graph supports a representation of the collection that can serve global questions.</p>
+<p>That preprocessing is attractive when documents remain useful for a while. Romero-Sevilla recommends GraphRAG for collections that change infrequently. In the opening scenario, however, the documents are both densely interconnected and frequently replaced. Repeatedly extracting entities and relationships and reconstructing the graph makes each refresh computationally expensive and relatively slow. The useful structure has a short life in which to repay its construction cost.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="188">▶ 3:08</button></div>
+      <h3>把文档保存在缓存的上下文里</h3>
+      <p>Graph construction already requires each document to pass through an LLM. What if that pass retained the document context directly, instead of extracting a separate graph? <strong>Cache Augmented Generation</strong>, or <a href="https://arxiv.org/abs/2412.15605" target="_blank" rel="noopener">CAG</a>, loads the documents into a model with a large context window and caches the computed <strong>key/value inference state</strong> for that document prefix. Subsequent questions can reuse this state. The KV cache contains intermediate inference computations, not changes to the model's learned weights.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/331c74603468fb1c3e588239270787ef5f20f58629e28dfc9ed78e3f1ccda73f" alt="A robot floats beside a cylindrical chamber containing a glowing grid, with the words Context and Cache above." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Context caching illustrated as a glowing lattice in a chamber.</figcaption></figure>
+<p>The limit is the context window itself. The collection must fit, and answer quality can deteriorate as the amount of context grows, depending on the model, task, and context length. Caching avoids repeatedly computing the same prefix; it does not create unlimited capacity or guarantee that the model will use every detail effectively.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="226">▶ 3:46</button></div>
+      <h3>用并行的上下文分桶扩展 CAG</h3>
+      <p><strong>Extended Cache Augmented Generation</strong>, or ECAG, distributes the collection across multiple CAG instances. Each context bucket holds part of the collection and answers questions about its own contents. A more capable supervisor model asks questions of the buckets and synthesizes their responses into an answer. The collection no longer has to fit inside one document context.</p>
+<p>Partitioning by domain sounds convenient: give each bucket a category and let the supervisor choose where to look. But Romero-Sevilla reports that, with dense relationships across documents, the supervisor tends to ignore categories that appear irrelevant at first glance. Those skipped categories may contain precisely the connections needed to answer the global question.</p>
+<p>The proposed allocation therefore uses no particular document order and balances document counts across buckets. A simple TypeScript allocation helper illustrates that rule without introducing domain labels:</p>
+<p>```typescript
+function distributeDocuments&lt;T&gt;(
+  documents: readonly T[],
+  bucketCount: number,
+): T[][] {
+  if (!Number.isInteger(bucketCount) || bucketCount &lt; 1) {
+    throw new RangeError(&quot;bucketCount must be a positive integer&quot;);
+  }</p>
+<p>const buckets = Array.from(
+    { length: bucketCount },
+    (): T[] =&gt; [],
+  );</p>
+<p>documents.forEach((document, index) =&gt; {
+    buckets[index % bucketCount]!.push(document);
+  });</p>
+<p>return buckets;
+}</p>
+<p>const buckets = distributeDocuments(
+  [&quot;event-a&quot;, &quot;event-b&quot;, &quot;event-c&quot;, &quot;event-d&quot;],
+  2,
+);
+// [[&quot;event-a&quot;, &quot;event-c&quot;], [&quot;event-b&quot;, &quot;event-d&quot;]]
+```</p>
+<p>Here, each document goes into one bucket, and the counts are balanced without inspecting subject matter. This handles allocation only: choosing a bucket count still requires ensuring that each bucket's document content fits its model's usable context. Equal document counts do not imply equal token counts.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="280">▶ 4:40</button></div>
+      <h3>通过追问建立理解</h3>
+      <p>The supervisor progressively explores the buckets and builds its understanding from their responses. When something interesting appears, it can return to a specific bucket with a follow-up question. This makes answering an iterative process: an initial response can reveal which detail to investigate next, rather than forcing all relevance decisions into the first query. All the document caches can be loaded in parallel.</p>
+<p>For this workload, Romero-Sevilla claims significantly faster knowledge building than GraphRAG and more accurate answers than simple RAG. He supplies no latency measurements, accuracy metric, corpus size, model configuration, hardware, or concurrency conditions for that comparison. Parallel cache loading explains the proposed reduction in preparation time, while bucket exploration is intended to recover information that a similarity-based retrieval step might omit.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ea5c56d08c82e32c2ea83c363afdbb272fb32f6d08dd7a432ec3038c2b6d70e5" alt="A gold balance labeled Accuracy and Speed, with a partly obscured Cost label, a glowing ECAG tile, and a robot on the right pan." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>ECAG depicted alongside a balance of speed, cost, and accuracy.</figcaption></figure>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="306">▶ 5:06</button></div>
+      <h3>缓存生命周期是架构的一部分</h3>
+      <p>Keeping multiple KV caches available can be expensive. Romero-Sevilla identifies <strong>cache lifetime</strong> as a way to reduce that cost: optimize how long each cache remains alive. In a workload where documents quickly become obsolete, the useful life of their cached state matters alongside the speed of creating it. The talk leaves the cache provider, expiration policy, and pricing model unspecified.</p>
+<p>ECAG is a response to a particular combination of requirements: whole-collection reasoning, dense relationships, and frequent replacement. Its supervisor and cached buckets exchange graph-building work for cache retention and repeated model interrogation. Compute, cost, and speed remain trade-offs; which architecture makes sense depends on how long the knowledge stays useful and what the questions require.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://microsoft.github.io/graphrag/query/global_search/" target="_blank" rel="noopener">GraphRAG Global Search</a> — Microsoft's explanation of whole-dataset question answering using community reports and map-reduce synthesis.</li><li><a href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener">From Local to Global</a> — Original GraphRAG research on graph indexing, community summaries and answers to global questions over document collections.</li><li><a href="https://arxiv.org/abs/2412.15605" target="_blank" rel="noopener">Don't Do RAG: When Cache-Augmented Generation is All You Need for Knowledge Tasks</a> — Research on preloading manageable knowledge collections into an LLM's context and reusing cached inference state.</li><li><a href="https://github.com/hhhuang/CAG" target="_blank" rel="noopener">CAG research implementation</a> — Code and setup instructions for comparing cached-context generation with RAG on SQuAD and HotPotQA.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[outro jingle] Hi, I'm Luis Romero-Sevilla, and I'm the VP of AI at Orbis Operations. I'm on a mission to solve knowledge representation when all context matters.</span></div><div class="tline" data-t="19"><span class="ts">0:19</span><span class="tx">So let's start with a very specific example. Let's say you have a large number of documents, and all documents represent an event, and all documents in the collection are relevant to answer a set of questions that the user has.</span></div><div class="tline" data-t="34"><span class="ts">0:34</span><span class="tx">Not only that, there's one more challenge. The document in the collection becomes obsolete very fast, and all documents get replaced with new information.</span></div><div class="tline" data-t="45"><span class="ts">0:45</span><span class="tx">Let's start with the simplest approach. We could start with a simple RAG. For that, we just need a vector database and an embedding model.</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">An embedding model takes the documents and turns them into a learned numerical representation vector. Now we take those vectors, and we store them in a database optimized for performing operations with vectors.</span></div><div class="tline" data-t="67"><span class="ts">1:07</span><span class="tx">Perfect. Now we can take all of our questions, turn them into vectors, and then look for vectors that are similar to the initial query.</span></div><div class="tline" data-t="78"><span class="ts">1:18</span><span class="tx">Those vectors that are within the tri-- similarity threshold are retrieved, and we can pass them to the LLM to answer the question.</span></div><div class="tline" data-t="87"><span class="ts">1:27</span><span class="tx">Inserting to a vector database, it's relatively fast. So whenever a collection becomes obsolete, we can just replace it with a new one.</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">We still have one problem with our very specific scenario.</span></div><div class="tline" data-t="101"><span class="ts">1:41</span><span class="tx">All the documents in the collection are relevant for us to answer the question, so we can't just take all the documents in the collection and pass them to LLM, and that's just one of the many limitations with this approach.</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">Now let's get a bit more sophisticated. All documents are relevant to answer a global question. Therefore, there must be some connections and relationship between the details within a document in the collections.</span></div><div class="tline" data-t="128"><span class="ts">2:08</span><span class="tx">For us to map out those relationship, we're going to need a knowledge graph, and one implementation we could try is GraphRAG. GraphRAG has many steps, but basically it uses an LLM to read through all the documents and extract key entities and relationship between them.</span></div><div class="tline" data-t="147"><span class="ts">2:27</span><span class="tx">It constructs a network, a knowledge graph, where all those connections and details are tied together. Then when the question is asked, it navigates this graph to synthesize a complete answer drawn across the entire collection.</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">If your collection of documents isn't changing very often, GraphRAG is an excellent approach for finding those relationships within details to answer the user's question.</span></div><div class="tline" data-t="171"><span class="ts">2:51</span><span class="tx">However, our very specific scenario states that our data is not only deeply interconnected, but also the data gets replaced very often. Recomputing a knowledge graph every time the data gets replaced is computationally very expensive, and it takes relatively long time.</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">Okay, what if we take an even simpler approach, and we continue to build on top of it? If we were to use something like GraphRAG, each document needs to pass through an LLM for the entity and relationship extraction anyway.</span></div><div class="tline" data-t="201"><span class="ts">3:21</span><span class="tx">Why can't we just throw all the documents into context? This approach will look something like Cache Augmented Generation, CAG, where we use a model with a large context window, load the documents into the context, and cache the context by storing the model's KV matrix.</span></div><div class="tline" data-t="218"><span class="ts">3:38</span><span class="tx">The problem here is that the context window is limited, and if you fill the context window too much, the quality of the answer gets degraded too.</span></div><div class="tline" data-t="226"><span class="ts">3:46</span><span class="tx">The solution: what if we use more CAGs in parallel and distribute the documents across different context buckets?</span></div><div class="tline" data-t="234"><span class="ts">3:54</span><span class="tx">Now each CAG can answer questions regarding its content, and now we just need something to ask the right questions to the right buckets. So for this, we can use a smarter model to interrogate each bucket and eventually synthesize an answer.</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">How do we distribute the documents? It sounds tempting to organize the documents by domains and tell the supervisor, &quot;Hey, here are the different categories.&quot; But in practice, with very dense relationship between documents, the supervisor tends to ignore domains that at first glance seem irrelevant.</span></div><div class="tline" data-t="270"><span class="ts">4:30</span><span class="tx">For this reason, all documents are distributed in no particular order. The only requirement is to balance the number of documents in a way that the least amount of documents are needed.</span></div><div class="tline" data-t="280"><span class="ts">4:40</span><span class="tx">Then the supervisor model start exploring the buckets and progressively build its internal understanding. And if it finds something interesting, it can ask a specific bucket follow-up questions. Because all caches can be loaded in parallel,</span></div><div class="tline" data-t="296"><span class="ts">4:56</span><span class="tx">the knowledge-building process is significantly faster than GraphRAG while providing more accurate answers than a simple RAG.</span></div><div class="tline" data-t="306"><span class="ts">5:06</span><span class="tx">And you're probably thinking, &quot;KV cache can be pretty expensive,&quot; and you're absolutely right. But there are ways to reduce that cost by optimizing how long each cache lives. And at the end, there are many retrieval strategies, and all of them have their trade-offs, whether it's compute, cost, speed.</span></div><div class="tline" data-t="326"><span class="ts">5:26</span><span class="tx">Currently, there is no one solution fits all. So ECAG is our solution to our very specific problem. Thank you for watching and for questions or continuing this conversation, gonna leave my details here. [outro jingle]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

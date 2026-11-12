@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>在生产环境中优化语音模型的推理 | AI 工程师中文版</title>
+<meta name="description" content="Orpheus TTS 展示了 LLM 运行时、音频解码、批处理和客户端连接如何协同工作，以更短的启动延迟交付更多并发的语音流。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>在生产环境中优化语音模型的推理</h1>
+    <div class="orig-title">Optimizing inference for voice models in production</div>
+    <div class="meta"><span class="speaker">Philip Kiely</span> · AI Engineer World's Fair 2025 · 15:13</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=voice-ai">语音 AI</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=ai-cost-and-performance-engineering">AI 成本与性能</a><a class="tag" href="../../index.html#topic=generative-media">生成式媒体</a><a class="tag" href="../../index.html#topic=inference">推理</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/gmTHs5T_YAE-optimizing-inference-voice-models-in-production" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="gmTHs5T_YAE"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=gmTHs5T_YAE" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">LLM 工具能为语音模型做什么？</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="15"><span class="ts">0:15</span><span>LLM 工具能为语音模型做什么？</span></li><li data-t="202"><span class="ts">3:22</span><span>先达到实时播放速度，再优化首段音频和并发</span></li><li data-t="300"><span class="ts">5:00</span><span>同时优化 token 生成和音频解码</span></li><li data-t="425"><span class="ts">7:05</span><span>对解码器做批处理而不拖慢音频流</span></li><li data-t="508"><span class="ts">8:28</span><span>测量并发流和首字节延迟</span></li><li data-t="627"><span class="ts">10:27</span><span>别让客户端抹掉运行时的提升</span></li><li data-t="782"><span class="ts">13:02</span><span>在听、想、说之间分配延迟预算</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 19 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Introduction: Philip from Baseten" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Introduction: Philip from Baseten</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Philip works in developer relations at Baseten and recently moved to San Francisco. He introduces Orpheus TTS as one of his favorite voice models alongside a group photo.
+
+[0:32](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=32s) [Philip introduces his developer relations role, Bay Area location, and favorite voice model beside a group photograph.](https://assets.ai.engineer/sites/aiecode2025/sha256/5760d71993287f7de585d280504f915b98be20fe9d9e756106ae4b80aa0794d2.webp)
+
+Hi, I’m Philip from Baseten
+
+• Developer relations at Baseten
+• Based in SFBA
+• Favorite voice model: Orpheus TTS</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Agenda" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agenda</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Philip will cover TTS architecture and metrics, then use Orpheus to discuss optimization and benchmarks. He’ll also address infrastructure and client code that can add latency back after runtime optimization.
+
+[0:57](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=57s) [Agenda covering TTS architecture, metrics, optimization, benchmarks, infrastructure, and client code.](https://assets.ai.engineer/sites/aiecode2025/sha256/b056fbc232f21876622aa90c8f2a438d1d8aefce732b65b8bd13704b70529d63.webp)
+
+Agenda
+
+1. TTS model architecture
+2. TTS performance metrics
+3. Orpheus TTS optimization techniques
+4. Orpheus TTS performance benchmarks
+5. Infrastructure and client code
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="TTS models and LLM tooling" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>TTS models and LLM tooling</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker calls this a useful but wrong shorthand: many TTS models resemble or derive from LLMs, so LLM tooling can help optimize them.
+
+[1:30](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=90s) [Slide describes similarities between TTS models and LLMs and using LLM tooling to optimize TTS.](https://assets.ai.engineer/sites/aiecode2025/sha256/ad54bceab8f4241ae7a23234b8829a60ebaeec389cfe4fa4bb631781063b5a66.webp)
+
+Everything is an LLM
+
+• Models from embeddings to transcription to speech synthesis are autoregressive transformers models
+• TTS models are directly derived from LLMs of a few billion parameters
+• This means that we can use the rich ecosystem of LLM tooling to optimize TTS
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Orpheus TTS architecture" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Orpheus TTS architecture</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Canopy Labs’ Orpheus TTS uses a Llama 3.2 3B backbone, adding speech-specific tokens and extending context with RoPE scaling. Its Llama architecture lets the team apply familiar Llama optimization techniques.
+
+[2:28](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=148s) [Orpheus TTS slide lists its Llama 3.2 3B backbone, speech-specific vocabulary, and RoPE context scaling alongside a model configuration.](https://assets.ai.engineer/sites/aiecode2025/sha256/3eb921b19c95e7a9c4a0d02832fab6d8e51ee15f01c6d106aaaad1caa36b0219.webp)
+
+Example: Orpheus TTS
+
+▽ Canopy Labs
+
+• Llama 3.2 3B backbone
+• Increased vocab size for speech-specific tokens
+• Extended context length with RoPE scaling
+
+{
+  &quot;architectures&quot;: [
+    &quot;LlamaForCausalLM&quot;
+  ],
+  &quot;attention_bias&quot;: false,
+  &quot;attention_dropout&quot;: 0.0,
+  &quot;bos_token_id&quot;: 128000,
+  &quot;eos_token_id&quot;: 128001,
+  &quot;head_dim&quot;: 128,
+  &quot;hidden_act&quot;: &quot;silu&quot;,
+  &quot;hidden_size&quot;: 3072,
+  &quot;initializer_range&quot;: 0.02,
+  &quot;intermediate_size&quot;: 8192,
+  &quot;max_position_embeddings&quot;: 131072,
+  &quot;mlp_bias&quot;: false,
+  &quot;model_type&quot;: &quot;llama&quot;,
+  &quot;num_attention_heads&quot;: 24,
+  &quot;num_hidden_layers&quot;: 28,
+  &quot;num_key_value_heads&quot;: 8,
+  &quot;pretraining_tp&quot;: 1,
+  &quot;rms_norm_eps&quot;: 1e-05,
+  &quot;rope_scaling&quot;: {
+    &quot;factor&quot;: 32.0,
+    &quot;high_freq_factor&quot;: 4.0,
+    &quot;low_freq_factor&quot;: 1.0,
+    &quot;original_max_position_embeddings&quot;: 8192,
+    &quot;rope_type&quot;: &quot;llama3&quot;
+  },
+  &quot;rope_theta&quot;: 500000.0,
+  &quot;tie_word_embeddings&quot;: true,
+  &quot;torch_dtype&quot;: &quot;float32&quot;,
+  &quot;transformers_version&quot;: &quot;4.47.0&quot;,
+  &quot;use_cache&quot;: true,
+  &quot;vocab_size&quot;: 156939
+}</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="LLM metrics for TTS models" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>LLM metrics for TTS models</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>TTS shifts the latency focus from the first token to the first byte or even the first sentence, while retaining tokens per second and requests per second as performance metrics.
+
+[3:20](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=200s) [Slide lists time to first byte, tokens per second, and throughput as TTS metrics.](https://assets.ai.engineer/sites/aiecode2025/sha256/3a2ea3ae382f101ed4bb09c7269d6ec2aab400f20ec58c13c1e14fbb1cbba2f2.webp)
+
+We can use familiar LLM metrics for TTS models
+
+• Time to first token (TTFT) → TTFB
+• Tokens per second (TPS)
+• Throughput (requests per second)
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="TTS performance goals" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>TTS performance goals</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Orpheus needs about 83 tokens per second for real-time streaming. Once it reaches that rate, the goal shifts to lowering time to first byte and serving more concurrent connections to reduce GPU costs.
+
+[3:51](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=231s) [Slide describes real-time token throughput, low time to first byte, and concurrent connections.](https://assets.ai.engineer/sites/aiecode2025/sha256/c32d8621f976c55b15e4a0cb06c0f5be5faea24c8d9bac772d2fc4275c14c874.webp)
+
+TTS models introduce new goals
+
+• High enough TPS for real-time streaming (~83 tokens/second for Orpheus TTS)
+• Lowest possible TTFB for conversation (&lt;200 latency target)
+• Maximize concurrent connections for cost
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Maximize real-time conversations per GPU" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Maximize real-time conversations per GPU</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Twelve portraits represent voice agents. The goal is to run their simultaneous conversations on one GPU or less.
+
+[4:43](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=283s) [Slide states the goal of maximizing simultaneous real-time conversations per GPU alongside a grid of portraits.](https://assets.ai.engineer/sites/aiecode2025/sha256/363e6de64e188b6497cbd0932cd4d4e62fe7ee6808bdfffbad5f5d70150bf67c.webp)
+
+Goal: Maximize simultaneous real-time conversations per GPU
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="How Orpheus TTS was made faster" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How Orpheus TTS was made faster</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>To fit more simultaneous voice conversations on a GPU, the team combines TensorRT-LLM and FP8 quantization with a Torch-compiled SNAC decoder, token-level batching, and streaming.
+
+[4:58](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=298s) [Slide lists serving, quantization, audio decoding, batching, and streaming optimizations.](https://assets.ai.engineer/sites/aiecode2025/sha256/1c112d9779d278ce08590b611c8bbcb3eb5cefe557622f369cc2e70bfb894adf.webp)
+
+How we made Orpehus TTS faster
+
+• TensorRT-LLM model serving engine
+• Quantization to FP8, including KV cache
+• Audio processing optimization with Torch-compiled SNAC decoder
+• Efficient token-level batching throughout pipeline, including SNAC
+• Streaming output with support for multiple protocols
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="TensorRT-LLM engine settings" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>TensorRT-LLM engine settings</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example config enables FP8 context FMHA and FP8 KV-cache quantization for Hopper, alongside batch, token and runtime settings.
+
+[6:42](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=402s) [Slide lists Hopper optimization, FP8 quantization, and KV cache quantization beside a configuration example.](https://assets.ai.engineer/sites/aiecode2025/sha256/3b6a004eaf3f23f7590b8ec4b14819d55359bccd1cd39a251b17dfae962e6d31.webp)
+
+TensorRT-LLM engine settings
+
+• Optimize for Hopper architecture
+• Post-training quantization to FP8
+• Quantize KV cache
+
+trt_llm:
+  build:
+    base_model: llama
+    checkpoint_repository:
+      repo: baseten/orpheus-3b-0.1-ft
+      revision: b9eb57...
+      source: HF
+    max_batch_size: 256
+    # set higher, so we can always use the
+    # max batch size in a single iteration
+    max_num_tokens: 16384
+    # 65536 would be around 600s of audio,
+    # typically model produces max 120s.
+    quantization_config:
+      calib_dataset: &quot;cnn_dailymail&quot;
+    plugin_configuration:
+      use_fp8_context_fmha: true
+    quantization_type: fp8_kv
+    tensor_parallel_count: 1
+  runtime:
+    enable_chunked_context: true
+    kv_cache_free_gpu_mem_fraction: 0.85</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Orpheus TTS is CPU-bound" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Orpheus TTS is CPU-bound</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Orpheus runs token prediction and audio decoding on the GPU, but both loops hit the CPU. At large batch sizes, those CPU event loops can limit simultaneous real-time streams.
+
+[8:11](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=491s) [Slide explains that GPU prediction and audio decoding rely on CPU event loops, which can limit simultaneous streams.](https://assets.ai.engineer/sites/aiecode2025/sha256/03ab862465eafd69620e912b906457987beab4d9bc31e4f2d8cd5a6db83905ef.webp)
+
+Orpheus TTS is CPU-bound
+
+• Next token prediction and audio decoding both primary rely on the GPU
+• However, both processes rely on CPU event loops at various points
+• At large batches, CPU becomes the bottleneck in simultaneous real-time streams</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="TTS performance benchmarks" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>TTS performance benchmarks</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk turns to performance benchmarks, focusing on simultaneous streams as a measure of GPU cost efficiency.
+
+[8:18](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=498s) [Section title: TTS performance benchmarks.](https://assets.ai.engineer/sites/aiecode2025/sha256/17b6db557b969f020ef7099b0aee9f239ab21d9f9833acbf19f98eba93cd10cc.webp)
+
+TTS performance benchmarks</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Orpheus TTS streams" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Orpheus TTS streams</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>On one H100 MIG, the chart shows 7 base streams versus 16 with variable traffic and 24 with constant traffic using TensorRT-LLM and other optimizations.
+
+[8:30](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=510s) [Bar chart compares 7 base streams, 16 with variable TensorRT-LLM, and 24 with constant TensorRT-LLM.](https://assets.ai.engineer/sites/aiecode2025/sha256/60df80c28eccf83ed280a91387ad5a19e018682c81c2859eebfb7839fc5d39fe.webp)
+
+Orpheus TTS streams
+
+With TensorRT-LLM, FP8, and other optimizations, a single H100 MIG (fractional H100 GPU) can serve as many as 24 simultaneous real-time voice streams
+
+Base: 7
+TRT-LLM (variable): 16
+TRT-LLM (constant): 24
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Orpheus TTS cost estimate" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Orpheus TTS cost estimate</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At high volume, the estimate divides a $3.75 GPU-hour list price across 16 real-time streams, yielding about $0.23 per user-hour of conversation on H100 MIG.
+
+[9:32](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=572s) [High-volume estimate shows 16 streams per H100 MIG, $3.75 per GPU-hour, and $0.23 per user-hour of conversation.](https://assets.ai.engineer/sites/aiecode2025/sha256/9656498b1c7af71a6653945ff9bb095fc8999d74166b20b642a80bb31e41150d.webp)
+
+Orpheus TTS cost estimate (high volume)
+
+• 16 real-time streams per GPU (H100 MIG)
+• $3.75 per GPU/hour (Baseten list price)
+• $0.23 per user/hour of conversation
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Orpheus TTS TTFB" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Orpheus TTS TTFB</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Orpheus TTS P50 time to first byte falls from 350ms for the base to 200ms on H100 MIG and 150ms on H100 with TensorRT-LLM. This measures one part of the pipeline, not its total latency.
+
+[9:56](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=596s) [Bar chart shows P50 time to first byte of 350 ms for the base, 200 ms for TensorRT-LLM on H100 MIG, and 150 ms on H100.](https://assets.ai.engineer/sites/aiecode2025/sha256/5ec10beadd70d2c69b559a9c2794c1c8538530061d07b3ec96ba9f6f2d23e5d9.webp)
+
+Orpheus TTS TTFB
+
+With TensorRT-LLM, FP8, and other optimizations, P50 TTFB for Orpheus TTS can reach as little as 150 milliseconds, or faster than average human reaction time.
+
+Base: 350ms
+TRT-LLM (H100 MIG): 200ms
+TRT-LLM (H100): 150ms
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Infrastructure and client code" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Infrastructure and client code</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker turns to what can go wrong in production: time to first byte is only one part of the pipeline.
+
+[10:25](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=625s) [Section title: Infrastructure and client code.](https://assets.ai.engineer/sites/aiecode2025/sha256/f7e7f8cd8ad2e10f3efc6859c0c209a77c4210dd5df8200e15d9a02b0dd423f4.webp)
+
+Infrastructure and client code</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Non-runtime factors can add 100+ ms" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Non-runtime factors can add 100+ ms</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Network latency and repeatedly establishing client sessions can erase runtime savings. Input sequencing and multi-model pipelines can also add latency.
+
+[10:49](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=649s) [Lists network latency, client sessions and bottlenecks, and input sequencing and multi-model pipelines as latency factors.](https://assets.ai.engineer/sites/aiecode2025/sha256/eedb512beecc3376fa335ddb95bff678be5dfaf4f044133580fb33397b45f201.webp)
+
+Non-runtime factors can add 100+ ms
+
+• Infrastructure: network latency
+• Client code: sessions and bottlenecks
+• Input sequencing and multi-model pipelines
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Protocol flexibility" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Protocol flexibility</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The examples use HTTP streaming, but WebSockets and gRPC are also supported and may work better for some use cases.
+
+[12:36](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=756s) [WebSockets and gRPC are presented as alternatives to HTTP streaming for some use cases.](https://assets.ai.engineer/sites/aiecode2025/sha256/4bdb1c569622f9175b7c3f964de6cda5c4fc54439fea265e3530828a5081ef16.webp)
+
+Protocol flexibility
+
+While the previous code samples used HTTP Streaming, you can get even better results for some use cases with other protocols
+
+WebSockets
+gRPC
+gRPC
+
+RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="TTS in voice agent pipelines" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>TTS in voice agent pipelines</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A voice agent combines listening, thinking and talking. The infrastructure connecting those stages affects latency; running models in the same data center can minimize network overhead between them.
+
+[12:54](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=774s) [A voice agent pipeline has listening, thinking, and talking stages, with TTS as its voice.](https://assets.ai.engineer/sites/aiecode2025/sha256/0498a36270f1d3a9b25a5be7558f0c62939cc6a0407df8cc46bd5ae1553804fb.webp)
+
+TTS in voice agent pipelines
+
+TTS is the “voice” of a voice agent. Integrating it into a pipeline introduces new challenges in client code and infrastructure
+
+Whisper
+Listening
+Thinking
+Talking
+
+[illegible] RESERVED.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Thank you" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Thank you</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The closing slide shares Baseten and Philip Kiely’s social profiles alongside a QR code. The speaker invites questions about model performance.
+
+[14:36](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=876s) [Closing slide with social profiles and a QR code.](https://assets.ai.engineer/sites/aiecode2025/sha256/ec86f1db13ad9491047ed55ea99d3814101551f8548cad0f7536435e3ac49d08.webp)
+
+Thank you
+
+• x.com/basetenco
+• linkedin.com/company/baseten
+
+• x.com/philip_kiely
+• linkedin.com/in/philipkiely
+
+Interface text:
+Page 27 of 27
+
+[14:39](https://www.youtube.com/watch?v=gmTHs5T_YAE&amp;t=879s) [Closing slide with social media profiles and a QR code.](https://assets.ai.engineer/sites/aiecode2025/sha256/80412ff902de674cd7ac648dbed25868b83df6acb26b451e1216604b2d0f0b61.webp)
+
+Thank you
+
+• x.com/basetenco
+• linkedin.com/company/baseten
+
+• x.com/philip_kiely
+• linkedin.com/in/philipkiely</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">LLM 工具能为语音模型做什么？</a></li><li><a href="#sec-2">先达到实时播放速度，再优化首段音频和并发</a></li><li><a href="#sec-3">同时优化 token 生成和音频解码</a></li><li><a href="#sec-4">对解码器做批处理而不拖慢音频流</a></li><li><a href="#sec-5">测量并发流和首字节延迟</a></li><li><a href="#sec-6">别让客户端抹掉运行时的提升</a></li><li><a href="#sec-7">在听、想、说之间分配延迟预算</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">在生产环境中优化语音模型的推理</h2>
+      <div class="lede"><p>Orpheus TTS 展示了 LLM 运行时、音频解码、批处理和客户端连接如何协同工作，以更短的启动延迟交付更多并发的语音流。</p><p>熟悉自回归 token 生成、GPU 推理和流式 HTTP，有助于理解运行时和客户端示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="15">▶ 0:15</button></div>
+      <h3>LLM 工具能为语音模型做什么？</h3>
+      <p>How do you make a text-to-speech model faster in production—and keep the client from adding the latency back? Philip Kiely approaches that problem through his work at Baseten, a model inference platform serving production workloads for AI startups and enterprises. The running example is <strong><a href="https://github.com/canopyai/Orpheus-TTS" target="_blank" rel="noopener">Orpheus TTS</a></strong>: inspect its architecture, choose useful performance metrics, optimize its runtime, and then preserve those gains through deployment.</p>
+<p>The starting simplification is that much of this work resembles LLM optimization. Kiely explicitly calls the idea that everything is an LLM wrong but useful. Transformer-based systems span neighboring tasks, including embeddings and transcription with <strong>Whisper</strong>; diffusion-based image generation presents a different optimization problem. For TTS models derived directly from language models, the practical benefit is access to an established ecosystem of inference tools.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c941cefd3dbc4db877a0c9400e2a7e4ea038214264f8b059da03dc15175425ae" alt="Slide with three bullets about autoregressive transformer models, TTS models derived from LLMs, and using LLM tooling for TTS optimization." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>“Everything is an LLM”: using LLM tooling to optimize TTS.</figcaption></figure>
+<p>Orpheus makes that connection concrete. Kiely chooses Canopy Labs’ model because it is open source, he likes its output, and he admires its creators. Its backbone is <strong>Llama 3.2 3B</strong>, and the Hugging Face configuration shown in the talk identifies the architecture as <code>LlamaForCausalLM</code>. That makes familiar Llama optimizations applicable to speech generation.</p>
+<p>The configuration still has speech-specific requirements. Kiely points to a larger vocabulary for speech tokens, including laughter, and extended context lengths using <strong>RoPE scaling</strong>. An optimized runtime must preserve support for those features; recognizing the backbone is only the beginning of checking compatibility.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="202">▶ 3:22</button></div>
+      <h3>先达到实时播放速度，再优化首段音频和并发</h3>
+      <p>Voice serving changes what counts as a useful response. An LLM benchmark may emphasize time to first token, but a speech application needs enough output to begin doing something audible. That shifts attention toward <strong>time to first byte</strong>, sometimes even time to first sentence. Token generation speed still matters, alongside throughput: how many requests the service can handle at once.</p>
+<p>For a general Llama deployment, the ambition might be hundreds or a thousand tokens per second. A real-time speech stream has a more specific requirement. Kiely gives approximately 83 tokens per second as Orpheus’s real-time playback requirement. Once a stream can sustain playback, extra decoding speed is less valuable than reducing the initial wait or serving more connections on the same hardware.</p>
+<p>| Metric | Voice-serving objective |
+|---|---|
+| Time to first byte or sentence | Start useful audio sooner |
+| Tokens per second | Sustain real-time playback |
+| Simultaneous streams | Serve more agents per GPU |</p>
+<p><strong>After meeting playback speed, prioritize startup latency and concurrency.</strong> The collection of generated voices in Kiely’s example represents the agents a service needs to support. The deployment goal is to fit them onto one GPU—or a fraction of one—without making their conversations wait.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="300">▶ 5:00</button></div>
+      <h3>同时优化 token 生成和音频解码</h3>
+      <p>The first optimization uses Orpheus’s Llama architecture: run it with <strong><a href="https://github.com/NVIDIA/TensorRT-LLM" target="_blank" rel="noopener">TensorRT-LLM</a></strong>. Kiely reports that it can outperform vLLM in many cases, while acknowledging a more complicated initial developer experience. Baseten uses it extensively; the tradeoff is more setup work in exchange for the runtime performance available once the engine is configured.</p>
+<p>Next comes <strong>FP8 quantization</strong> on Hopper GPUs, including quantization of the <strong>KV cache</strong>. Reducing precision shrinks the representation used during inference. Small models can suffer from quantization, but Kiely reports good results with this Orpheus implementation even with the cache quantized.</p>
+<p>Speech generation also has an audio path that a text-only LLM does not. Generated tokens must pass through audio decoding before they become playable output. Baseten uses the decoding component of <strong><a href="https://github.com/hubertsiuzdak/snac" target="_blank" rel="noopener">SNAC</a></strong>, runs it on the GPU, and applies <code>torch.compile</code> together with PyTorch inference mode. The optimization boundary therefore includes both next-token prediction and conversion into audio.</p>
+<p>The PyTorch pattern is to compile the decoder used for inference and invoke it without autograd tracking. Given a decoder module and its code tensors, that wrapper can look like this:</p>
+<p>```python
+import torch</p>
+<p>def prepare_decoder(decoder: torch.nn.Module):
+    compiled_decoder = torch.compile(decoder.eval().cuda())</p>
+<p>@torch.inference_mode()
+    def decode(codes):
+        gpu_codes = [code.cuda(non_blocking=True) for code in codes]
+        return compiled_decoder(gpu_codes)</p>
+<p>return decode
+```</p>
+<p>Compiling the decoder matters because speeding up token generation alone can leave the next stage consuming the saved time.</p>
+<p>The remaining work connects those stages: make token batching function throughout the pipeline and support the streaming protocols clients need. Kiely describes engine settings for FP8 with KV-cache quantization and FP8 context FMHA on Hopper. These settings belong to the demonstrated engine configuration; their exact configuration syntax depends on the runtime version.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/e899a81c74cca0e98e8663354a16fb325d00816c176dcbbc70b3d49a90771d89" alt="“How we made Orpheus TTS faster” slide listing TensorRT-LLM, FP8 including KV cache, a Torch-compiled SNAC decoder, token-level batching, and streaming protocols." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Orpheus TTS optimizations include TensorRT-LLM and FP8 quantization.</figcaption></figure>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="425">▶ 7:05</button></div>
+      <h3>对解码器做批处理而不拖慢音频流</h3>
+      <p>The audio-decoding example uses <strong>dynamic batching</strong>. It collects work into a batch, then dispatches on a timeout rather than waiting indefinitely for more work. The demonstrated decoder batching timeout is 15 milliseconds. A larger batch can improve throughput, but collecting more work introduces a latency tradeoff.</p>
+<p>This is distinct from the token-level continuous batching familiar from LLM serving. At the time of the demonstration, that continuous batching was not available in this decoding path; dynamic batching was the implemented approximation. The distinction matters because an optimized language-model scheduler does not automatically optimize the downstream decoder’s scheduling.</p>
+<p>Profiling then revealed a less obvious limit: Kiely reports that this Orpheus implementation was often <strong>CPU-bound</strong>. Both next-token prediction and audio decoding ran on the GPU, yet both loops returned to the CPU at points along the way. Those CPU interactions could cap simultaneous streams. Additional CPU resources could therefore help concurrency even when the expensive model operations were already accelerated.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="508">▶ 8:28</button></div>
+      <h3>测量并发流和首字节延迟</h3>
+      <p>The first test of these changes is how many streams the deployment can serve concurrently. Kiely compares the optimized system with an off-the-shelf, standard implementation, while explicitly acknowledging that vLLM can also deliver good performance. The comparison concerns the implementations being tested, not an inherent limit of vLLM.</p>
+<p>Kiely reports the following optimized capacity on an H100 MIG:</p>
+<p>| Traffic pattern | Simultaneous streams |
+|---|---:|
+| Variable traffic | 16 |
+| Constant traffic | 24 |</p>
+<p>He describes the instance as half an H100. More precisely, his <a href="https://www.baseten.co/blog/canopy-labs-selects-baseten-as-preferred-inference-provider-for-orpheus-tts-model/" target="_blank" rel="noopener">companion article</a> specifies 40 GB of memory and three of seven compute partitions. The attraction is Hopper performance and FP8 support without allocating a full 80 GB GPU to a three-billion-parameter model.</p>
+<p>Using Baseten’s list prices at the time, Kiely estimates a few cents per conversation-hour at sufficient volume. Utilization is central to that claim: the cost advantage over a per-token API depends on having enough traffic to use the available concurrent capacity.</p>
+<p>In the talk, Kiely reports time to first byte as low as 150 milliseconds in Baseten’s real-world TensorRT testing on MIGs and H100s. The companion article separates those hardware results: 200 milliseconds on MIG and below 150 milliseconds on a full H100. The spoken figure should therefore not be treated as an established MIG result. In either case, <strong>TTS startup latency covers one component of the voice pipeline</strong>, not the time from a user speaking to an agent answering.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="627">▶ 10:27</button></div>
+      <h3>别让客户端抹掉运行时的提升</h3>
+      <p>Copying an engine configuration into production does not reproduce the benchmark by itself. With small models and multimodal systems, infrastructure and client behavior can dominate the remaining latency. Kiely’s example is straightforward: save a couple hundred milliseconds in the runtime, then add them back by routing a California request to New York or establishing a fresh session on every call.</p>
+<p>A quickstart client is designed to make the first result easy. It might use Python <code>requests</code>, stream the response to the local machine, and play it with FFmpeg. But the demonstrated simple pattern sends requests sequentially and creates a new session each time. It adds connection overhead and never exercises the server’s ability to handle concurrent streams.</p>
+<p>A production or load-testing client needs the behavior of a benchmark harness:</p>
+<p>1. Use a multiprocess pool to distribute client work.
+2. Create and reuse a session within each worker process.
+3. Issue concurrent streaming requests at a load that exercises the server’s capacity.</p>
+<p>Session reuse here does not mean sharing one live <code>aiohttp</code> session across processes. Each worker owns its session and reuses its connections for the requests it handles. That preserves connection reuse while allowing the client to generate enough concurrent traffic.</p>
+<p>Both client examples use HTTP streaming. A larger voice application may instead be built with <a href="https://github.com/livekit/agents" target="_blank" rel="noopener">LiveKit Agents</a> or <a href="https://github.com/pipecat-ai/pipecat" target="_blank" rel="noopener">Pipecat</a>, with WebSockets or gRPC as its transport. Kiely names both protocols as supported options. The transport and framework are part of integrating the inference service into the application, not a replacement for efficient request handling.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/7d891426ea28f0588425543678e582723dd205077c1bd5ff441c8540cb62f7e8" alt="Slide listing network latency, client sessions and bottlenecks, and input sequencing and multi-model pipelines as non-runtime factors." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Non-runtime factors can add 100+ ms.</figcaption></figure>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="782">▶ 13:02</button></div>
+      <h3>在听、想、说之间分配延迟预算</h3>
+      <p>There is more to improve inside the voice model itself: fine-tuning, custom voices, zero-shot voice cloning, and removing static or popping at the ends of messages. Kiely names those as further work rather than developing them here. But even a polished TTS service handles only the talking stage of an agent that must also listen and think.</p>
+<p>Connecting those stages efficiently is a separate engineering task. Running successive models in the same data center reduces network overhead between them. Avoiding unnecessary DNS-level hairpin routing removes round trips that do no useful inference work. As the pipeline gains a chunking algorithm or an interruption model, the number of handoffs can grow beyond the three conceptual stages.</p>
+<p>In Kiely’s illustrative budget, 10 milliseconds of hairpin overhead at each of four or five steps adds 40–50 milliseconds, potentially 10% of the latency SLA. Small per-hop costs accumulate into a noticeable share of the response budget. Runtime optimization remains valuable, but infrastructure placement and client implementation determine how much of that improvement reaches the person waiting to hear the agent speak.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/canopyai/Orpheus-TTS" target="_blank" rel="noopener">Orpheus TTS</a> — Canopy Labs' speech model repository with streaming inference, emotion prompting and fine-tuning examples.</li><li><a href="https://www.baseten.co/blog/canopy-labs-selects-baseten-as-preferred-inference-provider-for-orpheus-tts-model/" target="_blank" rel="noopener">Orpheus production benchmarks and client code</a> — Philip Kiely's companion explanation of Orpheus serving benchmarks, runtime optimizations and session reuse.</li><li><a href="https://github.com/canopyai/Orpheus-TTS/blob/main/additional_inference_options/baseten_inference_example/call_orpheus.py" target="_blank" rel="noopener">Orpheus concurrent HTTP client</a> — Python client example for concurrent streaming requests to a deployed Baseten Orpheus endpoint.</li><li><a href="https://github.com/hubertsiuzdak/snac" target="_blank" rel="noopener">SNAC audio codec</a> — Neural audio codec with hierarchical discrete tokens, pretrained models and encoding and decoding examples.</li><li><a href="https://github.com/NVIDIA/TensorRT-LLM" target="_blank" rel="noopener">TensorRT-LLM</a> — NVIDIA's library and runtimes for optimized language-model inference on NVIDIA GPUs.</li><li><a href="https://github.com/livekit/agents" target="_blank" rel="noopener">LiveKit Agents</a> — Framework for building realtime voice agents and connecting speech and language-model components.</li><li><a href="https://github.com/pipecat-ai/pipecat" target="_blank" rel="noopener">Pipecat</a> — Open-source framework for voice agents and realtime multimodal applications.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Uh, hello everyone.</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">Thank you so much for being here, for, uh, sticking around for this talk. Um, I'm gonna be talking about optimizing inference for voice models in production. I'm going to be talking mostly about the runtime component, but also just a little bit on the infrastructure side.</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">Um, just a quick introduction. Um, I'm Philip from Baseten. Baseten is a model inference platform. Uh, we run production workloads for a wide variety of AI native startups and enterprises.</span></div><div class="tline" data-t="41"><span class="ts">0:41</span><span class="tx">Um, I'm based in here in SF. Um, I actually just moved here. It's really awesome. My favorite part about being in SF is much better sports teams than I had in Chicago.</span></div><div class="tline" data-t="50"><span class="ts">0:50</span><span class="tx">Um, and uh, one of my favorite voice models is Orpheus TTS, um, which we're gonna be talking about a whole bunch today. Um, quick agenda. So we're gonna talk about TTS model architecture, like what is a text-to-speech model actually when you look on the config in Hugging Face.</span></div><div class="tline" data-t="67"><span class="ts">1:07</span><span class="tx">Uh, what sort of performance metrics are we looking at? What sort of optimization techniques can we do to make the model better? Um, how do we measure whether or not we've succeeded?</span></div><div class="tline" data-t="76"><span class="ts">1:16</span><span class="tx">And then finally, what can we do on the infrastructure and client code to not shoot ourselves in the foot after doing a ton of runtime work and then just adding all that latency back by not doing our client code correctly.</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">So architecture. This is one of the things I've been learning this year, which has been pretty great, uh, to, to realize. It's made life a lot simpler at the runtime level.</span></div><div class="tline" data-t="99"><span class="ts">1:39</span><span class="tx">Now, this is wrong. Like the, the, the thing up here, uh, that, that I'm gonna say is that like everything is an LLM, uh, that is, that is wrong, but it's useful.</span></div><div class="tline" data-t="108"><span class="ts">1:48</span><span class="tx">Um, there's kind of like two types of models. There's autoregressive transformers models that are LLM or very LLM adjacent. Um, you see this in embeddings, you see this in transcription with stuff like Whisper.</span></div><div class="tline" data-t="119"><span class="ts">1:59</span><span class="tx">TTS, um, is another example. You also have the more like diffuser image type models, um, which is like a very different optimization problem. But something that's cool is because TTS models are so architecturally similar to LLMs or in many cases derive directly from LLMs, we can access the rich ecosystem of LLM tooling and use it to make</span></div><div class="tline" data-t="139"><span class="ts">2:19</span><span class="tx">TTS models better. So the TTS model that we're going to be using and as an example all day, um, is Orpheus TTS. We're using it for two reasons. Okay, three reasons.</span></div><div class="tline" data-t="151"><span class="ts">2:31</span><span class="tx">The two reasons are 'cause it's open source and it's really good. And also I think, uh, Elias and Amoo and everyone at Canopy Labs is really awesome. So, uh, that's the, that's the third reason we're, we're talking about their model.</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">But it's a Llama 3.2 3B backbone. So like if you look at this is the little like config from Hugging Face copy and pasted onto the screen. It's a LlamaForCausalLM architecture.</span></div><div class="tline" data-t="174"><span class="ts">2:54</span><span class="tx">And so because of that we can do like all of our normal Llama stuff to this model and make it faster. Um, they did a couple things. I mean they did a bunch of things to make it work.</span></div><div class="tline" data-t="183"><span class="ts">3:03</span><span class="tx">But a couple things that are relevant here. There is a larger vocab size because you need all the speech specific tokens like laugh and stuff. Um, and then they also extended the context lengths with RoPE scaling.</span></div><div class="tline" data-t="194"><span class="ts">3:14</span><span class="tx">So we gotta make sure everything we do supports that. So performance metrics, like what do we wanna actually do here?</span></div><div class="tline" data-t="202"><span class="ts">3:22</span><span class="tx">Uh, we, we think about LLM metrics, um, a little bit here. Uh, we, we just look at them a little bit differently. So in LLMs you talk about time to first token.</span></div><div class="tline" data-t="211"><span class="ts">3:31</span><span class="tx">Now we're talking about time to first byte or sometimes even time to first sentence. Uh, we, we need a little bit more of a useful output, um, from the model before we really start feeling good about our response time.</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">We do think about tokens per second, although we're gonna think about it differently, which I'll explain later. And we mostly think about throughput, which is, you know, how many requests are we able to serve at a given time.</span></div><div class="tline" data-t="232"><span class="ts">3:52</span><span class="tx">So on that, you know, goals perspective, if you ask me like, &quot;Hey Philip, how do you wanna optimize Llama in general?&quot; I'll like, I'll say, &quot;Well, we want a lot of TPS.</span></div><div class="tline" data-t="241"><span class="ts">4:01</span><span class="tx">We want hundred, we want five hundred TPS. We want a thousand tokens per second. We want as many tokens per second as we can get.&quot; With voice models, you actually don't necessarily need that.</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">In many cases, you only want as many tokens per second as you need for a real-time stream. For Orpheus, that's like eighty-three tokens per second, which for like a three billion parameter LLM is nothing.</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">Um, but what we actually wanna do instead is we want to, once we hit that mark, start optimizing for time to first byte so that our latency's really good and start optimizing for concurrency so that we can get more connections and spend less on GPUs.</span></div><div class="tline" data-t="279"><span class="ts">4:39</span><span class="tx">So our goal in general, if all of these very nice and definitely not AI generated people, all the different like voices that our, that our model is capable of creating, these are all the voice agents that we're running.</span></div><div class="tline" data-t="290"><span class="ts">4:50</span><span class="tx">How can we make all of these people fit on one or even less than one GPU? That's the goal. So how do we do it?</span></div><div class="tline" data-t="300"><span class="ts">5:00</span><span class="tx">Bunch of ways. Um, so first off, it's an LLM. Um, if you are running an LLM with like vLLM, for example, um, you can generally in many cases get better performance with TensorRT-LLM.</span></div><div class="tline" data-t="312"><span class="ts">5:12</span><span class="tx">Uh, TensorRT is something that we've been using at Baseten a lot. I like to joke that I'm the unofficial marketing department for TensorRT-LLM because of how much I talk about it.</span></div><div class="tline" data-t="321"><span class="ts">5:21</span><span class="tx">Uh, but it really is fast. It can be a little bit complicated from a developer experience perspective to get up and running with it. But once you are up and running, um, it, it works really well.</span></div><div class="tline" data-t="330"><span class="ts">5:30</span><span class="tx">Uh, we can also just like quantize the model. Um, even though it's small, you can always make it faster by making it smaller. Uh, with Hopper architecture, we quantize this model to FP8 pretty successfully.</span></div><div class="tline" data-t="341"><span class="ts">5:41</span><span class="tx">I know usually quantizing really small models like this can lead to performance degradation, but for this model it's working pretty well in FP8 even when we quantize the KV cache</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">And then a lot of the other runtime stuff is actually more like audio specific than it is LLM specific. So one of the big challenges that we don't have with LLMs, which are just parsing nice convenient bits of text back and forth, is you have your audio, you have your audio codec, you have your decoding, all that</span></div><div class="tline" data-t="366"><span class="ts">6:06</span><span class="tx">kind of stuff. So we use SNAC, which I was very disappointed to learn is not an actual tasty snack, um, but an audio decoder. And we actually use torch.compile.</span></div><div class="tline" data-t="376"><span class="ts">6:16</span><span class="tx">Um, and torch.compile you might be used to running, uh, on, you know, a, a model, um, co-compiling your model weights to make your runtime faster. We're actually using the same kind of system with torch.compile and with, um, PyTorch inference mode on the audio decoder and running that on the GPU.</span></div><div class="tline" data-t="395"><span class="ts">6:35</span><span class="tx">Um, we make sure that all the token batching, um, token level batching works well throughout the entire pipeline and support multiple streaming protocols. Um, yeah, so these are the engine settings that you would need.</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">Um, you've got the, you know, quantization type of FP8KV, the FP8 context, uh, FMHA, um, in order to, you know, support the, uh, support the, um, Hopper architecture and the, uh, quantization there.</span></div><div class="tline" data-t="425"><span class="ts">7:05</span><span class="tx">Um, and here's a quick code sample of... I got a little ahead of my slides, I guess. Here's a little quick code sample of the audio decoding. Um, so we are basically, you know, batching.</span></div><div class="tline" data-t="436"><span class="ts">7:16</span><span class="tx">Um, usually we would talk about continuous batching when we're talking about LLM optimization. We wanna package all those tokens together. In this case, we are doing dynamic batching, um, so we're trying to pack as much into a batch as we can, but every fifteen milliseconds we're gonna, uh, shoot it out.</span></div><div class="tline" data-t="453"><span class="ts">7:33</span><span class="tx">Um, you've got that timeout set up here. Um, if you wanna trade off, um, for a little bit of latency for more throughput, you can make that batch bigger.</span></div><div class="tline" data-t="461"><span class="ts">7:41</span><span class="tx">Um, so yeah. We don't have token level continuous batching yet here, but we do have dynamic batching, which is gonna get you pretty close. Um, and because of this, actually, something that's, that I was surprised about, uh, when we profiled this is that our TTS imple-implementation with Orpheus is actually in many cases CPU bound, which is kind</span></div><div class="tline" data-t="480"><span class="ts">8:00</span><span class="tx">of where you wanna be. Um, you can throw more CPUs at a resource, uh, pretty, pretty efficiently. Um, even though the next token prediction and the audio co-decoding are both on the GPU, um, both of those loops hit the CPU at different points, um, and that can actually be the bottleneck in the number of simultaneous streams that</span></div><div class="tline" data-t="497"><span class="ts">8:17</span><span class="tx">we're able to create. So how'd we do? Like, I just showed you a lot of code and talked through it really quickly without really getting into depth. Uh, that could all just be smoke and mirrors.</span></div><div class="tline" data-t="508"><span class="ts">8:28</span><span class="tx">Uh, let's see, let's see if it's actually any faster. Um, so again, the number one thing is gonna be simultaneous streams because you want to be able to be very cost efficient and use fewer GPU resources to serve a, you know, large amount of traffic.</span></div><div class="tline" data-t="524"><span class="ts">8:44</span><span class="tx">And in this case, a, a base implementation, I don't necessarily wanna like call anyone out because there's a lot of really good ways to run this model. Um, you can get really good performance with vLLM, um, but this is just kinda like the off the shelf, um, just take it, run it completely standard, uh, implementation.</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">So with variable traffic, we're able to support sixteen simultaneous streams and with constant traffic, twenty-four simultaneous streams on, um, an H100 MIG. So this is actually half an H100 GPU.</span></div><div class="tline" data-t="553"><span class="ts">9:13</span><span class="tx">It's a SKU that we do a lot because it's really good for these small models where you want the Hopper performance, the Hopper architecture uplift in TensorRT-LLM, the FP8 support, but you don't wanna pay for like an entire eighty gigabyte GPU for just a three billion parameter model.</span></div><div class="tline" data-t="569"><span class="ts">9:29</span><span class="tx">So, you know, we're, we're seeing much better, um, mu-much better concurrency. So if you kinda like price that out with like our list prices and stuff, um, you can get, you know, a few cents per hour of, of conversation, um, which is going to be, you know, substantially better than if you...</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">If you have the volume for it, it's gonna be substantially better than paying for a sort of like per token type API. But okay, so maybe it's cheap at scale, but is it fast?</span></div><div class="tline" data-t="597"><span class="ts">9:57</span><span class="tx">Yes, it's fast. Um, so with the, you know, with the TRT implementation on the MIGs and on the H100s, we can actually get all the way down to a hundred fifty millisecond time to first bytes, um, in like real world, uh, testing that we've done.</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">Now that we'll, we'll talk in a minute, like that doesn't mean your whole pipeline is that fast. That's just like one part of the pipeline. Uh, but it's, it's important because, you know, you definitely don't want to be spending a lot of time waiting around for that first token.</span></div><div class="tline" data-t="627"><span class="ts">10:27</span><span class="tx">So to kind of transition into that, that discussion of like what can go wrong here. Like you have this graph and you have this, you know, nice, uh, config that I had up here, and you're like, &quot;All right, cool.</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">I'm gonna take this, I'm gonna put it in production, and I'm gonna see the results that, uh, that he put up on screen and it's gonna work great.&quot; And the answer is no, it's not.</span></div><div class="tline" data-t="649"><span class="ts">10:49</span><span class="tx">It's a little bit harder than that. Um, so the thing is like non-runtime factors when we get, especially with these small models and with these multimodal systems can actually be like way more important than your runtime.</span></div><div class="tline" data-t="663"><span class="ts">11:03</span><span class="tx">Um, and that's your lat- your infrastructure and your client code because, you know, I, I showed here... All right, maybe, maybe I got it, you know, I, I cut the runtime in, in half, um, from, from the base implementation.</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">I, I saved a couple hundred milliseconds. Very easy to add those couple of hundred milliseconds back and well beyond that by, you know, sending my query to New York instead of California or by having to establish a session every time I, uh, you know, run my client code.</span></div><div class="tline" data-t="692"><span class="ts">11:32</span><span class="tx">Um, so a few like pitfalls to avoid. Um, number one, like if you go in, you know, a, a model library or something and we're just trying to get you started very quickly, um, with this, with this kind of inference sample, um, it's basically gonna be, hey, use requests, make a stream, stream it to your local computer</span></div><div class="tline" data-t="711"><span class="ts">11:51</span><span class="tx">and start, you know, playing it on FFmpeg or something. The issue is that here, like the requests are gonna be sent sequentially and you need to create a new session every time.</span></div><div class="tline" data-t="721"><span class="ts">12:01</span><span class="tx">Um, that takes time. So if you're using this in production, you want a code sample. Uh, by the way, this is all up on, uh, GitHub. Um, you'll want a code sample that looks a lot more like a benchmarking script where you're using a, um, multi-process pool.</span></div><div class="tline" data-t="737"><span class="ts">12:17</span><span class="tx">Um, you're sharing the, you're sharing the session between all of these different requests, and you're actually sending traffic with the concurrency that allows you to, you know, saturate this benchmark with, you know, the, the multiple concurrent requests.</span></div><div class="tline" data-t="754"><span class="ts">12:34</span><span class="tx">Finally, both of these code samples, they do sit on top of HTTP and HTTP streaming. Um, in many cases, if you're implementing voice pipelines, you're gonna use something like LiveKit or Pipecat or something, and you're also potentially going to be using a different protocol.</span></div><div class="tline" data-t="769"><span class="ts">12:49</span><span class="tx">You're gonna be using something like WebSockets or gRPC, which we do have support for. Um, and finally, I wanted to leave you on the thought that these, uh, you know, these models are only one part of a voice agent pipeline.</span></div><div class="tline" data-t="782"><span class="ts">13:02</span><span class="tx">So, like, we can spend a lot more than 15 minutes actually talking about, like, the very detailed, uh, implementation mechanics of making your voice model faster. Of, you know, we, we haven't even touched on stuff like fine-tuning the model, um, you know, custom voices, zero-shot voice cloning, um, being able to, you know, remove static and popping at</span></div><div class="tline" data-t="803"><span class="ts">13:23</span><span class="tx">the end of messages. There's, there's, there's a lot of work to do just on the voice part, but it really only is one-third of the problem. When I think about voice agents, I think about three parts: listening, thinking, talking.</span></div><div class="tline" data-t="815"><span class="ts">13:35</span><span class="tx">Um, and the most important thing here is, again, while you can have great runtimes, the infrastructure to connect these three together is really what's going to determine your latency.</span></div><div class="tline" data-t="825"><span class="ts">13:45</span><span class="tx">Being able to go from one model to have the next one running in the same data center with, you know, minimal, like, minimal network overhead in between the two.</span></div><div class="tline" data-t="837"><span class="ts">13:57</span><span class="tx">Uh, even things as simple as not having to go off and do a hairpin, um, at the DNS level and come back. If that saves you ten milliseconds on every step and your voice pipeline has this and, you know, a chunking algorithm, it's got an interruption model, and so a- you end up having four or</span></div><div class="tline" data-t="852"><span class="ts">14:12</span><span class="tx">five steps, well, they'll-- Just hairpinning alone is costing you forty or fifty milliseconds, and that can be ten percent of your SLA for, for a voice model. So yeah, uh, that's, that's my, that's my main point here, is that as much fun as it is to talk about the runtime stuff and as much work as we</span></div><div class="tline" data-t="870"><span class="ts">14:30</span><span class="tx">do there, the, the infrastructure and the client implementation is equally important, if not more so. Anyway, thank-- Uh, so yeah, that's the, that's the review. Um, thank you all for coming through.</span></div><div class="tline" data-t="881"><span class="ts">14:41</span><span class="tx">Uh, I have a-- We're doing an, an event next week at, uh, [REDACTED:location], which is gonna be pretty fun. I'm gonna be talking in more detail about building some, uh, systems with open source models, and there's also gonna be a lot of steak.</span></div><div class="tline" data-t="894"><span class="ts">14:54</span><span class="tx">So definitely come on through, uh, if you're interested and, um, I'm on, I'm on Twitter, I'm on LinkedIn, so it's Baseten. Um, hit me up if you have any questions about this or anything else model performance.</span></div><div class="tline" data-t="904"><span class="ts">15:04</span><span class="tx">Thank you so much, and I'll let you go eight seconds early. [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

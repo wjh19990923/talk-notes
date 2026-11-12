@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RAG 与 MongoDB 文档模型 | AI 工程师中文版</title>
+<meta name="description" content="一个有用的 AI 应用需要的不只是相似文档：MongoDB 把向量检索与提供应用上下文的业务记录、对话历史和缓存条目结合在一起。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>RAG 与 MongoDB 文档模型</h1>
+    <div class="orig-title">RAG and the MongoDB Document Model</div>
+    <div class="meta"><span class="speaker">Ben Flast</span> · AI Engineer World's Fair 2024 · 13:13</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=ai-cost-and-performance-engineering">AI 成本与性能</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/2Ey275TX4ZU-rag-mongodb-document-model" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="2Ey275TX4ZU"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=2Ey275TX4ZU" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">为什么 LLM 不可能知道你的银行余额</div></div>
+      <div class="label row">章节跳转 <span>共 11 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="81"><span class="ts">1:21</span><span>为什么 LLM 不可能知道你的银行余额</span></li><li data-t="167"><span class="ts">2:47</span><span>标准的 RAG 请求路径</span></li><li data-t="206"><span class="ts">3:26</span><span>文档承载了更丰富的应用上下文</span></li><li data-t="306"><span class="ts">5:06</span><span>为现有文档加上嵌入向量</span></li><li data-t="378"><span class="ts">6:18</span><span>查询、调优和过滤检索</span></li><li data-t="430"><span class="ts">7:10</span><span>把搜索与交易分开扩展</span></li><li data-t="496"><span class="ts">8:16</span><span>超越向量存储的框架集成</span></li><li data-t="551"><span class="ts">9:11</span><span>用语义缓存复用答案</span></li><li data-t="606"><span class="ts">10:06</span><span>持久化对话历史以保持连续性</span></li><li data-t="646"><span class="ts">10:46</span><span>4149 把检索与运营记忆结合起来</span></li><li data-t="724"><span class="ts">12:04</span><span>在 Atlas 上部署应用</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 22 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Presenting sponsor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting sponsor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Microsoft is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=5s) [Microsoft presenting sponsor slide.](https://assets.ai.engineer/sites/aiecode2025/sha256/b64f94bc5eebb077bf6965bd4a32bbfc5c29c465df8458520e86faa2a537a7da.webp)
+
+PRESENTING SPONSOR
+
+Microsoft</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Innovation and platinum sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Innovation and platinum sponsors</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AWS is the innovation sponsor; MongoDB, Google Cloud, and Neo4j are platinum sponsors.
+
+[0:10](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=10s) [AWS is the innovation sponsor; MongoDB, Google Cloud and Neo4j are platinum sponsors.](https://assets.ai.engineer/sites/aiecode2025/sha256/f87f77f5af91389461d6d26c03755c47e50d3b3d450b5269da28936b3cd34608.webp)
+
+INNOVATION SPONSOR
+aws
+
+PLATINUM SPONSORS
+MongoDB®
+Google Cloud
+neo4j</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Agenda" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agenda</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk moves from RAG basics to MongoDB’s document model, vector search, AI integrations, and use cases.
+
+[0:26](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=26s) [Agenda covering retrieval augmented generation, the document model, vector search, AI integrations and use cases.](https://assets.ai.engineer/sites/aiecode2025/sha256/382f061a772736653b58d7784a1dfc082a8b8e33579df7a77c3f8eab8b7fea1c.webp)
+
+Agenda
+
+RETRIEVAL AUGMENTED GENERATION
+THE DOCUMENT MODEL
+SEARCHING THROUGH VECTORS
+AI INTEGRATIONS
+USE CASES
+
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Bank account prompt and response" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Bank account prompt and response</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A vanilla LLM connected to nothing cannot know a user's bank balance. The slide illustrates that missing context with a confused response.
+
+[1:26](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=86s) [A hypothetical bank account question receives the response “Uh what?”](https://assets.ai.engineer/sites/aiecode2025/sha256/9e99d04ba91c4a304671f56b4fdf3dc967f109f829d3eb622a90707591848201.webp)
+
+prompt: “How much money is in my bank account?”
+response: “Uh what?”</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Without context" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Without context</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An unconnected LLM cannot answer a question about your bank balance. The speaker introduces RAG as a way to provide context for useful LLM applications.
+
+[1:34](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=94s) [Slide reads: “Without context, there’s only so much you can do.”](https://assets.ai.engineer/sites/aiecode2025/sha256/813e3a391f9a375a30022f7b28cd4e69c4dc1fc5a43a938135deb5a526195d35.webp)
+
+Without context, there’s only so much you can do</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Retrieval Augmented Generation (RAG): making an LLM useful" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Retrieval Augmented Generation (RAG): making an LLM useful</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>RAG adds proprietary data, such as product information and order history, at prompt time to give a generic model context. The goal is more consistent and accurate responses.
+
+[2:35](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=155s) [Generic model limitations, proprietary business data for context, and an AI-powered application with refined, consistent and accurate responses.](https://assets.ai.engineer/sites/aiecode2025/sha256/e142fdfd0503b11b799a81fae1c2b1a35e06912b552832292c3494d2680f79d1.webp)
+
+Retrieval Augmented Generation (RAG): making an LLM useful
+
+From Generic AI/ML models
+General information
+Training Cut-off
+Missing private data
+Unfocused / Hallucinations
+Not personalized
+
+How? With Data
+Context and focus with proprietary business data
+Company specific data
+Product info
+Order history
+Secure User Data
+
+A transformative AI-Powered application
+Refined, consistent, and accurate responses
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer
+World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Your standard RAG" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Your standard RAG</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The question is embedded and used to search a vector database. Similar documents join the original prompt in the LLM, which returns an answer to the user.
+
+[2:45](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=165s) [A question is embedded and used to search a vector database; similar documents and the prompt are supplied to an LLM, which returns an answer.](https://assets.ai.engineer/sites/aiecode2025/sha256/9bac62bddfb78a414b51a71edcc6b126fb0170c8fd742caea17d8101d5f269b5.webp)
+
+Your standard RAG
+
+User
+Prompt
+Question
+Embedding model
+Embedding
+Semantic Search
+Vector DB
+Similar documents
+LLM
+Answer
+
+Event and sponsor text:
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Standard RAG needs more context" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Standard RAG needs more context</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker argues that future applications will need more context than standard RAG provides, setting up the MongoDB document model.
+
+[3:38](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=218s) [Slide stating that standard RAG is not enough and future applications need more context.](https://assets.ai.engineer/sites/aiecode2025/sha256/3dd0c824c682e274d96902aca49e6502fb3c5225113e29562f44ae2c884c08b9.webp)
+
+But your standard RAG is not enough
+
+the applications of tomorrow are hungry for context
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer
+World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="MongoDB Document Model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MongoDB Document Model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>MongoDB stores documents as BSON, or binary JSON. The speaker introduces the document model as a way to provide more context for RAG applications.
+
+[3:46](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=226s) [Title slide introducing the MongoDB document model.](https://assets.ai.engineer/sites/aiecode2025/sha256/fc459438a243ba791c234af1d5472098777c15b722edd25004cee438e9d69c7c.webp)
+
+MongoDB Document Model
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Objects mapped to relational tables" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Objects mapped to relational tables</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Application objects connect through an object-relational mapping layer to tables. The speaker describes stitching those tables together to serve objects such as customers and contacts.
+
+[4:08](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=248s) [Customer, opportunity, contact and lead objects connect through a mapping layer to multiple tables.](https://assets.ai.engineer/sites/aiecode2025/sha256/27fa05de769a83548b2e5671d88b0e6d93b6f28aa7307b9794cf3de250eab3b2.webp)
+
+With the Document model you can go from this...
+
+Objects
+Customer
+Opportunity
+Contact
+Lead
+
+Object Relational Mapping Layer
+
+Tables
+Customer Detail
+ARR
+Summary
+Address
+Open Activities
+Contact Roles
+Activity History
+Opportunity Team
+Name
+Phone
+Name
+Phone
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Store objects directly" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Store objects directly</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each application object connects directly to a matching database object, illustrating how the document model stores objects without stitching together relational tables.
+
+[4:27](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=267s) [Customer, opportunity, contact and lead objects each connect directly to a corresponding database object.](https://assets.ai.engineer/sites/aiecode2025/sha256/3061c904b2f4ff431471129574396552c3c62f057fd8546da80fa45788316a35.webp)
+
+...to this
+
+Store objects directly...
+
+Objects
+Customer | Opportunity | Contact | Lead
+
+Database
+Customer | Opportunity | Contact | Lead
+
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Now, with Vectors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Now, with Vectors</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk moves from MongoDB’s document model to adding vectors.
+
+[5:05](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=305s) [Section slide introducing vectors.](https://assets.ai.engineer/sites/aiecode2025/sha256/79c940ef6907ef5af3767ebb4318278eb24346d67305250037252f5395fa777a.webp)
+
+Now, with
+Vectors ...
+
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Approximate Nearest Neighbor via HNSW" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Approximate Nearest Neighbor via HNSW</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>MongoDB Atlas uses HNSW indexes for approximate nearest-neighbor vector search. The diagram follows connections from a sparse upper graph down through progressively denser layers.
+
+[5:14](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=314s) [A layered graph illustrates approximate nearest neighbor retrieval using HNSW.](https://assets.ai.engineer/sites/aiecode2025/sha256/73509779b7c8a3bab34dccf38c38882f548d9719688f701ac42e66fc61b25f00.webp)
+
+Approximate Nearest Neighbor via
+HNSW for Fast Retrieval
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Vectors in Document" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Vectors in Document</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The document stores an embedding alongside its symbol, quarter and content. The embedding is an array of floats; more dimensions mean more floating-point values.
+
+[5:28](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=328s) [A sample document sits beside an array of embedding values, with a note explaining that embeddings are stored as floats.](https://assets.ai.engineer/sites/aiecode2025/sha256/e25e04c588636ac2a2f64fc91ff7f7d544398d4a38893deffa65c8ffb554203d.webp)
+
+Vectors in Document
+
+_id: ObjectId('62f13a3f7aecb216')
+symbol: &quot;ABMD&quot;
+quarter: 4
+year: 2021
+date: 2021-04-29T20:10:40.000+00:00
+content: &quot;Operator: Ladies and gentlemen, thank you for standing by, and welcome...&quot;
+
+content_embeddings: Array
+  0.03898080065846443
+  -0.05879044905304909
+  0.04323238879442215
+  -0.021337900310754776
+  -0.036346953362226486
+  0.028689613565802574
+  -0.03514527902007103
+  -0.07414846867322922
+  -0.00993054173886776
+  0.007234036456793547
+  -0.03197460621595383
+
+Embeddings are stored as an array of floats
+More dimensions = more floating points
+
+Event branding: AIE; AI Engineer World's Fair; Microsoft; smol ai; aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Sample Query" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Sample Query</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The $vectorSearch stage runs approximate nearest-neighbor search using an index and query vector. This example considers 100 candidates, limits results to 10, and filters for years after 1995.
+
+[5:51](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=351s) [A sample vector search query shows an index, query vector, path, candidate count, result limit and year filter.](https://assets.ai.engineer/sites/aiecode2025/sha256/78d91bf09b843e3335deea9856e7e8b470e7af9637c39b29a2ea98ee2c5a974c.webp)
+
+Sample Query
+
+{
+    “$vectorSearch”: {
+        &quot;index&quot;: &quot;content_embedding_index&quot;,
+        “queryVector”: [ 0.03898080065846443, -0.05879044905304909, ... ],
+        “path”: “content_embedding”,
+        “numCandidates”: 100,
+        “limit”: 10,
+        “filter”: {
+            “year”: {“$gt”: 1995}
+        }
+    }
+[illegible: lower code obscured by presenter inset]
+
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer
+World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Decoupled Scaling" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Decoupled Scaling</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Dedicated search nodes store vector indexes and scale independently from the Atlas nodes holding transactional data. The example cluster shows 2 to 32 search nodes.
+
+[7:09](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=429s) [Diagram shows dedicated vector search nodes alongside Atlas database nodes in an example cluster.](https://assets.ai.engineer/sites/aiecode2025/sha256/a7a5e47c5c40d2e2ccc6b43d9f2460f961f972d66cb77ccf3f22380396d6afe8.webp)
+
+Decoupled Scaling
+
+Search Nodes
+Atlas Vector Search (mongot) is located on nodes dedicated to vector search, separate from Atlas nodes.
+
+Cluster (Example)
+P
+S
+S
+Atlas Nodes
+mongod
+SN₂
+SN₃
+...
+Search Nodes
+(Min 2, max 32 nodes)
+mongot
+
+Event branding: AIE; Microsoft; smol ai; aws; AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="AI Integrations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Integrations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk turns from scaling vector search to AI integrations.
+
+[7:57](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=477s) [AI Integrations section title on a dark green background.](https://assets.ai.engineer/sites/aiecode2025/sha256/711549a1dff71004bec5104943a82ba5802179299339d5227468d39d1bcc9638.webp)
+
+AI Integrations
+
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="LLM Application Framework Integrations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>LLM Application Framework Integrations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>MongoDB integrates with five LLM application frameworks. In LangChain, its integrations include a vector store and a chat message history abstraction.
+
+[8:16](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=496s) [Framework overview naming LangChain, LlamaIndex, Microsoft Semantic Kernel, Amazon Bedrock and Haystack.](https://assets.ai.engineer/sites/aiecode2025/sha256/dd2f7105e436617110940f6647d4012e25b47724c97929ef0135ad19544c01f7.webp)
+
+Integrated in the most popular
+LLM Application frameworks
+
+LangChain
+LlamaIndex
+Microsoft Semantic Kernel
+Amazon Bedrock
+haystack by deepset
+
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="RAG with Semantic Caching" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>RAG with Semantic Caching</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Retrieved documents augment the prompt before a MongoDB semantic cache check. A hit returns a cached answer; a miss sends the prompt to the LLM, reducing repeat calls.
+
+[9:06](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=546s) [RAG flow retrieves similar documents and checks a MongoDB semantic cache, returning a cached answer on a hit or calling an LLM on a miss.](https://assets.ai.engineer/sites/aiecode2025/sha256/b4e709ec8d910afe6ec83444abf45337aef3417f3fe85189173777cf5323f2a8.webp)
+
+RAG with Semantic Caching
+
+Retriever
+(MongoDB Vector Store)
+Similar Documents
+User
+Question
+Prompt
+Semantic Cache
+(MongoDB)
+Hit
+Yes
+No
+LLM
+Answer
+Cached Answer
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer
+World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="RAG Chain with Chat History" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>RAG Chain with Chat History</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>MongoDB chat history helps an LLM turn the user's question into a standalone question for retrieval. The final prompt combines the original question, chat history and similar documents to generate an answer.
+
+[10:02](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=602s) [RAG flow uses MongoDB chat history to form a standalone question, retrieve similar documents and generate an answer.](https://assets.ai.engineer/sites/aiecode2025/sha256/09c65723ba5f70f6ea9cb17bd059411e725e8610354b553ccce31208c79e843b.webp)
+
+RAG chain with Chat History
+
+User
+Question
+Prompt
+LLM
+Standalone Question
+Chat Message History (MongoDB)
+Retriever (MongoDB Vector Store)
+Similar Documents
+Prompt
+LLM
+Answer
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Available to Run Anywhere" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Available to Run Anywhere</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>MongoDB Atlas combines a document model and unified interface with transactional, search and analytical workloads. The slide says it deploys in 100+ regions across three cloud providers.
+
+[12:03](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=723s) [Slide describes security, automation and deployment across cloud regions beside a layered platform diagram.](https://assets.ai.engineer/sites/aiecode2025/sha256/9d4ce2e4192e0676475ae3ab2db8f1778ead29c723380697e9ab985df771c95d.webp)
+
+Available to run anywhere
+
+Comprehensive controls to ensure data security and privacy
+
+Continuous uptime with advanced automation to ensure performance
+
+Deploy in 100+ regions across 3 cloud providers to get the best from each provider with no lock-in.
+
+Diagram:
+Document Model
+Key value pairs
+Graphs
+Relationships
+Geospatial
+Time series
+Objects
+Unified interface
+Transactional
+Search
+Analytical
+Distributed applications
+Mobile applications
+Serverless applications
+Secure
+Resilient &amp; Elastic
+Global &amp; Multi-cloud
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Thank you for attending the session" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Thank you for attending the session</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Scan the left QR code to try MongoDB Atlas free, or the right to learn about its AI capabilities. The speaker says the forever-free tier includes vector search.
+
+[12:45](https://www.youtube.com/watch?v=2Ey275TX4ZU&amp;t=765s) [Closing slide with QR codes to try MongoDB Atlas free and learn about its AI capabilities.](https://assets.ai.engineer/sites/aiecode2025/sha256/7083e1d59c545f6904f9f7f5d78ea2b7b7f54d057f6866cc2ef3de5f804959a0.webp)
+
+Thank you for attending the session
+
+Try MongoDB Atlas free
+
+Learn more about our AI capabilities</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">为什么 LLM 不可能知道你的银行余额</a></li><li><a href="#sec-2">标准的 RAG 请求路径</a></li><li><a href="#sec-3">文档承载了更丰富的应用上下文</a></li><li><a href="#sec-4">为现有文档加上嵌入向量</a></li><li><a href="#sec-5">查询、调优和过滤检索</a></li><li><a href="#sec-6">把搜索与交易分开扩展</a></li><li><a href="#sec-7">超越向量存储的框架集成</a></li><li><a href="#sec-8">用语义缓存复用答案</a></li><li><a href="#sec-9">持久化对话历史以保持连续性</a></li><li><a href="#sec-10">4149 把检索与运营记忆结合起来</a></li><li><a href="#sec-11">在 Atlas 上部署应用</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">RAG 与 MongoDB 文档模型</h2>
+      <div class="lede"><p>一个有用的 AI 应用需要的不只是相似文档：MongoDB 把向量检索与提供应用上下文的业务记录、对话历史和缓存条目结合在一起。</p><p>熟悉 JSON 对象、数据库查询和 LLM 提示词会有帮助；文中会介绍所用的检索和向量搜索概念。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="81">▶ 1:21</button></div>
+      <h3>为什么 LLM 不可能知道你的银行余额</h3>
+      <p>Ask an unconnected LLM how much money is in your bank account, and it cannot answer. The missing ingredient is access to your private data. Ben Flast opens with this example because it exposes a basic application boundary: a model can generate language without possessing the information needed to make that language useful to a particular user.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/54c93bf51fcd98832aed0f218abe63862ac957a71dd5c3df2b7c357e910f8dc1" alt="Slide showing the prompt “How much money is in my bank account?” and response “Uh what?” on a dark green background." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A bank-account question receives the response “Uh what?”</figcaption></figure>
+<p><strong>Retrieval-augmented generation supplies context at prompting time.</strong> A model has a training cutoff and lacks your private, personalized information. An application can retrieve company records, product information, or order history and include that material in its prompt. The aim is more relevant, consistent, and accurate answers; supplying context is not itself a guarantee of correctness. MongoDB’s role in this architecture is to make data already powering an application available to its AI features.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="167">▶ 2:47</button></div>
+      <h3>标准的 RAG 请求路径</h3>
+      <p>The baseline architecture turns a user’s question into a retrieval request before asking the LLM to answer:</p>
+<p>1. Receive the user’s question.
+2. Send it to an embedding model, which produces a vector representation.
+3. Use that vector to search <a href="https://www.mongodb.com/docs/vector-search/" target="_blank" rel="noopener">MongoDB Atlas Vector Search</a> for similar documents.
+4. Combine the retrieved documents with the original question in the LLM’s input.
+5. Return the generated answer to the user.</p>
+<p>This is the familiar chatbot or copilot pattern: semantic retrieval selects context, and generation turns that context into a response.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="206">▶ 3:26</button></div>
+      <h3>文档承载了更丰富的应用上下文</h3>
+      <p>More capable applications need context beyond a set of semantically similar passages. The <a href="https://www.mongodb.com/docs/manual/core/document/" target="_blank" rel="noopener">MongoDB document model</a> provides a way to keep richer application objects together. Developers work with JSON-like documents, stored internally as <strong>BSON</strong>, or binary JSON, containing fields such as a name and a nested profile.</p>
+<p>Flast compares this with reconstructing a customer or contact object from relational tables. With a document, the application can store and retrieve the object in a form closer to the one it already uses.</p>
+<p>| Representation | How the application obtains an object |
+| --- | --- |
+| Multiple relational tables | Assemble fields from related records |
+| A document containing the object | Retrieve the stored object structure |</p>
+<p>The benefit in this comparison is less reconstruction between the application’s data structures and its database representation.</p>
+<p>Documents can represent tabular, key-value, geospatial, and graph-shaped data as well as conventional JSON objects. Flast associates this flexibility with greater efficiency and developer productivity, and points to <strong>sharding</strong> as MongoDB’s mechanism for horizontal scaling. These are architectural benefits he argues for, rather than measured comparisons presented in the talk.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/713f20d781e1d158c2a43119ca338f1804ebf756a7d97a6cafdba97eca3bc592" alt="“Documents are universal” slide listing JSON documents, tabular, key-value, text, geospatial, graph, and time series data beside More Efficient, More Productive, and More Scalable columns." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Documents support multiple data models, with efficiency, productivity, and scalability benefits.</figcaption></figure>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="306">▶ 5:06</button></div>
+      <h3>为现有文档加上嵌入向量</h3>
+      <p>Vector retrieval adds another access path to those documents. Atlas uses <strong>HNSW indexes</strong> to support approximate nearest-neighbor search over stored vectors. In Flast’s example, a document already contains <code>symbol</code>, <code>quarter</code>, and <code>content</code>; adding <code>content_embedding</code> puts the vector alongside the data it describes.</p>
+<p>The embedding can represent the whole document, a selected part of it, or external data mapped back to that record. At the time of the talk, Flast states a maximum of 4,096 dimensions per vector. That historical limit has since increased: the linked current Vector Search overview lists 8,192 dimensions. The mechanism remains the same—store the embedding as a field and index that field.</p>
+<p>The vector index definition identifies the field’s type and path, its dimension count, and the similarity function used to compare vectors. For example, an embedding model producing 1,536 values could use this definition for the <code>content_embedding</code> field:</p>
+<p>``<code>json
+{
+  &quot;fields&quot;: [
+    {
+      &quot;type&quot;: &quot;vector&quot;,
+      &quot;path&quot;: &quot;content_embedding&quot;,
+      &quot;numDimensions&quot;: 1536,
+      &quot;similarity&quot;: &quot;cosine&quot;
+    }
+  ]
+}
+</code>``</p>
+<p>The dimension count must match the embedding’s length. The similarity function determines how the index judges closeness between the query vector and stored vectors.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="378">▶ 6:18</button></div>
+      <h3>查询、调优和过滤检索</h3>
+      <p>Atlas builds the vector index and maintains it as database records change. That removes the need to manage a separate index-update path in the application, but should not be read as a promise that every write is immediately visible to search. The <strong><code>$vectorSearch</code> aggregation stage</strong> names the index, supplies the query vector, and identifies the document field to search.</p>
+<p>Two parameters control different parts of retrieval:</p>
+<p>| Parameter | Role |
+| --- | --- |
+| <code>limit</code> | Maximum number of returned results |
+| <code>numCandidates</code> | Number of nearest-neighbor candidates considered during search |</p>
+<p>Increasing candidate exploration gives approximate search more opportunity to find relevant neighbors. Flast describes this using HNSW graph entry points; the <a href="https://www.mongodb.com/docs/languages/c/c-driver/v1.x/mongodb-vector-search/" target="_blank" rel="noopener">documented query terminology</a> is candidates considered, rather than a literal count of graph entry points.</p>
+<p>A <strong>pre-filter</strong> restricts which documents are eligible during retrieval. This differs from retrieving a final set of neighbors and then discarding unwanted results. The displayed query uses <code>numCandidates: 100</code>, <code>limit: 10</code>, and a filter requiring <code>year</code> to be greater than <code>1995</code>.</p>
+<p>The same structure can be expressed as a JavaScript function, with the query vector supplied by the application’s embedding step:</p>
+<p>``<code>javascript
+function vectorSearchPipeline(indexName, queryVector) {
+  return [
+    {
+      $vectorSearch: {
+        index: indexName,
+        queryVector,
+        path: &quot;content_embedding&quot;,
+        numCandidates: 100,
+        limit: 10,
+        filter: { year: { $gt: 1995 } }
+      }
+    }
+  ];
+}
+</code>``</p>
+<p>Here <code>content_embedding</code> retains the field used in the preceding document example; the filter adds a structured eligibility condition to semantic retrieval.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/30ed2177e838d67aefd7b32f0bcde40dccacaec41a840a63b697dbb6d8cfea2f" alt="Sample Query slide showing $vectorSearch with index, queryVector, path, numCandidates set to 100, limit set to 10, and a year filter greater than 1995." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A sample vector search query includes candidate count, result limit, and a year filter.</figcaption></figure>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="430">▶ 7:10</button></div>
+      <h3>把搜索与交易分开扩展</h3>
+      <p>A unified database interface does not require every workload to share the same resource allocation. Flast’s transactional topology has a primary and two secondaries, providing the replication structure needed for durability and availability. Search can put a different kind of pressure on infrastructure than transactional reads and writes.</p>
+<p><strong><a href="https://www.mongodb.com/docs/vector-search/deployment/deployment-options/" target="_blank" rel="noopener">Search Nodes</a> separate search capacity from transactional capacity.</strong> They hold the vector indexes and can scale independently of the infrastructure storing transactional data. An application keeps a consistent document model and query interface while allocating resources according to each workload’s needs. The separation is in deployment and scaling, without requiring the application to abandon its shared data model.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="496">▶ 8:16</button></div>
+      <h3>超越向量存储的框架集成</h3>
+      <p>The integration ecosystem connects these database capabilities to application frameworks. Flast names LlamaIndex, LangChain, Microsoft Semantic Kernel, AWS Bedrock, and Haystack among <a href="https://www.mongodb.com/docs/atlas/ai-integrations/" target="_blank" rel="noopener">MongoDB’s AI integrations</a>. Their supported primitives differ; the list does not imply feature parity.</p>
+<p>For example, the <a href="https://www.mongodb.com/docs/atlas/ai-integrations/langchain/" target="_blank" rel="noopener">LangChain integration</a> includes both a vector-store abstraction and chat message history. These give an application different ways to use the same database: semantic retrieval supplies relevant material, while stored operational data supplies additional context for the prompt. This is the extension beyond the baseline RAG loop that the following examples illustrate.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="551">▶ 9:11</button></div>
+      <h3>用语义缓存复用答案</h3>
+      <p>A <strong>semantic cache</strong> can avoid a new model call when an existing answer matches the meaning of a request. MongoDB can serve as the cache backend for LangChain. In the flow shown here, the retriever first gathers additional context and combines it with the user’s prompt. That augmented prompt then goes to the cache for a semantic-similarity check.</p>
+<p>The lookup creates two paths:</p>
+<p>- <strong>Cache hit:</strong> Fetch the cached answer and return it without calling the LLM again.
+- <strong>Cache miss:</strong> Send the prompt to the LLM and return its generated answer.</p>
+<p>The saving comes from bypassing generation on a hit. Retrieval and caching can use the same MongoDB database, with LangChain connecting the pieces. Flast supplies no measured hit rate or quantified resource savings.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="606">▶ 10:06</button></div>
+      <h3>持久化对话历史以保持连续性</h3>
+      <p>Conversation history solves a different problem: keeping a later request connected to what the user and assistant already discussed. LangChain’s chat message history abstraction can persist those messages in MongoDB, supporting the continuing conversation experience familiar from <strong>ChatGPT</strong>.</p>
+<p>On a subsequent request, the application fetches prior messages, includes them alongside context from vector search, and sends the assembled prompt to the LLM. The returned answer continues that conversation. Semantic retrieval finds relevant data; message history preserves the interaction that gives the current question its meaning.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="646">▶ 10:46</button></div>
+      <h3>4149 把检索与运营记忆结合起来</h3>
+      <p>Flast presents <a href="https://www.mongodb.com/company/blog/building-ai-mongodb-boosting-productivity-efficiency-with-assistants-agents" target="_blank" rel="noopener">4149</a> as a customer example of an AI teammate beyond coding. In his account, the system listens to meetings, tracks activity, retrieves additional information, and surfaces context that could help a user complete a task, write an email, or schedule a project. This is a reported application use case, not a live demonstration of autonomous task completion.</p>
+<p>The database holds more than embeddings. User records, meeting information, and conversation history sit alongside the data used for semantic search. That combination lets an application draw on both similarity-based retrieval and ordinary operational records. Flast’s broader point about agents follows from this combination: <strong>a transactional database gives agents more ways to store and interact with application state than vector retrieval alone.</strong></p>
+    </section>
+<section class="section" id="sec-11">
+      <div class="section-head"><span class="num">11</span>
+      <button class="seek" data-t="724">▶ 12:04</button></div>
+      <h3>在 Atlas 上部署应用</h3>
+      <p>The closing layer is operational. Atlas supplies security and privacy controls around the database. Flast also emphasizes availability and performance automation, without presenting an SLA or performance benchmark.</p>
+<p>Flast states that Atlas is deployable in more than 100 regions across major cloud providers. He also highlights Search Nodes as a way to optimize resource placement, but Atlas’s overall regional footprint should not be treated as identical to dedicated Search Node availability; the deployment documentation specifies supported regions for that offering.</p>
+<p>For an entry point, Flast advertises an Atlas free tier that includes vector search. The path through the talk builds from that initial retrieval capability: keep embeddings with application documents, add the context needed for useful responses, and separate search resources from transactional resources as the workload grows.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://www.mongodb.com/docs/manual/core/document/" target="_blank" rel="noopener">MongoDB document structure</a> — Reference for MongoDB documents and their field-and-value structure.</li><li><a href="https://www.mongodb.com/docs/vector-search/" target="_blank" rel="noopener">MongoDB Vector Search</a> — Current overview of embedding storage and vector retrieval, including today's dimensionality limit.</li><li><a href="https://www.mongodb.com/docs/vector-search/deployment/deployment-options/" target="_blank" rel="noopener">Deploy and scale Search Nodes</a> — Deployment guidance for separating search resources from database nodes, with tier and regional requirements.</li><li><a href="https://www.mongodb.com/docs/atlas/ai-integrations/langchain/" target="_blank" rel="noopener">MongoDB's LangChain integration</a> — Implementation examples for vector retrieval, semantic caching and persistent chat history.</li><li><a href="https://www.mongodb.com/company/blog/innovation/introducing-semantic-caching-dedicated-mongodb-lang-chain-package-gen-ai-apps" target="_blank" rel="noopener">Semantic caching and the dedicated LangChain package</a> — Explains the package's vector store, conversation-history and semantic-cache components and links to examples.</li><li><a href="https://www.mongodb.com/company/blog/building-ai-mongodb-boosting-productivity-efficiency-with-assistants-agents" target="_blank" rel="noopener">4149.AI and operational context</a> — MongoDB's account of AI assistants, including how 4149.AI combines summaries, conversation history and embeddings.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Great to see everyone, and that was a great talk.</span></div><div class="tline" data-t="16"><span class="ts">0:16</span><span class="tx">Uh, I'm very interested in this RAG group, um, though I have some, some concerns. Uh, so I- I'm here from MongoDB. I'm gonna be talking about RAG and specifically what's unique about doing RAG with the MongoDB document model and, and MongoDB Atlas, the, the platform.</span></div><div class="tline" data-t="31"><span class="ts">0:31</span><span class="tx">I'm gonna start by talking a bit about just retrieval-augmented generation in general. I'm sure a lot of us are very familiar with it already, but I think it'll be good to cover some of the basic concepts.</span></div><div class="tline" data-t="41"><span class="ts">0:41</span><span class="tx">Then I'm gonna talk about the document model, and so for those of you who are not so familiar with MongoDB, this, this will be kind of a, a nice little brief intro to, to what it means to use MongoDB and, and why we're a unique database.</span></div><div class="tline" data-t="52"><span class="ts">0:52</span><span class="tx">Uh, then I'm gonna talk about vector search and a capability that exists inside of MongoDB now. Uh, and then I'll talk about some of our AI integrations, uh, and then some use cases to, to kind of help, you know, stimulate some ideas for all of you.</span></div><div class="tline" data-t="64"><span class="ts">1:04</span><span class="tx">I'm gonna do all this in a quick 15. Um, so obviously, LLM's super exciting. It's been, been crazy, right, over the past year and a half. Um, but, but there has been a question, right, around kind of, you know, what all can they do, and, and when do you need to use RAG and when do you not?</span></div><div class="tline" data-t="81"><span class="ts">1:21</span><span class="tx">And if you took kind of a vanilla LLM connected to nothing and asked it how much money is in your bank account, it wouldn't know. And I think we can all understand why that's the case and, you know, hope for the foreseeable future it continues to be the case. [laughs]</span></div><div class="tline" data-t="95"><span class="ts">1:35</span><span class="tx">Um, but, uh, all that said, if we wanna make, you know, useful applications with these LLMs, then the reality is that without context, there's only so much you can do with the LLM, and so that's where RAG comes in.</span></div><div class="tline" data-t="109"><span class="ts">1:49</span><span class="tx">So RAG stands for retrieval-augmented generation. Um, I'm sure this is old hat to most of you, but we're just gonna go through quickly. What this means is that you take a generic AI or ML model, um, that, you know, today we're generally talking about LLMs, but it has a training cutoff.</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">It, you know, it's, um, missing your private data. Maybe it hallucinates, maybe it doesn't. But overall, it's not personalized. And you take your data, right, and you augment it at the, the time of, of prompting to give it the context that it needs to answer the questions that you want it to for the use cases that you're</span></div><div class="tline" data-t="144"><span class="ts">2:24</span><span class="tx">bringing it to bear for. And so that could be company-specific data, could be product info, could be order history, anything that you're storing inside of your application database that's already powering kind of your in-app experiences.</span></div><div class="tline" data-t="156"><span class="ts">2:36</span><span class="tx">And with that, you get a transformative AI-powered application, right, that's gonna be refined and consistent and accurate in the responses that it gives, uh, when you're prompting the models.</span></div><div class="tline" data-t="167"><span class="ts">2:47</span><span class="tx">So the typical RAG that you've all probably seen and, and in most cases have probably implemented is... will look something like this, right? So you have a user that enters a prompt.</span></div><div class="tline" data-t="178"><span class="ts">2:58</span><span class="tx">The, the question that they, they enter will get sent, uh, to an embedding model. It'll be embedded. It'll then do a search, a semantic search on a vector database, in this case, MongoDB Atlas Vector Search, obviously, which will pull back similar documents.</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">So then those documents, along with the original prompt for the most cases, will go into the large language model, and that'll give an answer which goes back to the user.</span></div><div class="tline" data-t="199"><span class="ts">3:19</span><span class="tx">And this is kind of what, you know, most people are doing for, for all, you know, chatbot and Copilot and other types of use cases, right?</span></div><div class="tline" data-t="206"><span class="ts">3:26</span><span class="tx">But what's really interesting is that when you use MongoDB, you can go quite a bit farther than this and do things that are, you know, in many cases a bit different.</span></div><div class="tline" data-t="214"><span class="ts">3:34</span><span class="tx">So, um, with, you know, RAG, the standard RAG is really not gonna be enough. The applications of tomorrow are gonna need more context, right? And that's where the MongoDB document model comes in.</span></div><div class="tline" data-t="230"><span class="ts">3:50</span><span class="tx">So the document model is really just JSON, and it gets stored inside of MongoDB in something called BSON, which stands for binary JSON. But you have things like a name, a profile.</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">Um, you know, y- you can include whatever you want as long as it's JSON, uh, and that is actually what you store inside of your database and what you fetch from the database.</span></div><div class="tline" data-t="249"><span class="ts">4:09</span><span class="tx">So with the document model, if you're comparing it to something that you would do in kind of a relational system where you have objects that your applications are interfacing with, right, like a customer object or a contact object, and you're, you know, stitching together different tables inside of a relational database.</span></div><div class="tline" data-t="264"><span class="ts">4:24</span><span class="tx">Instead of having to kind of go through all of this pain and hassle, you get to go to something like this, right, where you just store the objects that your application is using directly inside of the database, and there's not all of this kind of reconfiguring and, and reconnoitering.</span></div><div class="tline" data-t="277"><span class="ts">4:37</span><span class="tx">The way we look at this is that, you know, documents are universal, right? In many cases, they're kind of the superset of all, you know, data types that you might want to model.</span></div><div class="tline" data-t="286"><span class="ts">4:46</span><span class="tx">And so you can have JSON, you can have tabular data, key-value stores, geospatial graph, it goes on. And what this translates to is, you know, it's more efficient in many places.</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">It is more productive for developers who are building systems, and in many cases it can be more scalable since MongoDB is just naturally very horizontally scalable through, uh, sharding.</span></div><div class="tline" data-t="306"><span class="ts">5:06</span><span class="tx">So that's documents, and that's kind of just the, the core benefit of MongoDB. But now when we add on vectors is where things get, you know, really interesting, right?</span></div><div class="tline" data-t="316"><span class="ts">5:16</span><span class="tx">So what we've done is we've added in HNSW indexes into MongoDB Atlas, which allows you to do approximate nearest neighbor vector search over data that's stored in your database.</span></div><div class="tline" data-t="327"><span class="ts">5:27</span><span class="tx">And so what you do is you take your embeddings and you add them directly into the documents that you're already storing in your database. And so if you had this JSON that had symbol, quarter, and content fields, you could add a content_embedding field, which would just be the vectorization of, you know, either your entire document, some piece</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">of data in your document, or some piece of data that's living elsewhere that you're gonna map back to. And you can store all of that inside of your documents, and you can store vectors that are up to four thousand and ninety-six dimensions.</span></div><div class="tline" data-t="357"><span class="ts">5:57</span><span class="tx">Once that's done, you add in an index definition. Uh, in this case, you know, the type of index is a vector search index. You would say the type of field that you're indexing is a vector.</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">You would say the... where the path is, where it's located, the number of dimensions, and the similarity function. So how do you want to determine the distance between the vectors that you're searching for and the ones that you're gonna find?</span></div><div class="tline" data-t="378"><span class="ts">6:18</span><span class="tx">So once that's done, behind the scenes, the vector index is immediately built and kept in sync with data as it's updated inside of the database. And then you can use our $vectorSearch aggregation stage to, to go ahead and compute an approximate nearest neighbor search.</span></div><div class="tline" data-t="391"><span class="ts">6:31</span><span class="tx">And so you have your index, you have the query vector, which is the vectorization of the data that you're searching for. Uh, you have the, the path where the data lives inside of your documents, and then you have numCandidates and limits.</span></div><div class="tline" data-t="403"><span class="ts">6:43</span><span class="tx">Uh, and so the limit is how many results you wanna get back from this stage, and the numCandidates is how many entry points into your HNSW graph do you wanna make, uh, which is allows you to kind of tune the accuracy of your results.</span></div><div class="tline" data-t="415"><span class="ts">6:55</span><span class="tx">Um, and then finally, uh, you can use a filter. And this filter is basically a pre-filter. So as we traverse this graph, we'll allow you to kind of fetch the, the documents, um, and, and filter out the ones that are less relevant for your specific query.</span></div><div class="tline" data-t="430"><span class="ts">7:10</span><span class="tx">So that is vector search capability, but there's one other kind of core thing that's really important to just call out that we've also introduced alongside vector search, which is something called search nodes.</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">And this allows you to decouple your approach to scaling. So with a transactional database, right, you have a primary and two secondaries, and this allows you to have, you know, durability, high availability, and all of these guarantees that you would want for a transactional database.</span></div><div class="tline" data-t="453"><span class="ts">7:33</span><span class="tx">But when you're adding search to it, the profile of resource usage may be a bit different. And so what we've done is we've added in a new type of node into the platform that allows you to store your vector indexes on those nodes and scale them independently from the infrastructure that's storing your transactional data.</span></div><div class="tline" data-t="471"><span class="ts">7:51</span><span class="tx">And this allows you to really tune the amount of resources that you bring to bear to perfectly serve, uh, your workload. And so w- with that, we've really kind of transformed how Atlas can serve these vector search workloads by both giving you kind of a unified interface, uh, and a consistent use of the document model, yet at</span></div><div class="tline" data-t="489"><span class="ts">8:09</span><span class="tx">the same time, kind of decoupling how you go about scaling for your workloads. And that's really kind of the, the true power of what we've done with vector search.</span></div><div class="tline" data-t="496"><span class="ts">8:16</span><span class="tx">But along with this, we've also built several different AI integrations, and so we're integrated into some of the most popular AI frameworks, right? We have integrations inside of LlamaIndex, uh, LangChain, Microsoft Semantic Kernel, AWS Bedrock, and Haystack.</span></div><div class="tline" data-t="510"><span class="ts">8:30</span><span class="tx">And in each of them, we support quite a different, uh, quite a few different, uh, primitives. And so we have, you know, just to name a few, inside of LangChain, we have vector store, but you can also have a chat message history, uh, you know, uh, abstraction inside of LangChain.</span></div><div class="tline" data-t="525"><span class="ts">8:45</span><span class="tx">We have quite a few in LlamaIndex, then, you know, same for, for Haystack and, and AWS Bedrock. And so all of these allow you to do that next level of RAG that I was talking about at the very beginning, where you not only get to combine kind of just your typical vector search with RAG, but you also</span></div><div class="tline" data-t="540"><span class="ts">9:00</span><span class="tx">get to now use kind of transactional data inside of your database to augment your prompts. And so to give you just, like, a couple examples of what that ends up looking like,</span></div><div class="tline" data-t="551"><span class="ts">9:11</span><span class="tx">right, when you think about kind of more broad usage of memory for large language models, you might think about semantic caching. So this is a capability inside of LangChain, and you can use MongoDB as the back end of that semantic cache.</span></div><div class="tline" data-t="562"><span class="ts">9:22</span><span class="tx">And now, right, when a user comes in and asks a question, we'll first kind of send it over to the retriever and, and figure out kind of what the, the question should look like, right?</span></div><div class="tline" data-t="571"><span class="ts">9:31</span><span class="tx">Find the prompt plus the, uh, additional kind of augmented data, and then we'll send it to a semantic cache. And if that semantic cache says it's a hit based on a semantic similarity, then we'll just fetch the cached answer instead of having to hit the LLM again.</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">Uh, or if it's not a hit, we'll send it to the LLM and do the prompt and get the answer back to the user. And so in this way, you can use caching to kind of reduce the amount of calls that are being sent to your large language model.</span></div><div class="tline" data-t="594"><span class="ts">9:54</span><span class="tx">And this is, you know, hugely powerful, just kind of reducing the amount of resources that you're using. And again, it can all be done using one database, uh, with LangChain, uh, in this case.</span></div><div class="tline" data-t="606"><span class="ts">10:06</span><span class="tx">Separately though, right, we also now have, uh, chat history, right? And so with LangChain, if you wanted to build, uh, on top of MongoDB a experience that was maybe similar to, you know, ChatGPT, right, where you have the chat history and it's continuously fetching that data and putting it back into the prompt, uh, so that you can</span></div><div class="tline" data-t="624"><span class="ts">10:24</span><span class="tx">kind of have continuity in the conversation that's happening with the large language model, well, you could use the chat message history abstraction inside of LangChain, and you could basically store the history of chats that are going through the platform.</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">And each time a prompt is sent back into the large language model, you could use the chat history, send it back through, include the vector search, and then, you know, send the, the prompt to the LLM and, and send the answer back.</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">And so just another way where you can really kind of evolve this. A, a cool startup that's using us right now to do a lot of these different things where they're taking advantage of kind of all of the flexibility of having a transactional database kind of built in with your vector search capability is a company called 4149.</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">I would, you know, recommend checking them out. Basically, they're building a, an AI teammate, and not like a coding teammate, but instead one that kind of, you know, listens to your meeting, tracks what you're doing, fetches additional information, and kind of prompts you, the user, with that information that you may need to kind of complete a task,</span></div><div class="tline" data-t="679"><span class="ts">11:19</span><span class="tx">uh, you know, write an email, or kind of schedule a project. And they're using MongoDB not just to store their vector data and do, you know, semantic similarity search, but also to store data about their users, data about, um, you know, specific meetings, chat history meetings, all of this information that's not necessarily kind of your typical semantic</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">search type data use case, but instead it really benefits from having a single operational transactional database that also has vector search attached. And so that's where we're seeing, like, a lot of the excitement as we move into this, you know, world of agents and doing kind of complex, differentiated RAG.</span></div><div class="tline" data-t="714"><span class="ts">11:54</span><span class="tx">Having a full transactional database really kind of opens up a, a new world of kind of storing and giving, you know, these agents more affordances to, to interact with the data.</span></div><div class="tline" data-t="724"><span class="ts">12:04</span><span class="tx">And, you know, just one more thing to mention is that, you know, at the end of the day, all of this is built inside of MongoDB Atlas, which gives you comprehensive security controls, uh, and privacy.</span></div><div class="tline" data-t="734"><span class="ts">12:14</span><span class="tx">It, you know, gives you kind of total uptime and automation to en- ensure that you have kind of optimal performance to serve your application. And finally, it's deployable in over 100-plus regions across all of the major cloud providers, including our Search Node offering that I mentioned earlier, that really allows you to optimize how you deploy these resources.</span></div><div class="tline" data-t="753"><span class="ts">12:33</span><span class="tx">And so we're really thrilled to have this. Uh, just kind of a, a quick call-out. Uh, thanks all for, for coming to, to check out this, this talk. Um, i- if you wanna try MongoDB Atlas for free, we have a forever free tier where vector search is available, um, and you can also learn more of our AI</span></div><div class="tline" data-t="768"><span class="ts">12:48</span><span class="tx">capabilities using this other QR code as well. Uh, and with that, I'm done. [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

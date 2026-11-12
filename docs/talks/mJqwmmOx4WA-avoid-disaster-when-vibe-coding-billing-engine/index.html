@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>如何在氛围编程一个计费引擎时避免灾难 —— Andrew Garvin，Stripe | AI 工程师中文版</title>
+<meta name="description" content="Andrew Garvin 演示了 Stripe Projects 和 Metronome 如何把“照搬 Lovable 的定价”这个请求变成一个计费沙箱——以及为什么有用的自动化在上线之前必须包含领域指导、模拟用量和人的判断。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>如何在氛围编程一个计费引擎时避免灾难 —— Andrew Garvin，Stripe</h1>
+    <div class="orig-title">How to avoid disaster when vibe-coding a billing engine — Andrew Garvin, Stripe</div>
+    <div class="meta"><span class="speaker">Andrew Garvin</span> · AI Engineer World's Fair 2026 · 17:48</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=agent-skills">智能体技能</a><a class="tag" href="../../index.html#topic=developer-workflows-and-testing">开发工作流与测试</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/mJqwmmOx4WA-avoid-disaster-when-vibe-coding-billing-engine" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="mJqwmmOx4WA"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=mJqwmmOx4WA" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">计费引擎要做的不只是统计 API 调用</div></div>
+      <div class="label row">章节跳转 <span>共 6 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>计费引擎要做的不只是统计 API 调用</span></li><li data-t="223"><span class="ts">3:43</span><span>配置环境，再描述定价模型</span></li><li data-t="365"><span class="ts">6:05</span><span>技能引导设置，清晰的错误帮智能体恢复</span></li><li data-t="574"><span class="ts">9:34</span><span>产品、买家和用户带来不同的定价问题</span></li><li data-t="781"><span class="ts">13:01</span><span>跟随演示客户从用量走到发票草稿</span></li><li data-t="945"><span class="ts">15:45</span><span>用可用的沙箱做出下一个决策</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 7 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Usage ingestion and contract setup" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Usage ingestion and contract setup</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The terminal reports splitting a 110-event batch to meet a 100-event limit, then ingesting all usage events and loading a skill to create a prepaid contract.
+
+[11:04](https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=664s) [A terminal shows usage events ingested and a contract creation skill loaded beside the Agentic Trinity slide.](https://assets.ai.engineer/sites/aiecode2025/sha256/7d29eb47dd382b050f323e8f6a69cae84fd6f27ee386d0c7039b866a36317286.webp)
+
+The Agentic Trinity
+
+A company selling an agent (product) may deploy agents to configure its own billing stack (user), while those agents autonomously procure the tools they need to operate (buyer). Agentic Monetization sits at the intersection of all three. The same agent can be all three simultaneously.
+
+Agent as a Product
+Consumes tokens, triggers events, and decrements a credit ledger in real time.
+
+Agent as a Buyer
+Discovers pricing, evaluates options, and transacts autonomously
+
+Agent as a User
+Configures pricing, runs migrations, and onboards customers at machine speed.
+
+Agentic Monetization
+
+Stripe Revenue: Accelerate Growth / April 2026
+5
+
+Terminal:
+Bash(source /Users/kmd/stripe/stripe-scratch-box/ai-fair-demo/.env…)
+{
+  &quot;message&quot;: &quot;[array is too long: must have at most 100 elements but instance has 110 elements]&quot;
+}
+
+Batch 4 was over the 100-event limit. Let me split it.
+
+Bash(source /Users/kmd/stripe/stripe-scratch-box/ai-fair-demo/.env…)
+null
+
+Bash(source /Users/kmd/stripe/stripe-scratch-box/ai-fair-demo/.env…)
+null
+
+All usage events ingested. Now Step 6 – create the contract with a prepaid commit using the metronome-create-contract skill as required by the Lovable pricing docs.
+
+Skill(metronome-create-contract)
+Successfully loaded skill
+
+Flummoxing… (5m 17s · thinking with high effort)
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+AI Engineer World's Fair_Lig…
+Search results - [redacted]
+Ask Gemini
+Work
+docs.google.com/presentation/d/[illegible]…
+Provision Metronome account with Lovable pricing model
+bypass permissions on (shift+tab to cycle) · esc to interru…</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Metronome onboarding" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Metronome onboarding</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Metronome opens a human-oriented invoice setup wizard with an empty preview. Garvin says the agent already set up the environment, so the demo can skip the wizard.
+
+[13:47](https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=827s) [Metronome onboarding screen with an empty invoice preview and a limited sandbox notice.](https://assets.ai.engineer/sites/aiecode2025/sha256/fe70e2174043516dc60f9147e24bcf8cffeeac4a64064359f9e2abfc05bd2a9e.webp)
+
+Configure your first invoice
+
+Welcome to Metronome!
+
+To reflect your product's pricing in Metronome, we'll start by creating your first Invoice on a test Customer.
+
+On the right, you'll see how each setting impacts the Invoice.
+
+Get started
+
+Note: You are in a limited sandbox.
+
+Invoice preview based on your settings
+Charge | Quantity | Unit price | Total due
+To see line items, add a charge
+Subtotals
+Total due | $0.00 USD
+
+1. Subscriptions  2. Usage  3. Prices  4. Next steps
+Skip and apply example settings
+Get started
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+Wed Jul 1 11:23 AM
+AI Engineer World's Fair_[illegible]
+Welcome to Metronome! Ver[illegible]
+Metronome
+Change password
+Ask Gemini
+app.metronome.com/sandbox/onboarding
+Work</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Metronome customer walkthrough" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Metronome customer walkthrough</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo opens Acme AI Studios, a test customer populated by an agent. Its overview shows $25.00 in lifetime billings and an active Lovable Pro contract.
+
+[14:01](https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=841s) [Metronome customer directory with one test customer, lifetime billings, and an active contract status.](https://assets.ai.engineer/sites/aiecode2025/sha256/2b2990b33332d6bbf20f0427ebb4a705a60e2392634e0445698e60b931e10c0d.webp)
+
+Customers
+
+Directory
+Search by name, ID, or ingest aliases
+Active Customers
++ Add
+
+Name | Date created (UTC) | Lifetime billings | Provision status
+Acme AI Studios | Jul 1, 2026 | $25.00 USD | Contract active
+
+Previous
+Next
+
+Interface text:
+Metronome
+Sandbox
+Overview
+Customers
+Offering
+Reporting
+Connections
+To unlock all of Metronome
+Choose a plan
++ Create
+Chrome
+File Edit View History Bookmarks Profiles Tab Window Help
+AI Engineer World’s Fair_[illegible]
+Welcome to Metronome! Ver[illegible]
+Customers | Metronome
+Change password
+Ask Gemini
+app.metronome.com/sandbox/customers/[illegible]
+Work
+
+[14:05](https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=845s) [Customer overview showing lifetime billing, contracts, and credits.](https://assets.ai.engineer/sites/aiecode2025/sha256/adcbb4e006bee6ff260bfb47f1ad6c2cdcbadbdc531c45fab1d0abf9a3fa3610.webp)
+
+Customers &gt; Customer: Acme AI Studios
+Acme AI Studios
+
+Overview
+Invoices
+Commits and credits
+Notifications
+Usage
+Settings
+Audit log
+
+Billings
+$USD
+Customer since May 2026
+Lifetime
+$25.00
+
+Top products in June
+No $USD spend in June
+This customer did not incur usage that resulted in line item spend in June.
+
+Commits &amp; credits
+Status
+Commits &amp; credits
+No credits
+This customer has no credits for the given filter
+
+Contracts
+Status
++ Add
+Name &amp; rate card | Status | Starting at (UTC) | Ending before (UTC)
+Lovable Pro (May 31, 2026 (UTC)) | Active | May 31, 2026 12:00 AM | Jun 1, 2027 12:00 AM
+Lovable Pro
+
+Identifiers
+Customer Name
+Acme AI Studios
+Customer ID
+bf042a19-a9f8-4353-9811-62ee4ce09e14
+
+Ingest aliases
+acme-ai-studios
++ Add
+
+Recent invoices
+Invoice | Total | Status
+
+Interface text:
+Metronome
+Sandbox
+Overview
+Customers
+Offering
+Reporting
+Connections
+To unlock all of Metronome
+Choose a plan
++ Create
+Chrome
+File Edit View History Bookmarks Profiles Tab Window Help
+AI Engineer World’s Fair_[illegible]
+Welcome to Metronome! Ver[illegible]
+Acme AI Studios | Metronome
+Change password
+Ask Gemini
+app.metronome.com/sandbox/customers/bf042a19-a9f8-4353-9811-62ee4ce09e14
+Work</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Draft invoice" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Draft invoice</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo invoice lists $129.15 in charges for June, then deducts $30.00 in monthly credits, leaving $99.15 due.
+
+[14:22](https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=862s) [Draft invoice with usage charges, a credit deduction, and total due.](https://assets.ai.engineer/sites/aiecode2025/sha256/1e57effd0823b4e3ff02d2daab046c65e280f72e3d0b2c305ac192879d289db7.webp)
+
+Acme AI Studios
+
+Invoice history
+Jul 01 - Aug 01, 2026 (UTC) — $0.00 USD — Draft
+Jun 01 - Jul 01, 2026 (UTC) — $99.15 USD — Draft
+May 31 - Jun 01, 2026 (UTC) — $0.00 USD — Finalized
+May 31, 2026 (UTC) — $25.00 USD — Finalized
+
+Acme AI Studios Jul 2, 2026 (UTC) — Draft
+START: Jun 1, 2026 12:00 AM (UTC)
+END: Jul 1, 2026 12:00 AM (UTC)
+ISSUED: Jul 2, 2026 12:00 AM (UTC)
+
+Charges
+Show zero usage charges
+Search charges
+Name | Applied commit or credit | Effective date | Quantity | Unit price | Total
+Build Credits | Lovable Pro Monthly Credits | Jun 1, 2026 - Jul 1, 2026 | 77 | $0.30 USD | $23.10 USD
+Build Credits | - | Jun 1, 2026 - Jul 1, 2026 | 231.5 | $0.30 USD | $69.45 USD
+Plan Mode Credits | - | Jun 1, 2026 - Jul 1, 2026 | 60 | $0.30 USD | $18.00 USD
+Cloud Credits | - | Jun 1, 2026 - Jul 1, 2026 | 39 | $0.30 USD | $11.70 USD
+AI Gateway Credits | Lovable Pro Monthly Credits | Jun 1, 2026 - Jul 1, 2026 | 23 | $0.30 USD | $6.90 USD
+
+Subtotal $129.15 USD
+Lovable Pro Monthly Credits consumed -$30.00 USD
+Total due $99.15 USD
+
+Interface text:
+Metronome — Sandbox
+Customers &gt; Customer: Acme AI Studios
+Overview · Invoices · Commits and credits · Notifications · Usage · Settings · Audit log
+Filter · Contract
+Overview · Customers · Offering · Reporting · Connections
+To unlock all of Metronome
+Choose a plan
++ Create
+Chrome · File · Edit · View · History · Bookmarks · Profiles · Tab · Window · Help
+AI Engineer World's Fair_[illegible] · Welcome to Metronome! [illegible] · Acme AI Studios | Metronome · Change password
+Ask Gemini · Work
+app.metronome.com/sandbox/customers/[illegible]/invoices/[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Commits and credits" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Commits and credits</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The expired Lovable Pro Monthly Credits commit shows $30.00 of $30.00 consumed. The customer has no active prepaid balance, and the commit was invoiced at $25.00.
+
+[14:52](https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=892s) [Customer commits and credits summary showing an expired prepaid commit.](https://assets.ai.engineer/sites/aiecode2025/sha256/1168547fffd528d8360bb11b1b8a104c9b4252fc23486620a09f96695b28b8c0.webp)
+
+Acme AI Studios
+
+Summary
+Add a commit
+Add a credit
+
+Active prepaid commits
+Consumed: $0.00 USD  Remaining: $0.00 USD
+
+Active postpaid commits
+Consumed: $0.00 USD  Remaining: $0.00 USD
+
+Active credits
+Consumed: $0.00 USD  Remaining: $0.00 USD
+
+Commits
+Commit | Priority | Access schedule | Invoice schedule | Total invoiced | Consumed / Total commit
+Lovable Pro Monthly Credits | Expired | 100 | May 31, 2026 - Jul 1, 2026 | 1 invoice | $25.00 USD | $30.00 / $30.00 USD
+Contract-level prepaid commit
+Previous | Next
+
+Credits
+Credit | Priority | Access schedule | Consumed / Total credit
+This customer has no credits.
+Previous | Next
+
+Interface text:
+Metronome
+Sandbox
+Customers &gt; Customer: Acme AI Studios
+Overview | Invoices | Commits and credits | Notifications | Usage | Settings | Audit log
+Overview | Customers | Offering | Reporting | Connections
+To unlock all of Metronome
+Choose a plan
++ Create
+Chrome | File | Edit | View | History | Bookmarks | Profiles | Tab | Window | Help
+AI Engineer World's Fair_[illegible] | Welcome to Metronome! [illegible] | Acme AI Studios | Metronome | Change password
+app.metronome.com/sandbox/customers/[illegible]/commits-and-credits
+Ask Gemini
+Work
+Wed Jul 1 11:25 AM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Commit ledger" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Commit ledger</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The ledger shows a $30.00 USD prepaid commit and an automated invoice deduction that consumes the entire balance. The commit’s total invoiced amount is $25.00 USD.
+
+[14:58](https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=898s) [Prepaid commit details and ledger showing the balance being consumed.](https://assets.ai.engineer/sites/aiecode2025/sha256/6ae70d04a33fe9d3db2502e1cda4c172b0a09c3fc38ca393e5199cebc50f7283.webp)
+
+Lovable Pro Monthly Credits
+
+Lovable Pro Monthly Credits — Expired
+Contract-Level Prepaid Commit
+
+Priority: 100
+Access schedule: May 31, 2026 - Jul 1, 2026
+Invoice schedule: 1 invoice
+Total invoiced: $25.00 USD
+Total commit: $30.00 USD
+Applicable products: All products
+
+Consumed: $30.00 USD
+Remaining: $0.00 USD
+
+Ledger | Access schedule | Invoice schedule
+
+Amount | Total remaining | Reason | Date
+$30.00 USD | $30.00 USD | Access to segment May 31, 2026 started | May 31, 2026
+($30.00 USD) | $0.00 USD | Automated deduction for Invoice (Jun 01 - Jul 01, 2026 (UTC)) | Jul 1, 2026
+
+Interface text:
+Customers &gt; Customer: Acme AI Studios &gt; Contract: Lovable Pro (May 31, 2026 (UTC)) &gt; Commit: Lovable Pro Monthly Credits
+Sandbox
+Metronome
+Overview
+Customers
+Offering
+Reporting
+Connections
+To unlock all of Metronome
+Choose a plan
++ Create
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+Wed Jul 1 11:25 AM
+AI Engineer World's Fair_[illegible]
+Welcome to Metronome! Veri[illegible]
+Lovable Pro Monthly Credits
+Change password
+Ask Gemini
+app.metronome.com/sandbox/customers/[illegible]/contracts/[illegible]/commits-and-credits/[illegible]
+Work</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Usage dashboard" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Usage dashboard</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Acme AI Studios’ sandbox plots test usage across four credit types. Cloud Credits drop to zero earlier than the other series, which reach zero near the end of June.
+
+[15:14](https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=914s) [Four charts showing usage of AI gateway, build, cloud, and plan mode credits.](https://assets.ai.engineer/sites/aiecode2025/sha256/93b2bbceac6db0d09bebc327ff0570ff100ae59e6146e8db45808cad3d1652f6.webp)
+
+Acme AI Studios
+Usage
+
+Events
+Assigned to contract
+Last 30 days
+
+AI Gateway Credits
+Y-axis ticks: 0, 0.4, 0.8, 1.2, 1.6
+Timeline: Jun 2, Jun 7, Jun 12, Jun 17, Jun 22, Jun 27
+
+Build Credits
+Y-axis ticks: 0, 4, 8, 12, 16
+Timeline: Jun 2, Jun 8, Jun 14, Jun 20, Jun 26
+
+Cloud Credits
+Y-axis ticks: 0, 0.65, 1.3, 1.95, 2.6
+Timeline: Jun 2, Jun 7, Jun 12, Jun 17, Jun 22, Jun 27
+
+Plan Mode Credits
+Y-axis ticks: 0, 0.75, 1.5, 2.25, 3
+Timeline: Jun 2, Jun 7, Jun 12, Jun 17, Jun 22, Jun 27
+
+Interface text:
+Metronome
+Sandbox
+Customers &gt; Customer: Acme AI Studios
+Overview, Invoices, Commits and credits, Notifications, Usage, Settings, Audit log
+Overview, Customers, Offering, Reporting, Connections
+To unlock all of Metronome
+Choose a plan
++ Create
+Chrome: File, Edit, View, History, Bookmarks, Profiles, Tab, Window, Help
+Tabs: AI Engineer World's Fair_[illegible]; Welcome to Metronome! [illegible]; Acme AI Studios | Metronome; Change password
+app.metronome.com/sandbox/customers/[illegible]/usage
+Ask Gemini
+Work
+Wed Jul 1 11:25 AM</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">计费引擎要做的不只是统计 API 调用</a></li><li><a href="#sec-2">配置环境，再描述定价模型</a></li><li><a href="#sec-3">技能引导设置，清晰的错误帮智能体恢复</a></li><li><a href="#sec-4">产品、买家和用户带来不同的定价问题</a></li><li><a href="#sec-5">跟随演示客户从用量走到发票草稿</a></li><li><a href="#sec-6">用可用的沙箱做出下一个决策</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">如何在氛围编程一个计费引擎时避免灾难</h2>
+      <div class="lede"><p>Andrew Garvin 演示了 Stripe Projects 和 Metronome 如何把“照搬 Lovable 的定价”这个请求变成一个计费沙箱——以及为什么有用的自动化在上线之前必须包含领域指导、模拟用量和人的判断。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>计费引擎要做的不只是统计 API 调用</h3>
+      <p>A coding agent can operate a billing API while misunderstanding the business model behind it. That is the problem Andrew Garvin, Metronome co-founder, brings to this demonstration with Stripe: getting a complicated billing system running quickly without turning setup mistakes into financial mistakes. The two products have different jobs. Stripe Projects provisions a Stripe account and supporting services through the CLI; Metronome supplies the usage-billing system the agent will configure.</p>
+<p>Usage billing combines several kinds of work, each with its own consequences:</p>
+<p>- <strong>Metering:</strong> API activity must enter the billing system as usage. Garvin describes Metronome’s experience metering calls for OpenAI and Anthropic, including work with both companies before they had revenue.
+- <strong>Commercial rules:</strong> The same usage can interact with pay-as-you-go charges, credits, commitments, discounts, and sales-led offers. Counting activity supplies an input; the pricing arrangement determines what the customer owes.
+- <strong>Spend controls:</strong> An agent can keep working and keep spending. Garvin proposes agent-specific wallets as one way to give customers controls over funds an individual agent can spend. This is a direction under consideration, rather than a wallet mechanism demonstrated here.</p>
+<p>The risk grows when customers expect a coding agent to operate a deep product without learning its details. Metronome’s response is to improve the developer experience around that agent: supply guidance for the API, make failures easier to correct, and produce an environment in which the financial behavior can be inspected before real customers depend on it.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="223">▶ 3:43</button></div>
+      <h3>配置环境，再描述定价模型</h3>
+      <p>The live demonstration begins with Stripe Projects initialization and selection of <strong>Claude</strong>. Initialization does not immediately succeed; there is a short intervention before the project becomes ready. This distinction matters to the workflow: the natural-language billing request comes after the environment is initialized, rather than replacing that prerequisite.</p>
+<p>The request is deliberately small: create a demo billing engine in Metronome that mimics Lovable’s pricing model. Garvin encounters this desire repeatedly in conversations with companies: use an existing business model to get started without first designing every pricing detail. Here, the recognizable starting point is prepaid credits with auto-recharge, a model suited to customers signing up and buying service themselves.</p>
+<p>That short prompt sets a target for a much larger configuration task. The agent must translate the pricing idea into Metronome objects and create a demo account around them. The eventual result will need to show how usage changes a customer’s credits and invoice, rather than merely prove that an account exists.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="365">▶ 6:05</button></div>
+      <h3>技能引导设置，清晰的错误帮智能体恢复</h3>
+      <p>Metronome’s portable, extensible skills files carry context for agents implementing the product and calling its API. Their purpose is practical: help an agent avoid setup mistakes and get a customer into a test environment with less friction. The one-sentence prompt works within that supplied expertise; it does not explain all of Metronome’s billing concepts by itself. <a href="https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=365s" target="_blank" rel="noopener">6:05</a></p>
+<p>An error appears while the agent works. Garvin uses it to explain a second mechanism: deliberately verbose, clear errors give an agent information it can use to correct its actions. Skills provide guidance before a call; errors provide feedback after a call fails. The developer-experience team is looking for additional failure cases, especially during initialization and setup, where better feedback can guide recovery.</p>
+<p>How do guidance and feedback fit together? The diagram separates the context that shapes an API attempt from the error information that can shape its correction. Making both available reduces the amount the agent must infer, although it does not transfer responsibility for the business rules to the agent.</p>
+<p>The stopping point is explicit: this demonstration creates a sandbox and does not push it into production. Billing is business-critical and carries deep business logic, so Garvin recommends using coding agents to accelerate work into test mode while keeping a human involved. The tradeoff is deliberate. Faster setup is useful; unattended operation of the entire billing system is outside the intended workflow. <a href="https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=455s" target="_blank" rel="noopener">7:35</a></p>
+<p>A useful billing sandbox also needs activity. The skills direct the agent to flow usage into Metronome so the resulting customer looks like one actually using a product. A provisioned customer or contract alone leaves the central behavior unexercised: what happens to charges and balances when usage arrives? Stripe Projects supplies the surrounding orchestration, using the CLI to engage Metronome and potentially other backend services through natural-language requests.</p>
+<p>Guidance before a call, feedback after a failure
+Skills supply API context. Clear error messages give the agent information for a corrective attempt; human involvement remains part of the billing workflow.
+- Metronome skills — Portable files provide implementation and API context.
+- Coding agent — Uses the supplied context to configure the environment.
+- Metronome API — The agent works with the API during setup.
+- Clear, verbose error — Explains a failure in terms the agent can use to self-correct.
+- Metronome skills → Coding agent (Supplies context)
+- Coding agent → Metronome API (Attempts configuration)
+- Metronome API → Clear, verbose error (Returns failure information)
+- Clear, verbose error → Coding agent (Guides self-correction)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="574">▶ 9:34</button></div>
+      <h3>产品、买家和用户带来不同的定价问题</h3>
+      <p>While configuration continues, the discussion turns to what “building for agents” actually means. Three roles create different requirements:</p>
+<p>- <strong>Agent as product:</strong> A company sells an agent whose operation can run up a token bill. Metering helps the company account for that consumption in its pricing model.
+- <strong>Agent as buyer:</strong> The Stripe Projects workflow has an agent procure an initial Stripe instance and additional backend services. Providers need their services to be discoverable and usable by an agent assembling an application. This includes business-to-business procurement as well as consumer-facing agentic commerce.
+- <strong>Agent as user:</strong> An agent operates an existing software platform. This changes the relationship between the number of users accessing the platform and the amount of work the platform performs.</p>
+<p>The third role puts pressure on seat pricing. If one agent operates an entire system, substantial value can pass through a single user identity. Charging for that identity may then capture little of the work being done. Garvin calls this “headlessness”: software remains useful even as an agent performs work that previously required people interacting with it directly.</p>
+<p>HubSpot supplies the concrete commercial example. Garvin describes its move toward credits, beginning in EMEA with lower seat prices and an added credits model, as preparation for agents operating the system. This is his account of an ongoing transition, rather than a demonstrated result for every HubSpot customer. He also recalls an Andreessen demo day where all five presenting companies built sales-led agents to operate systems such as SAP and invoicing platforms—the kind of usage that can concentrate many workflows behind one platform user. <a href="https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=634s" target="_blank" rel="noopener">10:34</a></p>
+<p>Credits do not settle every commercial question. The discussion moves from self-service prepaid credits and auto-recharge to enterprise offers: prepaid commitments, postpaid commitments, and arrangements for particular customers. Garvin describes coding-agent companies adopting commitment structures familiar from cloud service providers. That brings the billing problem back to its opening complexity: usage is one input to a negotiated commercial arrangement, and the engine must administer the arrangement as well as the usage.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="781">▶ 13:01</button></div>
+      <h3>跟随演示客户从用量走到发票草稿</h3>
+      <p>Opening Metronome takes a little stage time: “I love all these demos where you’re just looking at people logging in.” Once inside, the human onboarding wizard is unnecessary because the agent has already configured the environment. The customer view contains a demo customer with populated lifetime spend. These values belong to the test environment, not to a real customer’s purchases.</p>
+<p>The first inspection is the customer’s draft invoice. The pricing model reproduced here combines monthly auto-recharge with credits scoped to different kinds of usage. In Garvin’s explanation of this model, spending beyond those credits produces an invoice at the end of the period. That requires the engine to keep track of which credits can pay for which activity, as well as what remains chargeable after credits are used.</p>
+<p>Follow the same customer through the visible change. The agent created a credit for the initial test period, then supplied usage that drew down the entire credit balance. Returning to the customer view reveals that inserted usage; returning to the draft invoice reveals the billing components associated with the model. Metronome makes the credit a first-class object, so the credit and its consumption can be inspected rather than being hidden inside an undifferentiated invoice total. <a href="https://www.youtube.com/watch?v=mJqwmmOx4WA&amp;t=885s" target="_blank" rel="noopener">14:45</a></p>
+<p>What relationship should a reviewer trace between usage, credits, and the invoice? The diagram follows the demonstrated drawdown and separates it from the stated rule for spending beyond credits. The observable result is a consumed test balance and an inspectable draft invoice; the recording does not establish the exact rates, recharge thresholds, or credit-expiration behavior needed to validate a complete production reproduction.</p>
+<p>The invoice exposes four distinct components:</p>
+<p>- <strong>Build credits:</strong> The credit component for build usage.
+- <strong>Plan mode credits:</strong> A separate component for plan mode usage.
+- <strong>Cloud credits:</strong> A component for cloud usage.
+- <strong>AI gateway credits:</strong> A component for AI gateway usage.</p>
+<p>Their separation is the useful detail. A reviewer can inspect the model’s different usage scopes instead of treating every credit as interchangeable. The original natural-language request named the model; the resulting sandbox makes its component structure available for examination.</p>
+<p>Usage consumes credits; spending beyond credits reaches the invoice
+The demo shows usage drawing down the initial test-period credit balance. Garvin separately describes end-of-period invoicing for spending beyond credits.
+- Agent-supplied test usage — Activity inserted into the demo customer’s environment.
+- Initial-period credit — A first-class credit object whose entire balance was drawn down by test usage.
+- Spending beyond credits — The pricing rule covers usage that exceeds the available credits.
+- Invoice — A draft is inspected in the sandbox; excess spending is described as invoiced at period end.
+- Agent-supplied test usage → Initial-period credit (Draws down balance)
+- Agent-supplied test usage → Spending beyond credits (If spending exceeds credits)
+- Spending beyond credits → Invoice (Invoiced at period end)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="945">▶ 15:45</button></div>
+      <h3>用可用的沙箱做出下一个决策</h3>
+      <p>The completed sequence is concrete: initialize a Stripe instance, create a Metronome instance through Stripe Projects, and ask the agent to configure a demo around an existing pricing model. From there, the work becomes testing and tweaking the model before bringing it into production. The agent has accelerated the path to something a human can examine: a customer, usage, credits, and a draft invoice with separate components.</p>
+<p>The ending extends this pattern beyond billing. First determine whether an agent is the product, the buyer, or the user, because those roles create different pricing and integration requirements. Then give the agent enough procedural guidance to work effectively in a difficult environment. The combination matters: understanding the commercial role tells you what to build, while skills and useful feedback help the agent build a testable version.</p>
+<p>Stripe Projects also becomes a place where providers can make their products discoverable to agents operating through Stripe’s system. Garvin closes with Vercel and Hugging Face as examples of providers working in that environment. Procurement, setup, and product-specific guidance meet in the same development workflow. For billing, its useful destination is a populated sandbox from which a person can decide what should happen when real usage and real money arrive.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Billing combines metering with commercial rules for credits, commitments, discounts, and offers. Agent-driven spending makes controls increasingly consequential.</li><li>Portable skills provide API expertise before an agent acts; clear, verbose errors provide feedback when an attempt fails.</li><li>A billing sandbox needs usage as well as configuration. The demonstration follows test usage into credit drawdown and an inspectable draft invoice, while retaining human involvement before production.</li><li>Separate agents as products, buyers, and users. An agent consuming software through one identity can weaken the connection between seat count and the work a platform performs.</li><li><a href="https://ai.engineer/talks/CEvIs9y1uog-agent-skills" target="_blank" rel="noopener">Don't Build Agents, Build Skills Instead</a> — Develops the reusable procedural-knowledge approach behind Metronome’s portable skills files.</li><li><a href="https://ai.engineer/talks/CrqPcIZOOXA-mastering-ai-pricing" target="_blank" rel="noopener">Mastering AI Pricing — Mayank Pant, Stripe</a> — A next talk for exploring the pricing decisions that a billing engine must implement.</li><li><a href="https://ai.engineer/talks/rbjWzZK2LU0-give-agent-budget-not-token-sachin-malhotra" target="_blank" rel="noopener">Give the Agent a Budget, Not a Token — Sachin Malhotra, Anthropic</a> — Continues the question raised by runaway agent spending and agent-specific financial controls.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="1"><span class="ts">0:01</span><span class="tx">[music]</span></div><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Hi everyone. My name is Andrew Garvin.</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">I'm one of the co-founders of Metronome.</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">Metronome, if you're not familiar, is</span></div><div class="tline" data-t="19"><span class="ts">0:19</span><span class="tx">the top platform for usage billing,</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">which as you might imagine is taking off</span></div><div class="tline" data-t="22"><span class="ts">0:22</span><span class="tx">right now. Um, so much so that earlier</span></div><div class="tline" data-t="24"><span class="ts">0:24</span><span class="tx">this year we were acquired by Stripe in</span></div><div class="tline" data-t="26"><span class="ts">0:26</span><span class="tx">the largest deal that Stripe has ever</span></div><div class="tline" data-t="28"><span class="ts">0:28</span><span class="tx">done. Um, and what I'm going to show you</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">today is a fun project that we've been</span></div><div class="tline" data-t="31"><span class="ts">0:31</span><span class="tx">cooking on with the Stripe team. Um,</span></div><div class="tline" data-t="34"><span class="ts">0:34</span><span class="tx">that is a demonstration of some of the</span></div><div class="tline" data-t="35"><span class="ts">0:35</span><span class="tx">things that we could work on together.</span></div><div class="tline" data-t="38"><span class="ts">0:38</span><span class="tx">Um, this is going to combine two very</span></div><div class="tline" data-t="40"><span class="ts">0:40</span><span class="tx">different uh products within Stripe. Um,</span></div><div class="tline" data-t="44"><span class="ts">0:44</span><span class="tx">if you haven't seen it already, I</span></div><div class="tline" data-t="45"><span class="ts">0:45</span><span class="tx">recommend looking at Stripe Projects.</span></div><div class="tline" data-t="46"><span class="ts">0:46</span><span class="tx">Just open up open that up on your phone</span></div><div class="tline" data-t="49"><span class="ts">0:49</span><span class="tx">while I'm going through this. Um, this</span></div><div class="tline" data-t="51"><span class="ts">0:51</span><span class="tx">is something that actually was launched</span></div><div class="tline" data-t="52"><span class="ts">0:52</span><span class="tx">literally the week that Metronome was</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">acquired. And so, as you might imagine,</span></div><div class="tline" data-t="55"><span class="ts">0:55</span><span class="tx">the velocity of development at Stripe</span></div><div class="tline" data-t="57"><span class="ts">0:57</span><span class="tx">and at Metronome is pretty high.</span></div><div class="tline" data-t="59"><span class="ts">0:59</span><span class="tx">Basically, what Stripe Projects is is</span></div><div class="tline" data-t="60"><span class="ts">1:00</span><span class="tx">it's an orchestrator to allow you to</span></div><div class="tline" data-t="63"><span class="ts">1:03</span><span class="tx">operate and build your business as fast</span></div><div class="tline" data-t="65"><span class="ts">1:05</span><span class="tx">as possible. Um, and so in essence, what</span></div><div class="tline" data-t="68"><span class="ts">1:08</span><span class="tx">it does is it provisions a Stripe</span></div><div class="tline" data-t="69"><span class="ts">1:09</span><span class="tx">account for you as well as backend</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">services that you may need, think like</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">Versel, Postgress, and in this case, a</span></div><div class="tline" data-t="76"><span class="ts">1:16</span><span class="tx">metronome billing agent in order to</span></div><div class="tline" data-t="78"><span class="ts">1:18</span><span class="tx">launch a product quickly or an</span></div><div class="tline" data-t="79"><span class="ts">1:19</span><span class="tx">application quickly all through the CLI.</span></div><div class="tline" data-t="82"><span class="ts">1:22</span><span class="tx">Um, so the demonstration that we're</span></div><div class="tline" data-t="83"><span class="ts">1:23</span><span class="tx">going to do today is a very simple</span></div><div class="tline" data-t="85"><span class="ts">1:25</span><span class="tx">demonstration of how to get set up</span></div><div class="tline" data-t="87"><span class="ts">1:27</span><span class="tx">through Stripe projects, but you can</span></div><div class="tline" data-t="88"><span class="ts">1:28</span><span class="tx">imagine all the sorts of things that</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">people are building on Stripe today. Um,</span></div><div class="tline" data-t="92"><span class="ts">1:32</span><span class="tx">one of the really cool aspects of being</span></div><div class="tline" data-t="93"><span class="ts">1:33</span><span class="tx">inside Stripe is their scale and data.</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">Um, and one of the things that we've</span></div><div class="tline" data-t="98"><span class="ts">1:38</span><span class="tx">observed inside of Stripe is that the</span></div><div class="tline" data-t="100"><span class="ts">1:40</span><span class="tx">use of Stripe's CLI has exponentially</span></div><div class="tline" data-t="103"><span class="ts">1:43</span><span class="tx">increased over the course of the past</span></div><div class="tline" data-t="104"><span class="ts">1:44</span><span class="tx">five six months. We're thinking about</span></div><div class="tline" data-t="106"><span class="ts">1:46</span><span class="tx">all of the implications of the coding</span></div><div class="tline" data-t="108"><span class="ts">1:48</span><span class="tx">agents operating systems which we'll get</span></div><div class="tline" data-t="110"><span class="ts">1:50</span><span class="tx">into uh a greater topic on later in this</span></div><div class="tline" data-t="113"><span class="ts">1:53</span><span class="tx">demonstration. Um so the beginning part</span></div><div class="tline" data-t="116"><span class="ts">1:56</span><span class="tx">was sort of the thesis for this is how</span></div><div class="tline" data-t="118"><span class="ts">1:58</span><span class="tx">to avoid dis disaster when vibe coding a</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">billing engine. Uh as you might imagine</span></div><div class="tline" data-t="122"><span class="ts">2:02</span><span class="tx">being in the billing space for multiple</span></div><div class="tline" data-t="123"><span class="ts">2:03</span><span class="tx">years now we've seen all sorts of crazy</span></div><div class="tline" data-t="125"><span class="ts">2:05</span><span class="tx">things happen and it's even getting</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">crazier now that people are expecting to</span></div><div class="tline" data-t="129"><span class="ts">2:09</span><span class="tx">operate metronome a very complicated and</span></div><div class="tline" data-t="131"><span class="ts">2:11</span><span class="tx">deep product with a coding agent. Um,</span></div><div class="tline" data-t="134"><span class="ts">2:14</span><span class="tx">and so as a result, we are working from</span></div><div class="tline" data-t="136"><span class="ts">2:16</span><span class="tx">a developer experience standpoint to</span></div><div class="tline" data-t="138"><span class="ts">2:18</span><span class="tx">make this a more seamless experience for</span></div><div class="tline" data-t="140"><span class="ts">2:20</span><span class="tx">people and to have them avoid disaster.</span></div><div class="tline" data-t="143"><span class="ts">2:23</span><span class="tx">Um, and so we're going to see in a</span></div><div class="tline" data-t="146"><span class="ts">2:26</span><span class="tx">second what that de a demonstration of</span></div><div class="tline" data-t="147"><span class="ts">2:27</span><span class="tx">what that might look like and how we're</span></div><div class="tline" data-t="149"><span class="ts">2:29</span><span class="tx">guiding things. Um, but just to frame it</span></div><div class="tline" data-t="151"><span class="ts">2:31</span><span class="tx">the what's happening today in with</span></div><div class="tline" data-t="153"><span class="ts">2:33</span><span class="tx">launching agent products can go crazy</span></div><div class="tline" data-t="156"><span class="ts">2:36</span><span class="tx">and it can go sideways in all sorts of</span></div><div class="tline" data-t="157"><span class="ts">2:37</span><span class="tx">ways. So as just a couple of the types</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">of problems that metronome helps solve</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">for folks. Uh first we are for example</span></div><div class="tline" data-t="164"><span class="ts">2:44</span><span class="tx">and have for many years now taken in all</span></div><div class="tline" data-t="166"><span class="ts">2:46</span><span class="tx">of the API calls to OpenAI and Enthropic</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">and metered that for those companies.</span></div><div class="tline" data-t="170"><span class="ts">2:50</span><span class="tx">We've worked with those companies since</span></div><div class="tline" data-t="172"><span class="ts">2:52</span><span class="tx">before they had any revenue. Uh and so</span></div><div class="tline" data-t="174"><span class="ts">2:54</span><span class="tx">obviously we've operated at global scale</span></div><div class="tline" data-t="175"><span class="ts">2:55</span><span class="tx">operating a metering service with a</span></div><div class="tline" data-t="177"><span class="ts">2:57</span><span class="tx">number of different data impacts. In</span></div><div class="tline" data-t="179"><span class="ts">2:59</span><span class="tx">addition to that we also operate credit</span></div><div class="tline" data-t="181"><span class="ts">3:01</span><span class="tx">models. Obviously today with usage based</span></div><div class="tline" data-t="183"><span class="ts">3:03</span><span class="tx">pricing it's not just about having a pay</span></div><div class="tline" data-t="185"><span class="ts">3:05</span><span class="tx">go uh metered business model but also</span></div><div class="tline" data-t="187"><span class="ts">3:07</span><span class="tx">all sorts of different forms of credits</span></div><div class="tline" data-t="189"><span class="ts">3:09</span><span class="tx">commits salesled uh discounts and</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">offers. And then finally now in in the</span></div><div class="tline" data-t="194"><span class="ts">3:14</span><span class="tx">last 6 months especially the impact of</span></div><div class="tline" data-t="197"><span class="ts">3:17</span><span class="tx">failures here is growing in importance</span></div><div class="tline" data-t="201"><span class="ts">3:21</span><span class="tx">in particular because agents can run</span></div><div class="tline" data-t="202"><span class="ts">3:22</span><span class="tx">away with spend and so we're thinking</span></div><div class="tline" data-t="204"><span class="ts">3:24</span><span class="tx">about how to give more controls to our</span></div><div class="tline" data-t="207"><span class="ts">3:27</span><span class="tx">customers that they can offer to theirs.</span></div><div class="tline" data-t="209"><span class="ts">3:29</span><span class="tx">So think like for example having agents</span></div><div class="tline" data-t="212"><span class="ts">3:32</span><span class="tx">have a wallet um that they only they can</span></div><div class="tline" data-t="214"><span class="ts">3:34</span><span class="tx">spend from and having controls at that</span></div><div class="tline" data-t="216"><span class="ts">3:36</span><span class="tx">level. Okay. So that's what we're going</span></div><div class="tline" data-t="218"><span class="ts">3:38</span><span class="tx">to go into today. Let's actually get</span></div><div class="tline" data-t="220"><span class="ts">3:40</span><span class="tx">into doing this demonstration. You're</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">going to see how simple it is. Um so I'm</span></div><div class="tline" data-t="224"><span class="ts">3:44</span><span class="tx">going to initialize Stripe projects</span></div><div class="tline" data-t="226"><span class="ts">3:46</span><span class="tx">right now.</span></div><div class="tline" data-t="231"><span class="ts">3:51</span><span class="tx">[sighs]</span></div><div class="tline" data-t="232"><span class="ts">3:52</span><span class="tx">Oops.</span></div><div class="tline" data-t="234"><span class="ts">3:54</span><span class="tx">And this is in fact a live demo. So you</span></div><div class="tline" data-t="236"><span class="ts">3:56</span><span class="tx">should expect all sorts of different</span></div><div class="tline" data-t="237"><span class="ts">3:57</span><span class="tx">things to happen here. So what this is</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">doing is again initializing stripe</span></div><div class="tline" data-t="242"><span class="ts">4:02</span><span class="tx">projects. Um we are going to I think</span></div><div class="tline" data-t="244"><span class="ts">4:04</span><span class="tx">this should work.</span></div><div class="tline" data-t="247"><span class="ts">4:07</span><span class="tx">Um so we've selected that we're going to</span></div><div class="tline" data-t="249"><span class="ts">4:09</span><span class="tx">use claude here and we have a very</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">simple thing. What I I go around the</span></div><div class="tline" data-t="253"><span class="ts">4:13</span><span class="tx">world basically talking with companies</span></div><div class="tline" data-t="254"><span class="ts">4:14</span><span class="tx">about their business model.</span></div><div class="tline" data-t="255"><span class="ts">4:15</span><span class="tx">&gt;&gt; It's not initialized.</span></div><div class="tline" data-t="257"><span class="ts">4:17</span><span class="tx">&gt;&gt; Aha. I see.</span></div><div class="tline" data-t="261"><span class="ts">4:21</span><span class="tx">All right. Come on up.</span></div><div class="tline" data-t="265"><span class="ts">4:25</span><span class="tx">Cool.</span></div><div class="tline" data-t="275"><span class="ts">4:35</span><span class="tx">[snorts]</span></div><div class="tline" data-t="277"><span class="ts">4:37</span><span class="tx">I got it.</span></div><div class="tline" data-t="278"><span class="ts">4:38</span><span class="tx">&gt;&gt; All right. Thanks.</span></div><div class="tline" data-t="284"><span class="ts">4:44</span><span class="tx">[snorts]</span></div><div class="tline" data-t="286"><span class="ts">4:46</span><span class="tx">&gt;&gt; All right. Sweet. Um, yes. Let's</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">proceed.</span></div><div class="tline" data-t="292"><span class="ts">4:52</span><span class="tx">Cool.</span></div><div class="tline" data-t="296"><span class="ts">4:56</span><span class="tx">All right. So, our product, our project</span></div><div class="tline" data-t="298"><span class="ts">4:58</span><span class="tx">is in fact ready now.</span></div><div class="tline" data-t="301"><span class="ts">5:01</span><span class="tx">And so, I go around the world talking</span></div><div class="tline" data-t="303"><span class="ts">5:03</span><span class="tx">with companies about how to set up their</span></div><div class="tline" data-t="304"><span class="ts">5:04</span><span class="tx">businesses. One of the things that's</span></div><div class="tline" data-t="305"><span class="ts">5:05</span><span class="tx">really top of mind right now is um</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">replicating certain business models.</span></div><div class="tline" data-t="310"><span class="ts">5:10</span><span class="tx">People want to get off the ground</span></div><div class="tline" data-t="311"><span class="ts">5:11</span><span class="tx">without having to think about it too</span></div><div class="tline" data-t="312"><span class="ts">5:12</span><span class="tx">deeply. One of the key topics right now</span></div><div class="tline" data-t="314"><span class="ts">5:14</span><span class="tx">is replicating Lovable's pricing model.</span></div><div class="tline" data-t="317"><span class="ts">5:17</span><span class="tx">And so I'm going to enter a prompt in</span></div><div class="tline" data-t="321"><span class="ts">5:21</span><span class="tx">natural language that allows us to guide</span></div><div class="tline" data-t="323"><span class="ts">5:23</span><span class="tx">the metronome billing agent and Stripe</span></div><div class="tline" data-t="326"><span class="ts">5:26</span><span class="tx">to set up a demo account that has that</span></div><div class="tline" data-t="328"><span class="ts">5:28</span><span class="tx">um that has that element to it and</span></div><div class="tline" data-t="331"><span class="ts">5:31</span><span class="tx">create a demo billing engine</span></div><div class="tline" data-t="335"><span class="ts">5:35</span><span class="tx">uh in Metronome mimicking</span></div><div class="tline" data-t="340"><span class="ts">5:40</span><span class="tx">the lovable pricing model. Oops. Just</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">make sure I don't misspell that.</span></div><div class="tline" data-t="345"><span class="ts">5:45</span><span class="tx">Um, and so if you want to on the side</span></div><div class="tline" data-t="347"><span class="ts">5:47</span><span class="tx">you can see you can open up Levable's</span></div><div class="tline" data-t="349"><span class="ts">5:49</span><span class="tx">pricing and you can see all the</span></div><div class="tline" data-t="350"><span class="ts">5:50</span><span class="tx">different elements to it. But in</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">particular they have a prepaid credit</span></div><div class="tline" data-t="353"><span class="ts">5:53</span><span class="tx">auto recharge model which is very common</span></div><div class="tline" data-t="355"><span class="ts">5:55</span><span class="tx">in um in sort of a self-s served motion</span></div><div class="tline" data-t="358"><span class="ts">5:58</span><span class="tx">today. Um so let's get this going. Um so</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">while this is going I want you to pay</span></div><div class="tline" data-t="363"><span class="ts">6:03</span><span class="tx">attention to a couple of things that</span></div><div class="tline" data-t="365"><span class="ts">6:05</span><span class="tx">will happen. Um and in particular if you</span></div><div class="tline" data-t="367"><span class="ts">6:07</span><span class="tx">look at the obviously the slide on the</span></div><div class="tline" data-t="369"><span class="ts">6:09</span><span class="tx">left there's a couple different points</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">that I want to hit on. So first um again</span></div><div class="tline" data-t="373"><span class="ts">6:13</span><span class="tx">metronome is a very complicated and deep</span></div><div class="tline" data-t="375"><span class="ts">6:15</span><span class="tx">product and uh there's a lot of</span></div><div class="tline" data-t="377"><span class="ts">6:17</span><span class="tx">different ways to hit foot guns etc uh</span></div><div class="tline" data-t="380"><span class="ts">6:20</span><span class="tx">if you're not guided and so what we've</span></div><div class="tline" data-t="382"><span class="ts">6:22</span><span class="tx">invested in is building an extensible</span></div><div class="tline" data-t="383"><span class="ts">6:23</span><span class="tx">set of skills files that can provide</span></div><div class="tline" data-t="385"><span class="ts">6:25</span><span class="tx">context to the agent that's implementing</span></div><div class="tline" data-t="387"><span class="ts">6:27</span><span class="tx">metronome and working with our API. Um</span></div><div class="tline" data-t="390"><span class="ts">6:30</span><span class="tx">these skills files are also portable and</span></div><div class="tline" data-t="391"><span class="ts">6:31</span><span class="tx">easy to install so you can use them on</span></div><div class="tline" data-t="393"><span class="ts">6:33</span><span class="tx">your own side. Um and what it does is it</span></div><div class="tline" data-t="395"><span class="ts">6:35</span><span class="tx">allows us to essentially remove the</span></div><div class="tline" data-t="397"><span class="ts">6:37</span><span class="tx">friction associated with getting</span></div><div class="tline" data-t="399"><span class="ts">6:39</span><span class="tx">started. Um and so here uh that and</span></div><div class="tline" data-t="402"><span class="ts">6:42</span><span class="tx">that's very important because you want</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">to be able to test and work with the</span></div><div class="tline" data-t="406"><span class="ts">6:46</span><span class="tx">product and evolve over time. You're</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">seeing here in error code um from a</span></div><div class="tline" data-t="409"><span class="ts">6:49</span><span class="tx">developer experience standpoint. You</span></div><div class="tline" data-t="411"><span class="ts">6:51</span><span class="tx">know this is nothing new but our our</span></div><div class="tline" data-t="413"><span class="ts">6:53</span><span class="tx">perspective is to have much more verbose</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">and clear errors so that the agent can</span></div><div class="tline" data-t="419"><span class="ts">6:59</span><span class="tx">self-correct. Um and uh and so again our</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">developer experience teams are working</span></div><div class="tline" data-t="425"><span class="ts">7:05</span><span class="tx">on finding more failure cases like that</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">um and being able to help guide</span></div><div class="tline" data-t="429"><span class="ts">7:09</span><span class="tx">especially in the initialization and</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">setup. Um one thing that's that's</span></div><div class="tline" data-t="433"><span class="ts">7:13</span><span class="tx">important here I think keying off of the</span></div><div class="tline" data-t="436"><span class="ts">7:16</span><span class="tx">last talk that was in this room. Um the</span></div><div class="tline" data-t="439"><span class="ts">7:19</span><span class="tx">goal that we have from a product</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">development standpoint is not to have a</span></div><div class="tline" data-t="442"><span class="ts">7:22</span><span class="tx">customer operate the entire system</span></div><div class="tline" data-t="445"><span class="ts">7:25</span><span class="tx">without a human in the loop. This is a</span></div><div class="tline" data-t="447"><span class="ts">7:27</span><span class="tx">type of system that is both business</span></div><div class="tline" data-t="449"><span class="ts">7:29</span><span class="tx">critical, has deep business logic behind</span></div><div class="tline" data-t="451"><span class="ts">7:31</span><span class="tx">it. And so instead, what we are</span></div><div class="tline" data-t="453"><span class="ts">7:33</span><span class="tx">recommending and building toward is to</span></div><div class="tline" data-t="455"><span class="ts">7:35</span><span class="tx">use the use your coding agent as a way</span></div><div class="tline" data-t="458"><span class="ts">7:38</span><span class="tx">to accelerate your work and get into a</span></div><div class="tline" data-t="461"><span class="ts">7:41</span><span class="tx">test mode and test environment. Um, and</span></div><div class="tline" data-t="463"><span class="ts">7:43</span><span class="tx">so again, what we're doing here, we're</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">not expecting to ship into production.</span></div><div class="tline" data-t="466"><span class="ts">7:46</span><span class="tx">We're not pushing it into production. In</span></div><div class="tline" data-t="468"><span class="ts">7:48</span><span class="tx">fact, when we go into the metronome</span></div><div class="tline" data-t="469"><span class="ts">7:49</span><span class="tx">environment, you'll see that basically</span></div><div class="tline" data-t="471"><span class="ts">7:51</span><span class="tx">what we've done is built a sandbox</span></div><div class="tline" data-t="472"><span class="ts">7:52</span><span class="tx">experience. Um and in the metronome</span></div><div class="tline" data-t="475"><span class="ts">7:55</span><span class="tx">context there's what it means to sort of</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">test your initial setup is not just that</span></div><div class="tline" data-t="478"><span class="ts">7:58</span><span class="tx">you can see uh a contract or something</span></div><div class="tline" data-t="481"><span class="ts">8:01</span><span class="tx">like that or see a customer provision</span></div><div class="tline" data-t="483"><span class="ts">8:03</span><span class="tx">but also you need to see usage and so in</span></div><div class="tline" data-t="486"><span class="ts">8:06</span><span class="tx">in on the back end here our skills files</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">are directing um the agent to actually</span></div><div class="tline" data-t="491"><span class="ts">8:11</span><span class="tx">flow usage into the metronome platform</span></div><div class="tline" data-t="493"><span class="ts">8:13</span><span class="tx">so that you can see what a live uh in</span></div><div class="tline" data-t="496"><span class="ts">8:16</span><span class="tx">what a live customer would look like. Um</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">I'm going to do one more beat on stripe</span></div><div class="tline" data-t="501"><span class="ts">8:21</span><span class="tx">projects here. I think in this case</span></div><div class="tline" data-t="503"><span class="ts">8:23</span><span class="tx">what's happening is that stripe projects</span></div><div class="tline" data-t="505"><span class="ts">8:25</span><span class="tx">so so using the stripe CLI it's it's</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">engaging with metronome which is an</span></div><div class="tline" data-t="509"><span class="ts">8:29</span><span class="tx">external vendor here you could also</span></div><div class="tline" data-t="510"><span class="ts">8:30</span><span class="tx">imagine also provisioning a bunch of</span></div><div class="tline" data-t="512"><span class="ts">8:32</span><span class="tx">other applications uh and using natural</span></div><div class="tline" data-t="514"><span class="ts">8:34</span><span class="tx">language to call for those as well um</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">and so what again what's nice about this</span></div><div class="tline" data-t="518"><span class="ts">8:38</span><span class="tx">is that it basically removes the</span></div><div class="tline" data-t="520"><span class="ts">8:40</span><span class="tx">friction associated with setting up a</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">test application or a test environment</span></div><div class="tline" data-t="524"><span class="ts">8:44</span><span class="tx">um and we again have seen a ton of uh of</span></div><div class="tline" data-t="528"><span class="ts">8:48</span><span class="tx">usage of this form um and we expect to</span></div><div class="tline" data-t="531"><span class="ts">8:51</span><span class="tx">see even more. Um, this is sort of like</span></div><div class="tline" data-t="534"><span class="ts">8:54</span><span class="tx">from our perspective coming into Stripe,</span></div><div class="tline" data-t="536"><span class="ts">8:56</span><span class="tx">this is one of the things that's been</span></div><div class="tline" data-t="537"><span class="ts">8:57</span><span class="tx">really amazing is that Stripe is on the</span></div><div class="tline" data-t="539"><span class="ts">8:59</span><span class="tx">forefront of thinking about agentic</span></div><div class="tline" data-t="540"><span class="ts">9:00</span><span class="tx">commerce and preparing primitives for</span></div><div class="tline" data-t="543"><span class="ts">9:03</span><span class="tx">the moment that we're in right now where</span></div><div class="tline" data-t="544"><span class="ts">9:04</span><span class="tx">in fact this is exactly what's</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">happening. Companies that are launching</span></div><div class="tline" data-t="548"><span class="ts">9:08</span><span class="tx">new um new applications and new</span></div><div class="tline" data-t="550"><span class="ts">9:10</span><span class="tx">businesses that we've seen an</span></div><div class="tline" data-t="551"><span class="ts">9:11</span><span class="tx">exponential increase in new business</span></div><div class="tline" data-t="553"><span class="ts">9:13</span><span class="tx">formation at Stripe. Um and then in</span></div><div class="tline" data-t="555"><span class="ts">9:15</span><span class="tx">addition to that an exponential increase</span></div><div class="tline" data-t="557"><span class="ts">9:17</span><span class="tx">in customers that are using Stripe and</span></div><div class="tline" data-t="560"><span class="ts">9:20</span><span class="tx">using Metronome through the coding</span></div><div class="tline" data-t="561"><span class="ts">9:21</span><span class="tx">agents themselves.</span></div><div class="tline" data-t="564"><span class="ts">9:24</span><span class="tx">Okay. Um</span></div><div class="tline" data-t="567"><span class="ts">9:27</span><span class="tx">we are almost done here I believe.</span></div><div class="tline" data-t="570"><span class="ts">9:30</span><span class="tx">Um, while this is going, I I like</span></div><div class="tline" data-t="573"><span class="ts">9:33</span><span class="tx">another sort of like thing to sit back</span></div><div class="tline" data-t="575"><span class="ts">9:35</span><span class="tx">and think about when I go around to</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">product teams today. They're obviously</span></div><div class="tline" data-t="578"><span class="ts">9:38</span><span class="tx">thinking about building for agents, but</span></div><div class="tline" data-t="580"><span class="ts">9:40</span><span class="tx">I think one of the things that's</span></div><div class="tline" data-t="581"><span class="ts">9:41</span><span class="tx">important to do is to de decode what</span></div><div class="tline" data-t="583"><span class="ts">9:43</span><span class="tx">exactly does that mean? And so I what I</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">like about this sort of framework for</span></div><div class="tline" data-t="588"><span class="ts">9:48</span><span class="tx">thinking about the coding agents today</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">is thinking about the different roles</span></div><div class="tline" data-t="592"><span class="ts">9:52</span><span class="tx">that they play. So obviously companies</span></div><div class="tline" data-t="594"><span class="ts">9:54</span><span class="tx">are launching agents as a product and</span></div><div class="tline" data-t="596"><span class="ts">9:56</span><span class="tx">therefore that's one of the reasons why</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">they need to have a usage based pricing</span></div><div class="tline" data-t="599"><span class="ts">9:59</span><span class="tx">model because if the agent can be the</span></div><div class="tline" data-t="601"><span class="ts">10:01</span><span class="tx">product and run up token a token bill</span></div><div class="tline" data-t="603"><span class="ts">10:03</span><span class="tx">it's important for you to be able to</span></div><div class="tline" data-t="605"><span class="ts">10:05</span><span class="tx">meter on that. Um what we're talking</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">about here with the Stripe project CLI</span></div><div class="tline" data-t="609"><span class="ts">10:09</span><span class="tx">is the agent as a buyer. So literally</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">procuring their initial Stripe instance</span></div><div class="tline" data-t="614"><span class="ts">10:14</span><span class="tx">as well as additional backend services.</span></div><div class="tline" data-t="617"><span class="ts">10:17</span><span class="tx">That's important to basically make your</span></div><div class="tline" data-t="619"><span class="ts">10:19</span><span class="tx">services discoverable to agents that may</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">be building an application or working in</span></div><div class="tline" data-t="624"><span class="ts">10:24</span><span class="tx">the open web. Um, on the Stripe side,</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">that means both in a B2C environment, so</span></div><div class="tline" data-t="628"><span class="ts">10:28</span><span class="tx">they're working on a gentommerce, but</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">then in the metronome environment, we're</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">talking about in a B2B context. Um, and</span></div><div class="tline" data-t="633"><span class="ts">10:33</span><span class="tx">uh, and so there's sort of like multiple</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">different levels to play out there. And</span></div><div class="tline" data-t="636"><span class="ts">10:36</span><span class="tx">then finally, one of the reasons why</span></div><div class="tline" data-t="638"><span class="ts">10:38</span><span class="tx">Metronome is really taking off right now</span></div><div class="tline" data-t="639"><span class="ts">10:39</span><span class="tx">is because of the agents as a user. Um,</span></div><div class="tline" data-t="642"><span class="ts">10:42</span><span class="tx">and so for example, we've been working</span></div><div class="tline" data-t="644"><span class="ts">10:44</span><span class="tx">with HubSpot for the past couple of</span></div><div class="tline" data-t="645"><span class="ts">10:45</span><span class="tx">years. They are currently on a path to</span></div><div class="tline" data-t="647"><span class="ts">10:47</span><span class="tx">transform their entire business from a</span></div><div class="tline" data-t="649"><span class="ts">10:49</span><span class="tx">seatbased model to a creditspbased</span></div><div class="tline" data-t="650"><span class="ts">10:50</span><span class="tx">model. Um, if you've seen some things in</span></div><div class="tline" data-t="652"><span class="ts">10:52</span><span class="tx">the news, that's starting in in EMIA</span></div><div class="tline" data-t="655"><span class="ts">10:55</span><span class="tx">where they have dramatically lowered</span></div><div class="tline" data-t="656"><span class="ts">10:56</span><span class="tx">their seats based price and added on a</span></div><div class="tline" data-t="658"><span class="ts">10:58</span><span class="tx">creditspbased model. The fundamental</span></div><div class="tline" data-t="660"><span class="ts">11:00</span><span class="tx">reason behind that is because what they</span></div><div class="tline" data-t="661"><span class="ts">11:01</span><span class="tx">need to be concerned about is a world in</span></div><div class="tline" data-t="664"><span class="ts">11:04</span><span class="tx">which an agent can operate their entire</span></div><div class="tline" data-t="665"><span class="ts">11:05</span><span class="tx">system. Um, and in that world</span></div><div class="tline" data-t="668"><span class="ts">11:08</span><span class="tx">essentially paying for a seat level</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">access to the product to perform your</span></div><div class="tline" data-t="671"><span class="ts">11:11</span><span class="tx">work is no longer important in some</span></div><div class="tline" data-t="673"><span class="ts">11:13</span><span class="tx">sense. Um, we've been talking about this</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">in uh as sort of headlessness. You know,</span></div><div class="tline" data-t="678"><span class="ts">11:18</span><span class="tx">Salesforce, various others have have</span></div><div class="tline" data-t="680"><span class="ts">11:20</span><span class="tx">talked about this. This is what</span></div><div class="tline" data-t="681"><span class="ts">11:21</span><span class="tx">Metronome is literally seeing today. Um,</span></div><div class="tline" data-t="683"><span class="ts">11:23</span><span class="tx">and so as like one example, last week I</span></div><div class="tline" data-t="685"><span class="ts">11:25</span><span class="tx">was at a uh I was at Andre's demo day</span></div><div class="tline" data-t="689"><span class="ts">11:29</span><span class="tx">where all five of the demoing companies</span></div><div class="tline" data-t="691"><span class="ts">11:31</span><span class="tx">were salesled agents meant to operate</span></div><div class="tline" data-t="694"><span class="ts">11:34</span><span class="tx">platforms like SAP or operate um operate</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">invoicing platforms, etc., etc. Um, and</span></div><div class="tline" data-t="701"><span class="ts">11:41</span><span class="tx">again in that world, it's important for</span></div><div class="tline" data-t="703"><span class="ts">11:43</span><span class="tx">you to have a usagebased pricing model</span></div><div class="tline" data-t="705"><span class="ts">11:45</span><span class="tx">because you have the possibility of</span></div><div class="tline" data-t="706"><span class="ts">11:46</span><span class="tx">essentially all of the value acrewing to</span></div><div class="tline" data-t="708"><span class="ts">11:48</span><span class="tx">essentially one user of your platform,</span></div><div class="tline" data-t="711"><span class="ts">11:51</span><span class="tx">which in this case would be an agent.</span></div><div class="tline" data-t="714"><span class="ts">11:54</span><span class="tx">If you guys are thinking about pricing</span></div><div class="tline" data-t="716"><span class="ts">11:56</span><span class="tx">models, so not just developing in the</span></div><div class="tline" data-t="718"><span class="ts">11:58</span><span class="tx">agentic space, I'm a good person to talk</span></div><div class="tline" data-t="719"><span class="ts">11:59</span><span class="tx">to. I'll be out here in a second. Some</span></div><div class="tline" data-t="721"><span class="ts">12:01</span><span class="tx">of the things that we're um thinking</span></div><div class="tline" data-t="723"><span class="ts">12:03</span><span class="tx">about here are basically um not only</span></div><div class="tline" data-t="726"><span class="ts">12:06</span><span class="tx">having a creditsbased model which has</span></div><div class="tline" data-t="728"><span class="ts">12:08</span><span class="tx">been uh dominant on the market since</span></div><div class="tline" data-t="730"><span class="ts">12:10</span><span class="tx">openai launched their prepaid credit</span></div><div class="tline" data-t="732"><span class="ts">12:12</span><span class="tx">auto recharge model a couple of years</span></div><div class="tline" data-t="733"><span class="ts">12:13</span><span class="tx">ago through metronome but in addition to</span></div><div class="tline" data-t="736"><span class="ts">12:16</span><span class="tx">that offering more and like more and</span></div><div class="tline" data-t="738"><span class="ts">12:18</span><span class="tx">extended offers including in a salesled</span></div><div class="tline" data-t="740"><span class="ts">12:20</span><span class="tx">in an enterprise environment um and so</span></div><div class="tline" data-t="742"><span class="ts">12:22</span><span class="tx">for example what's happening with all</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">the coding agency in the enterprise</span></div><div class="tline" data-t="745"><span class="ts">12:25</span><span class="tx">think like cognition or cursor or openAI</span></div><div class="tline" data-t="748"><span class="ts">12:28</span><span class="tx">anthropic themselves is that they are</span></div><div class="tline" data-t="750"><span class="ts">12:30</span><span class="tx">starting to adopt more um uh commit</span></div><div class="tline" data-t="754"><span class="ts">12:34</span><span class="tx">structures like the CSPs have done for</span></div><div class="tline" data-t="756"><span class="ts">12:36</span><span class="tx">the past 10 years. Think having prepaid</span></div><div class="tline" data-t="758"><span class="ts">12:38</span><span class="tx">commitments, postpaid commitments, and</span></div><div class="tline" data-t="760"><span class="ts">12:40</span><span class="tx">specific types of offers for specific</span></div><div class="tline" data-t="762"><span class="ts">12:42</span><span class="tx">types of customers.</span></div><div class="tline" data-t="764"><span class="ts">12:44</span><span class="tx">Okay, I think that we should be good to</span></div><div class="tline" data-t="766"><span class="ts">12:46</span><span class="tx">go now. And let's see what it looks like</span></div><div class="tline" data-t="768"><span class="ts">12:48</span><span class="tx">when we open up Metronome.</span></div><div class="tline" data-t="781"><span class="ts">13:01</span><span class="tx">Okay.</span></div><div class="tline" data-t="791"><span class="ts">13:11</span><span class="tx">What's up?</span></div><div class="tline" data-t="795"><span class="ts">13:15</span><span class="tx">Uhhuh.</span></div><div class="tline" data-t="797"><span class="ts">13:17</span><span class="tx">We've done multiple different versions</span></div><div class="tline" data-t="798"><span class="ts">13:18</span><span class="tx">of this, as you might imagine.</span></div><div class="tline" data-t="808"><span class="ts">13:28</span><span class="tx">Okay. So, as we open this up, uh,</span></div><div class="tline" data-t="813"><span class="ts">13:33</span><span class="tx">pull this.</span></div><div class="tline" data-t="825"><span class="ts">13:45</span><span class="tx">It's fun. I love all these demos where</span></div><div class="tline" data-t="826"><span class="ts">13:46</span><span class="tx">you're just looking at people logging</span></div><div class="tline" data-t="827"><span class="ts">13:47</span><span class="tx">in. Um, so as we open this up, so the</span></div><div class="tline" data-t="830"><span class="ts">13:50</span><span class="tx">general pain that Metronome has is an</span></div><div class="tline" data-t="831"><span class="ts">13:51</span><span class="tx">onboarding wizard meant for a human that</span></div><div class="tline" data-t="833"><span class="ts">13:53</span><span class="tx">needs to set up their environment. We've</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">we don't need this now because we had an</span></div><div class="tline" data-t="838"><span class="ts">13:58</span><span class="tx">agent set up this environment. And as I</span></div><div class="tline" data-t="840"><span class="ts">14:00</span><span class="tx">come in, you're going to see some of the</span></div><div class="tline" data-t="841"><span class="ts">14:01</span><span class="tx">core metronome primitives here. Let's</span></div><div class="tline" data-t="843"><span class="ts">14:03</span><span class="tx">start by looking at the customer that</span></div><div class="tline" data-t="844"><span class="ts">14:04</span><span class="tx">was set up. Again, this is for testing</span></div><div class="tline" data-t="846"><span class="ts">14:06</span><span class="tx">purposes. Um, up at the top, you're</span></div><div class="tline" data-t="848"><span class="ts">14:08</span><span class="tx">seeing the customer with a certain</span></div><div class="tline" data-t="850"><span class="ts">14:10</span><span class="tx">lifetime spend. This was auto again</span></div><div class="tline" data-t="852"><span class="ts">14:12</span><span class="tx">populated by um by the agent for the</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">demo environment. Um I'm immediately</span></div><div class="tline" data-t="857"><span class="ts">14:17</span><span class="tx">going to go into their invoice and we'll</span></div><div class="tline" data-t="860"><span class="ts">14:20</span><span class="tx">come back to this in a second. Um and so</span></div><div class="tline" data-t="862"><span class="ts">14:22</span><span class="tx">what you what you see here is a draft</span></div><div class="tline" data-t="864"><span class="ts">14:24</span><span class="tx">invoice that was created associated with</span></div><div class="tline" data-t="867"><span class="ts">14:27</span><span class="tx">um sort of replicating the lovable</span></div><div class="tline" data-t="869"><span class="ts">14:29</span><span class="tx">pricing model again. Um so if you have</span></div><div class="tline" data-t="871"><span class="ts">14:31</span><span class="tx">this on the side you can see all the</span></div><div class="tline" data-t="872"><span class="ts">14:32</span><span class="tx">different elements of that. But the core</span></div><div class="tline" data-t="873"><span class="ts">14:33</span><span class="tx">aspect of lovable's pricing model is a</span></div><div class="tline" data-t="875"><span class="ts">14:35</span><span class="tx">creditonly pricing model where you</span></div><div class="tline" data-t="877"><span class="ts">14:37</span><span class="tx">autorecharge on a monthly basis. Um and</span></div><div class="tline" data-t="880"><span class="ts">14:40</span><span class="tx">then in add in addition to that they</span></div><div class="tline" data-t="881"><span class="ts">14:41</span><span class="tx">have multiple different types of credits</span></div><div class="tline" data-t="883"><span class="ts">14:43</span><span class="tx">that are scoped to different types of</span></div><div class="tline" data-t="884"><span class="ts">14:44</span><span class="tx">usage beyond the the use of those</span></div><div class="tline" data-t="887"><span class="ts">14:47</span><span class="tx">credits. Then if you go over and if you</span></div><div class="tline" data-t="889"><span class="ts">14:49</span><span class="tx">overspend then you have an invoice at</span></div><div class="tline" data-t="891"><span class="ts">14:51</span><span class="tx">the end of the period. Um so a couple of</span></div><div class="tline" data-t="893"><span class="ts">14:53</span><span class="tx">the different like concepts there that</span></div><div class="tline" data-t="895"><span class="ts">14:55</span><span class="tx">are relatively complicated to administer</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">is the credit itself. And so Metronome</span></div><div class="tline" data-t="899"><span class="ts">14:59</span><span class="tx">has a first class uh credit object here.</span></div><div class="tline" data-t="901"><span class="ts">15:01</span><span class="tx">What you're seeing is that there was a</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">credit credit created for the initial</span></div><div class="tline" data-t="904"><span class="ts">15:04</span><span class="tx">period that we're testing for. we had</span></div><div class="tline" data-t="906"><span class="ts">15:06</span><span class="tx">usage that that draw that drew down from</span></div><div class="tline" data-t="908"><span class="ts">15:08</span><span class="tx">that entire credit balance. And then</span></div><div class="tline" data-t="910"><span class="ts">15:10</span><span class="tx">finally, if we go back to the customer</span></div><div class="tline" data-t="912"><span class="ts">15:12</span><span class="tx">pane,</span></div><div class="tline" data-t="914"><span class="ts">15:14</span><span class="tx">um in addition to that, you can see the</span></div><div class="tline" data-t="916"><span class="ts">15:16</span><span class="tx">usage that we that we plopped in. All</span></div><div class="tline" data-t="918"><span class="ts">15:18</span><span class="tx">obviously in a production environment,</span></div><div class="tline" data-t="919"><span class="ts">15:19</span><span class="tx">you would be seeing this in against real</span></div><div class="tline" data-t="922"><span class="ts">15:22</span><span class="tx">usage that you have. The core reason</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">again to show it in this manner is to</span></div><div class="tline" data-t="926"><span class="ts">15:26</span><span class="tx">just see what it would look like if you</span></div><div class="tline" data-t="929"><span class="ts">15:29</span><span class="tx">adopted the pricing model and then had</span></div><div class="tline" data-t="930"><span class="ts">15:30</span><span class="tx">real usage against it. Again, I'm going</span></div><div class="tline" data-t="932"><span class="ts">15:32</span><span class="tx">to come back to the invoice. And so here</span></div><div class="tline" data-t="934"><span class="ts">15:34</span><span class="tx">you can click into each of these</span></div><div class="tline" data-t="935"><span class="ts">15:35</span><span class="tx">different components. Um, build credits,</span></div><div class="tline" data-t="937"><span class="ts">15:37</span><span class="tx">plan mode credits, cloud credits, AI</span></div><div class="tline" data-t="938"><span class="ts">15:38</span><span class="tx">gateway credits. This is exactly what</span></div><div class="tline" data-t="940"><span class="ts">15:40</span><span class="tx">the lovable pricing model looks like.</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">And again, the way that we coached the</span></div><div class="tline" data-t="943"><span class="ts">15:43</span><span class="tx">agent to be able to do to to build this</span></div><div class="tline" data-t="946"><span class="ts">15:46</span><span class="tx">was just describing a natural language</span></div><div class="tline" data-t="947"><span class="ts">15:47</span><span class="tx">to replicate lovable pricing model. It</span></div><div class="tline" data-t="949"><span class="ts">15:49</span><span class="tx">was nothing more difficult than that.</span></div><div class="tline" data-t="951"><span class="ts">15:51</span><span class="tx">Um, so without going into Metronome's</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">platform to too great an extent, um, the</span></div><div class="tline" data-t="956"><span class="ts">15:56</span><span class="tx">what we just did here was we initialized</span></div><div class="tline" data-t="960"><span class="ts">16:00</span><span class="tx">uh and created a stripe instance. We</span></div><div class="tline" data-t="962"><span class="ts">16:02</span><span class="tx">then in through Stripe projects uh we</span></div><div class="tline" data-t="965"><span class="ts">16:05</span><span class="tx">also created a metronome instance. Then</span></div><div class="tline" data-t="968"><span class="ts">16:08</span><span class="tx">we coached the agent to be able to uh</span></div><div class="tline" data-t="971"><span class="ts">16:11</span><span class="tx">build a demo instance of metronome that</span></div><div class="tline" data-t="974"><span class="ts">16:14</span><span class="tx">had a real pricing model live in</span></div><div class="tline" data-t="976"><span class="ts">16:16</span><span class="tx">production. And so you could imagine</span></div><div class="tline" data-t="977"><span class="ts">16:17</span><span class="tx">basically testing then from there the</span></div><div class="tline" data-t="980"><span class="ts">16:20</span><span class="tx">exact testing and tweaking from there</span></div><div class="tline" data-t="981"><span class="ts">16:21</span><span class="tx">exactly what you wanted before bringing</span></div><div class="tline" data-t="983"><span class="ts">16:23</span><span class="tx">that into production. Um this sort of</span></div><div class="tline" data-t="985"><span class="ts">16:25</span><span class="tx">framework for thinking about development</span></div><div class="tline" data-t="987"><span class="ts">16:27</span><span class="tx">both applies to Stripe where we are</span></div><div class="tline" data-t="990"><span class="ts">16:30</span><span class="tx">working very very hard to make it easier</span></div><div class="tline" data-t="992"><span class="ts">16:32</span><span class="tx">to uh run a complicated business model</span></div><div class="tline" data-t="995"><span class="ts">16:35</span><span class="tx">and get off the ground but also I think</span></div><div class="tline" data-t="996"><span class="ts">16:36</span><span class="tx">it bears lessons for how we might pursue</span></div><div class="tline" data-t="999"><span class="ts">16:39</span><span class="tx">agentic development more generally</span></div><div class="tline" data-t="1000"><span class="ts">16:40</span><span class="tx">outside of Stripe. So again, think about</span></div><div class="tline" data-t="1002"><span class="ts">16:42</span><span class="tx">some of the primitives that we talked</span></div><div class="tline" data-t="1004"><span class="ts">16:44</span><span class="tx">about here today. Agent as a buyer,</span></div><div class="tline" data-t="1006"><span class="ts">16:46</span><span class="tx">agent as your product, agent as your</span></div><div class="tline" data-t="1007"><span class="ts">16:47</span><span class="tx">user and disambiguating what the</span></div><div class="tline" data-t="1009"><span class="ts">16:49</span><span class="tx">different the different um modes and uh</span></div><div class="tline" data-t="1012"><span class="ts">16:52</span><span class="tx">and like implications of those are. And</span></div><div class="tline" data-t="1014"><span class="ts">16:54</span><span class="tx">then in addition to that um having</span></div><div class="tline" data-t="1016"><span class="ts">16:56</span><span class="tx">having ways in which we coach the agent</span></div><div class="tline" data-t="1018"><span class="ts">16:58</span><span class="tx">to operate more effectively in including</span></div><div class="tline" data-t="1021"><span class="ts">17:01</span><span class="tx">in a in a in a difficult environment.</span></div><div class="tline" data-t="1023"><span class="ts">17:03</span><span class="tx">You can try this for yourself now. So uh</span></div><div class="tline" data-t="1025"><span class="ts">17:05</span><span class="tx">the easiest way to get started is with</span></div><div class="tline" data-t="1027"><span class="ts">17:07</span><span class="tx">the commands that are that are listed</span></div><div class="tline" data-t="1029"><span class="ts">17:09</span><span class="tx">here and you can see everything that is</span></div><div class="tline" data-t="1031"><span class="ts">17:11</span><span class="tx">available through Stripe Projects</span></div><div class="tline" data-t="1032"><span class="ts">17:12</span><span class="tx">through Stripe Projects online. Um as</span></div><div class="tline" data-t="1034"><span class="ts">17:14</span><span class="tx">there are a number of different</span></div><div class="tline" data-t="1036"><span class="ts">17:16</span><span class="tx">providers that are onboarding every day.</span></div><div class="tline" data-t="1038"><span class="ts">17:18</span><span class="tx">Um so companies like Versell um like</span></div><div class="tline" data-t="1041"><span class="ts">17:21</span><span class="tx">hugging face etc are basically like</span></div><div class="tline" data-t="1044"><span class="ts">17:24</span><span class="tx">working in Stripe projects environment</span></div><div class="tline" data-t="1046"><span class="ts">17:26</span><span class="tx">to be able to make their own products</span></div><div class="tline" data-t="1048"><span class="ts">17:28</span><span class="tx">more discoverable to agents that are</span></div><div class="tline" data-t="1050"><span class="ts">17:30</span><span class="tx">operating Stripe system.</span></div><div class="tline" data-t="1066"><span class="ts">17:46</span><span class="tx">&gt;&gt; [music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

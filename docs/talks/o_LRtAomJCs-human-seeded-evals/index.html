@@ -1,0 +1,786 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>由人播种的评测 —— Samuel Colvin，Pydantic | AI 工程师中文版</title>
+<meta name="description" content="可靠的 AI 应用需要明确的契约：带类型的输出、能触发纠正性重试的校验、带类型的工具依赖，以及能解释一次运行为何失败的 trace。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>由人播种的评测 —— Samuel Colvin，Pydantic</h1>
+    <div class="orig-title">Human seeded Evals — Samuel Colvin, Pydantic</div>
+    <div class="meta"><span class="speaker">Samuel Colvin</span> · AI Engineer World's Fair 2025 · 12:02</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=ai-security">AI 安全</a><a class="tag" href="../../index.html#topic=developer-workflows-and-testing">开发工作流与测试</a><a class="tag" href="../../index.html#topic=document-understanding-and-ocr">文档理解与 OCR</a><a class="tag" href="../../index.html#topic=enterprise-ai">企业 AI</a><a class="tag" href="../../index.html#topic=rl-environments-and-simulators">强化学习环境与模拟器</a><a class="tag" href="../../index.html#topic=structured-outputs">结构化输出</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/o_LRtAomJCs-human-seeded-evals" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="o_LRtAomJCs"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=o_LRtAomJCs" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">如何重构一个形态仍在变化的应用？</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="19"><span class="ts">0:19</span><span>如何重构一个形态仍在变化的应用？</span></li><li data-t="119"><span class="ts">1:59</span><span>智能体循环需要一个出口</span></li><li data-t="212"><span class="ts">3:32</span><span>抽取一个 Person，再让校验真正起作用</span></li><li data-t="346"><span class="ts">5:46</span><span>检查重试，再跟踪输出类型</span></li><li data-t="479"><span class="ts">7:59</span><span>把依赖类型带进记忆工具</span></li><li data-t="577"><span class="ts">9:37</span><span>一次合法的工具调用仍可能搜错东西</span></li><li data-t="695"><span class="ts">11:35</span><span>trace 还暴露了时间和成本</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 15 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Building AI applications the Pydantic way" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Building AI applications the Pydantic way</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Colvin frames the talk around building reliable, scalable applications with PydanticAI and Logfire. The overview includes agents, MCP, evals and observability, though he says he won't reach evals today.
+
+[0:23](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=23s) [Editor showing an overview of type-safe agents, MCP, evaluations, and observability.](https://assets.ai.engineer/sites/aiecode2025/sha256/ede729eef0c2b94b0f28a1c95d2477f0cf7083d64fa65af5f7ebb96c4f47980d.webp)
+
+Building AI Applications the Pydantic way
+
+* Everything is changing
+* ...except when it's not: people still want to build reliable, scalable applications, and that's still hard.
+
+In this talk, we'll use PydanticAI &amp; Pydantic Logfire to demonstrate:
+* How to build typesafe agents — important for production, even more important for development
+* The power of MCP for autonomous agents
+* How evals fit into the picture
+* The importance of tracing and observability for AI Applications
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md  settings.json  ex.py  query_builder_example.py  pyproject.toml  memory_tools.py  messages.py  03_unit_testing.py  browser_mcp.py  agent.py  time_range_v1.yaml  custom_evaluators.py
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="What is an agent?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is an agent?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An agent runs a model in a loop: the model receives a system prompt and environment state, produces an action, and tools run that action to update the state.
+
+[1:54](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=114s) [Editor showing an agent definition and pseudocode for a model using tools in a loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/1c5664098f7c0b3e4e376fafcc90883d708311903cc714164588951d6b4cd2c9.webp)
+
+What is an &quot;Agent&quot;?
+
+This has been widely covered, but still seems to be a subject of dispute, so I'll explain what I mean.
+
+From [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents).
+
+![Agent loop diagram](agent-loop.png)
+
+From [How We Build Effective Agents: Barry Zhang, Anthropic](https://youtu.be/D7_ipDqhtwk?&amp;t=358)
+
+Agents are models using tools in a loop
+
+env = Environment()
+tools = Tools(env)
+system_prompt = &quot;Goals, constraints, and how to act&quot;
+
+while True:
+    action = llm.run(system_prompt + env.state)
+    env.state = tools.run(action)
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Agent loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A human interacts with an LLM call, which sends actions to an environment, receives feedback, and can stop.
+
+[2:09](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=129s) [Diagram showing a human interacting with an LLM call, which exchanges actions and feedback with an environment and can stop.](https://assets.ai.engineer/sites/aiecode2025/sha256/fb6941af6ef9c80b5f9605575dca52bc8c6477c2600e42763ec5a69b5b2add15.webp)
+
+Action
+Human
+LLM Call
+Environment
+Feedback
+Stop
+
+Interface text:
+agent-loop.png
+Close Tab ⌘ W</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Agents use tools in a loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agents use tools in a loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The model chooses an action, tools run it, and the resulting environment state feeds the next call. Colvin points out that this pseudocode has no exit condition, exposing the question of when an agent should stop.
+
+[2:31](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=151s) [Editor showing pseudocode that calls a model, runs its chosen action with tools, and updates the environment state in a loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/ed24299883356b1acbc6a65d5d30e2c1279f8fa69d0ef226351b5d59afa9e268.webp)
+
+https://youtu.be/D7_ipDqhtwk?&amp;t=358
+
+Agents are models using tools in a loop
+
+env = Environment()
+tools = Tools(env)
+system_prompt = &quot;Goals, constraints, and how to act&quot;
+
+while True:
+    action = llm.run(system_prompt + env.state)
+    env.state = tools.run(action)
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Structured extraction result" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Structured extraction result</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent returns a Person model with Samuel’s name, birth date, and city. Colvin describes this as a one-shot example: one LLM call returns structured data, which Pydantic AI validates.
+
+[4:12](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=252s) [A terminal displays a successfully extracted person model beneath the schema.](https://assets.ai.engineer/sites/aiecode2025/sha256/d51763068f408d8c057170a31e8464e7a5b01a887b5774d7081a042cf02d89b9.webp)
+
+from datetime import date
+from pydantic_ai import Agent
+from pydantic import BaseModel
+
+class Person(BaseModel):
+    name: str
+    dob: date
+    city: str
+
+Runnin[illegible]st_agent.py...
+Person(name='Samuel', dob=datetime.date(1987, 1, 28), city='London')
+✓ done
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md › class Person
+run python
+Process ID (PID): 12841
+AIE
+AI Engineer World's Fair
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Pydantic AI structured extraction" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Pydantic AI structured extraction</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent extracts a Person from one LLM call; Pydantic AI validates the structured result. The example then asks what happens if validation fails.
+
+[4:22](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=262s) [The editor shows the extraction code and a prompt about validation failure.](https://assets.ai.engineer/sites/aiecode2025/sha256/93efd7e4e0103a02e141f8f40720f1edae0ff99c85d7426531b8758d9c4edc4c.webp)
+
+from datetime import date
+from pydantic_ai import Agent
+from pydantic import BaseModel
+
+class Person(BaseModel):
+    name: str
+    dob: date
+    city: str
+
+agent = Agent(
+    'openai:gpt-4o',
+    output_type=Person,
+    instructions='Extract information about the person',
+)
+result = agent.run_sync(&quot;Samuel lived in London and was born on Jan 28th '87&quot;)
+print(repr(result.output))
+```
+
+[illegible]esn't look much like a loop, but what if validation fails...
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md &gt; class Person
+Samuel Colvin, 3 weeks ago
+AIE
+Microsoft
+smol ai
+AI Engineer World's Fair
+
+[4:32](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=272s) [Code defines a person model and uses it as an agent’s output type.](https://assets.ai.engineer/sites/aiecode2025/sha256/589443a8afe80484fdd54cdf4079a9a795de3d1d07a20c13366ded881787098f.webp)
+
+from datetime import date
+from pydantic_ai import Agent
+from pydantic import BaseModel
+
+class Person(BaseModel):
+    name: str
+    dob: date
+    city: str
+
+agent = Agent(
+    'openai:gpt-4o',
+    output_type=Person,
+    instructions='Extract information about the person',
+)
+result = agent.run_sync(&quot;Samuel lived in London and was born on Jan 28th '87&quot;)
+print(repr(result.output))
+```
+
+[illegible]esn't look much like a loop, but what if validation fails...
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md &gt; class Person
+Samuel Colvin, 3 weeks ago
+AIE
+aws
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Adding validation and instrumentation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Adding validation and instrumentation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Colvin instruments Pydantic AI with Logfire and adds a birth-date validator. It rejects dates on or after January 1, 1900, though it does not enforce a lower bound for the 19th century.
+
+[4:38](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=278s) [Code configures instrumentation and adds a date validator to a person model.](https://assets.ai.engineer/sites/aiecode2025/sha256/fabf590d3e14b5dd9770d7f86e1791f09c5410ab27c3b2edcf3a8316e6093f40.webp)
+
+```py title=&quot;agent_retry.py&quot;
+from datetime import date
+from pydantic_ai import Agent
+from pydantic import BaseModel, field_validator
+
+import logfire
+logfire.configure(service_name='agent-retry')
+logfire.instrument_pydantic_ai()
+
+class Person(BaseModel):
+    &quot;&quot;&quot;Definition of an historic person&quot;&quot;&quot;
+    name: str
+    dob: date
+    city: str
+
+@field_validator('dob')
+    def validate_dob(cls, v: date) -&gt; date:
+        if v &gt;= date(1900, 1, 1):
+            raise ValueError('The person must be born in the 19th century')
+        return v
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md &gt; class Person
+109:14  Markdown
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Agent with a validated output model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent with a validated output model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A Person validator rejects birth dates from 1900 onward. Colvin explains that the agent returns validation errors to the model so it can retry an ambiguous date like '87.
+
+[4:44](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=284s) [A person model with a date validator is used as the output type for an agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/53611bc1ffabcdbc1584a6f22dc2e7ed270ffdb9c11f19149e1eb4c53a713d61.webp)
+
+class Person(BaseModel):
+    &quot;&quot;&quot;Definition of an historic person&quot;&quot;&quot;
+    name: str
+    dob: date
+    city: str
+
+@field_validator('dob')
+    def validate_dob(cls, v: date) -&gt; date:
+        if v &gt;= date(1900, 1, 1):
+            raise ValueError('The person must be born in the 19th century')
+        return v
+
+agent = Agent(
+    'google-vertex:gemini-2.0-flash',
+    output_type=Person,
+    instructions='Extract information about the person',
+)
+[illegible] = agent.run_sync(&quot;Samuel lived in London and was born on Jan 28th [illegible]87&quot;)
+[illegible]epr(result.output))
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md
+README.md &gt; class Person
+109:14  Markdown
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai
+
+[5:04](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=304s) [Code defines a birth-date validator and an agent that extracts a person’s information.](https://assets.ai.engineer/sites/aiecode2025/sha256/c0c5fd3c0649ffae2809059772752a6bda0ea79b097ae5d9b63900ed3f42510d.webp)
+
+&quot;&quot;&quot;Definition of an historic person&quot;&quot;&quot;
+name: str
+dob: date
+city: str
+
+@field_validator('dob')
+def validate_dob(cls, v: date) -&gt; date:
+    if v &gt;= date(1900, 1, 1):
+        raise ValueError('The person must be born in the 19th century')
+    return v
+
+agent = Agent(
+    'google-vertex:gemini-2.0-flash',
+    output_type=Person,
+    instructions='Extract information about the person',
+)
+result = agent.run_sync(&quot;Samuel lived in London and was born on Jan 28th '87&quot;)
+print(repr(result.output))
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md
+Samuel Colvin, 3 weeks ago
+149:24  Markdown
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Agent run and validation result" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent run and validation result</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent returns validation errors to Gemini for a retry. The run shows two model calls and returns Samuel in London with a birth date of January 28, 1887.
+
+[5:45](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=345s) [A terminal shows two model calls and a completed structured person result beneath the validator code.](https://assets.ai.engineer/sites/aiecode2025/sha256/9a5eef0a701b7a52edc9660fd23e273f56fa409a70e493428eb125edad4c8ed6.webp)
+
+class Person(BaseModel):
+    &quot;&quot;&quot;Definition of an historic person&quot;&quot;&quot;
+    name: str
+    dob: date
+    city: str
+
+@field_validator('dob')
+    def validate_dob(cls, v: date) -&gt; date:
+        if v &gt;= date(1900, 1, 1):
+            raise ValueError('The person must be born in the 19th century')
+
+Running agent_retry.py...
+20:14:03.963 agent run
+20:14:03.964 chat gemini-2.0-flash
+Logfire project URL: https://logfire-us.pydantic.dev/samuelcolvin/docs-examples
+20:14:05.551 chat gemini-2.0-flash
+Person(name='Samuel', dob=datetime.date(1887, 1, 28), city='London')
+✓ done
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md
+run python
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Agent validation and Logfire trace" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent validation and Logfire trace</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The instrumented agent returns a Person result after two Gemini calls. The Logfire trace shows both calls nested under the agent run.
+
+[5:49](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=349s) [Code configures observability instrumentation above a terminal showing the agent run.](https://assets.ai.engineer/sites/aiecode2025/sha256/1daa1aa44b4e35975c98c1599e6d429296c832dd38046f425611a3d174e5e764.webp)
+
+from pydantic_ai import Agent
+from pydantic import BaseModel, field_validator
+
+import logfire
+logfire.configure(service_name='agent-retry')
+logfire.instrument_pydantic_ai()
+
+class Person(BaseModel):
+    &quot;&quot;&quot;Definition of an historic person&quot;&quot;&quot;
+    name: str
+
+Running agent_retry.py...
+20:14:03.963 agent run
+20:14:03.964 chat gemini-2.0-flash
+Logfire project URL: https://logfire-us.pydantic.dev/samuelcolvin/docs-examples
+20:14:05.551 chat gemini-2.0-flash
+Person(name='Samuel', dob=datetime.date(1887, 1, 28), city='London')
+✓ done
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md
+Samuel Colvin, 3 weeks ago
+run python
+AIE
+Microsoft
+smol ai
+AI Engineer World's Fair
+
+[6:02](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=362s) [A live trace lists an agent run with two model calls and their durations.](https://assets.ai.engineer/sites/aiecode2025/sha256/f4c61186e6cedf82c849b62a35555751038ea542fc681ceee341e25a67a11a99.webp)
+
+Samuel Colvin / docs-examples / all envs
+Live  Dashboards v2  Alerts  Explore  Settings
+Search &amp; filter with SQL...
+Last 5 minutes
+Filter local data
+
+Y-axis ticks: 0.0, 2.0
+Timeline: Jun 05, 13:09:24; 13:10:01; 13:10:39; 13:11:16; 13:11:54; 13:12:31; 13:13:09; 13:13:46; Jun 05, 13:14:24
+Showing records from the last 5 minutes
+No older items in the selected time window.
+Today
+13:14:03  agent-retry  2  agent run  192  36  pydantic-ai  2.27s
+13:14:03  agent-retry  chat gemini-2.0-flash  42  18  pydantic-ai  1.59s
+13:14:05  agent-retry  chat gemini-2.0-flash  150  18  pydantic-ai  681ms
+Collapse  Clear  Live
+
+Interface text:
+logfire-us.pydantic.dev/samuelcolvin/docs-examples
+Gmail  Calendar  Google Keep  Pydantic deck  samuelcolvin  Pydantic Org  platform  pydantic-ai  GitHub  Linear  Notion  CF discord  Website Analytics...  All Bookmarks
+Docs</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Validated person output" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Validated person output</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent extracts a Person from a sentence. Its date validator rejects births on or after 1900, while the Person output type gives the result both a static type and runtime validation.
+
+[7:02](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=422s) [Python code defines a date validator and runs an agent with a Person output type.](https://assets.ai.engineer/sites/aiecode2025/sha256/31cc8edc1945d8f49c4ecc72f6076e17df27f64725b54037e33729f879ed47a0.webp)
+
+name: str
+    dob: date
+    city: str
+
+@field_validator('dob')
+    def validate_dob(cls, v: date) -&gt; date:
+        if v &gt;= date(1900, 1, 1):
+            raise ValueError('The person must be born in the 19th century')
+        return v
+
+agent = Agent(
+    'google-vertex:gemini-2.0-flash',
+    output_type=Person,
+    instructions='Extract information about the person',
+)
+result = agent.run_sync(&quot;Samuel lived in London and was born on Jan 28th '87&quot;)
+print(repr(result.output))
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md  ex.py
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Agent generic type" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent generic type</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent’s Person output type makes the agent generic in Person. Colvin explains that result.output is typed as Person and validated at runtime by Pydantic.
+
+[7:06](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=426s) [The editor shows the agent's generic type with Person as its output type.](https://assets.ai.engineer/sites/aiecode2025/sha256/1f6311ae8daafcba8e410dc95e07f8fe6c66f656033ebf69997d1a829ff1af55.webp)
+
+name: str
+dob: date
+city: str
+
+@field_validator('dob')
+def validate_dob(cls, v: date) -&gt; date:
+    if v &gt;= date(1900, 1, 1):
+        raise ValueError('The person must be born in the 19th century')
+    return v
+
+agent = Agent(
+    'google-vertex:gemini-2.0-flash',
+    output_type=Person,
+    instructions='Extract information about the person',
+)
+result = agent.run_sync(&quot;Samuel lived in London and was born on Jan 28th '87&quot;)
+print(repr(result.output))
+
+Tooltip:
+(variable) agent: Agent[None, Person]
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md  ex.py
+ex.py
+10:1  Python 3.13.0 (venv)  Python
+AIE
+AI Engineer World's Fair
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Accessing typed output fields" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Accessing typed output fields</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The editor accepts result.output.name but flags result.output.first_name as an unknown field. The agent’s output type is Person, so its fields can be checked by the type checker.
+
+[7:27](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=447s) [Python code accesses the name and first_name fields of the agent output, with first_name marked as an error.](https://assets.ai.engineer/sites/aiecode2025/sha256/9cad9169c876dcaf05132e64963e4fb4bc8aa84a49848131de17ec4168cdc85b.webp)
+
+dob: date
+city: str
+
+@field_validator('dob')
+def validate_dob(cls, v: date) -&gt; date:
+    if v &gt;= date(1900, 1, 1):
+        raise ValueError('The person must be born in the 19th century')
+    return v
+
+agent = Agent(
+    'google-vertex:gemini-2.0-flash',
+    output_type=Person,
+    instructions='Extract information about the person',
+)
+result = agent.run_sync(&quot;Samuel lived in London and was born on Jan 28th '87&quot;)
+print(repr(result.output))
+print(repr(result.output.name))
+print(repr(result.output.first_name))
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md
+ex.py
+AIE
+AI Engineer World's Fair
+aws
+33:32
+Python 3.13.0 (venv)
+Python</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Memory database setup" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Memory database setup</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The long-term memory example sets up a PostgreSQL table with unique user-value pairs. Its context manager can reset the table and closes the connection after use.
+
+[8:10](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=490s) [Code editor showing an asynchronous database context manager and a memory table schema.](https://assets.ai.engineer/sites/aiecode2025/sha256/9235cded3bca40964f17c665aed69e0e1d6d721a62da287206b2315987c15bdb.webp)
+
+@asynccontextmanager
+async def db(reset: bool = False) -&gt; AsyncIterator[DbConn]:
+    conn = await asyncpg.connect('postgresql://postgres@localhost:5432')
+    if reset:
+        await conn.execute('drop table if exists memory')
+    await conn.execute(&quot;&quot;&quot;
+        create table if not exists memory(
+            id serial primary key,
+            user_id integer not null,
+            value text not null,
+            unique(user_id, value)
+        )
+    &quot;&quot;&quot;)
+
+try:
+        yield conn
+    finally:
+        await conn.close()
+
+[partially obscured code]
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md  memory_tools.py  ex.py
+memory_tools.py
+1:1  Python 3.13.0 (venv)  Python
+AIE
+AI Engineer World's Fair
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Memory tools" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Memory tools</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Two agent tools implement long-term memory: one stores a value for a user, while the other retrieves that user's memories using a case-insensitive text match. Both are registered with @agent.tool.
+
+[8:20](https://www.youtube.com/watch?v=o_LRtAomJCs&amp;t=500s) [Code editor showing agent tools that record and retrieve user memories.](https://assets.ai.engineer/sites/aiecode2025/sha256/0353f8e62c06ba51c4a43a1e9c6570024d9697b010fef7f2b147373dcfb59cc3.webp)
+
+@agent.tool
+async def record_memory(ctx: RunContext[Deps], value: str) -&gt; str:
+    &quot;&quot;&quot;Use this tool to store information in memory.&quot;&quot;&quot;
+    await ctx.deps.conn.execute(
+        'insert into memory(user_id, value) values($1, $2) on conflict do nothing',
+        ctx.deps.user_id,
+        value,
+    )
+    return 'Value added to memory.'
+
+@agent.tool
+async def retrieve_memories(ctx: RunContext[Deps], memory_contains: str) -&gt; str:
+    &quot;&quot;&quot;Get all memories about the user.&quot;&quot;&quot;
+    rows = await ctx.deps.conn.fetch(
+        'select value from memory where user_id = $1 and value ilike $2',
+        ctx.deps.user_id,
+        f'%{memory_contains}%',
+    )
+    [illegible]rn '\n'.join(row[0] for row in rows)
+
+Interface text:
+2025-05-pycon-us  2025-06-ai-engineer-mcp
+README.md  memory_tools.py  ex.py
+memory_tools.py
+1:1  Python 3.13.0 (venv)  Python
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">如何重构一个形态仍在变化的应用？</a></li><li><a href="#sec-2">智能体循环需要一个出口</a></li><li><a href="#sec-3">抽取一个 Person，再让校验真正起作用</a></li><li><a href="#sec-4">检查重试，再跟踪输出类型</a></li><li><a href="#sec-5">把依赖类型带进记忆工具</a></li><li><a href="#sec-6">一次合法的工具调用仍可能搜错东西</a></li><li><a href="#sec-7">trace 还暴露了时间和成本</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">由人播种的评测 —— Samuel Colvin，Pydantic</h2>
+      <div class="lede"><p>可靠的 AI 应用需要明确的契约：带类型的输出、能触发纠正性重试的校验、带类型的工具依赖，以及能解释一次运行为何失败的 trace。</p><p>熟悉 Python 类型注解、Pydantic 模型和基本的 LLM 工具调用，有助于理解示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="19">▶ 0:19</button></div>
+      <h3>如何重构一个形态仍在变化的应用？</h3>
+      <p>How do you build a reliable, scalable application when you do not yet know what it will become? Adding generative AI does not remove that problem. It can make it harder, whether a model is helping write the application or running inside it. Despite the recording’s title, Samuel Colvin explicitly leaves evals out of this shortened presentation, drawing instead on <a href="https://us.pycon.org/2025/schedule/presentation/143/" target="_blank" rel="noopener">Building AI Applications the Pydantic Way</a>. The practical focus is building and changing AI applications safely.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b94f510cfbb828ecb9ebbf0928bc5ce4e96445141e3501281b32b613cffbd97f" alt="Editor showing the complete “Building AI Applications the Pydantic way” outline, with the presenter inset below." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Reliable, scalable applications remain hard to build; the outline introduces type safety, MCP, evals, and observability.</figcaption></figure>
+<p><strong>Type safety makes repeated refactoring less precarious.</strong> An AI application is likely to change shape several times as its requirements become clearer. A type checker can reveal the places where a change breaks an existing contract. A coding agent such as Cursor can also run those checks and use the diagnostics to correct its work.</p>
+<p>Colvin contrasts this with what he considers inadequate type safety in LangChain and LangGraph. That is his assessment of their guarantees in the presentation, not a claim that they have no typing facilities: current <a href="https://docs.langchain.com/oss/python/langgraph/use-graph-api" target="_blank" rel="noopener">LangGraph documentation</a> includes typed state schemas. The distinction that matters for the coming examples is whether types remain connected across an agent’s output, its tools, and the dependencies supplied when it runs. MCP is mentioned as a possible topic, but the demonstrations concentrate on these contracts and observability.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="119">▶ 1:59</button></div>
+      <h3>智能体循环需要一个出口</h3>
+      <p>Colvin starts with an agent diagram he attributes to Barry Zhang’s February AI Engineer talk in New York and Anthropic, describing the definition as one adopted by Pydantic, OpenAI, and Google’s ADK. The operational version is straightforward: an agent has an environment, tools that may access it, and a system prompt describing its job. It then repeats a cycle: call the model, receive tool actions, execute those tools, update state, and call the model again.</p>
+<p>The displayed loop has a revealing omission: <strong>there is no exit condition</strong>. Repeating model and tool calls is easy to describe; deciding that the work is complete requires another contract. This criticism concerns the displayed code, rather than Anthropic’s broader guidance—<a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Building effective agents</a> also discusses explicit stopping conditions.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/96d774edf006793f9f349f43a5130596c04bf94b75232ad381955b28d8b545bc" alt="Code defining an environment, tools, and system prompt, followed by a while True loop that calls the model and updates environment state." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The agent pseudocode repeatedly calls the model and runs tools, with no exit condition shown.</figcaption></figure>
+<p>Three possible completion signals appear in the presentation:</p>
+<p>| Completion signal | How the run ends |
+| --- | --- |
+| Plain text | The model responds with text instead of requesting a tool. |
+| Final result tool | The model calls a designated tool that completes the run. |
+| Structured output | The model supplies an output in the required structure. |</p>
+<p>Colvin points to OpenAI and Google models as supporting the structured-output option. Choosing among these signals is part of defining the agent’s behavior, not an incidental detail of the loop.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="212">▶ 3:32</button></div>
+      <h3>抽取一个 Person，再让校验真正起作用</h3>
+      <p>The first <a href="https://pydantic.dev/docs/ai/core-concepts/output/" target="_blank" rel="noopener">Pydantic AI</a> example extracts a three-field <code>Person</code> model from an unstructured sentence. <code>Person</code> inherits from Pydantic’s <code>BaseModel</code>, so the requested result has a concrete schema. The sentence and schema are small enough to fit on screen, but the same approach can target larger documents and nested models. Colvin suggests a large PDF, then qualifies the idea: document size still has to fit the model’s available context. Running the example prints a Pydantic model.</p>
+<p>So far, this does not require repeated reasoning or tool use. The model makes a final result tool call, Pydantic AI validates the returned data, and the application receives the result. The successful extraction is a single-call case; the framework’s loop becomes useful when validation rejects an answer.</p>
+<p>Colvin adds a field validator requiring the date of birth to precede 1900. The sentence gives the year as <code>87</code>, leaving the century ambiguous. The model generally assumes a twentieth-century birth year, which is plausible from the sentence but invalid under the new rule. A compact Python version of that constraint is:</p>
+<p>```python
+from datetime import date</p>
+<p>from pydantic import BaseModel, field_validator</p>
+<p>class Person(BaseModel):
+    name: str
+    dob: date</p>
+<p>@field_validator('dob')
+    @classmethod
+    def born_before_1900(cls, value: date) -&gt; date:
+        if value &gt;= date(1900, 1, 1):
+            raise ValueError('Date of birth must be before 1900')
+        return value
+```</p>
+<p>This reduced schema isolates the rule: a date can be well formed and still violate an application constraint.</p>
+<p>The validation failure becomes input to the next model call. Pydantic AI returns the error to the model and asks it to try again, giving it information it did not use in the first answer. Colvin deliberately makes this example unfair by withholding the intended century from the field description. In a real application, he would document the nineteenth-century requirement on the date-of-birth field. Even with clear instructions, however, capable models can produce invalid output; returning the specific error gives them a way to repair it.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="346">▶ 5:46</button></div>
+      <h3>检查重试，再跟踪输出类型</h3>
+      <p>The instrumented extraction run makes two calls to <strong>Gemini Flash</strong>, with the second call producing an output that passes validation. <a href="https://pydantic.dev/docs/logfire/observe/llm-panels/" target="_blank" rel="noopener">Logfire</a> exposes the exchange inside the agent run, making the correction visible rather than leaving it hidden behind the final <code>Person</code>.</p>
+<p>The trace shows the sequence:</p>
+<p>1. The user supplies the description.
+2. The model calls the final result tool with an initially invalid date of birth.
+3. The tool response returns the validation error and asks for a correction.
+4. The model calls the final result tool again with a date that satisfies the constraint.</p>
+<p>The validator does more than protect the caller from an unacceptable value: its error supplies actionable feedback for another iteration.</p>
+<p>The same output declaration also carries information into the editor. With <code>output_type=Person</code>, the agent’s output generic is <code>Person</code>, and <code>result.output</code> is statically typed accordingly. Pydantic validation separately ensures that a successfully returned output is a <code>Person</code> instance at runtime. These checks act at different boundaries: validation checks the model’s data; static typing checks how application code uses the resulting object.</p>
+<p>Accessing <code>result.output.name</code> is valid. Accessing <code>result.output.first_name</code> produces an editor diagnostic because <code>Person</code> has no such field. That is a static typing error, not the date validator rejecting model output. The agent also has a dependency generic, which extends this connection into registered tools.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/34768c2b78330a677829bbc370d10f1d1e3ec674ea4ea3ffe5254943a58d697d" alt="Python editor showing a date validator, an agent with output_type set to Person, and a diagnostic on result.output.first_name." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The editor flags first_name as an unknown attribute of Person.</figcaption></figure>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="479">▶ 7:59</button></div>
+      <h3>把依赖类型带进记忆工具</h3>
+      <p>The next example introduces long-term memory with two tools: one records memories and another retrieves them. Both are registered with <code>@agent.tool</code>. Unlike the extraction example, this agent uses the default string output, while <code>deps_type</code> specifies the application dependencies available to its tools.</p>
+<p>The <a href="https://pydantic.dev/docs/ai/core-concepts/dependencies/" target="_blank" rel="noopener">dependency contract</a> connects the declaration to the tool and then to the call site:</p>
+<p>| Location | Type relationship |
+| --- | --- |
+| Agent definition | <code>deps_type=Deps</code> declares the dependency type. |
+| Tool’s first parameter | <code>RunContext[Deps]</code> carries that same type. |
+| Inside the tool | <code>context.deps</code> exposes a <code>Deps</code> instance and typed attributes. |
+| Agent invocation | <code>deps</code> must match the declared dependency type. |</p>
+<p>Changing the tool’s context parameterization to <code>int</code> creates a typing error. Passing the wrong dependency type when running the agent does too. The benefit comes from keeping these declarations connected, so changing one part of the application reveals incompatible uses elsewhere.</p>
+<p>Colvin says that, as far as he knows, no other agent framework works as hard at this level of type safety. He also acknowledges the cost: the framework has to do substantial work to preserve the relationships, and users have a little more setup to write. The intended payoff is easier refactoring as the application grows and changes.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="577">▶ 9:37</button></div>
+      <h3>一次合法的工具调用仍可能搜错东西</h3>
+      <p>Running the memory example introduces a different class of problem. Colvin suspects the local Postgres instance is not running, checks Docker, and attempts to start the database. The example then fails, prompting another attempt. He turns to Logfire to understand what happened, explaining that the failure was not staged.</p>
+<p>The trace shows that recording worked: the record-memory tool stored <code>User's name is Samuel</code>, and the run finished. The failed retrieval called the search tool with <code>your name</code>. The implementation uses a simple contains search based on PostgreSQL <code>ILIKE</code>; the phrase <code>your name</code> is not present in <code>User's name is Samuel</code>. The tool can accept a correctly typed string while that string is still a poor query.</p>
+<p><code>ILIKE</code> performs case-insensitive pattern matching; surrounding <code>%</code> wildcards give it contains behavior. The relevant <a href="https://www.postgresql.org/docs/current/functions-matching.html" target="_blank" rel="noopener">PostgreSQL pattern-matching</a> behavior can be isolated with the same memory and failed query:</p>
+<p>``<code>sql
+SELECT
+    'User''s name is Samuel' ILIKE '%your name%' AS matches;
+-- matches: false
+</code>``</p>
+<p>The mismatch is about the words in the query, not capitalization. Inspecting the actual tool argument explains a failure that the final response alone would not explain.</p>
+<p>On the later attempt, the model searches for <code>name</code>. That substring is present, so the tool retrieves the stored memory:</p>
+<p>| Stored memory | Search argument | Retrieval |
+| --- | --- | --- |
+| <code>User's name is Samuel</code> | <code>your name</code> | No match |
+| <code>User's name is Samuel</code> | <code>name</code> | Memory returned |</p>
+<p>The stored fact did not need to change. The model-generated search argument changed, and the lookup succeeded. The completed trace shows the search, returned memory, and final answer together.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/16cda6a5bf12c886eca5e2e768e206e67a03b3f1625959b3c67d020ad29de018" alt="Logfire trace with a retrieve_memories call using memory_contains “name,” the returned memory “User’s name is Samuel,” and the answer “Your name is Samuel.”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Searching memory for “name” returns “User’s name is Samuel,” and the assistant answers successfully.</figcaption></figure>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="695">▶ 11:35</button></div>
+      <h3>trace 还暴露了时间和成本</h3>
+      <p>With <code>User's name is Samuel</code> returned, the memory example completes successfully. The trace also shows how long individual calls took. Colvin closes by pointing out pricing at both levels: individual spans and the aggregate agent trace. The same view used to explain the retrieval failure therefore also exposes the operational cost of the calls that produced the answer.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://us.pycon.org/2025/schedule/presentation/143/" target="_blank" rel="noopener">Building AI Applications the Pydantic Way</a> — The PyCon US listing for Colvin's May 2025 presentation on Pydantic AI and Logfire.</li><li><a href="https://pydantic.dev/docs/ai/core-concepts/output/" target="_blank" rel="noopener">Pydantic AI output documentation</a> — Current examples for typed outputs, structured-output modes, validation and corrective retries.</li><li><a href="https://pydantic.dev/docs/ai/core-concepts/dependencies/" target="_blank" rel="noopener">Typed dependencies in Pydantic AI</a> — How to pass typed application dependencies into tools through RunContext.</li><li><a href="https://www.anthropic.com/engineering/building-effective-agents" target="_blank" rel="noopener">Building effective agents</a> — Anthropic's guide to agent loops, environmental feedback and explicit stopping conditions.</li><li><a href="https://www.postgresql.org/docs/current/functions-matching.html" target="_blank" rel="noopener">PostgreSQL pattern matching</a> — The semantics of LIKE, ILIKE and wildcard patterns used for substring searches.</li><li><a href="https://pydantic.dev/docs/logfire/observe/llm-panels/" target="_blank" rel="noopener">Inspect LLM spans in Logfire</a> — Current documentation for inspecting LLM exchanges, token usage and costs in Logfire.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] I'll assume, given the time we have, that you kind of get who I am and what Pydantic is to some extent.</span></div><div class="tline" data-t="19"><span class="ts">0:19</span><span class="tx">So I will, I will move on. This is, this-- I'm using the talk I gave at PyCon, so, uh, it-it was building, uh, AI applications the Pydantic way, which is, uh, I guess, somewhat akin.</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">As I say, I'm not gonna be able to get to the eval stuff today, um, but I, I can talk about these two. So everything is changing really fast, as we all get told repeatedly in ever more hysterical terms.</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">Actually, some things are not changing. We still wanna build reliable, scalable applications, and that is still hard. Arguably, it's actually harder with GenAI than it was before, whether that is using GenAI to build it or using GenAI within your application.</span></div><div class="tline" data-t="55"><span class="ts">0:55</span><span class="tx">Um, so what we're trying to talk about here is, is, uh, some techniques that you can use to build applications, uh, quickly but also somewhat more safely than, than you might, you might do if you, uh, otherwise.</span></div><div class="tline" data-t="68"><span class="ts">1:08</span><span class="tx">Um, I'm a strong believer that type safety is one of the really important parts of that. Not just for in production avoiding bugs, but if you-- no one starts off building an AI application knowing what it's gonna look like, so you're gonna have to end up refactoring your application multiple times.</span></div><div class="tline" data-t="83"><span class="ts">1:23</span><span class="tx">If you build your application in a type-safe way, if you use frameworks that allow it to be type-safe, you can refactor it with confidence much more quickly. If you're using a coding agent like Cursor, it can use type safety or running type, type checking to get, get-- basically mark its own homework and work out what it's doing</span></div><div class="tline" data-t="98"><span class="ts">1:38</span><span class="tx">right in a way that you can't do if you use a framework like LangChain or LangGraph, who either through decision or inability decided not to build something that's type-safe.</span></div><div class="tline" data-t="106"><span class="ts">1:46</span><span class="tx">Um, I'll talk a bit about MCP if I have a moment. Um, and I won't talk about how eval's fit in 'cause I don't have time. Um, so before-- Look, nothing I'm gonna say here on what an agent is, is controversial.</span></div><div class="tline" data-t="119"><span class="ts">1:59</span><span class="tx">This is, um, reasonably well accepted now by, by most people as a definition of an agent. This, uh,</span></div><div class="tline" data-t="130"><span class="ts">2:10</span><span class="tx">image here is from Barry Zhang's talk at AI Engineer in New York in February. This is his definition or the, the, the Anthropic definition of what an agent is now being copied by us, by OpenAI, by Google's ADK.</span></div><div class="tline" data-t="143"><span class="ts">2:23</span><span class="tx">I think generally the accepted definition of an agent. This, although very neat, doesn't really make any sense to me. This, however, does make sense. So what, what they say is that an agent is effectively something that has, has an environment.</span></div><div class="tline" data-t="157"><span class="ts">2:37</span><span class="tx">There are some tools which may have access to the environment. There is some system prompt that describes to it what it's supposed to do. And then you have a while loop where you call the LLM, get back some actions to run in the tool, run the tools, that updates the state, uh, and then you call the LLM</span></div><div class="tline" data-t="172"><span class="ts">2:52</span><span class="tx">again. There is, however, even in his, whatever it is, six-line pseudocode, a bug, which is there is no exit from that loop. And sure enough, that points towards a real problem, which is that there isn't-- it is not clear when you should exit that loop, that, that loop.</span></div><div class="tline" data-t="187"><span class="ts">3:07</span><span class="tx">And so there are, there are a number of different things you can do. You can say when the LLM returns plain text rather than calling a tool, that is the end.</span></div><div class="tline" data-t="194"><span class="ts">3:14</span><span class="tx">Or you can have certain tools which are kind of, uh, what we call final result tools, which basically trigger the end, end of the run. Or if you have models like OpenAI or Google which have structured output types, you can use that to end your run.</span></div><div class="tline" data-t="208"><span class="ts">3:28</span><span class="tx">But it i-it's not necessarily trivial to work out when the end is.</span></div><div class="tline" data-t="212"><span class="ts">3:32</span><span class="tx">So enough pseudocode. Let me run a, a real minimal example of Pydantic AI. So this is, uh, a very simple, um, Pydantic BaseModel with three fields. Uh, and then we're gonna use Pydantic AI to extract structured data that fits that, that Person, uh, schema from unstructured data, this sentence here.</span></div><div class="tline" data-t="230"><span class="ts">3:50</span><span class="tx">Now, here, obviously, to fit this into on screen, uh, this is,</span></div><div class="tline" data-t="236"><span class="ts">3:56</span><span class="tx">um, a very, very simple example, but this could be a PDF, uh, tens of megabytes. Well, probably not tens of megabytes necessarily in context, but like definitely an, you know, enormous document.</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">And, and this schema is very simple, but this could be an in-incredibly complex nested schema. Models are still able to do it. And sure enough, if we go and run this example, and the gods of the internet are with us, sure enough, we get the, the Pydantic model, uh, printed out.</span></div><div class="tline" data-t="260"><span class="ts">4:20</span><span class="tx">So, but the-- Some of you will notice that this example is simple enough that we don't actually need an agent or this loop. We're doing one shot. We make one call to the LLM, returns the structured data.</span></div><div class="tline" data-t="270"><span class="ts">4:30</span><span class="tx">We call under the hood. We call a final result tool. Pydantic AI performs validation, and we get back the data. But we don't have to change that example very much to start seeing the value of the agentic loop.</span></div><div class="tline" data-t="282"><span class="ts">4:42</span><span class="tx">So here I'm being a little bit unfair to the, to the model. I've added a, a field validator to my person model, which says that date of birth needs to be before [REDACTED:dob].</span></div><div class="tline" data-t="293"><span class="ts">4:53</span><span class="tx">And obviously, the, the actual definition here is abstract. Uh, uh, is, uh, doesn't define what year we're going to be, um... W-well, sorry, w-which century we're talking about. You would obviously-- The model will, for the most part, assume eighty-seven is [REDACTED:dob].</span></div><div class="tline" data-t="309"><span class="ts">5:09</span><span class="tx">We'll then get a validation error when you do the validation, and that's where the agentic bit kicks in because we will take those validation errors and return them to the model basically as a definite and say, &quot;Please try again,&quot; as I'll show you in a moment.</span></div><div class="tline" data-t="321"><span class="ts">5:21</span><span class="tx">And the model is then able to use the information from the validation error to, to try again. Obviously, if you were trying to do this case in production, you would add a, uh, a docstring to the DOB field saying it must be in the 19th century.</span></div><div class="tline" data-t="332"><span class="ts">5:32</span><span class="tx">But there are definitely cases where models, even the smartest models, don't, uh, pass validation. And being able to use this trick of returning validation errors, um, to the model is a, is a very effective way of fixing a lot of the simplest use cases.</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">So if we run this, you see we had two calls to Gemini here. And if I come and open... The other thing you'll see in this example is we instrumented, um, this code with, uh, with Logfire, our observability platform, so we can actually go in and see exactly what happened.</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">So you'll see our agent run. We had two- Uh, two calls to the model, in this case Gemini Flash. And if we go and look at the,</span></div><div class="tline" data-t="373"><span class="ts">6:13</span><span class="tx">the exchange, you can see what's happened here. So</span></div><div class="tline" data-t="377"><span class="ts">6:17</span><span class="tx">we... I'll just try and make it big enough that you can see it. We first of all had the user prompt, the description, it called the final result tool, as you might expect, the date of birth being [REDACTED:dob].</span></div><div class="tline" data-t="387"><span class="ts">6:27</span><span class="tx">Uh, we then responded, the tool response was validation error incorrect, please try... And then we, we add on the end, please fix the error and try again. And sure enough, it was then able to return, uh, correctly call the final result tool with the right date of birth and succeed.</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">Cool. I've got five minutes. I feel like I'm in one of those, uh, see how fast I can go. Uh, I'm on the wrong window, am I?</span></div><div class="tline" data-t="413"><span class="ts">6:53</span><span class="tx">I am. Here we are. Um, I think the other thing that's worth, worth saying here, even if I don't have that much time, is if you take a look at the exa- this example, I talked about type safety.</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">If you look, the way that we're doing this under the hood, agent, because of the output type, is generic in, in this case Person. And so we can act- when we access, uh, result.output, both in typing terms, it's an instance of Person, and, uh, runtime, we're guaranteed from the Pydantic validation that it will really be</span></div><div class="tline" data-t="443"><span class="ts">7:23</span><span class="tx">an instance of Person. So if I access here .name, all will be well. If I access .first_name, uh, we suddenly get a validation, we get a runtime, we get the, the nice error from typing saying this is a i- incorrect field.</span></div><div class="tline" data-t="457"><span class="ts">7:37</span><span class="tx">So that's the kind of, the, the kind of very beginning of the value of, uh, static typing, uh, of, of our typing support. We go a lot further. You will have seen, or some of you might have noticed there's a second generic on agent, um, which is the deps type.</span></div><div class="tline" data-t="471"><span class="ts">7:51</span><span class="tx">And so if you register tools with this agent, they, you, we can have type safe dependencies to tools, which I will show you in a moment.</span></div><div class="tline" data-t="479"><span class="ts">7:59</span><span class="tx">Um, so what... The other thing you will, you will notice is missing from this example is any tools. So let's look at an example with tools. So if I open this example here, we have...</span></div><div class="tline" data-t="491"><span class="ts">8:11</span><span class="tx">Well, this is, uh, an example of memory, long-term memory in particular, where we're using a tool to record memories and then, uh, another tool to be able to retrieve memories.</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">So you'll see we have these two tools here, record memory and retrieve memory. Tools are, are set up by registering them with the agent.tool decora- uh, decorator. But this is where the typing, as I say, gets more complex.</span></div><div class="tline" data-t="512"><span class="ts">8:32</span><span class="tx">Now, you will see that we've set deps_type when we've defined the agent, and so our agent is now generic in that deps type. The return type is string because that's the default.</span></div><div class="tline" data-t="521"><span class="ts">8:41</span><span class="tx">And so we... When we call a tool decorator, we have to set the first argument to be this RunContext to parameterize with our deps type. And so when we access context.deps, that is an instance of our, of our Deps dataclass that you see there.</span></div><div class="tline" data-t="535"><span class="ts">8:55</span><span class="tx">And if we access one of its attributes, we get the actual type. And if we change this to be</span></div><div class="tline" data-t="541"><span class="ts">9:01</span><span class="tx">int, let's say, suddenly we get an error saying we've used the wrong, the wrong type. So we get this guarantee that the type here matches the type here, matches the attributes you can access here.</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">And then when we come to run the agent, we need our deps to be an instance of that deps type. So again, if we put- gave it the wrong type, we would get a val- a, a typing error saying, &quot;You're using the wrong type.&quot;</span></div><div class="tline" data-t="562"><span class="ts">9:22</span><span class="tx">And as far as I know, we're what? The only agent framework that works this hard to be type safe. And, uh, it is quite a lot of work on our side.</span></div><div class="tline" data-t="569"><span class="ts">9:29</span><span class="tx">I'll be honest, there's a little bit of work on your side as well as in it's not necessarily as trivial to set up, but it makes it incredibly easy to go and refactor your code.</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">Um, and yeah, you, we run this here, and we give it the, the... I'm pretty sure I don't have Postgres running.</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">Uh, do I have Docker running? I don't know if I have time to make that work.</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">I will... That's docker running. I'll just try and run this very quickly. Uh, Docker run.</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">Hopefully, that is enough. If I now come and run this example,</span></div><div class="tline" data-t="603"><span class="ts">10:03</span><span class="tx">what you will see is it successfully failed. Great. [laughing] Um, I will try one more time and see if I get lucky. I don't know quite what was going on there.</span></div><div class="tline" data-t="619"><span class="ts">10:19</span><span class="tx">Ah, and I have no idea. Well, we can look in Logfire and see what happened, uh, to make it fail. I promise you I hadn't set that up to fail the first time to demonstrate the value of observability, but maybe it can help here.</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">So if you look, um, this first time, we, um, our first agent run, you'll see that we re- used the, uh, the tool call, uh, record memory. The user's name is Samuel.</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">Um, and then it, it returned finished. And then the second time, uh, you can see that the, when it did retrieve memory, where it called the, that tool, the parameter or the, the argument it gave was your name, um, which was not, does, is not contained within the, the query the previous time.</span></div><div class="tline" data-t="665"><span class="ts">11:05</span><span class="tx">We're just doing a very simple ILIKE here. So your name is not a substring of user's name is Samuel, and so that's why it, why it failed that time.</span></div><div class="tline" data-t="675"><span class="ts">11:15</span><span class="tx">Um, so this has turned into a very useful example of where, where Logfire can help. And if we look at the, that second time,</span></div><div class="tline" data-t="683"><span class="ts">11:23</span><span class="tx">you'll see user's name is Samuel, and then when it, when it ran the agent, it just asked for name. Name is obviously a substring of, of the user's name is Samuel, and so it was able, it got the response.</span></div><div class="tline" data-t="695"><span class="ts">11:35</span><span class="tx">User's name is Samuel and therefore succeeded. The other thing we get here is like, obviously, we get this tracing information, so we can see how long each of those calls took.</span></div><div class="tline" data-t="704"><span class="ts">11:44</span><span class="tx">Um, and we also get pricing on both aggregate across the whole of the trace and individual spans. Um, I am told that I am running out of time, so thank you very much. [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

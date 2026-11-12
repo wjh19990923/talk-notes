@@ -1,0 +1,908 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>别再给你的 AI 智能体 API 密钥了 —— Kim Maida（Keycard）与 Mason Egger（Temporal） | AI 工程师中文版</title>
+<meta name="description" content="Kim Maida 用限定范围的 token 展示了是谁提交了一笔 30 美元的报销，以及智能体为什么可以批准它。随后 Mason Egger 在一次账本扣款后杀掉了一个工作进程，展示 Temporal 如何在不重复扣款、也不把访问 token 存进工作流历史的情况下完成结算。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>别再给你的 AI 智能体 API 密钥了 —— Kim Maida（Keycard）与 Mason Egger（Temporal）</h1>
+    <div class="orig-title">Stop Giving Your AI Agents API Keys - Kim Maida, Keycard &amp; Mason Egger, Temporal</div>
+    <div class="meta"><span class="speaker">Kim Maida、Mason Egger</span> · 52:36</div>
+    <div class="tags"></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/YqJ4asgj1R8-stop-giving-your-ai-agents-api-keys" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="YqJ4asgj1R8"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=YqJ4asgj1R8" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">一项报销服务需要知道是谁行使了它的权限</div></div>
+      <div class="label row">章节跳转 <span>共 19 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>一项报销服务需要知道是谁行使了它的权限</span></li><li data-t="119"><span class="ts">1:59</span><span>用户登录确立了可以委托谁的访问权限</span></li><li data-t="190"><span class="ts">3:10</span><span>跟随一个提示词从 LangChain 循环走到报销账本</span></li><li data-t="341"><span class="ts">5:41</span><span>为 MCP 调用签发一个凭据，为账本签发另一个</span></li><li data-t="519"><span class="ts">8:39</span><span>运行 API 密钥版本并检查一笔 75 美元的报销</span></li><li data-t="771"><span class="ts">12:51</span><span>把 Expense Desk 同时注册为令牌请求方和接收方</span></li><li data-t="1118"><span class="ts">18:38</span><span>连接四个依赖并配置沙箱的客户端凭据</span></li><li data-t="1307"><span class="ts">21:47</span><span>把 MCP 工具集接到令牌签发，以智能体身份运行</span></li><li data-t="1590"><span class="ts">26:30</span><span>代表 Kim 提交的一笔 75 美元报销只有一个经过验证的执行者</span></li><li data-t="1670"><span class="ts">27:50</span><span>跟随智能体的凭据从 MCP 服务器走到账本</span></li><li data-t="1882"><span class="ts">31:22</span><span>让人登录，同时保留智能体自己的权限</span></li><li data-t="2031"><span class="ts">33:51</span><span>一笔 30 美元的办公用品报销：人提交，智能体审批</span></li><li data-t="2136"><span class="ts">35:36</span><span>一笔 75 美元的报销保持待处理，即使审核额度是 100 美元</span></li><li data-t="2276"><span class="ts">37:56</span><span>追踪 Kim 的委托权限穿过两次令牌交换</span></li><li data-t="2474"><span class="ts">41:14</span><span>把智能体循环放进工作流，把外部调用放进活动</span></li><li data-t="2677"><span class="ts">44:37</span><span>在工作进程执行活动时给它一个凭据</span></li><li data-t="2775"><span class="ts">46:15</span><span>扣款后杀掉 PID 572，看看什么留了下来</span></li><li data-t="2887"><span class="ts">48:07</span><span>恢复一次长时间的智能体运行而不必重新花钱买答案</span></li><li data-t="2970"><span class="ts">49:30</span><span>检查恢复的运行中有没有 JWT，再决定加密什么</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 20 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/17bf30b4c2d8d539db673c2e4404c3d2863ff33491fdca0d51d11cc13c265992.webp" alt="Three panels show a person and robot beneath a question mark, a shielded checklist with two checks and a cross, and a cursor over a green button beside a red button and a warning triangle." loading="lazy" data-lb="0" data-cap="Agent access problems" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent access problems</h3>
+        <p>Three panels show a person and robot beneath a question mark, a shielded checklist with two checks and a cross, and a cursor over a green button beside a red button and a warning triangle.</p>
+        <details><summary>幻灯片原文</summary><pre>Agent access problems
+
+𝕏 @KimMaida   /kimmaida</pre></details>
+        <button class="ts" data-t="109">▶ 1:49</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/f7ba23717db1dac9f9dc29f83ce066309ee6a97d36f97ba53a1ba8becae59fef.webp" alt="A checklist with two buttons overlaps a server stack. An arrow points left from the checklist toward a user icon." loading="lazy" data-lb="1" data-cap="User grants delegated access" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>User grants delegated access</h3>
+        <p>A checklist with two buttons overlaps a server stack. An arrow points left from the checklist toward a user icon.</p>
+        <details><summary>幻灯片原文</summary><pre>User grants delegated access
+
+𝕏 @KimMaida   /kimmaida</pre></details>
+        <button class="ts" data-t="159">▶ 2:39</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/8b7eb8d46c4cc953152e744409e856b597a09a52bfe55fafae0a570a46d15b3e.webp" alt="From left to right, the diagram shows a user with a speech bubble and key badge, a robot and plug inside a box marked with a browser window, a server stack, and a gear beside a database." loading="lazy" data-lb="2" data-cap="The agentic execution path" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The agentic execution path</h3>
+        <p>From left to right, the diagram shows a user with a speech bubble and key badge, a robot and plug inside a box marked with a browser window, a server stack, and a gear beside a database.</p>
+        <details><summary>幻灯片原文</summary><pre>The agentic execution path
+
+𝕏 @KimMaida   /kimmaida</pre></details>
+        <button class="ts" data-t="244">▶ 4:04</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/9b6771f879175a405d82baab6f4c50133364db526d61bf04f2609fc691ed337e.webp" alt="Matching exchange badges appear above the boxed robot and the MCP server. A user with a key badge is on the left, and a gear and database are on the right." loading="lazy" data-lb="3" data-cap="Custom MCP server requests token exchanges" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Custom MCP server requests token exchanges</h3>
+        <p>Matching exchange badges appear above the boxed robot and the MCP server. A user with a key badge is on the left, and a gear and database are on the right.</p>
+        <details><summary>幻灯片原文</summary><pre>Custom MCP server requests token exchanges
+
+𝕏 @KimMaida   /kimmaida</pre></details>
+        <button class="ts" data-t="327">▶ 5:27</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/214c21abda5510f02622b59687436cbefe3238e5f03a562f2972d06485ca9a8c.webp" alt="The upper row shows a user, a boxed robot and plug, an MCP server, and a database. Below, a second server stack shows a hand holding a card, beside a combined key and user badge and a document marked with a key." loading="lazy" data-lb="4" data-cap="Agent identity, user identity, level of access" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent identity, user identity, level of access</h3>
+        <p>The upper row shows a user, a boxed robot and plug, an MCP server, and a database. Below, a second server stack shows a hand holding a card, beside a combined key and user badge and a document marked with a key.</p>
+        <details><summary>幻灯片原文</summary><pre>Agent identity, user identity, level of access
+
+https://www.rfc-editor.org/info/rfc8693/
+𝕏 @KimMaida   /kimmaida</pre></details>
+        <button class="ts" data-t="386">▶ 6:26</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/fc4f765e28cee8ca2eac21db62581f4810d4e1f8978208712ddcd2d3f8a2357c.webp" alt="Below the row of user, agent, MCP server, and database icons, a server stack bears an exchange badge. A key and user badge and a document marked with a key sit beside it." loading="lazy" data-lb="5" data-cap="Keycard evaluates request against policy" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Keycard evaluates request against policy</h3>
+        <p>Below the row of user, agent, MCP server, and database icons, a server stack bears an exchange badge. A key and user badge and a document marked with a key sit beside it.</p>
+        <details><summary>幻灯片原文</summary><pre>Keycard evaluates request against policy
+
+𝕏 @KimMaida   /kimmaida</pre></details>
+        <button class="ts" data-t="407">▶ 6:47</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/428ea7889e7b09cd73854e4d4b54c25f8ed8ad25e50276c1c22b0737799a3ba0.webp" alt="An arrow points up from a server stack with a key symbol to a green-outlined agent. A user and chat bubble appear to the left, with the MCP server and a database to the right." loading="lazy" data-lb="6" data-cap="STS issues access token for MCP server tool" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>STS issues access token for MCP server tool</h3>
+        <p>An arrow points up from a server stack with a key symbol to a green-outlined agent. A user and chat bubble appear to the left, with the MCP server and a database to the right.</p>
+        <details><summary>幻灯片原文</summary><pre>STS issues access token for MCP server tool
+
+𝕏 @KimMaida   in /kimmaida</pre></details>
+        <button class="ts" data-t="430">▶ 7:10</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/2a372a2cb963fd4b61533e697ddb1eacea4f6200cc4612d88b30adf96feb704c.webp" alt="A user, agent, MCP server and database are arranged from left to right. Beneath the agent, a server stack shows a hand alongside key and database symbols." loading="lazy" data-lb="7" data-cap="Expense MCP server requests token for Ledger API" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Expense MCP server requests token for Ledger API</h3>
+        <p>A user, agent, MCP server and database are arranged from left to right. Beneath the agent, a server stack shows a hand alongside key and database symbols.</p>
+        <details><summary>幻灯片原文</summary><pre>Expense MCP server requests token for Ledger API
+
+𝕏 @KimMaida   in /kimmaida</pre></details>
+        <button class="ts" data-t="458">▶ 7:38</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/dca022b028820ec1f395f3fcfeb0124bcee33c330199cf462b83b7f6a4cfd3f4.webp" alt="An Instruqt exercise introduces the shared API key that every attendee uses to reach the Ledger API through Expense Desk. A Start button appears at the lower right." loading="lazy" data-lb="8" data-cap="Who approved that expense?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Who approved that expense?</h3>
+        <p>An Instruqt exercise introduces the shared API key that every attendee uses to reach the Ledger API through Expense Desk. A Start button appears at the lower right.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Overview   Invite details   Progress
+
+Who approved that expense?
+
+Expense Desk files and approves expenses through an MCP server. The MCP
+server reaches the Ledger API with one shared API key.
+
+Every attendee uses that same key. Watch what that does to the audit trail.
+
+Start</pre></details>
+        <button class="ts" data-t="571">▶ 9:31</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/ad4aff195e376a5f6aec078b4373c329e8b7c367ec43bc748e72e3f8b8c2561d.webp" alt="An Instruqt exercise introduces a Keycard application for the Expense Desk agent so the ledger can identify the software making each request. The pointer is beside Start." loading="lazy" data-lb="9" data-cap="What if the agent had its own identity?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What if the agent had its own identity?</h3>
+        <p>An Instruqt exercise introduces a Keycard application for the Expense Desk agent so the ledger can identify the software making each request. The pointer is beside Start.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Overview   Invite details   Progress
+
+What if the agent had its own identity?
+
+A shared key can't tell one caller from another. In this exercise your Expense Desk
+agent gets its own Keycard application, so the ledger records which software made
+each request.
+
+Start</pre></details>
+        <button class="ts" data-t="769">▶ 12:49</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/e7cbc94b8cb7362e514e2e36f71f2eaa958707067554faa3b2b6761ae84182fe.webp" alt="A workshop table on the left explains why the agent needs each resource. On the right, the Keycard Console lists all four resources in an Add resource dependency dialog, with the pointer over Connect (4)." loading="lazy" data-lb="10" data-cap="Add four resource dependencies to the Keycard agent application" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Add four resource dependencies to the Keycard agent application</h3>
+        <p>A workshop table on the left explains why the agent needs each resource. On the right, the Keycard Console lists all four resources in an Add resource dependency dialog, with the pointer over Connect (4).</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Instructions   View notes
+
+Now that your application provides a resource, you’ll tell Keycard which resources it needs to call.
+
+Step 6: Add dependencies to your Keycard application
+
+Provides means &quot;my application serves this resource.&quot; Depends means &quot;my application asks for credentials to this resource.&quot;
+
+In the Keycard console, open Applications → Agent App - &lt;your-github-handle&gt; → Dependencies, click on Add dependency, and add these four resources:
+
+Resource   Identifier   Why your agent needs it
+Agent Resource - &lt;your-github-handle&gt;   urn:agent:resource:&lt;your-github-handle&gt;   Sign-in requests a subject token for this audience.
+Expense MCP Resource   http://localhost:8100/mcp   Your agent calls the expense tools.
+LLM API   https://api.openai.com   Your agent gets the model credential from Keycard’s vault.
+OpenID Connect UserInfo   Select the UserInfo resource.   Retrieves the signed-in user’s email from Keycard.
+
+OpenID Connect UserInfo lets Expense Desk retrieve the signed-in user’s email from Keycard. Select the UserInfo resource.
+
+Your agent now connects to its own resource twice. The Depends connection lets it request a subject token when you sign in. The Provides connection lets it exchange that token for credentials to call Expense MCP
+
+Check
+
+Keycard Console
+Add resource dependency
+Select resources to add as dependencies for Agent App - kmaida
+Search resources   + Add Resource
+
+Agent Resource - kmaida
+urn:agent:resource:kmaida
+Expense MCP Resource
+http://localhost:8100/mcp
+LLM API
+https://api.openai.com
+OpenID Connect UserInfo
+
+Cancel   Connect (4)</pre></details>
+        <button class="ts" data-t="1133">▶ 18:53</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/233013a15a21d10752e48d6efcc3c15cd80db21907897737c6c8df34ab8d140a.webp" alt="Workshop instructions explain how ZoneTokenAuth sets the Authorization header. Beside them, keycard.py shows mint using a client credentials grant when the subject token is absent and exchanging the subject token when it is present." loading="lazy" data-lb="11" data-cap="How ZoneTokenAuth gets a fresh token for each MCP request" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How ZoneTokenAuth gets a fresh token for each MCP request</h3>
+        <p>Workshop instructions explain how ZoneTokenAuth sets the Authorization header. Beside them, keycard.py shows mint using a client credentials grant when the subject token is absent and exchanging the subject token when it is present.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Overview   Invite details   Progress   Hide Instructions
+Instructions   View notes
+Expense Desk   Keycard   Editor   Terminal   Your feedback
+
+The difference from the starter is auth=keycard.ZoneTokenAuth(). Every request the agent sends to the MCP server now passes through ZoneTokenAuth first.
+
+Open agent/keycard.py to see what ZoneTokenAuth does:
+
+python   copy
+class ZoneTokenAuth(httpx2.Auth):
+    async def async_auth_flow(self, request: httpx2.Request) -&gt;
+        request.headers[&quot;Authorization&quot;] = f&quot;Bearer {await mint(
+        yield request
+
+Before each MCP request goes out, ZoneTokenAuth calls mint for the MCP resource and the tool's scope. It puts the result in the Authorization header. The agent never stores a token; it gets a fresh one for each call.
+
+The mint function in the same file decides how to get that token:
+
+EDITOR
+/root/workshop
+agent
+keycard.py
+Changes saved
+mint(   1 of 3
+
+AGENT_RESOURCE = os.environ.get(&quot;AGENT_RESOURCE&quot;, &quot;&quot;)
+
+# keycard.cloud's edge rejects default Python user-agents.
+_CONFIG = ClientConfig(user_agent=&quot;expense-agent&quot;)
+# SDK initialization is lazy and locked. Retain discovered metadata, never minted tokens.
+_oauth_client = AsyncClient(ISSUER, auth=BasicAuth(CLIENT_ID, CLIENT_SECRET), config=_CONFIG)
+
+# Browser sign-in token: the anchor every per-call exchange starts from.
+_user_token: ContextVar[str | None] = ContextVar(&quot;expense_user_token&quot;, default=None)
+
+@contextmanager
+def identity(token: str | None) -&gt; Iterator[None]:
+    marker = _user_token.set(token)
+    try:
+        yield
+    finally:
+        _user_token.reset(marker)
+
+async def mint(resource: str, scope: str | None = None) -&gt; str:
+    subject_token = _user_token.get()
+    async with _oauth_client as client:
+        if subject_token is None:
+            response = await client.client_credentials_grant(resource=resource, scope=scope)
+        else:
+            response = await client.exchange_token(
+                subject_token=subject_token,
+                subject_token_type=TokenType.ACCESS_TOKEN,
+                resource=resource,
+                scope=scope,
+            )
+    return response.access_token
+
+TOOL_SCOPES = {
+    &quot;get_keycard_identity&quot;:
+    &quot;submit_expense&quot;: &quot;expense:write&quot;,
+    &quot;record_expense_review&quot;:
+    &quot;list_expenses&quot;: &quot;expense:read&quot;,
+    &quot;get_expense&quot;: &quot;expense:read&quot;,
+
+Check</pre></details>
+        <button class="ts" data-t="1468">▶ 24:28</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/9acdc1246db0e5aa7b5383beea032866f6c3b2dc4372a1a761b09666f5a6463f.webp" alt="The Keycard activity feed is filtered to Ledger API. A selected Credential Issued event shows Expense MCP Actor acting on behalf of Application - Sutton, with Ledger API as the resource." loading="lazy" data-lb="12" data-cap="Keycard delegation chain for a Ledger API credential" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Keycard delegation chain for a Ledger API credential</h3>
+        <p>The Keycard activity feed is filtered to Ledger API. A selected Credential Issued event shows Expense MCP Actor acting on behalf of Application - Sutton, with Ledger API as the resource.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Instructions   View notes
+Step 5: Check what gets recorded
+In the Expense Desk chat, ask:
+Which account am I using, and what is my approval limit?
+
+Next, ask the agent to file a new $75 workshop expense under someone else's name. Save the expense ID and read Created by in the agent's confirmation. It should show your registered application, whatever name you typed.
+
+Now look at the same request from Keycard's side. In the Keycard tab, open Applications → Agent App - &lt;your-github-handle&gt; → Activity. Click the Filter icon. If any filters are active, clear them, then set Resource → Expense MCP Resource. Open a Credential Issued event for your application. This credential came from a client credentials grant, and it identifies your application as the Actor accessing the Expense MCP Resource.
+
+With the instructor, stay in the Keycard console and open Applications → Expense MCP Actor → Activity, clear old filters, and set Resource → Ledger API. The next hop is another Credential Issued event, labeled urn:ietf:params:oauth:grant-type:token-exchange. Here, Expense MCP Actor exchanged the token it received for one addressed to the Ledger API on behalf of your Agent App (the agent acting as itself). This feed shows requests from the whole room, so follow the instructor's example and check the application in its delegation details.
+
+Conclusion
+You registered an application and a resource for your agent in Keycard, and connected them. Then you switched Expense Desk to request a credential for every call. The Ledger API now records your application as the creator, no matter what name someone types.
+There's still no person behind those requests, though. Your agent acts as
+Check
+
+Keycard Console
+Workshop AIE NYC
+Home
+Applications
+Resources
+People
+Policies
+ACTIVITY
+Sessions
+Audit Log
+ORGANIZATION
+Settings
+Zones
+Service Accounts
+
+Applications / Expense MCP Actor / Activity
+Expense MCP Actor
+Add to Coding Agent
+Identifier   urn:expense:mcp:actor
+Activity   Dependencies   Provides   Application Credentials
+Resource   Ledger API
+16:02:20   Allow   any on Ledger API
+16:02:20   Allow   any on Ledger API
+16:02:19   Allow   any on Ledger API
+16:02:19   Credential Issued
+16:02:19   Credential Issued
+16:02:19   Allow   any on Ledger API
+16:02:19   Allow   any on Ledger API
+16:02:19   Credential Issued
+16:02:19   Allow   any on Ledger API
+
+Credential Issued
+OVERVIEW
+Event ID   01a131b5-7c5b-7bd4-b8e0-ba3221212…
+Request ID   257a3386-29d2-9c42-9ca0-e6ec34167…
+Occurred at   Today · 4:02PM · 16:02:19
+Severity   Low
+DELEGATION CHAIN
+APPLICATION
+Expense MCP Actor
+↓ on behalf of
+SERVICE
+Application - Sutton
+RESOURCE
+Ledger API
+Raw OCSF</pre></details>
+        <button class="ts" data-t="1825">▶ 30:25</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/ed6942c52ce7f4a3386f353170cbdff3d3816ee29464aad1fcba0fc248450850.webp" alt="A workshop slide contrasts the identity of the calling software with that of the user who requested the call. It describes two token exchanges on the way to the ledger." loading="lazy" data-lb="13" data-cap="Can the agent act for you without acting as you?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Can the agent act for you without acting as you?</h3>
+        <p>A workshop slide contrasts the identity of the calling software with that of the user who requested the call. It describes two token exchanges on the way to the ledger.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Overview   Invite details   Progress
+
+Can the agent act for you without acting as you?
+
+Application identity says which software made the call. It doesn't say which user
+requested that call. Sign in and your agent carries your identity through two token
+exchanges to the ledger.</pre></details>
+        <button class="ts" data-t="1878">▶ 31:18</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/c26b3bd3184da57fa32c75fbc90079e5a29f415a12cbf613ad5c36b6db53fdc6.webp" alt="The Expense Desk chat confirms that the agent approved EXP122 for $30. The selected ledger entry, EXP123 for $75 in printer paper and toner, is pending review." loading="lazy" data-lb="14" data-cap="Expense Desk approves $30 in office supplies and leaves a $75 expense pending" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Expense Desk approves $30 in office supplies and leaves a $75 expense pending</h3>
+        <p>The Expense Desk chat confirms that the agent approved EXP122 for $30. The selected ledger entry, EXP123 for $75 in printer paper and toner, is pending review.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Instructions   View notes
+sign-in before you sign in again.
+Now that you're signed in, you'll test what your agent is allowed to approve for you.
+
+Step 2: Test what the agent can approve
+File a new $75 expense with any memo, for example:
+Submit a $75 expense for printer paper and toner for the workshop
+Then file a second expense under $50:
+Submit $30 for office supplies for our team.
+The agent approves the $30 expense in the same conversation. Read its confirmation. Created by is you, and Decided by is your agent. Small expenses fall under the agent's own approval limit, so it can approve them by itself.
+Now ask the agent to approve your own $75 expense by its ID:
+Approve expense EXPENSE-ID
+Expense Desk refuses and explains that you can't approve your own expense. It checks who owns the expense and enforces that rule, no matter what the agent asks for.
+Now that you've seen the refusal, you'll approve an expense that isn't yours.
+Step 3: Approve (or reject) someone else's expense
+In Expense Desk, choose All expenses and click Refresh. Select someone
+Check
+
+Expense Desk   Sign out
+Your expense assistant
+Your approval limit is $100.
+You
+Submit $30 for office supplies for our team.
+Expense Desk
+Submitted EXP122 for $30 and approved it. Status: approved. Decided by: Expense Desk Agent (kmaida).
+Expense Desk
+The agent approved EXP122. Eligible office supplies under $50 with a clear business purpose.
+You
+Submit a $75 expense for printer paper and toner for the workshop.
+Expense Desk
+Submitted EXP123 for $75. Status: pending. A person will review it.
+Message the agent
+File a $42 expense for a taxi to a client meeting
+Send
+Enter to send. Shift+Enter for a new line.
+
+Expenses   Refresh
+Your chat refreshes this view. Use Refresh to see other people's changes or automatic review results.
+Show   All expenses   Status   All
+Ask the agent to submit or review expenses.
+printer paper and toner for the workshop   $75.00
+EXP123   Pending
+office supplies for our team   $30.00
+EXP122   Approved
+hibiscus lemonade   $7.00
+EXP121   jen   Submitted via API key   Pending
+new laptop for Sutton   $100.00
+
+EXP123   Pending
+$75.00
+Created by
+Memo   printer paper and toner for the workshop
+Created   Oct 12, 4:08 PM
+Updated   Oct 12, 4:08 PM
+Approve</pre></details>
+        <button class="ts" data-t="2157">▶ 35:57</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/704006dabd0a40cef6b0ceaed4366f20f8925bb40193e3892f4f9b05c6d0767e.webp" alt="A workshop slide asks whether an agent interrupted midway through a loop of model and tool calls starts over, repeats completed work, or resumes where it stopped." loading="lazy" data-lb="15" data-cap="What happens to your agent when its process dies?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What happens to your agent when its process dies?</h3>
+        <p>A workshop slide asks whether an agent interrupted midway through a loop of model and tool calls starts over, repeats completed work, or resumes where it stopped.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Overview   Invite details   Progress
+
+What happens to your agent when its process dies?
+
+An agent is a loop of model calls and tool calls. If the process crashes halfway
+through, does it start over, repeat work it already did, or pick up where it left off?
+
+Start</pre></details>
+        <button class="ts" data-t="2468">▶ 41:08</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/c1515bbb1189999b34898b0081c177ff4d8b0041e85d5e52b5eb8b61ddc30fbe.webp" alt="The instructions show Python code that debits the ledger, waits 60 seconds, then marks the expense settled. Beside it, Temporal lists 0 Workflows in the default namespace." loading="lazy" data-lb="16" data-cap="SettlementWorkflow code and its 60-second durable timer" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>SettlementWorkflow code and its 60-second durable timer</h3>
+        <p>The instructions show Python code that debits the ledger, waits 60 seconds, then marks the expense settled. Beside it, Temporal lists 0 Workflows in the default namespace.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Overview   Invite details   Progress   Hide Instructions
+Instructions   View notes
+Now that you've seen the agent's shape, you'll run a smaller Workflow with the same shape, one you can interrupt on purpose.
+
+Step 2: Read the settlement code
+Once an expense is approved, it has to be paid. The settlement Workflow does that in two steps, and it's small enough to stop at the exact moment you choose. Open temporal/demo.py:
+
+python   copy
+@workflow.defn
+class SettlementWorkflow:
+    @workflow.run
+    async def run(self, amount: int) -&gt; SettlementResult:
+        opts = dict(
+            start_to_close_timeout=timedelta(minutes=2),
+            # Unlimited attempts: a transient failure never ends
+            # Keycard errors still fail fast because the SDK
+            retry_policy=RetryPolicy(maximum_interval=timedelta(
+                                     non_retryable_error_types=[
+        )
+        debit = await workflow.execute_activity(debit_ledger,
+        # A durable timer gives the room a restart window after
+        await workflow.sleep(timedelta(seconds=60))
+        settle = await workflow.execute_activity(mark_settled,
+        return {&quot;debit&quot;: debit, &quot;settle&quot;: settle}
+
+The Workflow runs the debit_ledger Activity, waits 60 seconds, and then runs the mark_settled Activity. The retry policy has no attempt limit, so a short outage only delays an Activity instead of failing the Workflow.
+The workflow.sleep call starts a durable Timer. Temporal tracks the Timer itself, so it keeps counting even when nothing is running your code. Those
+Check
+
+Temporal UI   Worker   Client   Editor   Keycard   Your feedback
+Web UI   default   local
+Namespaces
+Workflows
+Standalone Activities
+Schedules
+Batch
+Workers
+Nexus
+Archive
+Import
+Docs
+Feedback
+2.54.1
+
+0 Workflows   Refresh   Start Workflow
+Oct 12, 2026, 4:14:14.41 PM EDT
+Saved Views   0 / 50
+Add Filter
+Status   Workflow ID   Run ID   Type   Start   End
+No Workflows running in this Namespace
+You can populate the Web UI with sample Workflows. You can find a complete list of executable code samples at github.com/temporalio.
+samples-go
+samples-java
+samples-typescript
+samples-python
+samples-dotnet
+samples-php
+samples-ruby</pre></details>
+        <button class="ts" data-t="2645">▶ 44:05</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/74debd891397ed946f7bbd5862819570296e629dabad7e5b265d81982a2e6a5b.webp" alt="For input 4200, the Temporal timeline shows debit_ledger completed in 988ms and a one-minute timer. A Workflow Task Timed Out panel shows a schedule-to-start timeout and a pending workflow task." loading="lazy" data-lb="17" data-cap="Temporal timeline shows a completed debit and a pending workflow task" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Temporal timeline shows a completed debit and a pending workflow task</h3>
+        <p>For input 4200, the Temporal timeline shows debit_ledger completed in 988ms and a one-minute timer. A Workflow Task Timed Out panel shows a schedule-to-start timeout and a pending workflow task.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt   Secure Agents with Keycard and Temporal
+Overview   Invite details   Progress   Hide Instructions
+Instructions   View notes
+Worker PID 1234 on keycard-temporal-demo
+The Worker is now polling the keycard-temporal-demo Task Queue for work. Leave it running.
+Now that a Worker is ready, you'll give it a settlement to run.
+
+Step 5: Start a settlement
+Click on the Client tab and type the following command:
+bash   copy   run
+uv run --locked --env-file .env demo.py run
+The run argument starts one SettlementWorkflow with an amount of 4200 and waits for its result. It prints the Workflow ID right away:
+bash   copy
+workflow id: settlement-1a2b3c4d
+Copy your Workflow ID. Leave this terminal alone; it's waiting for the Workflow to finish.
+Go back to the Worker tab. You'll see a log line containing debited 4200 with a token minted for this call. That's the debit Activity running once.
+Click on the Temporal UI tab and open your Workflow. If you don't see your workflow listed, click the Refresh link at the top of the UI. In Event History, select the All view, which lists every event by name. Find ActivityTaskCompleted for the debit, followed by TimerStarted. The debit is done, and Temporal has recorded its result.
+Now that the debit has run, it's time to interrupt the Workflow.
+Step 6: Stop the Worker mid-settlement
+Now click on the Worker tab and press CTRL+C to stop the Worker.
+Check
+
+Temporal UI   Worker   Client   Editor   Keycard   Your feedback
+Web UI   default   local
+Namespaces
+Workflows
+Standalone Activities
+Schedules
+Batch
+Workers
+Nexus
+Archive
+Import
+Docs
+Feedback
+2.54.1
+
+Input   4200
+Result   Results will appear upon completion.
+Workflow Task Timed Out
+The Workflow Task encountered a timeout.
+14   Workflow Task Timed Out   Oct 12, 2026, 4:19:59.56 PM EDT
+Timeout Type   TIMEOUT_TYPE_SCHEDULE_TO_START
+Pending Workflow Task
+
+Timeline
+Descending   Show idle time   Filter   Auto Refresh On   Download
+1 (1m)
+debit_ledger
+COMPLETED   debit_ledger   988ms   Close
+5   Activity Task Scheduled   Oct 12, 2026, 4:18:48.56 PM EDT
+Activity ID   1
+Activity Type   debit_ledger
+Task Queue Kind   TASK_QUEUE_KIND_NORMAL
+Start To Close Timeout   2 minutes
+Workflow Task Completed Event ID   4
+Retry Policy Initial Interval   1s
+Retry Policy Backoff Coefficient   2
+Retry Policy Maximum Interval   2s
+Use Workflow Build ID   true
+Task Queue Name   keycard-temporal-demo
+Input   4200
+Retry Policy Non Retryable Error Types</pre></details>
+        <button class="ts" data-t="2855">▶ 47:35</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/f4db46d39d5482a6d4aad661b35f402c6b31f344e493c84b79c070ef49185076.webp" alt="Workshop instructions sit beside a Temporal workflow timeline. The input is 4200, and the debit and settlement results both show 4200. The selected debit_ledger activity is marked COMPLETED with a duration of 988ms." loading="lazy" data-lb="18" data-cap="SettlementWorkflow timeline and debit_ledger activity" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>SettlementWorkflow timeline and debit_ledger activity</h3>
+        <p>Workshop instructions sit beside a Temporal workflow timeline. The input is 4200, and the debit and settlement results both show 4200. The selected debit_ledger activity is marked COMPLETED with a duration of 988ms.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt
+Secure Agents with Keycard and Temporal
+Overview   Invite details   Progress   Hide Instructions
+
+Instructions   View notes
+because Temporal can replay its history. The model calls and tool calls run inside an Activity, which Temporal retries with timeouts and backoff when it fails. Temporal can also be the inner harness, the agent loop itself. Its primitives cover the parts of an agent that frameworks often leave to you, like human approvals, guardrails, and cost controls. Either way, you saw the result in this exercise: the Worker went away, and the Workflow never lost its place.
+
+Now that you know why durability matters, you'll check where the credentials ended up.
+
+Step 8: Keep secrets out of history
+Temporal keeps a Workflow's Event History while it runs and for the namespace's retention period after it closes, and anyone who can read the Workflow can see what's in it. So anything sensitive should stay out of it.
+
+The Client tab printed a command to check your Workflow's history. Click on the Client tab and type it, using your Workflow ID:
+bash   copy   run
+uv run --locked --env-file .env check_history.py WORKFLOW-ID
+
+Keycard's access tokens use a format called JSON Web Token (JWT). The script scans every event in your Workflow's history for values shaped like a JWT. You should see a result like this:
+bash
+OK: no JWT-shaped token material across 22 events in settlement-1
+
+Check by hand, too. In the Temporal UI, open the debit Activity's input and result. You'll see amounts and results, but never a token.
+
+Temporal gives you two ways to keep sensitive data out of Event History:
+• Interceptors, like the KeycardInterceptor you saw, keep data like
+Check
+
+Temporal UI   Worker   Client   Editor   Keycard   Your feedback
+Web UI
+default   local
+Namespaces
+Workflows
+Standalone Activities
+Schedules
+Batch
+Workers
+Nexus
+Archive
+Import
+Docs
+Feedback
+2.54.1
+
+Start   Oct 12, 2026, 4:18:48.53 PM EDT
+End   Oct 12, 2026, 4:20:11.31 PM EDT
+Duration   1m 22s 781ms
+Run ID   01a131c4-9253-7e65-aa10-2facc511f8f6
+Workflow Type   SettlementWorkflow
+Task Queue   keycard-temporal-demo
+History Size   2.45 KB
+State Transitions   13
+Workflow SDK   Python 1.32.0   Docs
+
+Timeline   Event History 24   Relationships 0   Workers 1   Pending Activities 0   Call Stack   Queries   User Metadata
+Search Attributes   Memo
+
+Input
+4200
+Result
+{
+  &quot;debit&quot;: {
+    &quot;debited&quot;: 4200
+  },
+  &quot;settle&quot;: {
+    &quot;settled&quot;: 4200
+  }
+}
+
+Timeline
+Descending   Show idle time   Filter   Auto Refresh Off   Download
+mark_settled
+1 (1m)
+debit_ledger
+COMPLETED   debit_ledger   988ms   Close
+
+5 Activity Task Scheduled   Oct 12, 2026, 4:18:48.56 PM EDT
+Activity ID   1
+Activity Type   debit_ledger
+Task Queue Kind   TASK_QUEUE_KIND_NORMAL
+Start To Close Timeout   2 minutes
+Workflow Task Completed Event ID   4</pre></details>
+        <button class="ts" data-t="2964">▶ 49:24</button>
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/0127a3f3813e29e925e982a64ce1928274f7be4369a94c09158b170fa59bb011.webp" alt="A descending event list shows the debit result of 4200, a one-minute timer, a workflow task timeout highlighted in red, and the later settlement result of 4200. Beside it, the workshop shows a history-scan command and explains interceptors and payload encryption." loading="lazy" data-lb="19" data-cap="SettlementWorkflow event history and JWT scan instructions" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>SettlementWorkflow event history and JWT scan instructions</h3>
+        <p>A descending event list shows the debit result of 4200, a one-minute timer, a workflow task timeout highlighted in red, and the later settlement result of 4200. Beside it, the workshop shows a history-scan command and explains interceptors and payload encryption.</p>
+        <details><summary>幻灯片原文</summary><pre>instruqt
+Secure Agents with Keycard and Temporal
+Overview   Invite details   Progress   Hide Instructions
+
+Instructions   View notes
+Now that you know why durability matters, you'll check where the credentials ended up.
+
+Step 8: Keep secrets out of history
+Temporal keeps a Workflow's Event History while it runs and for the namespace's retention period after it closes, and anyone who can read the Workflow can see what's in it. So anything sensitive should stay out of it.
+
+The Client tab printed a command to check your Workflow's history. Click on the Client tab and type it, using your Workflow ID:
+bash   copy   run
+uv run --locked --env-file .env check_history.py WORKFLOW-ID
+
+Keycard's access tokens use a format called JSON Web Token (JWT). The script scans every event in your Workflow's history for values shaped like a JWT. You should see a result like this:
+bash
+OK: no JWT-shaped token material across 22 events in settlement-1
+
+Check by hand, too. In the Temporal UI, open the debit Activity's input and result. You'll see amounts and results, but never a token.
+
+Temporal gives you two ways to keep sensitive data out of Event History:
+• Interceptors, like the KeycardInterceptor you saw, keep data like credentials out of history out entirely by fetching them inside each Activity.
+• A Payload Codec encrypts the data that does go into history. Your Clients and Workers encrypt each input and result before it leaves the process, so the Temporal Service stores those as ciphertext. Failure messages need the Failure Converter's encoding option too. A Codec Server that you run decrypts the data for the Temporal UI and CLI, and Temporal never holds your keys.
+Check
+
+Temporal UI   Worker   Client   Editor   Keycard   Your feedback
+Web UI
+default   local
+Namespaces
+Workflows
+Standalone Activities
+Schedules
+Batch
+Workers
+Nexus
+Archive
+Import
+Docs
+Feedback
+2.54.1
+
+Event History   All   Compact   JSON
+Descending   Filter   Auto Refresh Off   Download
+22   Oct 12, 2026, 4:20:11.30 PM EDT   Workflow Task Started   History Size Bytes   2191
+21   Oct 12, 2026, 4:20:11.29 PM EDT   Workflow Task Scheduled   Task Queue Name   603@workshop-f95760c60f8546339
+20   Oct 12, 2026, 4:20:11.29 PM EDT   Activity Task Completed   Result   {&quot;settled&quot;:4200}
+19   Oct 12, 2026, 4:20:10.49 PM EDT   Activity Task Started   Attempt   1
+18   Oct 12, 2026, 4:20:10.49 PM EDT   Activity Task Scheduled   Activity Type   mark_settled
+17   Oct 12, 2026, 4:20:10.49 PM EDT   Workflow Task Completed   Identity   603@workshop
+16   Oct 12, 2026, 4:20:10.47 PM EDT   Workflow Task Started   History Size Bytes   1496
+15   Oct 12, 2026, 4:19:59.56 PM EDT   Workflow Task Scheduled   Task Queue Name   keycard-temporal-demo
+14   Oct 12, 2026, 4:19:59.56 PM EDT   Workflow Task Timed Out   Scheduled Event ID   13
+13   Oct 12, 2026, 4:19:49.56 PM EDT   Workflow Task Scheduled   Task Queue Name   572@workshop-776ceb1a937d416f91
+12   Oct 12, 2026, 4:19:49.56 PM EDT   Timer Fired   Timer ID   1
+11   Oct 12, 2026, 4:18:49.56 PM EDT   Timer Started   Start To Fire Timeout   1 minute
+10   Oct 12, 2026, 4:18:49.56 PM EDT   Workflow Task Completed   Identity   572@workshop
+9   Oct 12, 2026, 4:18:49.55 PM EDT   Workflow Task Started   History Size Bytes   1023
+8   Oct 12, 2026, 4:18:49.54 PM EDT   Workflow Task Scheduled   Task Queue Name   572@workshop-776ceb1a937d416f91
+7   Oct 12, 2026, 4:18:49.54 PM EDT   Activity Task Completed   Result   {&quot;debited&quot;:4200}
+6   Oct 12, 2026, 4:18:48.56 PM EDT   Activity Task Started   Attempt   1
+5   Oct 12, 2026, 4:18:48.56 PM EDT   Activity Task Scheduled   Activity Type   debit_ledger
+4   Oct 12, 2026, 4:18:48.54 PM EDT   Workflow Task Completed   Identity   572@workshop
+3   Oct 12, 2026, 4:18:48.54 PM EDT   Workflow Task Started   History Size Bytes   298
+2   Oct 12, 2026, 4:18:48.53 PM EDT   Workflow Task Scheduled   Task Queue Name   keycard-temporal-demo
+1   Oct 12, 2026, 4:18:48.53 PM EDT   Workflow Execution Started   Workflow Type Name   SettlementWorkflow
+
+1 Workflow Execution Started
+100   1</pre></details>
+        <button class="ts" data-t="3034">▶ 50:34</button>
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">一项报销服务需要知道是谁行使了它的权限</a></li><li><a href="#sec-2">用户登录确立了可以委托谁的访问权限</a></li><li><a href="#sec-3">跟随一个提示词从 LangChain 循环走到报销账本</a></li><li><a href="#sec-4">为 MCP 调用签发一个凭据，为账本签发另一个</a></li><li><a href="#sec-5">运行 API 密钥版本并检查一笔 75 美元的报销</a></li><li><a href="#sec-6">把 Expense Desk 同时注册为令牌请求方和接收方</a></li><li><a href="#sec-7">连接四个依赖并配置沙箱的客户端凭据</a></li><li><a href="#sec-8">把 MCP 工具集接到令牌签发，以智能体身份运行</a></li><li><a href="#sec-9">代表 Kim 提交的一笔 75 美元报销只有一个经过验证的执行者</a></li><li><a href="#sec-10">跟随智能体的凭据从 MCP 服务器走到账本</a></li><li><a href="#sec-11">让人登录，同时保留智能体自己的权限</a></li><li><a href="#sec-12">一笔 30 美元的办公用品报销：人提交，智能体审批</a></li><li><a href="#sec-13">一笔 75 美元的报销保持待处理，即使审核额度是 100 美元</a></li><li><a href="#sec-14">追踪 Kim 的委托权限穿过两次令牌交换</a></li><li><a href="#sec-15">把智能体循环放进工作流，把外部调用放进活动</a></li><li><a href="#sec-16">在工作进程执行活动时给它一个凭据</a></li><li><a href="#sec-17">扣款后杀掉 PID 572，看看什么留了下来</a></li><li><a href="#sec-18">恢复一次长时间的智能体运行而不必重新花钱买答案</a></li><li><a href="#sec-19">检查恢复的运行中有没有 JWT，再决定加密什么</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">别再给你的 AI 智能体 API 密钥了：Expense Desk 的身份与持久化执行</h2>
+      <div class="lede"><p>Kim Maida 用限定范围的 token 展示了是谁提交了一笔 30 美元的报销，以及智能体为什么可以批准它。随后 Mason Egger 在一次账本扣款后杀掉了一个工作进程，展示 Temporal 如何在不重复扣款、也不把访问 token 存进工作流历史的情况下完成结算。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>一项报销服务需要知道是谁行使了它的权限</h3>
+      <p>Kim Maida of Keycard and Mason Egger, a solutions architect at Temporal, introduce two responsibilities of an agent runtime. Maida works on the identity and access an agent needs while it runs. Egger works on durable execution for applications, including agents. Maida takes the first part of the workshop, which starts with a functioning expense application and changes how it gets permission to do its work. Participants can use the supplied sandbox and join Keycard during the exercise. Registration for a personal account afterward is separate.</p>
+<p>Consider what an expense service learns when an agent presents an API key. It can grant the operations attached to the key, but possession alone identifies neither the particular agent making the request nor the person who asked it to act. The agent can exercise every permission the key carries, even if the current request needs only one. Requiring a person to click Approve leaves the attribution problem intact if the agent still submits the approval with that key. People can also make mistakes, and some agents need to work autonomously. Expense Desk will need a way to represent both delegated human authority and the agent’s own authority.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="119">▶ 1:59</button></div>
+      <h3>用户登录确立了可以委托谁的访问权限</h3>
+      <p>Maida introduces Token Exchange, an open standard dating to 2020 that extends OAuth 2. To follow a human identity through an execution, start at sign-in. An authorization server verifies the user’s identity and issues tokens. Google, Okta and Auth0 are examples of identity providers that offer authorization servers. Logging in establishes who is present. The subsequent consent step establishes which portion of that person’s access the agent may exercise.</p>
+<p>The user consents to delegate a subset of their permissions, expressed as scopes. This is the first opportunity to narrow access, before the agent has even received a prompt. The authorization server issues a token identifying the user and their level of access. Later, when the application presents that token in an exchange, it serves as the <em>subject token</em>. The subject is the person on whose behalf the application wants to act. The application will supply a separate means of identifying itself, so a downstream authorization decision can account for both parties.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="190">▶ 3:10</button></div>
+      <h3>跟随一个提示词从 LangChain 循环走到报销账本</h3>
+      <p>Expense Desk is the runtime, the process that runs the agent loop and executes calls. Inside the custom application, a LangChain agent calls an LLM. An expense Model Context Protocol (MCP) server exposes a defined set of tools and connects them to a ledger API. The ledger API in turn connects to the database that stores expenses. Within this arrangement the MCP client has a specific job: take the tool calls the model proposes and dispatch them to the MCP server.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/8b7eb8d46c4cc953152e744409e856b597a09a52bfe55fafae0a570a46d15b3e" alt="From left to right, the diagram shows a user with a speech bubble and key badge, a robot and plug inside a box marked with a browser window, a server stack, and a gear beside a database." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The agentic execution path</figcaption></figure>
+<p>A user submits a prompt to Expense Desk. The runtime calls the model, which proposes a tool call. The MCP client dispatches it, the MCP server executes the tool, and the tool calls the ledger API. The result travels back through the server and client to the runtime. Expense Desk calls the model again with the result. The model can propose another call, sending the application around the loop again, or return an answer to the user. This order matters for authorization. By the time a proposal reaches the client, the application knows which operation it needs permission to perform.</p>
+<p>Implementing the exchange requires an OAuth client capable of executing code. Maida describes three places it could live. A gateway could perform the exchange between an MCP client and a third-party MCP server. A custom agent application could perform it inside its own runtime. A CLI wrapper could add the exchange around an off-the-shelf coding agent. Expense Desk takes the second approach for access to the expense MCP server. That server also supports exchange, giving it a way to ask for access at the next boundary, the ledger API.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="341">▶ 5:41</button></div>
+      <h3>为 MCP 调用签发一个凭据，为账本签发另一个</h3>
+      <p>In the delegated path, the prompt and subject token arrive at Expense Desk together. Once the model proposes a tool call, the application authenticates to Keycard’s security token service, a specialized authorization server. It can establish its own identity with client credentials or a workload identity. It also presents the user’s subject token and asks for access to the expense MCP server for the particular tool call the model proposed.</p>
+<p>Keycard can now evaluate the requesting agent, the user it represents and the extent of the user’s delegation alongside the target resource and requested access. A user’s permission to use Expense Desk therefore does not by itself settle whether to issue this next credential. The delegation chain and the operation requested at this resource must fit policy. If they do, Keycard issues an access token addressed to the expense MCP server. Maida says it typically expires within minutes and instructs participants to keep it out of storage.</p>
+<p>The Expense Desk MCP client presents the issued token as a bearer credential with the tool call. The MCP server validates it and uses it to authorize the operation. Executing the tool now requires the server to call a different resource. For this second hop, the MCP server becomes the requester. It asks Keycard to exchange the token it received from Expense Desk for a token that grants the access this operation needs at the ledger API.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/2a372a2cb963fd4b61533e697ddb1eacea4f6200cc4612d88b30adf96feb704c" alt="A user, agent, MCP server and database are arranged from left to right. Beneath the agent, a server stack shows a hand alongside key and database symbols." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Expense MCP server requests token for Ledger API</figcaption></figure>
+<p>Keycard evaluates the second request against policy, then issues the ledger credential if permitted. The MCP server calls the API, the API validates the token, and the server discards it when the call finishes. The API result flows back to the model through the normal agent loop. If the model proposes another tool call, the runtime requests access for that call. This places credential issuance at the point of use on each hop, even when a single user prompt produces several operations.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="519">▶ 8:39</button></div>
+      <h3>运行 API 密钥版本并检查一笔 75 美元的报销</h3>
+      <p>Start the workshop sandbox and allow a minute or two for setup. Participants work in one pre-provisioned Keycard organization, so they can see one another’s work. Each runs a separate Expense Desk agent against the same MCP server. The initial application requires no login. Each agent uses an API key, and the desk cannot reliably tell whether participants use a common key or different ones. Later configuration requires Keycard administrator access, which the workshop team grants as participants appear in the organization’s user list.</p>
+<p>The desk supports a familiar sequence. Someone files an expense, a reviewer approves or rejects it, and an approved expense can proceed to payout. The workshop makes no actual payments. Every interaction with the desk goes through the agent. Maida asks hers to submit $75 for workshop snacks. The expense appears as pending. Its activity entry says that an API key granted access to create it. There is no user identity attached to the filing, and the agent has yet to acquire an identity of its own.</p>
+<p>Maida refreshes the desk, picks another participant’s expense and clicks Approve. The button sends an approval prompt to her agent, which successfully approves the expense. Looking at the entry afterward, she can see that a key authorized creation. She knows who just clicked the button because she did it herself, but a reader of the record cannot identify the filer or the approver. This gives the group a baseline they can reproduce before changing any credentials.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="771">▶ 12:51</button></div>
+      <h3>把 Expense Desk 同时注册为令牌请求方和接收方</h3>
+      <p>The first implementation goal is to let the agent act on its own behalf. Follow the invitation in the workshop instructions and log in with GitHub to join Keycard. Check for <code>Workshop AIE NYC</code> in the upper left of the console to confirm the organization. Participants may encounter consent prompts as they join. This login gets Maida into the console where she configures the agent. A user signing into Expense Desk itself will be a separate event.</p>
+<p>In Applications, create an application registration for the agent. An <em>application</em> is a registration for something that can request tokens. Maida names hers as an agent app and incorporates her GitHub handle so she can find it among the other participants’ registrations. Give it a unique identifier, select implicit consent and obtain the redirect URL by running the supplied instruction in the sandbox terminal. Copy that instance-specific URL into the registration. It tells the sign-in flow where to return the user after login. Then choose Create application.</p>
+<p>Expense Desk will also receive a user’s sign-in token. In Keycard, a <em>resource</em> is a registered target to which a token can be addressed. The same running component can hold both roles. Open Resources, add an agent resource, and give it a recognizable name and identifier using the same personal naming convention. Set its credential provider to the zone provider. This makes Keycard responsible for handling token exchange and issuing tokens for this resource.</p>
+<p>In the resource configuration, select the agent application just created as the application that provides the resource, then save. This association has an operational consequence. It tells Keycard that this particular application can exchange sign-in tokens addressed to this particular resource. Similar names in the two registration lists do not establish that relationship. If the provider association is omitted, Keycard rejects the exchange requests.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1118">▶ 18:38</button></div>
+      <h3>连接四个依赖并配置沙箱的客户端凭据</h3>
+      <p>Return to the agent’s application registration and open Dependencies. Add the agent resource just created for the application’s exchange flow, then add the expense MCP server as the downstream resource the agent needs to call. The workshop has already configured that MCP resource for the entire group. Participants select the shared entry here, even though each participant has a distinct agent application.</p>
+<p>Select two more dependencies before choosing Connect. The LLM API gives the agent access to the model provider, whose API key the workshop has already placed in Keycard’s vault. This keeps that provider secret off the agent’s disk. The user info endpoint supplies identity information about the logged-in user. These entries serve different parts of the loop: the model proposes work, the MCP server exposes the expense tools, and the user info endpoint can identify the person using the desk.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/e7cbc94b8cb7362e514e2e36f71f2eaa958707067554faa3b2b6761ae84182fe" alt="A workshop table on the left explains why the agent needs each resource. On the right, the Keycard Console lists all four resources in an Add resource dependency dialog, with the pointer over Connect (4)." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Add four resource dependencies to the Keycard agent application</figcaption></figure>
+<p>The application registration still needs a way to authenticate its requests. Choose Add Credential, then Client ID &amp; Secret. In the sandbox editor, open the environment file in the agent folder and paste the client ID and client secret. These credentials identify the agent application to Keycard. The LLM provider’s key serves a different purpose and remains in the vault. Also set the agent resource identifier to the value used in the resource registration, including the participant-specific portion, and wait for the editor to report that the changes are saved.</p>
+<p>Maida uses a client secret in the file because this is a local sandbox. For a production deployment she suggests workload identity. She also describes Keycard’s CLI as a way to populate secrets dynamically without requiring them on disk. At this stage the console knows the application, the resource it provides and its dependencies. The running Expense Desk code still has to request the credentials at the right time.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1307">▶ 21:47</button></div>
+      <h3>把 MCP 工具集接到令牌签发，以智能体身份运行</h3>
+      <p>Inspect the agent authentication code in the agent folder, then open the corresponding file under the authenticated checkpoint for exercise two. Each lesson provides the code for its completed state, so the comparison isolates what changes in the runtime. In the starting version there is no authenticated MCP access. In the checkpoint, the MCP toolset receives Keycard zone token authentication from the Keycard SDK. Attaching authentication here makes the toolset request a scoped token each time it dispatches an individual call to the expense MCP server.</p>
+<p>Next, inspect the mint function in the Keycard file. This is where the request to issue a token is made. The function handles a case the delegated walkthrough deliberately set aside: Expense Desk may be running without a signed-in user. In that case it has no user subject token to present. It uses a <em>client credentials grant</em>, authenticating with the application’s configured client ID and secret. The resulting authority belongs to the agent itself. This is the path the group can test immediately, before adding human sign-in to the desk.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/233013a15a21d10752e48d6efcc3c15cd80db21907897737c6c8df34ab8d140a" alt="Workshop instructions explain how ZoneTokenAuth sets the Authorization header. Beside them, keycard.py shows mint using a client credentials grant when the subject token is absent and exchanging the subject token when it is present." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>How ZoneTokenAuth gets a fresh token for each MCP request</figcaption></figure>
+<p>In the Terminal tab, activate checkpoint two and restart the services so Expense Desk loads the updated code. Back in the application, choose Continue as the agent. Maida asks which account is active and how much it can approve on someone else’s expense. The desk identifies the Expense Desk agent whose client ID and secret she configured and reports an approval limit of about $50.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1590">▶ 26:30</button></div>
+      <h3>代表 Kim 提交的一笔 75 美元报销只有一个经过验证的执行者</h3>
+      <p>Maida asks the agent to file a $75 expense for workshop swag on her behalf. The submission succeeds. When she opens the expense, the memo says it was filed on behalf of Kim, while the activity record identifies her Expense Desk agent as the filer.</p>
+<p>The agent got the name for the memo from the request itself. Maida has yet to sign in, so the application has no evidence connecting the person who typed the request to Kim. It can establish which agent filed the claim because that agent presented its own credential. This also illustrates the difference between filing and approving. The agent can submit a $75 claim even though that amount exceeds its authority to approve a purchase on its own.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1670">▶ 27:50</button></div>
+      <h3>跟随智能体的凭据从 MCP 服务器走到账本</h3>
+      <p>To see how the agent reached the expense service, Maida opens Applications in Keycard and inspects the activity against her application. Several resources appear in the log. She filters for calls to the expense MCP resource and narrows the time range to the last hour. An issued-credential entry records a client credentials grant. The application itself was the actor that obtained access to the expense MCP server.</p>
+<p>The MCP server has two jobs, which explains its multiple registrations in Keycard. From the agent’s perspective, the server is a resource that receives a token when the agent makes a tool call. To carry out that call, the server needs access to a second resource, the ledger API. At that point the server becomes the requesting application. Its actor registration lets it exchange the incoming token for a credential to call the ledger.</p>
+<p>Maida switches to the preregistered expense MCP actor and filters its activity by calls to the ledger API. Everyone in the workshop uses this MCP server, so its activity includes other participants’ requests. She opens an exchange to show how to read the delegation chain. The server made the request, the agent application was the identity on whose behalf it acted, and the ledger API was the resource it accessed. Those are three separate fields of interest even for a filing with no human identity attached.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/9acdc1246db0e5aa7b5383beea032866f6c3b2dc4372a1a761b09666f5a6463f" alt="The Keycard activity feed is filtered to Ledger API. A selected Credential Issued event shows Expense MCP Actor acting on behalf of Application - Sutton, with Ledger API as the resource." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Keycard delegation chain for a Ledger API credential</figcaption></figure>
+    </section>
+<section class="section" id="sec-11">
+      <div class="section-head"><span class="num">11</span>
+      <button class="seek" data-t="1882">▶ 31:22</button></div>
+      <h3>让人登录，同时保留智能体自己的权限</h3>
+      <p>For the next filing, Maida wants the record to preserve two facts together. A particular agent performed the operation, and a particular human delegated permission for it. Simply attributing every action to Kim would obscure the agent’s involvement. It would also make it hard to distinguish work the agent did using Kim’s permissions from a decision it was authorized to make independently.</p>
+<p>The sandbox embeds Expense Desk in an iframe that cannot handle external authentication. Maida opens the desk in a separate tab and clicks Sign In at the upper right. Her existing login session completes sign-in automatically. Her email now appears in the desk. She asks the agent which account she is using, a question that previously returned the agent’s identity. This time it recognizes her human account and reads a $100 approval limit associated with her identity metadata.</p>
+<p>Maida has yet to file anything under that account. She changes the expense filter to show all expenses and finds earlier submissions still attributed to the API key, alongside examples of Expense Desk acting for other people. Signing in gives the desk a verified identity to use on subsequent requests. The old entries retain the attribution the service was able to establish when it accepted them.</p>
+    </section>
+<section class="section" id="sec-12">
+      <div class="section-head"><span class="num">12</span>
+      <button class="seek" data-t="2031">▶ 33:51</button></div>
+      <h3>一笔 30 美元的办公用品报销：人提交，智能体审批</h3>
+      <p>Maida asks Expense Desk to submit $30 for office supplies for the team. The agent checks who she is and files the claim. This purchase also qualifies for autonomous approval, so the agent takes a second action under its own authority. A single request in the interface has produced two decisions in the expense system, each with a different identity attached.</p>
+<p>Maida opens the expense activity. The creation entry shows her email, and the approval entry identifies the Expense Desk agent and gives its reason: “Eligible office supplies under fifty dollars with a clear business purpose.” Maida describes the agent’s authority as covering expenses under $49.99. The $30 purchase falls within both descriptions.</p>
+<p>The two entries also clarify what signing in changed. The agent could use Maida’s identity to file her expense and still make the approval decision as itself. Anyone reviewing the purchase later can recover the filer, the approver and the stated basis for approval from the activity, even though Maida made only one request.</p>
+    </section>
+<section class="section" id="sec-13">
+      <div class="section-head"><span class="num">13</span>
+      <button class="seek" data-t="2136">▶ 35:36</button></div>
+      <h3>一笔 75 美元的报销保持待处理，即使审核额度是 100 美元</h3>
+      <p>Maida next submits a $75 expense under her signed-in identity. It exceeds the agent’s autonomous approval limit, and the desk leaves it pending for human review. She sends the agent another instruction asking it to approve the expense by number. That request exercises a different check. The amount falls within her personal $100 limit, but she filed the expense herself. The response says she needs another reviewer to approve or reject it.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c26b3bd3184da57fa32c75fbc90079e5a29f415a12cbf613ad5c36b6db53fdc6" alt="The Expense Desk chat confirms that the agent approved EXP122 for $30. The selected ledger entry, EXP123 for $75 in printer paper and toner, is pending review." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Expense Desk approves $30 in office supplies and leaves a $75 expense pending</figcaption></figure>
+<p>The desk can enforce this rule because it can compare the identity behind the review request with the recorded filer. Routing the request through the agent still leaves Maida as the human on whose behalf it would act. Maida points out that the earlier shared-key setup would have let her approve her own expenses or somebody else’s. She describes that earlier capability here. The action she demonstrates on this claim is the refusal.</p>
+<p>To exercise a permitted review, she finds a different pending expense and asks the agent to reject it. Its activity shows that the Expense Desk agent created it during the earlier exercise, when the agent was acting as itself. The new rejection carries Maida’s identity. The same expense can therefore span both stages of the workshop. Its original agent attribution survives, and a later decision by an authenticated reviewer gets a separate entry.</p>
+    </section>
+<section class="section" id="sec-14">
+      <div class="section-head"><span class="num">14</span>
+      <button class="seek" data-t="2276">▶ 37:56</button></div>
+      <h3>追踪 Kim 的委托权限穿过两次令牌交换</h3>
+      <p>The expense activity answers who filed and who reviewed. To inspect the credentials that allowed the services to act, Maida returns to Applications in Keycard, finds her Kmaida application, clears prior filters, selects her email as the actor and chooses the last hour. Opening an issued credential shows her agent application as the requester, Maida as the human on whose behalf it acted, and the expense MCP resource as the destination.</p>
+<p>On this first hop, the agent starts with the sign-in token it acquired when Maida authenticated. It offers this to Keycard as the subject token in a token exchange request. The requested credential is for the next resource in the chain, the MCP server. The agent uses the resulting MCP token to call the server with the scopes appropriate to the tool operation. This is where the signed-in path differs from the earlier client credentials grant. There is now a human subject whose delegated permissions the exchange can carry.</p>
+<p>For the second hop, Maida opens the expense MCP actor and selects a credential issued for access to the ledger API. The requester is now the MCP server. It presented the token it received from the agent and requested a new token for the ledger. The resource and requesting application have both changed between hops, while Maida remains the human on whose behalf the request proceeds.</p>
+<p>To investigate one sequence on a shared server, use the session number. Maida explains that it stays consistent across the agent-to-MCP exchange and the MCP-to-ledger exchange. Filtering by resource can find many credentials for the right destination. Matching the session across the two registrations lets an investigator follow a particular sequence. She identifies the matching field here without copying session numbers or walking through a manual match.</p>
+    </section>
+<section class="section" id="sec-15">
+      <div class="section-head"><span class="num">15</span>
+      <button class="seek" data-t="2474">▶ 41:14</button></div>
+      <h3>把智能体循环放进工作流，把外部调用放进活动</h3>
+      <p>Mason Egger of Temporal takes over with Ziggy, the plush tardigrade he carries with him, and a question about deploying the expense agent. A service can identify every participant correctly and still lose its place halfway through a task. An agent loop calls tools and external services in succession. Once a process fails, the application needs some way to determine which calls completed, what they returned and which operation should run next.</p>
+<p>Egger introduces Temporal as a durable execution framework. His mental model for its Python interface is a parent function and its child calls. The parent is a workflow, which describes the sequence or loop. Each run is a separate workflow execution. An external operation such as a tool call is an activity. Activities give the workflow places to apply retry behavior when a dependency fails and results from which it can reconstruct progress after an interruption. An activity implementation looks like ordinary Python. Egger points to an asynchronous function, <code>async def assess</code>, as an example.</p>
+<p>The concrete workflow he will interrupt is settlement. It specifies a retry policy, executes a debit against the ledger, waits on a timer, then executes a second activity to mark the expense settled. The timer stands in for time a human might take to review something. It also creates a useful interval for the experiment. Once the debit has completed and before settlement finishes, there is already a ledger operation whose result a replacement worker needs to respect.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c1515bbb1189999b34898b0081c177ff4d8b0041e85d5e52b5eb8b61ddc30fbe" alt="The instructions show Python code that debits the ledger, waits 60 seconds, then marks the expense settled. Beside it, Temporal lists 0 Workflows in the default namespace." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>SettlementWorkflow code and its 60-second durable timer</figcaption></figure>
+    </section>
+<section class="section" id="sec-16">
+      <div class="section-head"><span class="num">16</span>
+      <button class="seek" data-t="2677">▶ 44:37</button></div>
+      <h3>在工作进程执行活动时给它一个凭据</h3>
+      <p>Egger draws attention to the first decorator above an activity, which declares the resource for which it needs a grant. Keycard implemented the corresponding behavior using a Temporal interceptor. Egger describes an interceptor as a hook at a particular point in execution. When the worker executes the activity, that hook obtains identity and permission from Keycard so the activity can authenticate to its resource.</p>
+<p>This gives the deployment a choice about the identity used for work. Individual workers can have distinct identities, or a fleet can use an identity assigned to the fleet. The choice determines what the operator can identify and scope when those workers request access. For the workshop, the worker identity, Temporal application and environment configuration are already set up. Egger proceeds directly to starting a worker.</p>
+<p>Temporal separates the service that maintains execution state from the processes that perform the work. Egger suggests thinking of a fleet of workers as pods or processes within a pod. He starts one worker, and the worker tab reports PID 572. That process is now available to execute work. The separate Temporal service will still have the execution record if PID 572 disappears.</p>
+    </section>
+<section class="section" id="sec-17">
+      <div class="section-head"><span class="num">17</span>
+      <button class="seek" data-t="2775">▶ 46:15</button></div>
+      <h3>扣款后杀掉 PID 572，看看什么留了下来</h3>
+      <p>From the client tab, Egger invokes a settlement and gets a workflow ID. He switches back to the worker tab to see the application’s execution log, including credential minting for the call, then refreshes the Temporal web UI to find the running workflow. These views serve different purposes. The client identifies the execution he requested, the worker shows what its process is doing, and the service holds the history he will inspect after that process dies.</p>
+<p>With the debit complete, Egger kills the worker cold. Back in the Temporal UI, he can still inspect the retry policy, the completed activity task and the debit’s stored output. He reads the debited value as 4,200 without specifying a unit. While the worker is down, a workflow task times out. That timeout and the completed debit are both visible. The service has evidence of the successful ledger operation even though there is currently no worker to advance settlement.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/74debd891397ed946f7bbd5862819570296e629dabad7e5b265d81982a2e6a5b" alt="For input 4200, the Temporal timeline shows debit_ledger completed in 988ms and a one-minute timer. A Workflow Task Timed Out panel shows a schedule-to-start timeout and a pending workflow task." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Temporal timeline shows a completed debit and a pending workflow task</figcaption></figure>
+<p>Egger restarts the worker. Temporal reconstructs the workflow’s state by replaying its progress using the recorded responses. When the workflow reaches the completed debit, it already has the result. The worker can proceed to mark the expense settled without sending a second debit. The timing is important to this demonstration. The service had recorded completion before Egger stopped the process. That recorded result is what replay can reuse.</p>
+    </section>
+<section class="section" id="sec-18">
+      <div class="section-head"><span class="num">18</span>
+      <button class="seek" data-t="2887">▶ 48:07</button></div>
+      <h3>恢复一次长时间的智能体运行而不必重新花钱买答案</h3>
+      <p>Egger asks the audience to consider losing a worker twelve steps into an agent loop. Starting over can mean paying again for model responses the application already obtained. Recording progress in an application database is one possible design, but the developer then owns the logic to reconstruct the loop and determine what to retry. In Temporal, a completed model activity’s recorded response can serve the same purpose as the debit result in the settlement example.</p>
+<p>The distinction is between waiting for an unavailable dependency and losing completed work. Egger gives an LLM provider outage and the loss of compute in an AWS region as examples. Execution can continue when the needed resources return. Whether a user notices depends on timing. In his hypothetical, a client already expects to wait a minute for approval. If the worker returns within five seconds of failing during that interval, the interruption might pass unnoticed. Those times illustrate the user experience. The observed failure in the workshop was the deliberate worker shutdown.</p>
+    </section>
+<section class="section" id="sec-19">
+      <div class="section-head"><span class="num">19</span>
+      <button class="seek" data-t="2970">▶ 49:30</button></div>
+      <h3>检查恢复的运行中有没有 JWT，再决定加密什么</h3>
+      <p>The durable history raises a security question. If the next worker can recover the output of each activity, what else did the service retain? Egger goes to run a Python inspection script and has to retrieve the correct workflow ID from the client tab first. With that ID, the script reports that it found no JWT material in the event history for the settlement he just ran.</p>
+<p>Egger opens the activity results to show how much business data is nevertheless present. The debit result is readable, and the second activity, Mark Settled, has a recorded result as well. The Keycard interceptor obtains and injects a credential when the activity executes. That timing keeps the credential out of the recorded payloads while leaving the operation’s result available for replay. The script checks this property for the specific execution he recovered.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/0127a3f3813e29e925e982a64ce1928274f7be4369a94c09158b170fa59bb011" alt="A descending event list shows the debit result of 4200, a one-minute timer, a workflow task timeout highlighted in red, and the later settlement result of 4200. Beside it, the workshop shows a history-scan command and explains interceptors and payload encryption." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>SettlementWorkflow event history and JWT scan instructions</figcaption></figure>
+<p>Egger describes a second mechanism for a different requirement. Some data needs to survive in history, but its owner may want it encrypted before it reaches the Temporal service. A payload encoder can apply an operator-selected encryption policy. He describes a sidecar pattern for doing this with operator-controlled keys, whether Temporal is self-hosted or used in the cloud. The settlement results on screen are plaintext. Payload encryption is an option he explains separately from the credential injection he demonstrated.</p>
+<p>Egger closes by mentioning integrations including OpenAI, Pydantic AI and LangChain. The expense desk shows where the two systems meet in practice. Keycard can record who requested access to the ledger and under whose authority. Temporal can record that the debit completed and use its result to finish settlement. The credential used for the call can stay with the executing worker while both records retain the information their readers need.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Put token issuance in the tool dispatch path, where the runtime knows the proposed operation and its target. Exchange again when the MCP server needs a credential addressed to the ledger.</li><li>Register both roles of an application that receives sign-in tokens and requests downstream access. Explicitly associate the resource with its providing application so Keycard will accept the exchange.</li><li>Verify autonomous operation separately from human delegation. With no subject token, the client credentials grant should identify the registered agent when you ask Expense Desk which account is active.</li><li>Record the verified filer and reviewer on their respective expense events. A name supplied in a memo cannot establish delegated authority or enforce a self-review rule.</li><li>To trace a delegated call, inspect the requester, subject and target resource at each exchange. Match the session number across hops when many agents share one MCP server.</li><li>Test recovery between observable steps. Stop the worker after the debit completion is recorded, verify that result while the worker is down, then restart and check settlement.</li><li>Inspect the history for the exact workflow ID you exercised. Fetch credentials at activity execution time, and use payload encryption for sensitive results that must survive replay.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">My name is Kim Maida. I work at Keycard, and Keycard provides agent access, identity, and access at runtime for agents. Oh, my.</span></div><div class="tline" data-t="25"><span class="ts">0:25</span><span class="tx">Hi, everyone. My name is Mason Egger. I'm a solutions architect at Temporal. And, uh, Temporal provides durable execution to your software applications up into and including agents. So not just agents, but pretty much the entire bu- the entire stack. So.</span></div><div class="tline" data-t="43"><span class="ts">0:43</span><span class="tx">So everything you're gonna need for the workshop is at the link that's on the screen right now. You actually do not need to sign up for Keycard ahead of time because the sign-up will be included, like, within the curriculum. But in order to get an account for your own personal use, if you want to play with Keycard on your own after the workshop, you can go to the link that is provided at the bottom and enter that registration code in order to sign up for a personal account.</span></div><div class="tline" data-t="76"><span class="ts">1:16</span><span class="tx">Okay. So we'll come back to this slide, but I am going to start out by talking a little bit about agent access.</span></div><div class="tline" data-t="86"><span class="ts">1:26</span><span class="tx">So one of the things that we do a lot of these days is give API keys to agents to give them access to resources, right? And there's several problems with doing things this way. One being credentials aren't attributed to a user identity or an agent identity. The agent has unrestricted access to any and all permissions in that API key. And finally, we can't just sort of stick human in the loop everywhere because humans make mistakes too, and many agents also run</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">autonomously.</span></div><div class="tline" data-t="119"><span class="ts">1:59</span><span class="tx">So the way we solve this at Keycard is by using an open standard called Token Exchange. This ex- this standard has actually been around since twenty twenty, uh, and it extends OAuth too, and I am going to show you what we're going to be doing today.</span></div><div class="tline" data-t="136"><span class="ts">2:16</span><span class="tx">So in order to give identity to an agent and the user behind the agent, we need to know who the user is as the first order of business. So an authorization server verifies identities and issues tokens. Identity providers like Google, Okta, Auth0, et cetera, provide authorization servers. And if we want to get an identity chain in the agent execution path, then we need the user to log in first.</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">After logging in, the authorization server prompts the user for their consent to delegate some portion of their access to resources with a subset of their permissions called scopes. Now, this is kind of the first narrowing of access, right? We're only delegating some of the user's total access to the agent.</span></div><div class="tline" data-t="181"><span class="ts">3:01</span><span class="tx">And the authorization server issues a token id- that identifies the user and includes their level of access.</span></div><div class="tline" data-t="190"><span class="ts">3:10</span><span class="tx">So now if we go into what actually happens in the agent execution path. We have an authenticated user now with a known identity who wants to use an LLM to interact with resources. Now, an agent is a control loop that calls an LLM, and in this workshop, that agent is an Expense Desk agent. That's what we're going to be working with.</span></div><div class="tline" data-t="213"><span class="ts">3:33</span><span class="tx">Is going to call in an expense MCP server, which sits between the agent and a ledger API. This provides the agent with a defined set of tools, and it also provides the connection to that downstream resource.</span></div><div class="tline" data-t="227"><span class="ts">3:47</span><span class="tx">Now, an MCP client takes the agent's proposed tool calls, and it dispatches them to its MCP server.</span></div><div class="tline" data-t="236"><span class="ts">3:56</span><span class="tx">The runtime is a process that runs the agent loop and executes calls. So in our case today, the Expense Desk application is the runtime.</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">We're gonna use a LangChain agent that's implemented in this custom Expense Desk app.</span></div><div class="tline" data-t="253"><span class="ts">4:13</span><span class="tx">So if we follow a prompt through this execution path, the user submits the prompt to the runtime, which calls the model and sends it to the LLM. The model proposes tool calls, which are then dispatched by the MCP client to its MCP server, which executes the tools and then calls the resource API.</span></div><div class="tline" data-t="273"><span class="ts">4:33</span><span class="tx">The API returns a response to the MCP server. The MCP client delivers the response to the runtime, which calls the model, and this loop repeats until the model is satisfied and returns a response to the user.</span></div><div class="tline" data-t="290"><span class="ts">4:50</span><span class="tx">Now, if we remember, we have an authenticated user with a token identifying who they are, and this token becomes what we call a subject token. It identifies the subject on whose behalf the agent is going to act. So in order to support token exchange, we need an OAuth client that's capable of executing code. So that might be a gateway between the MCP client and maybe a third-party MCP server or a custom agent app or a CLI wrapper around an off-the-shelf coding agent. In this case today, the</span></div><div class="tline" data-t="320"><span class="ts">5:20</span><span class="tx">Expense Desk agent is a custom agent app that implements token exchange for access to the expense MCP server.</span></div><div class="tline" data-t="329"><span class="ts">5:29</span><span class="tx">This MCP server also supports token exchange for the next downstream resource, which is the ledger API. This connects to the database where the expenses are actually going to be stored.</span></div><div class="tline" data-t="341"><span class="ts">5:41</span><span class="tx">Now, the prompt and the subject token are sent to the Expense Desk agent app. The agent loop runs, and the model proposes a tool call.</span></div><div class="tline" data-t="352"><span class="ts">5:52</span><span class="tx">The Expense Desk agent authenticates with Keycard's security token service. Now, this is a special authorization server, and the Expense Desk agent can authenticate using its client credentials or a workload identity. It also sends the user's subject token that declares the user's identity and their level of authorization. Now, the Expense Desk OAuth client creates a token exchange request asking permission to access the MCP server for that</span></div><div class="tline" data-t="382"><span class="ts">6:22</span><span class="tx">tool call, but only that one specific tool call. So now we basically have three pieces of information.</span></div><div class="tline" data-t="389"><span class="ts">6:29</span><span class="tx">We have the identity of the agent that's requesting access. We have the identity of the user on whose behalf the agent is acting, and we have the level of access that the user granted to the agent.</span></div><div class="tline" data-t="403"><span class="ts">6:43</span><span class="tx">So now we need to decide if the requested token should be issued or not, and we can do this with policy, which is evaluated against what access is requested from what resource, who the agent is, and who the agent is acting for.</span></div><div class="tline" data-t="420"><span class="ts">7:00</span><span class="tx">Now, if the delegation chain and the requested access all fall within the policy, then Keycard issues an access token that can be only, only be used at the MCP server.</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">Now, this issued token usually expires within minutes, and you should never store it.</span></div><div class="tline" data-t="438"><span class="ts">7:18</span><span class="tx">The token is sent to the Expense Desk MCP client, which makes a tool call to the Expense MCP server using that token as a bearer credential. The MCP server validates that token and then uses it to authorize a tool call.</span></div><div class="tline" data-t="453"><span class="ts">7:33</span><span class="tx">The tools need access to the ledger API resource. So at that point, the MCP server then initiates a second hop. This is where it sends its own token exchange request to Keycard. And the request to exchange that token is received from the ins- Expense Desk</span></div><div class="tline" data-t="473"><span class="ts">7:53</span><span class="tx">for a token to access the ledger API, which is the downstream resource. Now, Keycard evaluates the request against policy and then mints the credential for the resource scoped only for the access that's needed for that specific tool call.</span></div><div class="tline" data-t="491"><span class="ts">8:11</span><span class="tx">The MCP server receives this token, and then it uses it to call the ledger API.</span></div><div class="tline" data-t="498"><span class="ts">8:18</span><span class="tx">The API validates the token and then grants the appropriate requested access. Now, the MCP server never stores the token, and it discards it as soon as the call is done.</span></div><div class="tline" data-t="509"><span class="ts">8:29</span><span class="tx">The API response then flows back up, and the agentic loop repeats until the model returns the answer to the user.</span></div><div class="tline" data-t="519"><span class="ts">8:39</span><span class="tx">So at a high level, this is what you're going to see us implement today with Keycard. And I'm going to pull up this slide again. So again, I'm going to basically demo, or Mason and I are gonna demo everything step-by-step on screen. Uh, you are free to follow along, or if you would prefer to just watch, you can also do that. Uh, the workshop is going to use a pre-provisioned shared Keycard organization. So if you do participate, you</span></div><div class="tline" data-t="549"><span class="ts">9:09</span><span class="tx">are going to be in the same organization as everybody else in the room, so you'll be able to see what everybody else is doing. Okay, so if you go to the link that is pro-- that was provided, you're going to see this. This is the, uh, workshop running in essentially a sandbox.</span></div><div class="tline" data-t="571"><span class="ts">9:31</span><span class="tx">So we're gonna go ahead and start this. This is gonna take a few min-- a minute or two to, uh, get everything all set up. But basically, kind of the premise here is we're going to start with an Expense Desk agent that does not require a login. It doesn't know who is acting at any point, and everybody who uses the agent is using an API key. So I have some folks, uh, here who are going to be helping</span></div><div class="tline" data-t="601"><span class="ts">10:01</span><span class="tx">to populate the demo, essentially. Um, if you want to follow along as well, you would-- are going to eventually need, uh, admin access in Keycard. So as we go through the workshop, when we hit that part, uh, they'll be watching to see people show up, uh, in the user list, and they will be granting you admin access as that happens.</span></div><div class="tline" data-t="628"><span class="ts">10:28</span><span class="tx">So when you begin the workshop, this is what you're going to see. So basically, this is the application where we don't know anybody's identity. Everybody is using the same MCP server, but they're all running their own agents. They are all using an API key. They might be using the same one. They might be using different ones. We, you know, don't really have a way of knowing that. But if we look at the Expense Desk, it-- we kind of see your, your classical, uh, expense. You file an expense, and</span></div><div class="tline" data-t="658"><span class="ts">10:58</span><span class="tx">then it either gets approved or rejected, um, and then paid out, which is not actually going to happen, so you're not gonna receive money. Um, but basically everything in this Expense Desk operates through the agent. So the first thing we are going to do is we're going to submit an expense.</span></div><div class="tline" data-t="683"><span class="ts">11:23</span><span class="tx">So I'm gonna tell the agent I want to submit a seventy-five dollar expense for snacks for the workshop. It submits that expense, and then its status is pending.</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">Now, if we go down to the activity here, we can see that, uh, this expense was created using access granted by an API key, right? So we don't have any user identity. We don't know the agent's identity. The agent doesn't really have an identity yet on its own.</span></div><div class="tline" data-t="719"><span class="ts">11:59</span><span class="tx">And what I'm going to do is I'm going to refresh this, and I'm going to approve or deny somebody else's expense.</span></div><div class="tline" data-t="731"><span class="ts">12:11</span><span class="tx">So let's see this one. If I hit Approve, it's basically, uh, just going to send that as a prompt to the agent.</span></div><div class="tline" data-t="741"><span class="ts">12:21</span><span class="tx">It went ahead and approved that expense, and now we have the created by. It was created by this API key. So I don't know who created that expense, right? Everybody's just using API keys. I approved it, but we also don't have any record of who approved it either, because again, all we have is an API key.</span></div><div class="tline" data-t="771"><span class="ts">12:51</span><span class="tx">So the next thing that we wanna do is actually give the agent an identity so that it can act on its own behalf.</span></div><div class="tline" data-t="785"><span class="ts">13:05</span><span class="tx">Uh, so the first thing we are going to do now is we are going to join that shared Keycard organization. So if you click the link -- If you're following along, if you click the link in the, uh, instructions, you will be able to-- you will get a prompt to log in with GitHub, and you can sign up with GitHub to join Keycard. When you get in, you should say-- see this Workshop AIE NYC in the upper left corner, indicating that you're in the right, uh,</span></div><div class="tline" data-t="817"><span class="ts">13:37</span><span class="tx">organization. And let me move this around so we can see things better.</span></div><div class="tline" data-t="833"><span class="ts">13:53</span><span class="tx">Okay. So if you're following along, when you join, you're likely to see a couple of consent prompts. These are what I kind of talked about earlier in the presentation, where you are delegating some subset of your access to the agent to use on your behalf.</span></div><div class="tline" data-t="857"><span class="ts">14:17</span><span class="tx">So this is the Keycard console. The first thing I wanna talk about is applications. Now, applications and resources are registrations, so something can be both an application and a resource. And basically what this means is applications are things that are going to be able to make requests for tokens. They're going to ask for token exchanges in order to then exchange on down the line to access other resources. So</span></div><div class="tline" data-t="888"><span class="ts">14:48</span><span class="tx">our-- the first thing we wanna do is we wanna create an application registration for our agent. So what we are going to do here,</span></div><div class="tline" data-t="899"><span class="ts">14:59</span><span class="tx">uh, is</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">I'm gonna call this agent app. Oops.</span></div><div class="tline" data-t="909"><span class="ts">15:09</span><span class="tx">And then in order-- Because we're all in the same, uh, organization here, we want to name things so that we can find our own applications and resources that we created. So I'm going to use the-- my GitHub handle.</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">Every app's identifier needs to be unique, so we are going to do something similar here.</span></div><div class="tline" data-t="932"><span class="ts">15:32</span><span class="tx">We're going to use implicit consent, and then we need to grab our redirect URL. Now, this is something that we can get out of our, uh, sandbox image. So if we go into...</span></div><div class="tline" data-t="950"><span class="ts">15:50</span><span class="tx">I don't know why that one won't come to the front.</span></div><div class="tline" data-t="958"><span class="ts">15:58</span><span class="tx">Go to the terminal, and we are going to run this. This gives you the redirect URL that is specific to your instance of the sandbox. So I'm just going to copy that.</span></div><div class="tline" data-t="976"><span class="ts">16:16</span><span class="tx">I'm going to... Oops, don't need to. Add this as the redirect URL.</span></div><div class="tline" data-t="984"><span class="ts">16:24</span><span class="tx">So after there's a login event, this is where the, uh, user is going to be redirected back to. And I'm gonna say Create application.</span></div><div class="tline" data-t="1003"><span class="ts">16:43</span><span class="tx">So now we have a registration that says our Expense Desk agent can request tokens, right? So but our Expense Desk agent can also receive tokens because it's going to receive the subject token from the user when the user logs in. And in order to do that, we basically need to do another registration, and we need to say that this agent application can also act as a resource, which means it is a target recipient for tokens. So the authentication</span></div><div class="tline" data-t="1033"><span class="ts">17:13</span><span class="tx">token is the token that this agent is going to be receiving. So if we go into Resources, we can add another resource. We are going to call this one... The first one was agent app. This one is agent resource.  I'm going to use my GitHub name.</span></div><div class="tline" data-t="1054"><span class="ts">17:34</span><span class="tx">Let's use a similar identifier. This is the agent resource.</span></div><div class="tline" data-t="1064"><span class="ts">17:44</span><span class="tx">I'm gonna set the credential provider to zone provider, which essentially means that Keycard is the entity that's going to be handling the token exchange and issuing, uh, tokens for this resource.</span></div><div class="tline" data-t="1085"><span class="ts">18:05</span><span class="tx">And then I'm going to come down here, and I'm going to say, &quot;This resource is being provided by my application, the agent app Kay Mada.&quot;</span></div><div class="tline" data-t="1096"><span class="ts">18:16</span><span class="tx">So basically, this is the relationship that tells Keycard that, uh, this application can exchange sign-in tokens addressed to this resource. If we don't make this association, then the exchange requests are gonna be rejected.</span></div><div class="tline" data-t="1113"><span class="ts">18:33</span><span class="tx">So I'm going to save that.</span></div><div class="tline" data-t="1118"><span class="ts">18:38</span><span class="tx">And now I want to add the things that my agent application depends on. So if I come back to Applications, and I find my application,</span></div><div class="tline" data-t="1132"><span class="ts">18:52</span><span class="tx">I'm gonna go into Dependencies, and then I'm going to look at the list of dependencies, and I'm gonna add something here. So the first one I'm going to add is the agent resource, and we need this because our agent application is going to request token exchanges to access, uh,</span></div><div class="tline" data-t="1149"><span class="ts">19:09</span><span class="tx">downstream resources. We also want to be able to request token exchanges for the expense MCP server. So this is a resource that's already been pre-configured for you. Everybody is using the same one, so we don't need to create a bunch of them that are all named after ourselves.</span></div><div class="tline" data-t="1169"><span class="ts">19:29</span><span class="tx">Additionally, we have an agent, and we want to have the API key for that agent stored in Keycard so that we don't have its secret on disk. So Keycard also provides a vault, and we have that API key configured in the vault already for you. So we can select the LLM API. And finally, we're gonna c- select this user info endpoint as well because this is going to be able to tell us who the logged-in user</span></div><div class="tline" data-t="1199"><span class="ts">19:59</span><span class="tx">is. It's gonna be able to provide us th- with that identity information. So I'm gonna say Connect.</span></div><div class="tline" data-t="1211"><span class="ts">20:11</span><span class="tx">Now, the next thing I need to do is I need to give this agent app an, its own identity, and I can't really do that unless it has some way to identify itself to essentially log in. Uh, so I'm going to click on Add Credential. I'm going to click on Client ID &amp; Secret.</span></div><div class="tline" data-t="1234"><span class="ts">20:34</span><span class="tx">Now,</span></div><div class="tline" data-t="1242"><span class="ts">20:42</span><span class="tx">we're gonna go into the editor. We are going i- into the agent folder. We're gonna find the end file, and we are going to paste in that client ID</span></div><div class="tline" data-t="1256"><span class="ts">20:56</span><span class="tx">and that client secret.</span></div><div class="tline" data-t="1264"><span class="ts">21:04</span><span class="tx">Now, and, um, we're doing this because this is essentially like a sandbox local environment. If you were using this in a production environment, you would probably use work-- something like Workload Identity. Also, Keycard provides a CLI which can populate secrets for you dynamically and not require them to be on disk.</span></div><div class="tline" data-t="1285"><span class="ts">21:25</span><span class="tx">And then finally, I'm going to tell it what the identifier for the agent resource is. So that was my uran-agent resource and then my GitHub name. Gonna wait until this says Changes saved.</span></div><div class="tline" data-t="1307"><span class="ts">21:47</span><span class="tx">And at this point, we have configured Keycard to be able to handle the token exchanges and exchange requests. Now what we need to do is make sure that our Expense Desk application can actually handle that.</span></div><div class="tline" data-t="1321"><span class="ts">22:01</span><span class="tx">So essentially, when we go and look at the code here, if we find the-- in the agent folder, we have this agent auth. If we go down and we find... Okay, this thing is in the way.</span></div><div class="tline" data-t="1339"><span class="ts">22:19</span><span class="tx">Try to remove that.</span></div><div class="tline" data-t="1348"><span class="ts">22:28</span><span class="tx">So we're going to find the</span></div><div class="tline" data-t="1353"><span class="ts">22:33</span><span class="tx">checkpoint which-- So this, this is the file where we don't have any authenticated MCP access, right?</span></div><div class="tline" data-t="1361"><span class="ts">22:41</span><span class="tx">Now, the way the workshop works is if you-- a- at each lesson, we have a checkpoint that will provide the code essentially for the end of that lesson. So what we can do now is we can go and look for the checkpoint for exercise two, which is the one that we're at. So if we go to Checkpoints, we go to Authenticated, and then we find the same file.</span></div><div class="tline" data-t="1394"><span class="ts">23:14</span><span class="tx">Where are we here?</span></div><div class="tline" data-t="1405"><span class="ts">23:25</span><span class="tx">Okay. So we wanna find this MCP toolset. This is passing in, uh, the Keycard zone token auth from the Keycard SDK, and this is what is going to actually make that token request every time the agent actually wants to make a tool call with the MCP server. So for every individual tool call, we're going to get a token that's scoped to that specific tool call.</span></div><div class="tline" data-t="1441"><span class="ts">24:01</span><span class="tx">Now, this call is the...</span></div><div class="tline" data-t="1448"><span class="ts">24:08</span><span class="tx">What is this?</span></div><div class="tline" data-t="1460"><span class="ts">24:20</span><span class="tx">Okay. So now if we go to the Keycard file,</span></div><div class="tline" data-t="1469"><span class="ts">24:29</span><span class="tx">we look for this mint function. This is what actually goes ahead and makes that request to mint a token for the exchange. So if we don't have a subject token, that is if we don't have a logged-in user, then the agent is actually going to authenticate as itself using a client credentials grant. So it's going to use that, uh, client ID and client secret to identify itself to</span></div><div class="tline" data-t="1498"><span class="ts">24:58</span><span class="tx">Keycard, and this means it's acting on its own behalf.</span></div><div class="tline" data-t="1508"><span class="ts">25:08</span><span class="tx">Okay. So now if we go to the Terminal tab, we basically want to make sure that we activate this updated code.</span></div><div class="tline" data-t="1518"><span class="ts">25:18</span><span class="tx">So we're going to run that, so it switches over to checkpoint two,</span></div><div class="tline" data-t="1524"><span class="ts">25:24</span><span class="tx">and then we have to restart the services.</span></div><div class="tline" data-t="1530"><span class="ts">25:30</span><span class="tx">Stop. There it goes.</span></div><div class="tline" data-t="1534"><span class="ts">25:34</span><span class="tx">Okay. Now if we go and look at the Expense Desk,</span></div><div class="tline" data-t="1542"><span class="ts">25:42</span><span class="tx">we have a screen that will let us continue with an authenticated Expense Desk agent. So if we go ahead and then click continue as the agent,</span></div><div class="tline" data-t="1554"><span class="ts">25:54</span><span class="tx">then we're gonna ask it, uh, which-- I can just copy this. Which account is being used right now, and what is my approval limit? And the approval limit is essentially the amount of money that you as a user are allowed to approve for other people's expenses.</span></div><div class="tline" data-t="1575"><span class="ts">26:15</span><span class="tx">So it says I'm signed in as the Expense Desk agent, K Maeda, which was in Keycard. That was the, uh, specific application that we are acting as, that we provided the client ID and secret for.</span></div><div class="tline" data-t="1590"><span class="ts">26:30</span><span class="tx">And the approval limit for the agent is about fifty dollars.</span></div><div class="tline" data-t="1597"><span class="ts">26:37</span><span class="tx">So next, I am going to tell the agent, uh, file a seventy-five dollar expense</span></div><div class="tline" data-t="1605"><span class="ts">26:45</span><span class="tx">for, let's just say,</span></div><div class="tline" data-t="1613"><span class="ts">26:53</span><span class="tx">for some swag for the workshop on my behalf.</span></div><div class="tline" data-t="1623"><span class="ts">27:03</span><span class="tx">So the agent submitted that expense.</span></div><div class="tline" data-t="1628"><span class="ts">27:08</span><span class="tx">The memo says it was f-filed on behalf of Kim, but the actual activity details indicate that this was filed by this specific agent.</span></div><div class="tline" data-t="1642"><span class="ts">27:22</span><span class="tx">So the on behalf of Kim is just something I told it. It doesn't necessarily, uh, actually have any way to verify that because I, as a user, have not signed in. It created this expense under its own identity.</span></div><div class="tline" data-t="1659"><span class="ts">27:39</span><span class="tx">Try to get this.</span></div><div class="tline" data-t="1670"><span class="ts">27:50</span><span class="tx">Okay. So now if we go into our applications... Actually, probably could have left that up. Oh, it's right there.</span></div><div class="tline" data-t="1681"><span class="ts">28:01</span><span class="tx">We can see the activity in Keycard. This is essentially the audit log that Keycard generates of all the activities that have been happening against this application.</span></div><div class="tline" data-t="1691"><span class="ts">28:11</span><span class="tx">And I am going to</span></div><div class="tline" data-t="1698"><span class="ts">28:18</span><span class="tx">look for specifically, because there's, uh, several different resources here.</span></div><div class="tline" data-t="1711"><span class="ts">28:31</span><span class="tx">To look for the expense MCP resource, anything that was calling the expense MCP resource. I'm gonna limit this to the last hour.</span></div><div class="tline" data-t="1732"><span class="ts">28:52</span><span class="tx">And we can see that there was a credential issued using the client credentials grant, which means that the actor was the application itself, and it was accessing the MCP resource.</span></div><div class="tline" data-t="1748"><span class="ts">29:08</span><span class="tx">So now I'm going to go and look for what we have already registered for you, which is the expense MCP actor. So the expense MCP server has multiple registrations as well because it can receive tokens, uh, from the agent application, and then it can exchange that token on for a downstream token to access the ledger API.</span></div><div class="tline" data-t="1778"><span class="ts">29:38</span><span class="tx">So if we click on this one,</span></div><div class="tline" data-t="1782"><span class="ts">29:42</span><span class="tx">now we have-- Because everybody is using the same resource for the MCP server, we are going to go ahead and just filter it down</span></div><div class="tline" data-t="1800"><span class="ts">30:00</span><span class="tx">to it calling the ledger API.</span></div><div class="tline" data-t="1809"><span class="ts">30:09</span><span class="tx">And I could technically use any of these, but...</span></div><div class="tline" data-t="1819"><span class="ts">30:19</span><span class="tx">Oops, this is looking for people</span></div><div class="tline" data-t="1828"><span class="ts">30:28</span><span class="tx">So if we look at one of the calls that the expense MCP server used, executed in order to exchange the token that it received from the agent application to access the ledger API, we can see that the delegation chain shows that the application that made the request was the expense MCP server, and that it was acting on behalf of this application. And the resource it is accessing</span></div><div class="tline" data-t="1858"><span class="ts">30:58</span><span class="tx">is the ledger API. So this is essentially the, the record of the delegation chain for the agent acting as itself.</span></div><div class="tline" data-t="1870"><span class="ts">31:10</span><span class="tx">I'm gonna go ahead and check that.</span></div><div class="tline" data-t="1882"><span class="ts">31:22</span><span class="tx">Okay. So now we have an agent that can a- identify itself and act as itself, but we maybe want it to act on our behalf, but without impersonating us. So we don't want it to just say, &quot;Kim did this.&quot; We want it to say, &quot;This agent did this thing on behalf of Kim with Kim's permissions.&quot; So the next thing we are going to do is we are going to add human user identity into this process.</span></div><div class="tline" data-t="1912"><span class="ts">31:52</span><span class="tx">So now we have user delegation. At this point, we need to load the Expense Desk in a new tab because the iframe that's embedded into the sandbox doesn't handle external authentication, um, so we are going to go ahead and open that in an external window.</span></div><div class="tline" data-t="1935"><span class="ts">32:15</span><span class="tx">This down here.</span></div><div class="tline" data-t="1943"><span class="ts">32:23</span><span class="tx">And now we have this Sign In button up on the right. I'm going to click that. If it's...</span></div><div class="tline" data-t="1953"><span class="ts">32:33</span><span class="tx">It's thinking.</span></div><div class="tline" data-t="1956"><span class="ts">32:36</span><span class="tx">Okay. So because I was already logged in, it went ahead and logged me in automatically. Um, but now what I can do is I can say-- We can see that my email is here. If I ask the agent which account am I using now, before it said, &quot;You're us- you're acting as this agent.&quot;</span></div><div class="tline" data-t="1980"><span class="ts">33:00</span><span class="tx">Now it knows that I have an identity because I authenticated as a human user, right? And my approval limit, which is associated with my identity metadata, is a hundred dollars.</span></div><div class="tline" data-t="1999"><span class="ts">33:19</span><span class="tx">So I haven't filed any expenses under my human user yet, so if I change this filter to show all expenses,</span></div><div class="tline" data-t="2010"><span class="ts">33:30</span><span class="tx">you can see that these expenses from earlier still, um, say that they were submitted by the API key. Like, adding all of this doesn't go back and change anything that's happened in the past. And we can see, you know, examples of the Expense Desk agent acting on behalf of other people as well.</span></div><div class="tline" data-t="2031"><span class="ts">33:51</span><span class="tx">So we have the ability now to act as ourself as a human user, but we have still retained the ability for the agent to act as itself as well. And the way that kinda plays out in this workshop is by the agent having the capability to approve expenses that are under a certain amount of money.</span></div><div class="tline" data-t="2056"><span class="ts">34:16</span><span class="tx">So if I... I'm just gonna do this one.</span></div><div class="tline" data-t="2063"><span class="ts">34:23</span><span class="tx">If I submit an expense for, say, thirty dollars for office supplies for the team,</span></div><div class="tline" data-t="2072"><span class="ts">34:32</span><span class="tx">it's going to verify who I am. It's going to file the expense.</span></div><div class="tline" data-t="2087"><span class="ts">34:47</span><span class="tx">And then because the agent actually has the ability to approve expenses under forty-nine ninety-nine on its own, it filed the expense, and then the agent approved it as itself. So if I click on the activity to examine what happened here, it says that this expense was created by me under my email,</span></div><div class="tline" data-t="2111"><span class="ts">35:11</span><span class="tx">and then it was approved by the Expense Desk agent.</span></div><div class="tline" data-t="2117"><span class="ts">35:17</span><span class="tx">So it shows, you know, th- this is the identifier for the agent that acted in the approval, and it gives a reason. Says, &quot;Eligible office supplies under fifty dollars with a clear business purpose.&quot;</span></div><div class="tline" data-t="2130"><span class="ts">35:30</span><span class="tx">Uh, so now maybe I want to...</span></div><div class="tline" data-t="2136"><span class="ts">35:36</span><span class="tx">Mm, let's do this seventy-five dollar one as well.</span></div><div class="tline" data-t="2148"><span class="ts">35:48</span><span class="tx">So if I submit an expense that is over that approval limit that the agent can act on on its own, then the status for that one is pending. A human needs to review it.</span></div><div class="tline" data-t="2159"><span class="ts">35:59</span><span class="tx">If I go and say, &quot;Hey, uh, I think this should be approved,&quot; so I'm going to send the message to the agent that's, that says, &quot;Hey, approve expense one two three,&quot;</span></div><div class="tline" data-t="2177"><span class="ts">36:17</span><span class="tx">it says, &quot;I can't approve or reject my own expense, so I have to ask another reviewer to do that.&quot; And it's able to do that because we have identities now. We know who all of the users are, who are logged in, and we also know the identity of the agent itself.</span></div><div class="tline" data-t="2193"><span class="ts">36:33</span><span class="tx">Uh, so before we didn't demonstrate this, but before I could have approved my own expenses or anybody else's because it didn't know who anybody was.</span></div><div class="tline" data-t="2204"><span class="ts">36:44</span><span class="tx">So if I go here, let's see.</span></div><div class="tline" data-t="2213"><span class="ts">36:53</span><span class="tx">Let's find somebody else's pending expense.</span></div><div class="tline" data-t="2222"><span class="ts">37:02</span><span class="tx">I'm going to say, uh,</span></div><div class="tline" data-t="2226"><span class="ts">37:06</span><span class="tx">I wanna reject this one.</span></div><div class="tline" data-t="2244"><span class="ts">37:24</span><span class="tx">The agent goes through that song and dance, and now if we look at the recorded activity for this expense, it says that it was created by the expense desk agent, uh, because it was from kind of the previous cycle.</span></div><div class="tline" data-t="2258"><span class="ts">37:38</span><span class="tx">And it was rejected by my identity.</span></div><div class="tline" data-t="2264"><span class="ts">37:44</span><span class="tx">So now we have a, kind of a clear record of who filed what, who approved or rejected what.</span></div><div class="tline" data-t="2276"><span class="ts">37:56</span><span class="tx">So if we go into the Keycard console at this point.</span></div><div class="tline" data-t="2281"><span class="ts">38:01</span><span class="tx">Go to applications. We are going to find the Kmaida application.</span></div><div class="tline" data-t="2289"><span class="ts">38:09</span><span class="tx">I'm gonna clear any previous filters. I believe they're already gone. I'm gonna say actor, and I'm gonna look for my email.</span></div><div class="tline" data-t="2301"><span class="ts">38:21</span><span class="tx">Change this to last hour.</span></div><div class="tline" data-t="2306"><span class="ts">38:26</span><span class="tx">And if I click on one of these issued credentials,</span></div><div class="tline" data-t="2311"><span class="ts">38:31</span><span class="tx">I can see that the application that, uh, made the token exchange request was my application agent app Kmaida, and it was acting on behalf of me, the human user, Kmaida Keycard or Kmaida Keycard, and it was accessing the expense MCP resource. So that was the first hop, right? So now if we go over to</span></div><div class="tline" data-t="2337"><span class="ts">38:57</span><span class="tx">the applications again, and we wanna find the expense MCP actor.</span></div><div class="tline" data-t="2352"><span class="ts">39:12</span><span class="tx">Actually, I don't think we need to filter anything. It's all here. And we go to a credential that was issued for access to the ledger API. We can now see that on the second hop, the expense MCP server made the request on behalf of me, and it was accessing the ledger API.</span></div><div class="tline" data-t="2373"><span class="ts">39:33</span><span class="tx">So on the first hop, what happened is the agent took my sign-in token that it acquired when I logged in as my human user, and it exchanged the-- it made a token exchange request to Keycard offering that sign-in token in exchange for a token for the next thing in, in the, uh, chain, right? Which is the MCP server. So it exchanged the subject token for an MCP server token. It then took that MCP server token and called the</span></div><div class="tline" data-t="2403"><span class="ts">40:03</span><span class="tx">MCP server to make a tool call with the appropriate tool scoped scopes. And then the MCP server took that token that it had received from the agent, and it made a token exchange request to Keycard asking to give that token up for a, a token to access the ledger API, which was the next resource in the stream.</span></div><div class="tline" data-t="2430"><span class="ts">40:30</span><span class="tx">And you can trace these hops...</span></div><div class="tline" data-t="2436"><span class="ts">40:36</span><span class="tx">You can trace these things across hops because they have a session associated with them. So we're not going to spend a whole lot of time, like, digging into the, the session numbers and copying them, but you can s- follow any specific sequence of events, uh, by the session number will be consistent on the first hop and also the second hop.</span></div><div class="tline" data-t="2468"><span class="ts">41:08</span><span class="tx">I think we can close all that. And I will now give it up to Mason.</span></div><div class="tline" data-t="2474"><span class="ts">41:14</span><span class="tx">Awesome. Thank you so much, Kim. Uh, I have my little plushy tardigrade. Ziggy goes with me everywhere. We have plenty of them, so make sure you grab one before you leave. Take one home for your kids or for yourself. No shame. Um, whatever you'd like to do. So we will just, uh, walk through, uh, how to build all of this security and stuff into our agent and stuff. But now how do we deploy these agents to ensure that they execute to their completion, that they don't fail, or when they do fail, we know how to handle that, and we know how to, uh, reliably bring them back up so we don't lose all of our process and waste a whole bunch of time and</span></div><div class="tline" data-t="2505"><span class="ts">41:45</span><span class="tx">compute. And that's, uh, where Temporal comes into play.  So Temporal is a durable execution framework. So essentially what it does is we take your code. We execute it. We maintain the state of the application. If the application were to fail, run into an error, things of that nature, it will reconstruct the state or rebuild the state to the point of failure and continue executing onwards. Certain things such as, uh, function calls and things, if, say, a distributed system were to go down, there are built-in retries and all sorts of failure handling modes.</span></div><div class="tline" data-t="2535"><span class="ts">42:15</span><span class="tx">So one of the things that we've seen a lot of, um, with the customers that I work with and with our users is that, uh, we need a way of making your agents durable. And in reality, the agent loop is-- or the agent itself is just a loop. It's a, it's a loop of ever-calling tool calls to external services. Agents are just distributed systems at the end of the day, with a little bit of added spice on top with some thinking. But the problems that we've solved for distributed systems apply to agent loops, and this is where Temporal comes in and works out really well to keep your application</span></div><div class="tline" data-t="2564"><span class="ts">42:44</span><span class="tx">running and going so you don't lose data, so you don't have to re, uh, call LLMs, uh, wasting tokens and all that nature. So you, um, so your users don't experience any sort of outage, all sorts of really awesome things with that. So what we're gonna do a little bit is just kinda talk about a little bit of how you would structure a Temporal application code. I'll leave this here for you to read later. I'm not gonna dive super deep into the code itself. But essentially, Temporal is a, a system where you can-- you build a workflow, and you define it by things what are called activities. Think parent function and child function calls. Easiest</span></div><div class="tline" data-t="2594"><span class="ts">43:14</span><span class="tx">way to think about it. We implement our loop, uh, as a-- this parent function call, and this becomes a workflow. And every single, uh, instance of or execution of this, uh, workflow, so like every single time we would have Keycard go through and, uh, authenticate for user, that would be a workflow. And every single tool call is essentially an activity. These are things that can fail, that we expect to fail, and when they do fail, we either retry them or we rebuild the state and see what happens with it. So we have our workflow calls here. I'm also-- I do the other direction for Mac, Mac mouse. So if I go the wrong direction, it's 'cause I'm</span></div><div class="tline" data-t="2625"><span class="ts">43:45</span><span class="tx">not, not using my laptop. Um, I remap everything on my computer. Uh, and then down here, you actually see, like, this async def assess. This is actually, uh, what an activity would look like. So y-- it looks like normal Python code. It looks like the typical code you would write. Temporal is a code-first system, so you can build all of your things and hook it into anything that you would want. Um, so we have our settlement code workflow, which I'm not gonna read through too much. I'll leave that to you, for you. But again, it's a Temporal workflow that, uh, essentially allows us to set how often we wanna retry, and then we execute the activities.</span></div><div class="tline" data-t="2655"><span class="ts">44:15</span><span class="tx">We have our, um, our debit ledger right here and our mark settled. So we're able to, you know, add something to the ledger and then mark it as settled. And we have this timer here in the middle for us to kind of simulate some, like, uh, human in the loop time that would wait-- take for someone to do this. Uh, and then one of our activities, uh, for this, as you can see here, is, uh, this section right here, which is just the typical code. But I wanna draw your li-- your, uh, eye to the, to the first decorator on top, which is grant, uh, resource. So Temporal exposes a lot of native, uh,</span></div><div class="tline" data-t="2685"><span class="ts">44:45</span><span class="tx">primitives within its code base, uh, one of which is what's called an interceptor. So it allows you at certain points within the code to allow for essentially-- think of them as hooks. So this is actually something that the Keycard team, uh, implemented, which is where whenever this, um, this activity is being executed, it actually goes and gets permission and gets an identity from Keycard, and then comes back and essentially now we're able to authenticate this through, uh, our Temporal workflow and our Tem-- our activities through this, and we can maintain this identity separation that Kim was talking about, where you can have each</span></div><div class="tline" data-t="2715"><span class="ts">45:15</span><span class="tx">individual worker have its own one. You could have a fleet of them have their own, but you'd be able to identify and limit scope, access all of those wonderful things, uh, through there. Um, so the next thing we're gonna do is we're basically going to find, uh, our work-- I think we already did the workers identity in Keycard. Yeah. Okay, so we're gonna start our worker. So we actually already set up our Temporal application and set up all of these, uh, environment variable configurations. So let's go ahead and start, uh, our worker. So Temporal is a worker-server model, a, a version of execution. You-- there is a Temporal service that</span></div><div class="tline" data-t="2745"><span class="ts">45:45</span><span class="tx">maintains the execution, the application state, all of that. And then there's a fleet of workers. You can think Kubernetes pods, processes within a pod that execute your work as it's being, uh, as it gets-- as the request comes in. So from here, we'll go to start worker, and we'll just start our first worker right here. And so we have worker PID five seven two running. So now we have a, uh, automatic, uh, a Temporal worker that's running the agent that was just done in the previous thing-- in the previous exercise, which will automatically, uh, accept our, uh, expenses. So we have</span></div><div class="tline" data-t="2775"><span class="ts">46:15</span><span class="tx">our worker running right here, and we see our PID is five seven two. And then we can start a settlement. So what we're gonna do is we're gonna click on this client tab here, and we're going to invoke a settlement, uh, that's gonna happen. And we'll see our workflow ID settlement came up. So if we go back to our worker tab here, we'll actually see the output of our app-- Temporal application as it's logging out what it is doing, and it's currently doing, uh, as you can see here, we debited a token, um, and minted it for this particular call, and then we're running it. If we go to our Temporal web UI, and we refresh this</span></div><div class="tline" data-t="2805"><span class="ts">46:45</span><span class="tx">here, we can actually see our application running. I have to do this a little quickly, and then I can continue talking. Oh, no, it's not contr-- Is it? There it is. Okay. Command + Control + C on Macs is not fun for me. So we had our application running. We set-- We had our debit ledger. I killed the application cold. So as you can see here, the running state of this application is gone. We no longer have it. In a traditional system, this would be potentially problematic. We would have to, um, you know, either have saved that state to a database and then re, uh, rehydrate</span></div><div class="tline" data-t="2835"><span class="ts">47:15</span><span class="tx">it when it comes back online. But, uh, with Temporal, that's not really a problem because to-- the state of our application is stored right here inside of it. So the very first, uh, the debit ledger, uh, function stored the output right here. So we have a retry policy, uh, activity task completed. We debited forty-two hundred. So we have that done. There's nothing running right now, so it's gonna start complaining and telling me, &quot;Hey, you have nothing running. Our workflow task has timed out.&quot; We have a dead application. Uh, and then we go back to our worker mid-settlement. Whenever we're ready, we can just restart the worker.</span></div><div class="tline" data-t="2867"><span class="ts">47:47</span><span class="tx">And the application picks up as if the con-- if the failure never happened. It rebuilt the entire state of our agent from all of the previous responses. No LLM calls were redone. No previous activities or functions were re-executed. It just picked up the state, replayed the actions, and then pushed it through, and we got the execution to work.</span></div><div class="tline" data-t="2887"><span class="ts">48:07</span><span class="tx">So why does durability matter for agents? Well, your agents are loops. Um, there's a lot of things inside of your agents right now that cost a lot of money. Making LLM calls on, on a massive scale is not cheap. There's are tokens you have to deal with. There's a lot of failure states. There's a lot of advanced states. Say you get through a really long loop and, you know, you're twelve steps in and you lose the entire state of that application. Now you either have-- you've either had to built-- basically built a version of Temporal yourself where you are maintaining the state of your application in a database somewhere, and then you have to build all the reconstruction logic and all the</span></div><div class="tline" data-t="2917"><span class="ts">48:37</span><span class="tx">retry logic. Or, uh, you can use something like a durable execution system like Temporal, and it will do all of this for you. So this allows for you to have your agents go offline, fail Your LLM provider can go down. You can lose an entire region in AWS. It doesn't matter when they, when those-- when that compute comes back, when those resources come back online, the agents pick up right where they left off at the exact last spot and continue execution. And if it happens quickly enough, if it's a quick enough failure, your user will never even be aware that they, that they lost service of this. Um, if you had been on the receiving</span></div><div class="tline" data-t="2947"><span class="ts">49:07</span><span class="tx">end of this worker call that I had just done where we waited a minute and you were-- knew you were gonna wait a minute for the approval, and that failure happened, and it hap-- and I restarted the worker within, you know, five seconds of the failure, as a user on the client side, you probably never would even notice that there was this kind of failure. And that's what Temporal does, is it brings it all the way out, uh, for you and just keeps the execution going forward regardless. Now, the interesting thing is, um, the secrets for all of this were actually not inside of our Temporal event history. So if we go back to our client over here,</span></div><div class="tline" data-t="2977"><span class="ts">49:37</span><span class="tx">and we run this command-- Oop, I hit a button. Oh, I have to actually put in the correct workflow ID. If I don't, it doesn't work. If I go back here and collect this workflow ID,</span></div><div class="tline" data-t="2989"><span class="ts">49:49</span><span class="tx">uh, it was on the Client tab. Yeah. And we click the up arrow.</span></div><div class="tline" data-t="2996"><span class="ts">49:56</span><span class="tx">Now we're gonna hope I know how to paste on Mac. Aha, we got it. Good. So we can actually see-- We actually have a little, a little Python script here that says that no JWT token, uh, material, uh, was basically sent. We didn't-- Like, our worker, through the entire event history here, um, you can see the re-- the, the starting process and the results. So if we click in, I can see the debit ledger here with the result down here. So we have our, uh, each individual function is stored there. So our second function here, Mark Settled, was also,</span></div><div class="tline" data-t="3027"><span class="ts">50:27</span><span class="tx">uh, settled as well. So this was the result of it. But nowhere in our workflow, and if I go to the actual event history, which is-- this is actually what the event history looks like under the hood. You will not find it anywhere, uh, because we didn't store it. Um, so Temporal gives you basically two different ways, uh, to keep the sensitive data out. So we have the interceptor, which is what Keycard provided for us. So they built an interceptor that basically injects it at, uh, ba-- uh, keeps the data and the credentials out of it entirely and then injects it back in when it's time to execute. Think of it like almost like just-in-time credentials, uh, and does</span></div><div class="tline" data-t="3056"><span class="ts">50:56</span><span class="tx">that. Or the other thing for Temporal that's really awesome is there's what's called a payload, uh, encoder. So what you can do, as you saw in our Temporal web UI, your data was, um... Oop, there we go. Wrong button. Your data's just sitting here in nice, wonderful plain text. Um, uh, you have the ability to encrypt this yourself. So you can basically spin up, there's like a, there's an entire, uh, pattern and library in Temporal where you spin up a sidecar, you create an encryption algorithm, you set what the encryption policy is, and all data that comes to Temporal, whether it's</span></div><div class="tline" data-t="3086"><span class="ts">51:26</span><span class="tx">self-hosted or in the cloud, is, uh, essentially encrypted. And we, uh, can't read it. We don't control your keys. We honestly don't quite care about what you're doing inside of it. That's not the part that we care about. We care about putting all these, uh, fancy things in order. So that's a quick overview of, like, Temporal and building out it, uh, building out agents with it. There's a lot of integrations with Temporal you can try out. There's OpenAI, Pydantic AI. Um, I know there's LangChain and a whole bunch of other ones too as well. Um, and I think we even now have, like, an agen-agentic harness now that we've been</span></div><div class="tline" data-t="3116"><span class="ts">51:56</span><span class="tx">building out that's going out too. So you can come by and see us at our booth if you wanna learn more about that. Um, and yeah. So the expense desk, you know, basically we-- as-- I'll bring Kim back up to kind of wrap it up, and we can take some questions if you want. Build-building out the agent identity, building out all of the, uh, agent worker and all of that stuff, and then Temporal becomes the, uh, execution layer to make sure that your agent runs properly, uh, and doesn't fail in the case of, you know, any sort of cataclysmic failure, uh, API outage, AWS region just decides it wants to disappear for a day,</span></div><div class="tline" data-t="3146"><span class="ts">52:26</span><span class="tx">which does happen. So yeah, that's all I have.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

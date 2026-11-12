@@ -1,0 +1,1225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>为小模型准备的大集群 —— Daniel Svonava，Superlinked | AI 工程师中文版</title>
+<meta name="description" content="Superlinked 的 Daniel Svonava 解释了为什么针对任务的专用模型会把推理变成一个机群管理问题——以及共享队列、由工作节点控制的批处理、运行时适配器和预先调优的配置，如何让这个机群的服务变得可行。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>为小模型准备的大集群 —— Daniel Svonava，Superlinked</h1>
+    <div class="orig-title">Large clusters for small models — Daniel Svonava, Superlinked</div>
+    <div class="meta"><span class="speaker">Daniel Svonava</span> · 25:06</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/g4SsanB0gMc-large-clusters-small-models" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="g4SsanB0gMc"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=g4SsanB0gMc" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">小到一块 GPU 装得下，强到足以胜任特定任务</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>小到一块 GPU 装得下，强到足以胜任特定任务</span></li><li data-t="229"><span class="ts">3:49</span><span>一个合同审查智能体变成了九个模型的集群</span></li><li data-t="378"><span class="ts">6:18</span><span>请求变小时会坏掉的三件事</span></li><li data-t="647"><span class="ts">10:47</span><span>让网关保持轻量，让队列保持共享</span></li><li data-t="887"><span class="ts">14:47</span><span>工作进程自行组批——有时还需要把工作退回去</span></li><li data-t="977"><span class="ts">16:17</span><span>一个 Rust 边车让批处理独立于运行时</span></li><li data-t="1128"><span class="ts">18:48</span><span>在拐点处测量有用吞吐量</span></li><li data-t="1343"><span class="ts">22:23</span><span>把模型打包在一起，并随之附带调优配置</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 21 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Small models are cheaper, faster, and match the frontier on the task" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Small models are cheaper, faster, and match the frontier on the task</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>On AWS EKS (L4), gte-multilingual is 50x cheaper than text-embedding-3. On MTEB AskUbuntu, bge-m3 is 2.7x faster than Cohere rerank-3.5; Qwen3.6-27B scores 96% of GPT-5.1 on the AA Intelligence Index.
+
+[2:28](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=148s) [Three comparisons claim small models are 50 times cheaper, 2.7 times faster and achieve 96% of the reference model's score.](https://assets.ai.engineer/sites/aiecode2025/sha256/9e07e847f5f1555b65660cf5508150d8de9dc87d4ebb78b1c15985989f065630.webp)
+
+SMALL MODELS WIN
+
+Small models are cheaper, faster, and match the frontier on the task
+
+The rest is an engineering problem: serve them, adapt them, keep up with them.
+
+Cheaper
+50x
+gte-multilingual vs text-embedding-3
+all-in on AWS EKS (L4)
+
+Faster
+2.7x
+bge-m3 vs Cohere rerank-3.5
+MTEB AskUbuntu
+
+Smart
+96%
+Qwen3.6-27B vs GPT-5.1
+AA Intelligence Index
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+DRAFT
+2 / 25
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/1
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="A 27B open model matches GPT-5.1" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A 27B open model matches GPT-5.1</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Artificial Analysis Intelligence Index places Qwen3.6 27B near GPT-5.1. The chart shows small open-weight models rising toward larger and proprietary models from 2024 to 2026.
+
+[2:34](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=154s) [A chart plots proprietary and open-weight models by intelligence index from 2024 to 2026, with Qwen3.6 27B near GPT-5.1.](https://assets.ai.engineer/sites/aiecode2025/sha256/38e835aa786e2172309c4b7c210d5181d0dbc166db288b9f93cec2557cf1f18d.webp)
+
+SMALL MODELS WIN
+
+A 27B open model matches GPT-5.1
+
+Legend:
+PROPRIETARY
+LARGE OPEN WEIGHTS (&gt;96GB VRAM)
+SMALL OPEN WEIGHTS (≤96GB VRAM)
+
+Y-axis: Intelligence Index (AA v4.0)
+Y-axis ticks: 0, 10, 20, 30, 40, 50, 60
+Timeline: 2024, 2025, 2026
+
+Chart labels:
+Llama 3.1 405B
+Qwen2.5 72B
+OpenAI o1
+Llama 3.3 70B
+Mistral Small 3
+DeepSeek V3
+Qwen3 32B
+DeepSeek R1
+Opus 4
+Gemini 2.5
+Qwen3-235B
+gpt-oss-20B
+GPT-5
+GLM-4.6
+GPT-5.1
+GLM-4.7-Flash
+Nemotron 3 Super
+Qwen3.5 27B
+Gemini 3.1
+GLM-5.1
+Nemotron Cascade 2
+Gemma 4 31B
+Opus 4.7
+GPT-5.5
+Kimi K2.6
+Qwen3.6 27B
+GLM-5.2
+DeepSeek V4
+Opus 4.8
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS
+SUPERLINKED.COM
+
+Interface text:
+DRAFT
+3 / 25
+Large clusters for small mod[illegible]
+localhost:4321/aiewf-clusters#/2
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="A real agent already needs nine small models" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A real agent already needs nine small models</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A contract-review agent screens input, calls specialized tools in any order, and synthesizes a structured review. Svonava says serving a fleet of models expands the infrastructure workload.
+
+[3:38](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=218s) [A contract-review workflow routes input through a guardrail and investigator to specialized tools, then synthesizes a review.](https://assets.ai.engineer/sites/aiecode2025/sha256/1b6c91e6b7e101d1dc23e0297822f81e1f3a3f46c7f2eb8444dd7a07d63f7a88.webp)
+
+SMALL MODELS WIN
+
+A real agent already needs nine small models
+
+THE CONTRACT
+full text
+scanned signature page
+obligations database
+
+SAFETY GUARDRAIL
+granite-guardian · screens input
+
+INVESTIGATOR
+orchestrator · Qwen3-4B
+calls any tool,
+in any order
+
+SYNTHESIZER
+Qwen3-4B · no tools
+schema-valid review:
+parties · risks · executed?
+· obligations
+
+THE TOOLBOX · THE INVESTIGATOR CALLS THESE IN ANY ORDER
+
+Classify the document
+Qwen3-0.6B
+chat
+
+Extract entities
+GLiNER
+parties · dates · $
+
+Read the signature page
+LightOnOCR + Qwen3.5-4B
+OCR + vision
+
+Search the clauses
+bge-m3 + Qwen3-Reranker
+embed + rerank
+
+Analyze clause risk
+Qwen3-4B
+reasoning sub-agent
+
+Query obligations
+sqlcoder
+text-to-SQL
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+DRAFT
+4 / 25
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/3
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="You can't run a small-model catalog on Bedrock" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>You can't run a small-model catalog on Bedrock</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide argues that Bedrock’s serverless catalog lacks specialist models, trails newer Qwen releases, and limits where fine-tuned models can run.
+
+[5:49](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=349s) [Three columns describe the slide's claims that Bedrock's catalog is limited, outdated and restrictive for model artifacts.](https://assets.ai.engineer/sites/aiecode2025/sha256/1e2c8ea0332be55d65627a0449e50b6708838c418c5db67f4970417ebbb1f47d.webp)
+
+THE HARD PART
+
+You can't run a small-model catalog on Bedrock
+
+THIN
+0 SPARSE, 0 NER, 0 SQL MODELS
+Bedrock serverless: ~9 embedders across all modalities, two rerankers (the same two since December 2024), four code models from two providers, no multivector, no NER, no SQL specialist, no DeepSeek distill, no dense Qwen under 32B.
+
+docs.aws.amazon.com model cards + rerank pages (fetched July 2, 2026)
+
+STALE
+THE 2026 GENERATION IS MISSING
+The Qwen lineup stops at mid-2025: no Qwen3.5 (March 2026), no Qwen3.6-27B (April 2026, Apache-2.0, SWE-bench Verified 77.2). The newest text embedder is from April 2024; Mistral 7B (September 2023) still sells as Active.
+
+docs.aws.amazon.com Qwen model cards (fetched July 2, 2026); github.com/QwenLM
+
+LOCKED
+NO IMPORT, NO EXPORT, EOL UNDER YOU
+“Custom Model Import does not support embedding models” (AWS docs), so a fine-tuned embedder or reranker has no serverless path. Nova fine-tunes host only inside Bedrock. The whole small-Llama line (3.2) hits end of life on July 7, 2026.
+
+docs.aws.amazon.com Custom Model Import + model lifecycle (fetched July 2, 2026)
+
+This is the deepest managed catalog there is, and an agent stack built on it runs one to two model generations behind the open ecosystem it draws from.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+6 / 25
+
+Interface text:
+DRAFT
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/5
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="“Supported” means it loads, not that it hits its numbers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>“Supported” means it loads, not that it hits its numbers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>vLLM and SGLang ship tuning guides, but users must find settings for each model and GPU. Four issue excerpts illustrate memory and configuration difficulties; three were closed by a stale bot.
+
+[6:31](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=391s) [Four issue excerpts describe GPU memory and configuration difficulties; a note says tuning remains necessary for each model and GPU.](https://assets.ai.engineer/sites/aiecode2025/sha256/901b8014ed56c102f24f7f2af6c323e0b1c2438a49907b8942d4ce7a4ae77e7d.webp)
+
+THE HARD PART
+
+“Supported” means it loads, not that it hits its numbers
+
+vllm-project/vllm #27479 — CLOSED BY STALE-BOT
+Qwen3-Embedding-0.6B “immediately reserves ~80% GPU memory... GPU-Util stays below 40%.”
+Maintainer answer: tune gpu-memory-utilization, max-num-seqs, max-num-batched-tokens, and api-server-count.
+
+huggingface/text-embeddings-inference #350 — CLOSED
+“What’s a good way to estimate what one can use? I think I just increased it until it wouldn’t start.”
+An H100 owner binary-searching max-batch-tokens by crash.
+
+sgl-project/sglang #1828 — CLOSED BY STALE-BOT
+“I tried all possible values of mem_fraction_static, it always gets out of memory if I increase it or a negative max_total_num_tokens if I decrease it.”
+The same-sounding knob means different things in vLLM and SGLang.
+
+vllm-project/vllm #18582 — CLOSED BY STALE-BOT
+“I attempted to roughly estimate gpu-memory-utilization using the size of the model weights + the size of the kvcache... the result obtained would lead to oom.”
+A 0.5B model on one RTX 4090. Never answered.
+
+vLLM and SGLang each ship a tuning guide for these flags; the values are still yours to find per model and per GPU. Three of the four issues above were closed by a stale-bot, not a fix. Verified 2026-07-02.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+7 / 25
+DRAFT
+
+Interface text:
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/6
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Many small models break the standard serving playbook" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Many small models break the standard serving playbook</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A 115-model catalog can mean 115 mostly idle GPU endpoints. Route-then-batch fragments small requests across workers, while tenant-specific LoRAs multiply the catalog by 100.
+
+[7:21](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=441s) [Three columns describe idle model pools, blind routing and user-provided adapters.](https://assets.ai.engineer/sites/aiecode2025/sha256/e888ee144d07e40295b35b871e0f01995bfc41653c1b5e8ea5eecbac884e0bc8.webp)
+
+THE HARD PART
+
+Many small models break the standard serving playbook
+
+01
+A POOL PER MODEL SITS IDLE
+The managed pattern is one provisioned endpoint per model, billed until stopped. A 115-model catalog becomes 115 mostly idle GPU endpoints.
+SageMaker real-time endpoints, AWS docs (June 2026)
+
+02
+ROUTERS COMMIT BLIND
+Route-then-batch pins each request to a replica on arrival, so every worker batches only its local slice. Small, frequent requests make those slices ragged.
+vLLM / SGLang / TEI / llm-d / Dynamo serving topology
+
+03
+USERS BRING ADAPTERS
+Small models earn their keep through adaptation. Every domain and language pair wants its own LoRA on a shared base; tenancy multiplies the catalog by 100.
+SIE fine-tuning lab (June 2026)
+
+The rest of the talk answers these in order: one cluster that serves the whole catalog, the measured receipts, and the automation that keeps it current.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS   SUPERLINKED.COM
+8 / 25
+
+Interface text:
+DRAFT
+localhost:4321/[illegible]#/7
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="One cluster serves the whole catalog" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One cluster serves the whole catalog</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A Rust gateway queues work in per-pool streams. Worker sidecars pull and batch for PyTorch, SGLang or Candle. Payloads over 1 MiB offload to object storage, and KEDA scales worker pods from zero.
+
+[10:01](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=601s) [Architecture diagram connects clients through a Rust gateway and queue to workers using different runtimes.](https://assets.ai.engineer/sites/aiecode2025/sha256/5263cf3a524aac5d52625e652dcadefa0cc660ba623034dee6aee74440856fc1.webp)
+
+THE CLUSTER
+
+One cluster serves the whole catalog: a gateway, a queue, workers that pull
+
+CLIENTS
+PYTHON + TYPESCRIPT SDKS
+OPENAI-COMPATIBLE API
+FRAMEWORK ADAPTERS
+
+GATEWAY
+stateless gateway (Rust)
+Resolves model, profile, and pool; parses each request once; holds the connection open while workers pull.
+HTTP
+MSGPACK
+OPENAI-COMPATIBLE
+
+NATS QUEUE
+pool work streams
+ONE MEMORY-BACKED STREAM PER POOL
+PAYLOADS OVER 1 MIB OFFLOAD TO OBJECT STORAGE
+KEDA SCALES WORKER PODS FROM ZERO
+The gateway publishes queued work; the Rust sidecar inside each worker pod pulls from the whole pool and forms batches before GPU work starts.
+
+WORKER POOL
+Worker pods keep GPUs fed
+PYTORCH
+SGLANG
+CANDLE
+
+WORKER 01 — PYTORCH
+L4 machine profile
+SERVER SIDECAR BATCHER
+GTE-MULTILI...
+SPLADE
+GLINER
+SIGLIP
+The sidecar pulls, batches, and pre-tokenizes in Rust.
+
+WORKER 02 — SGLANG
+RTX PRO 6000 profile
+SERVER SIDECAR BATCHER
+QWEN3.6-27...
+QWEN3.5-4B
+QWEN3-RER...
+Speculative decoding and grammar behind the same API.
+
+WORKER 03 — CANDLE
+L4 machine profile
+SERVER SIDECAR BATCHER
+BGE-M3
+E5-BASE-V2
+A Rust worker binary on the same socket.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS
+SUPERLINKED.COM
+
+Interface text:
+DRAFT
+9 / 25
+localhost:4321/[illegible]#/8</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="The hot path costs one decode, end to end" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The hot path costs one decode, end to end</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The gateway parses the envelope, and payloads over 1 MiB move to object storage while queued. An inline cleanup DELETE capped every model on every GPU at ~24k tokens per second; a fix raised the knees up to 30x.
+
+[12:07](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=727s) [A request flows through SDK, gateway, queue, sidecar and runtime stages.](https://assets.ai.engineer/sites/aiecode2025/sha256/61a4c17fa6bb78ff8c4924f4d2372481156d16813576423c3b4033494fae78ec.webp)
+
+THE CLUSTER
+
+The hot path costs one decode, end to end
+
+SDK
+msgpack out, numpy back
+The client packs msgpack; embedding vectors return as dtype + shape + raw bytes and land in numpy without a float ever being parsed.
+application/msgpack
+numpy sentinels
+
+GATEWAY
+Parse the envelope once, splice the reply
+The Rust gateway decodes just enough to resolve model, profile, and pool; item payloads pass through untouched. Responses are worker blobs byte-spliced into HTTP, never re-decoded.
+1 decode per direction
+UUIDv7 request ids
+
+QUEUE
+Memory-backed work streams
+One JetStream work queue per pool. Payloads over 1 MiB swap to an object-store ref so the queue stays light; admission is a 50 ms cached check.
+&gt;1 MiB → object store
+reject at 50k pending
+
+SIDECAR
+Rust pulls, coalesces, batches
+A long-lived pull loop coalesces arrivals under an adaptive 2 to 15 ms quantum, packs token-budget batches with per-LoRA fairness, and pre-tokenizes byte-identical to Python.
+16,384-token batches
+per-LoRA FCFS
+
+RUNTIME
+One socket, any engine
+Batches cross one Unix-socket protocol: length-prefixed msgpack. PyTorch adapters answer it, SGLang hides behind it as a supervised subprocess, Candle answers from a Rust binary.
+4-byte BE + msgpack
+32 MiB frames
+
+The one that got us: a cleanup DELETE to object storage ran once per completed request, awaited inline on the serialized reply loop, for keys that were never written. It capped every model on every GPU at ~24k tokens per second. Open-loop load testing found it; the fix (PR #1472) raised the knees up to 30x.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+10 / 25
+DRAFT
+
+Interface text:
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/9
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Any runtime drops in behind one socket" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Any runtime drops in behind one socket</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>PyTorch, supervised SGLang and Candle share a socket. Candle remains a research project: its worker image is smaller, but its performance has yet to approach PyTorch’s.
+
+[16:12](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=972s) [Three columns describe PyTorch adapters, supervised SGLang and a drop-in Candle runtime.](https://assets.ai.engineer/sites/aiecode2025/sha256/499c756734ce455613c2e499c10d8661c28a35dfe1f7e3651da5ca12d11af763.webp)
+
+THE CLUSTER
+
+Any runtime drops in behind one socket: PyTorch, SGLang, Candle
+
+01
+PYTORCH ADAPTERS
+About 60 Python adapters. The contract is enforced at import time: declaring dense output requires encode(), score requires score(). Flash-attention families included.
+sie_server/adapters
+
+02
+SGLANG, SUPERVISED
+A child process per model behind the same socket: health-polled every 2 seconds, a 900-second cold budget, grammar and multi-LoRA passed through.
+sie_server/adapters/sglang
+
+03
+CANDLE, DROP-IN
+sie-server-rust binds the identical socket and protocol from Rust. Same batches in, same numpy-sentinel bytes out; the sidecar cannot tell the difference.
+sie_server_rust
+
+Autoresearch writes the PyTorch and Candle adapter code and sweeps the SGLang flags; the benchmark referee decides what ships.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+12 / 25
+DRAFT
+
+Interface text:
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/11
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Shipped profile versus bare SGLang" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Shipped profile versus bare SGLang</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>On CaseHOLD, the shipped profile reaches 441 vs 377 tok/s and cuts p99 from 9.66 to 1.35 seconds. It combines tuned sampling, model-specific launch flags, and sidecar batch pacing.
+
+[17:34](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1054s) [Table compares throughput, p99 latency and cost for four generation models.](https://assets.ai.engineer/sites/aiecode2025/sha256/ad37afb71047fccec8462429b4df6f6f2a9dc3cde71394ed2385839577269b0b.webp)
+
+THE CLUSTER
+
+The shipped profile beats bare SGLang, tails included
+
+MODEL (TASK) | SIE TOK/S | BARE SGLANG | SIE P99 | BARE P99 | $ / 1M TOK
+Qwen3-0.6B (MedQA) | 593 | 577 | 0.60 s | 0.66 s | $1.41
+Qwen3-4B-Instruct (CaseHOLD) | 441 | 377 | 1.35 s | 9.66 s | $1.89
+Qwen3.5-4B (GPQA) | 343 | 343 | 4.22 s | 4.61 s | $2.43
+Qwen3.6-27B FP8 + spec (MedQA) | 225 | 208 | 14.5 s | 15.7 s | $3.70
+
+Same GPU, same weights, concurrency 4, 1,298 prompts per model; $ per 1M output tokens at $3/hr for the RTX PRO 6000. The gains are the shipped profile, not magic: the tuned sampling config stops greedy rambling (CaseHOLD p99 9.66 s to 1.35 s, and +11 accuracy points with it), per-model launch flags replace stock defaults, and the sidecar paces formed batches into SGLang instead of a burst of independent requests. A tail request holding a near-empty batch is what kills aggregate throughput; cutting the tail is the throughput win. Source: sie-internal generation benchmarks (June 2026).
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/12
+Finish update
+DRAFT
+13 / 25</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="The throughput knee" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The throughput knee</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For bge-m3 on one RTX PRO 6000, throughput reaches 235k tok/s at 91 ms p50. Two load levels later, throughput is unchanged and p50 is 7.7 seconds. The curve between measured anchors is illustrative.
+
+[18:47](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1127s) [Chart shows measured throughput leveling off while latency rises as offered load increases.](https://assets.ai.engineer/sites/aiecode2025/sha256/2599c80e0244f42614a1991e3556e3c7b606cdf9cb85308c62e89d1cf2fb2472.webp)
+
+THE RECEIPTS
+
+The knee: where added load buys latency, not throughput
+
+measured throughput
+requested
+p50 latency
+235k tok/s at p50 91 ms
+THE KNEE
+measured
+two levels later: still 235k tok/s, p50 is 7.7 seconds
+offered load (tokens per second requested)
+
+01 OPEN-LOOP LOAD
+Requests arrive on an external schedule whether or not the server keeps up. Closed-loop clients slow down with the server and flatter it.
+
+02 HONEST CLOCK
+Latency counts from the scheduled send, not the actual one, so the moments the queue builds are measured instead of skipped.
+
+03 STOP RULE
+Ladder up, hold each level, stop at a throughput plateau or 10% shedding. Latency never stops the run; it gets reported.
+
+Anchors measured: bge-m3 on one RTX PRO 6000, 512-token inputs, peakperf open-loop harness driven from an in-VPC client; curve between anchors illustrative. sie-internal, June 2026.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+DRAFT
+14 / 25</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Embedding throughput on one GPU" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Embedding throughput on one GPU</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At $3/hr for one RTX PRO 6000 and 512-token inputs, e5-base-v2 reaches 682k tokens/s at the knee ($1.22 per 1B tokens); the 7B SFR model reaches 37k ($22.5 per 1B).
+
+[19:29](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1169s) [Table compares embedding models by throughput, latency and cost on one GPU.](https://assets.ai.engineer/sites/aiecode2025/sha256/f998339f694593baa42ad477f3037765e32f921cead703a521683cf5ddf5b899.webp)
+
+One GPU serves 682,000 embedding tokens per second
+
+THE RECEIPTS
+
+MODEL | PARAMS | KNEE TOK/S | P50 AT THE KNEE | P50 UNLOADED | $ / 1B TOK
+e5-base-v2 | 109M | 682k | 47 ms | 22 ms | $1.22
+gte-multilingual-base | 305M | 501k | 28 ms | 21 ms | $1.66
+e5-large-v2 | 335M | 304k | 32 ms | 23 ms | $2.74
+bge-m3 | 568M | 235k | 91 ms | 15 ms | $3.55
+stella_en_1.5B | 1.5B | 82k | 126 ms | 27 ms | $10.2
+Qwen3-Embedding-4B | 4B | 49k | - | 27 ms | $17.0
+SFR-Embedding-2_R | 7B | 37k | - | 32 ms | $22.5
+
+Single RTX PRO 6000 worker, 512-token inputs, SIE v0.6.10, open-loop load from an in-VPC client. P50 at the knee is the last 100%-success ladder level. P50 unloaded comes from a separate serial probe (100 requests, one at a time, on an otherwise idle worker), not from the load ladder; it stays nearly flat from 109M to 7B because the pipeline, not the forward pass, sets the minimum. $ per 1B tokens at the knee, $3/hr GPU; frontier embedding APIs charge $120 to $130 per 1B. Source: sie-internal peak-performance runs (June 2026).
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS
+SUPERLINKED.COM
+
+Interface text:
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/14
+DRAFT
+15 / 25</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Scaling throughput with workers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Scaling throughput with workers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Workers independently pull from one pool stream. The table scales e5-base-v2 from 682k tok/s with one worker to 5.5M tok/s with eight.
+
+[21:29](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1289s) [Table compares token throughput with one, four and eight workers across several model tasks.](https://assets.ai.engineer/sites/aiecode2025/sha256/0250fa89bfe4c7c1ee5d139729fcac2a34bfac1754b7e5a38e05a69e12a95620.webp)
+
+THE RECEIPTS
+
+Add workers, multiply tokens: scaling is linear on one queue
+
+TASK · MODEL | GPU | 1 WORKER | 4 WORKERS | 8 WORKERS
+Embed · e5-base-v2 | RTX PRO 6000 | 682k tok/s | 2.7M | 5.5M
+Embed · bge-m3 | RTX PRO 6000 | 235k tok/s | 941k | 1.9M
+Rerank · answerai-colbert-small | L4 | 83k tok/s | 332k | 664k
+NER · gliner-biomed-large | L4 | 9.9k tok/s | 39k | 79k
+Generate · Qwen3-4B-Instruct | RTX PRO 6000 | 475 tok/s | 1.9k | 3.8k
+
+Per-worker throughput from the public model catalog and peak-performance runs; workers pull independently from one pool stream, so replication multiplies. A 1M tok/s embedding lane runs $4.4k to $11k a month at $3/hr on-demand per RTX PRO 6000; the same tokens on a frontier embedding API bill ~$340k a month ($0.13 per 1M, text-embedding-3-large).
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+DRAFT
+16 / 25</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Shared GPUs: loading a model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Shared GPUs: loading a model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo compares five dedicated GPUs with five models sharing two GPUs. An LRU scheduler keeps hot models resident and loads cold models on demand; the frame shows bge-m3 loading into a shared slot.
+
+[22:22](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1342s) [Comparison of dedicated and shared GPUs shows a model loading into a shared GPU slot.](https://assets.ai.engineer/sites/aiecode2025/sha256/fcc1a3ee190cbdcc8eb693cc0ce3cf1489493da74cf6b93e0a1d02d0e8cce697.webp)
+
+THE RECEIPTS
+
+Packing models onto shared GPUs cuts the idle cost
+
+ONE MODEL PER GPU
+TEI · Modal · per-model
+Every model pins its own GPU
+Five models means five always-on GPUs. Traffic is bursty and uneven, so most sit idle waiting for their model's turn.
+16% AVG GPU UTILISATION
+5 GPUs · 1 model each
+GPU 0  stella  BUSY
+GPU 1  bge-m3  IDLE
+GPU 2  gliner  IDLE
+GPU 3  splade  IDLE
+GPU 4  siglip  IDLE
+
+SHARED GPUS + LRU
+SIE residency scheduler
+Hot models stay resident, cold ones evict
+Five models share two GPUs. An LRU scheduler keeps hot models loaded and swaps cold ones in only when a request needs them.
+67% WARM-START HIT RATE
+2 GPUs · 3 slots each
+L4-0: gliner RESIDENT; splade RESIDENT; bge-m3 LOADING
+L4-1: siglip RESIDENT; EMPTY; EMPTY
+
+Five models on two GPUs instead of five, with most requests landing on an already-resident model. Pack peers of similar size: co-hosting a 1.5B decoder next to a fast encoder forfeits half the aggregate and inflates the encoder's p50 up to 65x (co-host grids, June 2026).
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+DRAFT
+17 / 25
+localhost:4321/[illegible]#/16</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Packing models onto shared GPUs cuts the idle cost" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Packing models onto shared GPUs cuts the idle cost</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo packs five models onto two GPUs, keeping hot models resident and loading cold ones on demand. The warm-start hit rate rises from 96% to 97%; average utilisation across five dedicated GPUs is 21–22%.
+
+[22:29](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1349s) [Comparison of dedicated and shared GPUs shows a resident model running in a shared GPU slot.](https://assets.ai.engineer/sites/aiecode2025/sha256/b188ec88a4b456b10fd8ab1e038bb049c4edce1525c1224037f738fa929c63f3.webp)
+
+THE RECEIPTS
+
+Packing models onto shared GPUs cuts the idle cost
+
+ONE MODEL PER GPU
+TEI · Modal · per-model
+Every model pins its own GPU
+Five models means five always-on GPUs. Traffic is bursty and uneven, so most sit idle waiting for their model's turn.
+21% AVG GPU UTILISATION
+5 GPUs · 1 model each
+GPU 0  stella  IDLE
+GPU 1  bge-m3  IDLE
+GPU 2  gliner  BUSY
+GPU 3  splade  IDLE
+GPU 4  siglip  IDLE
+
+SHARED GPUS + LRU
+SIE residency scheduler
+Hot models stay resident, cold ones evict
+Five models share two GPUs. An LRU scheduler keeps hot models loaded and swaps cold ones in only when a request needs them.
+96% WARM-START HIT RATE
+2 GPUs · 3 slots each
+L4-0: gliner RESIDENT; bge-m3 RESIDENT; splade RESIDENT
+L4-1: siglip RESIDENT; stella RUNNING; EMPTY
+
+Five models on two GPUs instead of five, with most requests landing on an already-resident model. Pack peers of similar size: co-hosting a 1.5B decoder next to a fast encoder forfeits half the aggregate and inflates the encoder’s p50 up to 65x (co-host grids, June 2026).
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+17 / 25
+
+Interface text:
+DRAFT
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/16
+Finish update
+
+[23:08](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1388s) [Comparison of one model per GPU with five models sharing two GPUs using residency and eviction.](https://assets.ai.engineer/sites/aiecode2025/sha256/b41731beec149f27f89b0c3e31ae365de69830184bdd53c5df82b7fd6a825035.webp)
+
+THE RECEIPTS
+
+Packing models onto shared GPUs cuts the idle cost
+
+ONE MODEL PER GPU
+TEI · Modal · per-model
+Every model pins its own GPU
+Five models means five always-on GPUs. Traffic is bursty and uneven, so most sit idle waiting for their model's turn.
+22% AVG GPU UTILISATION
+5 GPUs · 1 model each
+GPU 0  stella  IDLE
+GPU 1  bge-m3  BUSY
+GPU 2  gliner  IDLE
+GPU 3  splade  IDLE
+GPU 4  siglip  IDLE
+
+SHARED GPUS + LRU
+SIE residency scheduler
+Hot models stay resident, cold ones evict
+Five models share two GPUs. An LRU scheduler keeps hot models loaded and swaps cold ones in only when a request needs them.
+97% WARM-START HIT RATE
+2 GPUs · 3 slots each
+L4-0: bge-m3 RESIDENT; gliner RESIDENT; splade RUNNING
+L4-1: stella RESIDENT; siglip RESIDENT; EMPTY
+
+Five models on two GPUs instead of five, with most requests landing on an already-resident model. Pack peers of similar size: co-hosting a 1.5B decoder next to a fast encoder forfeits half the aggregate and inflates the encoder’s p50 up to 65x (co-host grids, June 2026).
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+17 / 25
+
+Interface text:
+DRAFT
+Large clusters for small mod[illegible]
+localhost:4321/[illegible]#/16
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Residency failures and control loops" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Residency failures and control loops</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A keep-warm preference failed to reserve VRAM, leading to eviction and reload crashes across replicas. The slide proposes separate capacity and residency loops, plus matching cache and routing keys.
+
+[23:12](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1392s) [A failure chain from model eviction to worker crashes, with separate capacity and residency control loops as the proposed fix.](https://assets.ai.engineer/sites/aiecode2025/sha256/4f37535694e8dc08d05b7683cb70d1e32fc58136ca826d5571729ba35cc204bd.webp)
+
+THE RECEIPTS
+
+Residency, not scaling, is what takes clusters down
+
+1
+Marked resident
+a hot model sits in VRAM; the operator marked it keep-warm
+
+2
+Mixed traffic lands
+a burst of other models shares the same GPU
+
+3
+The mark was advisory
+cache pressure evicts it anyway; a preference reserves no memory
+
+4
+Reload OOMs the worker
+reloading under live load needs more free VRAM than steady state; the worker dies
+
+5
+Autoscaler multiplies it
+every new replica walks into the same out-of-memory crash
+
+The rule this teaches: out-of-memory is a vertical failure. A capacity autoscaler reacts to demand, not to memory shape, so it multiplies the crash instead of absorbing it. Field incident, June 2026.
+
+SECOND FAILURE, SAME WEEK
+Warm a cache under the key you route on
+routing key = model ≠ cache key = model + hardware profile
+Same weights, different key: every lookup missed, so a model that was already loaded cold-started for 60 to 90 seconds. Warm-cache identity and routing identity have to be one string.
+
+THE FIX IS CONCEPTUAL
+Run two control loops, not one
+CAPACITY  how many workers; driven by demand
+RESIDENCY  which models each GPU keeps warm; driven by memory
+A residency guarantee must reserve VRAM, not express a preference; everything else stays LRU. Split the loops and both failures above disappear.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+DRAFT
+18 / 25
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Two agent loops keep the catalog current" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Two agent loops keep the catalog current</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>One agent loop searches for serving configurations; another trains adapters on public data. Both rely on measurement, and a benchmark referee decides what merges.
+
+[23:29](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1409s) [Two columns describe onboarding more models and adapting served models, with benchmarks deciding what merges.](https://assets.ai.engineer/sites/aiecode2025/sha256/54249e1a2d1f76dc1b4280fadb128710181b897fbe8b1edf95b79d8fca25db77.webp)
+
+Two agent loops keep the catalog current
+
+KEEPING UP
+
+01
+SERVE MORE MODELS
+
+New open models land weekly, and onboarding one is a search problem. So an agent runs the search: write the adapter code, sweep the serving knobs against the measured knee, publish the winning config.
+
+✓ Support means a reproducible config, not a code fork
+✓ Sweeps optimize measured throughput, never defaults
+✓ Every claim in the output links to a benchmark run
+
+02
+ADAPT THE MODELS YOU SERVE
+
+Small models win through adaptation, so a second agent loop trains an adapter per domain and language pair, on public data.
+
+✓ Probe cheap first; spend GPU hours only where early signal shows
+✓ No lift claim without a baseline on the identical setup
+✓ Hard budgets and gates are what make agent results trustworthy
+
+Neither loop merges its own work. The benchmark referee does.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+DRAFT
+19 / 25
+localhost:4321/aiewf-clusters#/18</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Models ship with tuned configurations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Models ship with tuned configurations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>SIE Worker ships tuned configurations with model support, avoiding a separate flag hunt. The slide shows embedding, OCR and generative examples from a catalog of 85+ pre-tuned configs.
+
+[23:46](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1426s) [A list of serving flags beside three example model configuration files.](https://assets.ai.engineer/sites/aiecode2025/sha256/6bca7231f08aac9fa728a6a16594d57920a150a02a361d995efe24cea5641e90.webp)
+
+KEEPING UP
+
+A model ships with its tuned config, not a flag hunt
+
+VLLM · SGLANG · TEI
+Hunt for the right flags, per model
+SET BY HAND FOR EVERY MODEL AND GPU
+--max-num-batched-tokens
+--gpu-memory-utilization
+--dtype / --kv-cache-dtype
+--attn-implementation
+--max-model-len
+--tensor-parallel-size
+
+vllm-project/vllm #27479
+“Qwen3-Embedding immediately reserves ~80% GPU memory, but during embedding GPU-Util stays below 40%.”
+
+SIE WORKER
+Each model ships its own tuned config file
+
+EMBEDDING
+lightonai_GTE-ModernColBERT-v1.yaml
+inputs: text
+task: encode · multivector
+dim: 128
+max_sequence_length: 8192
+profile: default
+  adapter_path: colbert_modernbert_flash...
+  max_batch_tokens: 16384
+  compute_precision: null
+  loadtime:
+    muvera_config:
+      num_repetitions: 40
+      final_projection_dim: 10240
+    token_dim: 128
+    query_max_length: 32
+...
+
+OCR / EXTRACT
+PaddlePaddle_PaddleOCR-VL-1.5.yaml
+inputs: image
+task: extract
+hf_revision: 6819afc
+max_sequence_length: 16384
+profile: default
+  adapter_path: paddleocr_vl...Adapter
+  max_batch_tokens: 16384
+  compute_precision: bfloat16
+  loadtime:
+    trust_remote_code: true
+    default_task: ocr
+  runtime:
+    task: ocr
+    max_new_tokens: 4096
+    num_beams: 1
+...
+
+GENERATIVE
+Qwen_Qwen3.6-27B.yaml
+inputs: text · image
+task: generate
+  context_length: 8192
+  max_output_tokens: 4096
+  grammar: json_schema · regex
+  tools: true
+profile: default
+  adapter_path: sglang.generation:...
+  max_batch_tokens: 16384
+  loadtime:
+    mem_fraction_static: 0.85
+    attention_backend: triton
+    speculative: nextn
+  runtime:
+    temperature: 0.7
+...
+
+3 of 85+ pre-tuned model configs. Browse them all on GitHub →
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+21 / 25
+
+Interface text:
+Large clusters for small mod...
+localhost:4321/aiewf-clusters#/20
+DRAFT
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Adaptation runs as a loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Adaptation runs as a loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A brain agent plans experiments, sends jobs to a rented GPU fleet, then measures results and replans. A baseline gate determines what becomes a versioned serving config; a human directive can halt scheduling.
+
+[23:59](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1439s) [An agent plans experiments, dispatches GPU jobs, measures results and replans; a baseline gate precedes the serving configuration.](https://assets.ai.engineer/sites/aiecode2025/sha256/81503dcb777b21910dc2312e6ed90b0ec3a6b8c88d70aa460e9403fd8501066b.webp)
+
+KEEPING UP
+
+Adaptation runs as a loop: plan, fan out to GPUs, measure, replan
+
+INTENT CONTRACT
+“Best open German-legal embedder under 1B”
+Goals, gates, and budgets bind. Suggested tactics are hypotheses the agent may discard.
+
+BRAIN AGENT · ALWAYS ON, NEVER HOLDS A GPU
+Plan a slate
+Competing ideas across data, objective, training, and eval, seeded by a research fan-out.
+
+Fan out the work
+The scheduler streams jobs to a rented GPU fleet and keeps every card busy until the budget ends.
+
+Measure, kill, replan
+Ideas that trail the incumbent die; survivors earn full runs; the next slate starts from what was learned.
+
+RENTED GPU FLEET · SATURATED, CAPPED, RECLAIMED
+50-step probe
+kills weak ideas cheaply
+
+full train
+survivors only
+
+eval vs baseline
+identical setup
+
+data build
+pairs, negatives, mixes
+
+STEERING · HUMAN, ANY TIME
+A directive halts the scheduler
+Appends to the run log; no new work until the agent implements or rejects it, on the record. Replayable, never a side channel.
+
+THE ONLY EXIT
+Gate: baseline or nothing
+A no-train baseline on the identical setup, plus regression floors on held-out benchmarks. No lift claim without it.
+
+An immutable serving config
+The winner ships as a versioned profile the cluster can route to.
+
+FROZEN HARNESS · agents cannot edit it mid-run, so runs stay comparable
+APPEND-ONLY LEDGER · every job, result, and directive; the whole run replays from it
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+Large clusters for small mod[illegible]
+localhost:4321/aiewf-clusters#/21
+DRAFT
+22 / 25</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="$0.80 of GPU time buys +18% on German legal retrieval" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>$0.80 of GPU time buys +18% on German legal retrieval</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The mixed legal and general LoRA improved in-domain German legal retrieval by 18.1% and transfer by 8.0%, while general retrieval scores fell 2.1% and 0.6%. The adapter cost about $0.80 to train.
+
+[24:14](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1454s) [A table compares baseline and LoRA retrieval scores across German legal and general datasets.](https://assets.ai.engineer/sites/aiecode2025/sha256/b8db9eba9c49fa182d1a32ec90912841f0d585bf4c1cdd0636f0edd176a4cd73.webp)
+
+KEEPING UP
+
+$0.80 of GPU time buys +18% on German legal retrieval
+
+RECIPE
+arctic-embed-l-v2.0 (568M)
+LoRA r128 · α256 · all-linear
+56.9M trainable (~10%)
+128 in-batch negatives
+seq 512 · LR 1e-4 · 150 steps
+1× L4 24GB · 41 min · ~$0.80
+114 MB adapter
+
+HELD-OUT DATASET | WHAT IT MEASURES | BASE | + LoRA (LEGAL) | + LoRA (LEGAL + GENERAL, 2:1)
+GerDaLIRSmall | German legal, in-domain · nDCG@10 | 0.2613 | 0.3129 +19.7% | 0.3087 +18.1%
+LegalQuAD | German legal, transfer · nDCG@10 | 0.5097 | 0.5660 +11.0% | 0.5504 +8.0%
+GermanDPR | German general · nDCG@10 | 0.8346 | 0.7995 -4.2% | 0.8169 -2.1%
+GermanQuAD | German general · MRR@5 | 0.9298 | 0.9148 -1.6% | 0.9244 -0.6%
+
+Trained on public datasets; no proprietary data required. Adapters hot-swap per request via lora_id on one resident base, and per-adapter batchers keep hundreds of tenants fair. Next: a public catalog of domain and language adapters for embedders, rerankers, and generators. Source: SIE fine-tuning lab, June 2026.
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+DRAFT
+24 / 25
+localhost:4321/[illegible]#/23
+Finish update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Run the whole catalog on your own GPUs" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Run the whole catalog on your own GPUs</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Superlinked claims gte-multilingual costs 50x less than text-embedding-3 on AWS EKS (L4), and bge-m3 is 2.7x faster than Cohere rerank-3.5 on MTEB AskUbuntu. It pitches the catalog for cloud or air-gapped GPUs.
+
+[24:29](https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1469s) [Closing slide presents cost, speed, quality and self-hosting claims alongside a repository QR code.](https://assets.ai.engineer/sites/aiecode2025/sha256/4804b49286287ac6ce3395dd43170f080642138568a216934c079ee6e8d5cba2.webp)
+
+TAKE IT HOME
+
+Run the whole catalog on your own GPUs
+
+A million tokens per second on a handful of GPUs, in your own cloud.
+
+SCAN FOR THE CODE
+github.com/superlinked/sie
+
+Cheaper
+50x
+gte-multilingual vs text-embedding-3
+all-in on AWS EKS (L4)
+
+Faster
+2.7x
+bge-m3 vs Cohere rerank-3.5
+MTEB AskUbuntu
+
+Smart
+96%
+Qwen3.6-27B vs GPT-5.1
+AA Intelligence Index
+
+Yours
+100%
+in your cloud, or air-gapped
+
+GITHUB ★ 2.1K
+CONTACT US →
+
+Superlinked
+RUN SMALL MODELS ON YOUR OWN GPUS  SUPERLINKED.COM
+
+Interface text:
+Large clusters for small mod[illegible]
+localhost:4321/aiewf-clusters#/24
+Finish update
+DRAFT
+25 / 25</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">小到一块 GPU 装得下，强到足以胜任特定任务</a></li><li><a href="#sec-2">一个合同审查智能体变成了九个模型的集群</a></li><li><a href="#sec-3">请求变小时会坏掉的三件事</a></li><li><a href="#sec-4">让网关保持轻量，让队列保持共享</a></li><li><a href="#sec-5">工作进程自行组批——有时还需要把工作退回去</a></li><li><a href="#sec-6">一个 Rust 边车让批处理独立于运行时</a></li><li><a href="#sec-7">在拐点处测量有用吞吐量</a></li><li><a href="#sec-8">把模型打包在一起，并随之附带调优配置</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">为小模型准备的大集群</h2>
+      <div class="lede"><p>Superlinked 的 Daniel Svonava 解释了为什么针对任务的专用模型会把推理变成一个机群管理问题——以及共享队列、由工作节点控制的批处理、运行时适配器和预先调优的配置，如何让这个机群的服务变得可行。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>小到一块 GPU 装得下，强到足以胜任特定任务</h3>
+      <p>A model that fits on one GPU removes a major serving problem: distributing its weights and computation across several devices. <a href="https://x.com/svonava" target="_blank" rel="noopener">Daniel Svonava</a> of Superlinked defines small models operationally—models that fit on NVIDIA hardware two or three generations old. That makes the hardware easier to obtain and more affordable, while creating room for lower latency and higher throughput. <a href="https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=79s" target="_blank" rel="noopener">1:19</a></p>
+<p>The quality claim has a specific scope. A small model can reach or exceed frontier performance <strong>for a particular task</strong>. Svonava reads the Artificial Analysis Intelligence Index over time as a convergence: the frontier shows diminishing returns while smaller open models continue to improve. That motivates testing a smaller replacement for an existing workflow; aggregate benchmark proximity alone does not establish that the replacement will handle every task in that workflow.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="229">▶ 3:49</button></div>
+      <h3>一个合同审查智能体变成了九个模型的集群</h3>
+      <p>The move to small models begins by splitting the workload into tasks. For each task, choose an open model, run evaluations, and adapt it if necessary. A single 27-billion-parameter model is not automatically the right destination for every prompt previously sent to a general-purpose endpoint. <a href="https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=229s" target="_blank" rel="noopener">3:49</a></p>
+<p>The contract-review example makes the infrastructure change concrete. The agent uses <strong>nine different models</strong>. What previously looked like many requests to one API becomes traffic for a fleet, with different architectures and serving requirements. Add several agents across a company and the operational question grows: how can infrastructure support all these models without making each one a separate deployment project?</p>
+<p>Specialization can come from training data as much as model size. Vietnamese receipt OCR is Svonava’s example: a project built around those receipts may have gathered the data most relevant to recognizing their contents. The practical reason to evaluate that model is its exposure to the task. His prediction that it will outperform alternatives remains a task-specific hypothesis to test.</p>
+<p>The available tasks span OCR, document question answering, image labeling, SQL generation, and code review. Svonava’s diagnosis is that the models already exist; serving them is the bottleneck. He criticizes AWS Bedrock as a substitute for owning this fleet, citing restricted model selection and fine-tuned artifacts that remain tied to its infrastructure. Those are his descriptions of the managed-service constraints, rather than a demonstrated comparison across its offerings.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="378">▶ 6:18</button></div>
+      <h3>请求变小时会坏掉的三件事</h3>
+      <p>Open serving software supplies building blocks, but a wide fleet exposes three different kinds of work:</p>
+<p>- <strong>Tuning each model and GPU combination:</strong> vLLM and SGLang do not arrive optimized for every model, hardware choice, and traffic pattern. Parameter sweeps and workload-specific tuning can turn adoption into an open-ended research project.
+- <strong>Keeping GPUs busy:</strong> A router designed to assign requests from above must track worker state, including KV caches and local queues. With many short requests, that information becomes stale quickly enough to produce poorly sized batches.
+- <strong>Deploying adaptations:</strong> An AI engineer’s ten LoRAs or overnight fine-tune creates another handoff to infrastructure. Repeating that conversation for each new artifact slows the rate at which model improvements reach production.</p>
+<p>The routing failure follows from where the decision happens. A large-model router chooses a worker or group of workers using its view of their state. A small request may finish before that view catches up. The router still has to distribute enough work to fill each GPU’s next batch, and separate local queues make a mistaken assignment difficult to correct. In Superlinked’s experiments with vLLM and SGLang routers on this traffic, GPU utilization was difficult to push beyond <strong>20–30% under constant load</strong>; that observation concerns their tested small-model workload. <a href="https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=468s" target="_blank" rel="noopener">7:48</a></p>
+<p>The organizational goal is equally concrete: infrastructure engineers should operate the serving system while AI engineers improve models, without either group blocking the other’s daily work. Superlinked arrived at its cluster design through search, document-processing, and agent deployments in environments with differing hardware availability. Small models helped because obtaining L4s or a modest GPU quota was easier than finding capacity for a much larger deployment.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="647">▶ 10:47</button></div>
+      <h3>让网关保持轻量，让队列保持共享</h3>
+      <p>Superlinked’s design moves the assignment decision toward the workers. A gateway inspects part of a request, attaches metadata, and inserts it into a shared queue and side channels. Workers pull work when they can use it. The stack is described as Apache 2.0 open source from the control plane through the code running on the GPU. <a href="https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=677s" target="_blank" rel="noopener">11:17</a></p>
+<p>The request format also matters when inference is fast. The system uses <strong>MessagePack</strong>, a binary format, throughout instead of carrying binary inputs as Base64-encoded JSON. Images and videos can enter through the same API as the rest of the request, so the client does not have to send a storage location and separately give the cluster access to its cloud storage.</p>
+<p>Consider the larger multimodal request described in the talk. The client sends all its bytes through the gateway. For a request over roughly a megabyte, the gateway can separate heavy payload pieces and place them in backend cloud storage while the request waits in the queue. The observable change is internal: the shared queue no longer carries all the bulky data, while the client keeps one upload interface. This protects the scheduling path from becoming a bulk-data path.</p>
+<p>What stays on the scheduling path, and where does model execution begin? The diagram separates the gateway’s light annotation work from the workers’ pull decisions and local runtime connection. Backend storage handles heavy payloads alongside that path; it is not a second upload destination the client must manage.</p>
+<p>Both gateway and worker expose REST interfaces; the worker connects to a runtime over a local socket. The gateway avoids parsing the whole request because doing too much work at the single entry point would recreate the bottleneck. NATS JetStream supplies the shared queue, with Svonava citing capacity of a million requests per second. Avoiding repeated serialization and deserialization across components keeps more of the request’s time available for useful work.</p>
+<p>The scheduling path and the heavy-payload path
+The gateway queues annotated work without assigning it to a worker. Workers initiate the pull; large payload pieces move to backend storage so they do not clog the shared queue.
+- Client request — Sends request fields and multimodal bytes through one API.
+- Gateway — Inspects part of the request and attaches metadata.
+- Backend cloud storage — Holds heavy payload pieces while the request is queued.
+- Shared NATS JetStream queue — Holds work available for workers to pull.
+- Worker — Pulls requests and forms batches using its own cost prediction.
+- Model runtime — PyTorch, Candle, or SGLang, connected locally.
+- Client request → Gateway (MessagePack request and bytes)
+- Gateway → Backend cloud storage (Separates heavy payload pieces)
+- Gateway → Shared NATS JetStream queue (Enqueues annotated request)
+- Worker → Shared NATS JetStream queue (Initiates pull)
+- Worker → Model runtime (Local socket)</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="887">▶ 14:47</button></div>
+      <h3>工作进程自行组批——有时还需要把工作退回去</h3>
+      <p>A shared queue changes who must predict the right batch. The router no longer tries to fill every worker’s local queue correctly in advance. Each worker picks up requests and estimates the cost of the batch it is building. Work remains shared until a worker takes it, giving workers more control over keeping themselves busy. <a href="https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=887s" target="_blank" rel="noopener">14:47</a></p>
+<p>That does not make batch sizing easy. A worker can pull too much and discover that some requests should go back. Returning them through the centralized queue would add a network hop—milliseconds that matter for short inference calls. On machines with multiple GPUs, Superlinked adds a machine-local queuing element so colocated worker processes can negotiate work back and forth locally. This optimization applies to workers sharing a machine, rather than performing that negotiation across the network.</p>
+<p>The reported result is <strong>double the cluster throughput</strong> after centralizing the queue. Svonava stresses that this is a substantial change, rather than a five-percent tuning win. The claim is a result from Superlinked’s experiments, not a universal multiplier for every cluster topology or traffic mix.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="977">▶ 16:17</button></div>
+      <h3>一个 Rust 边车让批处理独立于运行时</h3>
+      <p>The worker layer has to accommodate different model architectures without accumulating conflicting Python requirements. Three runtimes serve different purposes:</p>
+<p>- <strong>PyTorch:</strong> Superlinked writes and optimizes execution code for models such as encoder-only architectures, using an autoresearch loop to improve performance.
+- <strong>Candle:</strong> A statically linked worker binary reduces the deployment payload. Svonava contrasts a roughly 12-gigabyte PyTorch Docker image with a Candle package around ten percent of that size. Moving less data helps when bringing up cold workers across machines, but their Candle implementation still performs well below PyTorch.
+- <strong>SGLang:</strong> Optimally tuned SGLang provides a performance baseline that the surrounding system should at least match.</p>
+<p>The Rust sidecar and local socket put shared serving behavior outside any one runtime. Superlinked reports improving on bare SGLang through additional batching logic. The same logic could potentially be implemented inside SGLang with custom plugins, but those plugins would tie the work to that runtime. With on the order of <strong>50 parameterized model adapters</strong>, keeping the common batching layer separate avoids making one execution engine the organizing principle for the entire fleet. <a href="https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1066s" target="_blank" rel="noopener">17:46</a></p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1128">▶ 18:48</button></div>
+      <h3>在拐点处测量有用吞吐量</h3>
+      <p>The useful benchmarking target is the <strong>knee</strong>. As offered traffic rises, completed throughput initially rises with it. Eventually throughput flattens while latency climbs: the server has reached saturation, and additional demand mostly creates waiting. The knee identifies the region of maximum throughput before latency suffers. <a href="https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1128s" target="_blank" rel="noopener">18:48</a></p>
+<p>The performance examples presented here were measured on an <strong>RTX PRO 6000</strong>. For embedding models with up to hundreds of millions of parameters, Svonava describes hundreds of thousands of input tokens encoded per second, reaching roughly <strong>half a million tokens per second on one GPU</strong>, with call latency in the low tens of milliseconds. He contrasts that with hundreds of milliseconds and orders-of-magnitude higher costs for managed embedding endpoints. These are workload-dependent comparisons; the talk does not establish a matched model-quality and total-cost comparison for an arbitrary deployment.</p>
+<p>For a search system, the change is straightforward: input text enters a local GPU and embedding vectors come back at high throughput. That is why embeddings are Svonava’s “no-brainer” starting point for self-hosting small models. The serving architecture supports the economics by making it easier to keep the GPU supplied with useful batches instead of paying for hardware that sits partly idle.</p>
+<p>Other candidates include named entity recognition, multi-vector search, and task-specific generation of text or structured output. Synthetic data and annotations for fine-tuning or evaluations are particularly attractive in Svonava’s account because the task is controlled and the team can inspect output quality. Encoding throughput counts input tokens; generative throughput counts output tokens, so the two rates describe different work. Scaling across more GPUs also depends on the surrounding infrastructure continuing to feed them efficiently.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1343">▶ 22:23</button></div>
+      <h3>把模型打包在一起，并随之附带调优配置</h3>
+      <p>A dedicated, permanently preloaded worker pool per model carries over assumptions from serving enormous models that take tens of minutes to load. Small models allow a different approach: pack multiple models on the same GPU, pin some in memory, and combine that with lazy loading and eviction as memory pressure changes. The decision becomes which models should stay resident and which should load on demand. The ending introduces this combination without developing a specific placement or eviction algorithm. <a href="https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1372s" target="_blank" rel="noopener">22:52</a></p>
+<p>Autoresearch addresses the earlier tuning problem. Superlinked builds measurement tooling that feeds loops for adding model support and improving execution performance. When support for a model ships, it includes an end-to-end cluster configuration with the tuning already done. Users should not have to begin by running another parameter sweep.</p>
+<p>The research setup includes a meta loop that builds the harness, the loop that runs experiments, and a dashboard for understanding the results. One output was a LoRA that cost <strong>80 cents to train</strong> and improved retrieval quality on <strong>German legal text by 18%</strong> as a proof of concept. The retrieval metric and whether the gain is relative or absolute are unspecified, so the result demonstrates a promising inexpensive adaptation rather than a transferable accuracy guarantee.</p>
+<p>The closing invitation is to try <strong>RCluster</strong>, the implementation described throughout the talk. The <a href="https://www.youtube.com/watch?v=g4SsanB0gMc&amp;t=1463s" target="_blank" rel="noopener">closing slide at 24:23</a> provides the GitHub-repository QR code. “Happy self-hosting” rests on the work developed along the way: evaluate a model for each task, keep requests shared until workers can batch them, accommodate several runtimes, and distribute tuned configurations with model support. Small models reduce the size of each inference problem; the cluster makes a large collection of those problems manageable.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Choose small models per task and evaluate them on that task. A nine-model contract-review agent illustrates how specialization turns one endpoint into a fleet.</li><li>Shared queuing lets workers form batches using their own cost predictions. Superlinked reports double cluster throughput after this change.</li><li>Keep the gateway’s work small and move bulky payload pieces out of the internal queue. Fast inference makes parsing, serialization, and network hops consequential.</li><li>A shared Rust sidecar supports runtime diversity; Candle’s smaller deployment package shows why cold-start costs and execution performance can pull in different directions.</li><li>Ship model support with measured, tuned cluster configurations. The German legal-text proof of concept connects inexpensive adaptation to a reported 18% retrieval-quality improvement.</li><li><a href="https://ai.engineer/talks/qdh_x-uRs9g-small-model-infrastructure-nobody-built-so" target="_blank" rel="noopener">The Small Model Infrastructure Nobody Built (So We Did) — Filip Makraduli, Superlinked</a> — A companion presentation from Superlinked on infrastructure for small models.</li><li><a href="https://ai.engineer/talks/Ahtaha9fEM0-introduction-llm-serving-sglang" target="_blank" rel="noopener">Introduction to LLM serving with SGLang</a> — Background on one of the execution runtimes used as a tuned performance baseline in this talk.</li><li><a href="https://ai.engineer/talks/iCj_ATyThvc-autoresearch-is-changing-ml-research" target="_blank" rel="noopener">How Autoresearch Is Changing ML Research — Zhengyao Jiang, Weco AI</a> — A related treatment of automated research loops, connecting to the model-support and tuning loops in the ending.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">All right. I think you guys can hear me. I can certainly hear myself. Um, whoever came closer gets a T-shirt. I, I meant it. There's like a bag full of T-shirts over here. Uh, and also for questions, maybe there will be some questions at the end. If you ask a question, you'll get a T-shirt as well. And if you can guess what is on the background of this slide, you get a, uh, you get a T-shirt as well. Any guesses?</span></div><div class="tline" data-t="43"><span class="ts">0:43</span><span class="tx">What does that visualize, this picture in the background?</span></div><div class="tline" data-t="49"><span class="ts">0:49</span><span class="tx">No? Anybody has seen a transformer model? Spatial coding. Uh, yeah, positional encoding. Yeah. Very good. You get a T-shirt, sir. All right. So today we'll discuss, uh, basically small open source models and how they're pretty good now, and how they create unique challenges when you want to serve a bunch of them in your own cloud. Uh, everything we'll discuss is kind of open source,</span></div><div class="tline" data-t="79"><span class="ts">1:19</span><span class="tx">uh, do-it-yourself. This is the kind of stuff you can just, uh, you know, run a command and own the stack. So there is no proprietary, uh, you know, pieces of the puzzle here. Uh, let's get this, uh, underway. Oh, this works. Okay. So small models. What do we mean by small models? Um, you know, depending who you ask, the way I think about it is basically models that you can run on two, three generations of old NVIDIA</span></div><div class="tline" data-t="109"><span class="ts">1:49</span><span class="tx">hardware. The whole model fits into one GPU. Um, and therefore, they are easy to serve. Those GPUs are available, and they are affordable as well. Um, and then most people think, okay, small models, um, there will be some kind of trade-off in terms of, um, you know, quality of the results, and hopefully I'll be able to do a good job in this talk to convince you that actually, for specific tasks, you can be at frontier or beyond frontier</span></div><div class="tline" data-t="139"><span class="ts">2:19</span><span class="tx">performance and get all the other obvious benefits, right? Uh, orders of magnitudes of, uh, kind of cost savings and, uh, potentially quite big, uh, latency or throughput im-improvements, of course. Um, so this is kind of one of the charts we like to show. This is the Artificial Analysis Intelligence Index over time, and what they typically don't show you is that there is like a breakdown of the open source models you should think about,</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">right? There is the GLM 5.2 and so on, those, uh, kind of frontier open source models with, let's say, seven hundred and fifty billion parameters. Um, but then there are the small open source models kind of trailing the big ones and trailing the frontier. You can see the frontier is kind of getting diminishing returns these days, and the small models are catching up, right? So, uh, you see this kind of convergence, saturation on top and, and kind of growth of the, of the small models. Um, and, you know,</span></div><div class="tline" data-t="199"><span class="ts">3:19</span><span class="tx">let's say Qwen 3.6-27B, somewhere around the performance of GPT-5.1. So if you have a workflow, if you have a pipeline that, uh, you know, can run with GPT-5.1, now you can move that to a small model and, uh, you know, get all the, all the benefits we discussed. So small models, not dumb anymore. Um, now it is also about how you use the small models, right? So you can't just read that twenty-seven billion parameter Qwen 3.6 as</span></div><div class="tline" data-t="229"><span class="ts">3:49</span><span class="tx">your kind of totally generalized, I can prompt it to do anything kind of model. No, you need to adopt the approach where, um, you basically figure out slice of tasks from the generalized model workload and then per task you figure out which model in the open source fits the task the best. You run some evals, maybe some adaptation we'll discuss, um, and then, you know, that's how you kind of reach the, the right quality, uh, to actually push this into production. So here is some example of a contract review</span></div><div class="tline" data-t="258"><span class="ts">4:18</span><span class="tx">agent that uses, you know, nine different models. This is the kind of shape that you will see in your workloads and your agents as you move to using small models for your, um, setup. You'll start to see that, okay, instead of kind of hammering one API with bunch of different requests, uh, or one model, you would rather use a fleet of models and then your problem is, okay, how do I serve all of these different things in a way that my infra people don't go crazy, right? And this is just one of the agents that you might be running and there</span></div><div class="tline" data-t="288"><span class="ts">4:48</span><span class="tx">might be, you know, ten of these in your company. So how do, how do we sort of, you know, that's the kind of expansion of, uh, infrastructure scope, let's say. Um, now all of those different tasks that I mentioned, there is an open source model that's, uh, sitting there waiting to be used, um, from, you know, OCR to question answering on top of documents to labeling images, generating SQL, you know, reviewing code. Uh, there are open source models fine-tuned and trained for those</span></div><div class="tline" data-t="318"><span class="ts">5:18</span><span class="tx">tasks. Uh, you know, if you use an open source model that's trained to do OCR on receipts in Vietnamese, that project has seen the most receipts in Vietnamese, right? There's somebody who like took the time to gather as much data as possible, and on that task, that model will outperform pretty much anything else. Um, and there is, you know, hundreds of thousands of models on Hugging Face that, uh, look like that, right? So it's just, uh, it's all sitting there and it's all free, basically. Mostly quite permissive licenses. So the</span></div><div class="tline" data-t="348"><span class="ts">5:48</span><span class="tx">models exist, you know. That- that's not the bottleneck. And, you know, we have been talking about, like, open source AI since 2024 and, uh, it's so far still not really happening, and to the extent it's happening in companies, it basically equals, like, open source AI equals AWS Bedrock. Uh, except when you look at the model catalog in Bedrock, it's, like, very, you know, restrained in model types that are available. These models are old, uh, often, you know, two, three</span></div><div class="tline" data-t="378"><span class="ts">6:18</span><span class="tx">years behind the state of the art. Um, and when you do any kind of fine-tuning in Bedrock, you don't actually own the fine-tuned or trained artifacts, so you can't, you know, use it as an actual advantage i- in your business. It kind of stays serving from the Bedrock infra. Um, so that's on the proprietary. Now, if you do small model serving on open source infrastructure, vLLM, SGLang, different solutions, just know that these things are not tuned for any specific model or any specific hardware model</span></div><div class="tline" data-t="408"><span class="ts">6:48</span><span class="tx">combination. You'll have to do the tuning, right? This is the do-it-yourself. All of these tools ship with guides on how to actually do the tuning, the parameter sweep, tailoring to your traffic, and so on. This is a kind of open-ended research project every time you try to adopt one of these tools. So this is not really something that sort of you, you take it and it's like an engineering project, and a week later you have a high performance serving infrastructure. It doesn't work like that. Um, and that's kind of the typical</span></div><div class="tline" data-t="438"><span class="ts">7:18</span><span class="tx">problem with open source tools, right? It's kind of like a little bit too much do yourself. Um, and then on top of this not being kind of pre-tuned for small models, the small model workloads and traffic that uses a bunch of different models kind of flips the equation for inference, uh, kind of clusters, right? So normally when you try to serve one big model, um, your problems are how do I share that model across multiple GPUs? How do I have a router sitting on top that</span></div><div class="tline" data-t="467"><span class="ts">7:47</span><span class="tx">understands the state of all these workers, you know, the KV cache state and so on, and then makes a top-down routing decision of, okay, this request goes to this worker or this group of workers and, and so on, right? It's very top-down set up. But if you have small and fast requests, and you have many of them, the, this, this sort of top-down routing becomes the bottleneck, right? Because the router has a little bit obsolete version of the worker state, and it's just really hard to saturate the workers if you have that kind of</span></div><div class="tline" data-t="498"><span class="ts">8:18</span><span class="tx">upfront decision on top that's, that has to get it perfectly right in terms of, um, you know, balancing the local queues on each of these workers 'cause there is many small requests, right? Um, and you know, like, we have experimented with the vLLM and SGLang routers for small models and this sort of traffic, and it's very hard to get your GPU utilization beyond 20, 30% under constant load. And the problem is that those batches are just not correctly sized,</span></div><div class="tline" data-t="528"><span class="ts">8:48</span><span class="tx">basically, because you have that routing bottleneck. Um, and then the third problem is that with small models, you benefit a lot from LoRAs and just model adaptation in general. And so the traffic that you have to serve, you know, contains, you know, people coming to you and saying, &quot;Hey, I have 10 LoRAs. How do I, you know, use this with our serving stack?&quot; Um, or, &quot;I have this custom fine-tune I made last night, you know, um, I, I want to serve this in production.&quot; And this conversation between the AI</span></div><div class="tline" data-t="557"><span class="ts">9:17</span><span class="tx">engineer and the infrastructure person in getting those, you know, LoRAs up there, custom models up there, that's the thing that takes time, and basically that's like the main killer in organizational, uh, velocity is talking, right? Like, ideally you would want the infrastructure engineers to do their job, and you would want to, the, those AI engineers to do their job, and they don't have to talk to operate on the day-to-day mode. So, so, you know, they, they are not blocking each other basically. Um, and this kind of model</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">adaptation desire around small models kind of breaks that and creates a lot of back and forth and, uh, that, that's a problem, right? Uh, so these are some challenges related to, okay, we have a bunch of small models. How do we have a cluster? How do we serve this efficiently? Um, so we have been playing with this problem for a while. Uh, I'm Daniel actually from Superlinked. I kind of skipped the intro. Um, so we are, you know, VC-backed company out of, uh, SF, and we've been building AI-powered search and document processing</span></div><div class="tline" data-t="617"><span class="ts">10:17</span><span class="tx">systems and, and agents for the last couple of years, and our main pain point has always been inference, um, specifically these problems that I have described. And so we have iterated, and iterated, and explored different topologies for clusters for, uh, running, you know, large, wide fleets of small models in different environments because sometimes you need to deploy together with some platform in some environment where who knows what is available there. Um, you know, the small models make it</span></div><div class="tline" data-t="647"><span class="ts">10:47</span><span class="tx">easier because in whatever environment you can get some L4s or some kind of small GPU quota is much easier. So this kind of, uh, I'll describe a little bit about the topology of the cluster that we have kind of converged to. And by the way, this whole thing is Apache 2.0, completely open source. Um, you guys can just take it and wrap it, and now you are an inference startup. Um, this is open source from kind of the control plane all the way down to the thing that runs on the GPU. Um, so</span></div><div class="tline" data-t="677"><span class="ts">11:17</span><span class="tx">we, we didn't pull any, any punches. Uh, and the topology is basically there is a gateway, and instead of having a router that kind of pre-decides what goes where, there is a gateway that parses some of the request and attaches some metadata to the request, inserts that request into a shared queue and into some side channels. I'll go a little bit into that. And then the workers pull from tho- from that centralized queue instead of kind of pushing the data down to the workers, and this way they can saturate themselves</span></div><div class="tline" data-t="707"><span class="ts">11:47</span><span class="tx">better. And then the worker, um, setup, I think I have a slide for that, uh, will describe how, uh, we basically absorb the complexity of different model architectures into kind of a coherent set of workers that, you know, don't have, like, competing Python requirements and stuff like that. Um, so that's kind of the overall topology. Um, and this is kind of life of a request. So maybe just, uh, I'll call out a couple of things from here. Um,</span></div><div class="tline" data-t="737"><span class="ts">12:17</span><span class="tx">we, you know, one of the things we don't like about the OpenAI kind of API standard is the Base64 encoded kind of JSON. Not good for small models, not good for high throughput. So we use a MessagePack throughout, like a binary format. Um, this way we can also push all the multimodal data through the actual API gateway, so there is no like, &quot;Hey, you know, binary data over here,&quot; and then request over here, and then the cluster needs access to your cloud storage to start loading some bin- some</span></div><div class="tline" data-t="767"><span class="ts">12:47</span><span class="tx">binary data, images, or videos. We kind of encode it all and we push it through the gateway. Um, and then the gateway kind of separates some of these heavier pieces to not clog the internal queue and defers it on cloud storage kind of in flight while the request is in queue. So it kind of splits up some of these requests that are, let's say, over a megabyte, and then uses cloud storage in the backend. Um, but as a user, you push all your bits and bytes into the API layer, and it's kind of clean interface because of that.</span></div><div class="tline" data-t="798"><span class="ts">13:18</span><span class="tx">Um, basically the whole stack is REST, so gateway REST, the, the worker is REST. And then over a socket, locally, it kind of attaches to different runtimes, and we have basically PyTorch, Candle, and SGLang on the a- as, as a runtime. Um, and, and then w- when we do the optimization, I'll kind of go into that on how we make sure that whichever runtime we are using and whichever code is running in that runtime is the most, uh, efficient one. We</span></div><div class="tline" data-t="828"><span class="ts">13:48</span><span class="tx">have a autoresearch loop for that basically. Um, but yeah, so, so life of a request kind of looks like that. And like one tidbit is that you really wanna make sure that the gateway that's kind of the first thing that's hit by the request doesn't do too much work, 'cause then it becomes a bottleneck, right? So you don't even want to parse the whole request. You want to be able to kind of look at the packets and, uh, figure out the general shape of what's coming, do the annotation, and then you have the</span></div><div class="tline" data-t="858"><span class="ts">14:18</span><span class="tx">workers, however many workers you have, hundreds of GPUs that, that, uh, look at the queue state and then pull from there. And, and the queue use, uh, NATS JetStream, and that thing can do, you know, million requests per second. Like th- th- that's very hard for that to become a bottleneck. Um, so yeah, like ideally you don't want to serialize, deserialize as you go through all of these different components. That's basically the kind of obvious thing. Um, this is a little animation that</span></div><div class="tline" data-t="887"><span class="ts">14:47</span><span class="tx">shows the idea behind the centralized queuing, right? So instead of the top-down router trying to, uh, you know, fill in the local queues just right, which is basically impossible, um, you know, the, the whole idea is, hey, can we somehow centralize the queuing and can the workers, uh, rather pick up the task of forming their own batches with their own prediction of the cost of the batch, uh, and, and then, you know, become much more efficient? Now one tidbit and kind of</span></div><div class="tline" data-t="917"><span class="ts">15:17</span><span class="tx">side note, once you kind of start working on these things, uh, you realize that it's actually really hard to predict, um, how many things to pick up from that shared queue for the batch to be really, like really the optimal size. And so you would want some mechanism that sort of allows you to put some things back into the queue if you figure out, uh-oh, like I pulled a little bit too much, and that's a network hop, right? So that's a problem. And we have special optimization for that for machines that have multiple GPUs locally, right? So there is a,</span></div><div class="tline" data-t="947"><span class="ts">15:47</span><span class="tx">there is additional kind of machine local queuing element that takes advantage of the fact that the local processes that run on the m- multiple GPUs on one machine can kind of negotiate with the queue a little bit back and forth, which over the network, you know, there is like milliseconds extra that that would add. And so, um, we d- we don't do it over the network, only when we co-locate the, um, workers on multi-GPU machines. And you know, the, I, I mean, we are not talking about like 5% differences here, right? So like you</span></div><div class="tline" data-t="977"><span class="ts">16:17</span><span class="tx">centralize the queue and now you get double the throughput of the cluster. So this is, this is, uh, significant. Uh, I mentioned three different runtimes. So basically it's either, you know, we write, let's say for models that are encoder-only, we write the, the PyTorch code and we kind of optimize it and we have a autoresearch loop that optimizes it. Same for Candle. We started to play with Candle not too long ago. We still can't get it to perform anywhere near the PyTorch performance, so it's a little bit more of a research</span></div><div class="tline" data-t="1007"><span class="ts">16:47</span><span class="tx">project. It's just the dependency like, you know, the worker Docker image with PyTorch is like 12 gigabytes and the worker do- basically binary, statically linked binary with Candle is, uh, maybe like 10% of that, right? And if you care about, uh, kind of waking up from the cold state and loading these images on batch of different machines, the, you know, going from 12 gigs to a gigabyte or something like this makes a, makes a huge difference. So that's kind of the motivation behind Candle. It's just</span></div><div class="tline" data-t="1037"><span class="ts">17:17</span><span class="tx">the, the getting the same performances from PyTorch is, is, is really hard. And then SGLang we have there as a kind of a go to baseline, like we should perform as at least as well as, as SGLang with the optimal tuning of all of those parameters that I mentioned that you have to do the tuning. Um, here is some numbers. So for example, when we wrap SGLang with the socket and with our kind of Rust sidecar, um, actually we can improve on the bare SGLang performance</span></div><div class="tline" data-t="1067"><span class="ts">17:47</span><span class="tx">just because we kind of, uh, do something on the batching side that natively SGLang doesn't do and probably you can make it to do that if you do like, if you develop custom plugins into SGLang and stuff like that, like probably you can match our performance because, you know, you can just push that same logic into the SGLang core server. Uh, but now you are developing custom code that only works with SGLang. And the whole lesson here from small models is that the runtimes are super diverse,</span></div><div class="tline" data-t="1097"><span class="ts">18:17</span><span class="tx">right? You don't wanna necessarily get stuck with any one particular runtime because there is, you know, we have, I think, on the order of 50 different adapters now that, that we parameterize for the different models. And so you need to somehow deal with this kind of underlying complexity, and it's probably not by building a bunch of plugins for one specific runtime. It's probably some kind of abstraction, uh, which in our case is this, uh, Rust sidecar concept and then the socket. Um,</span></div><div class="tline" data-t="1128"><span class="ts">18:48</span><span class="tx">now I'll talk about a couple different numbers, but in terms of like language around benchmarking, you know, the knee is this concept of like when you ramp up traffic on a server, uh, when you sort of request more and more throughput from it, and it gives you more and more throughput, that's when you go kind of linearly up. And then some point, you hit this point where you kind of ask for more and more is not coming, so you kind of flatten out and the latency goes up. So we call that the, the knee, and it's, it's like a useful concept in, in benchmarking, uh,</span></div><div class="tline" data-t="1158"><span class="ts">19:18</span><span class="tx">because that's kind of the point of saturation, right? That's, that's kind of the maximal performance without hurting latency. Um, so just to give you some ideas of what is possible on relatively small hardware, right? And different types of small models. So this is measured on the RTX PRO 6000. We, we kind of work with NVIDIA L4, you know, A100, RTX PRO 6000, H100, that sort of range. Um, again, those</span></div><div class="tline" data-t="1188"><span class="ts">19:48</span><span class="tx">GPUs are much more readily available, kind of on-demand in any cloud, basically. Most continents have quota, you know. Um, and on this kind of stuff, uh, you can basically get, uh, for embedding models even up to, let's say, uh, hundreds of millions of parameters. You can get hundreds of thousands of tokens per second encoded into the embedding, right? So imagine you are sitting there now, like hitting your text embedding three on OpenAI API.</span></div><div class="tline" data-t="1218"><span class="ts">20:18</span><span class="tx">Instead, you could be like having one GPU and push half a million tokens per second into the thing and get the vectors out, right? Like, is this like connecting, right? You have half a million tokens that you are pushing into a single GPU that's not even that big per second, and you are getting out vector embeddings for your search system, as opposed to like pushing all of that into a managed embeddings endpoint somewhere and paying like orders of</span></div><div class="tline" data-t="1247"><span class="ts">20:47</span><span class="tx">magnitude more money, right? And you can get latencies like, you know, low tens of milliseconds for these calls, right? Like if you use, uh, you know, Cohere, OpenAI APIs and so on, these are hundreds of milliseconds, right? And this is not rocket science. You, you know, you can have just like massive cost saving, massive latency improvements and relatively eas- easy operation, um, with, with like handful of GPUs and some, some infra around them, right?</span></div><div class="tline" data-t="1278"><span class="ts">21:18</span><span class="tx">So this like really low-hanging fruit. If you start anywhere with, uh, open source models, small models, embeddings are like no-brainer, right? Uh, but it doesn't end there. So let's say, um, you want to look at, uh, named entity recognition. You want to look at, let's say, multi-vector search, um, even generation, right, uh, of text or structured outputs and so on. Um, you, you can be getting, you know, thousands of tokens per second output from, uh,</span></div><div class="tline" data-t="1308"><span class="ts">21:48</span><span class="tx">you know, task-specific generative models as well per, uh, like, let's say half a thousand per second for, for one GPU there at the bottom. Um, and so let's say you are generating synthetic data. You are generating annotations for your fine-tuning, for your evals. You know, don't do that on a, on a managed endpoint. That's a perfect task because you have it k- kind of under control. You can survey the quality. That's a perfect task for,</span></div><div class="tline" data-t="1338"><span class="ts">22:18</span><span class="tx">uh, open source model on your own infra.</span></div><div class="tline" data-t="1343"><span class="ts">22:23</span><span class="tx">Um, and then you're like, if the infra you have around those GPUs is like reasonable, you'll get linear scaling with, with the number of those GPUs. Um, now another sort of, uh, idea if you are into small model serving, uh, is that you don't, you know, normally, um, you have kind of worker pool per model, right? You have a set of w- uh, workers, set of nodes. Uh, they have GPUs. You kind of bring those up. You preload the models. The models load</span></div><div class="tline" data-t="1372"><span class="ts">22:52</span><span class="tx">for tens of minutes because there are hundreds of billions of parameters. Uh, and so you are happy. Okay, they finally loaded. Now I have a worker pool. This mentality doesn't really work with small models. Yeah, yeah. Quickly. How, how-- What's the time left? Six minutes over. Oh, six minutes over. Okay. All right. So pack models on the same GPU is faster. Um, this is a story of how you still want to pin some models, but you want to also do, um, basically, uh, lazy</span></div><div class="tline" data-t="1403"><span class="ts">23:23</span><span class="tx">loading and eviction, uh, as a kind of function of memory pressure. You want to figure out how to combine the two. Um, there is a little bit about kind of autoresearch. We have autoresearch loops for, uh, adding support for new models and for their performance. Um, we build a lot of internal tooling to do the measurement to feed into those autoresearch loops to basically push the numbers forward. Um, and maybe perhaps most importantly, when we ship support for a model, it has all the tuning</span></div><div class="tline" data-t="1433"><span class="ts">23:53</span><span class="tx">done, right? So there is no, &quot;Okay, let's do a parameter sweep.&quot; We bundle basically a config for end-to-end the whole cluster. Um, this is a setup for the autoresearch loop that is like a meta loop that builds the harness that then runs the loop, and there is a dashboard on top that helps you understand how it works. Um, we have custom UIs for that, and one of the outputs of that was a LoRA that took eighty cents to train, and it improved eighteen perc- It</span></div><div class="tline" data-t="1463"><span class="ts">24:23</span><span class="tx">improved quality of retrieval on German legalese text as a proof of concept by eighteen percent, and that's it. So small models are good. They are relatively easy to serve. Uh, they are actually much cheaper, faster, is as smart, and that QR code goes to the GitHub repo of RCluster that I just described. Give us a star and, uh, happy self-hosting. Thank you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

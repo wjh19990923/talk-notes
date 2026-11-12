@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>机密如何通过 AI 智能体泄露（以及如何阻止） —— Venice AI | AI 工程师中文版</title>
+<meta name="description" content="一个私有模型只覆盖了智能体数据路径的一部分。Joshua Mo 梳理了日志、凭据和工具调用如何造成暴露——以及把推理与执行分开如何改变模型可能泄露的内容。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>机密如何通过 AI 智能体泄露（以及如何阻止） —— Venice AI</h1>
+    <div class="orig-title">How Secrets Leak Through AI Agents (and How to Stop It) — Venice AI</div>
+    <div class="meta"><span class="speaker">Joshua Mo</span> · AI Engineer World's Fair 2026 · 15:21</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=agent-auth">智能体认证</a><a class="tag" href="../../index.html#topic=context-engineering">上下文工程</a><a class="tag" href="../../index.html#topic=privacy-and-data-governance">隐私与数据治理</a><a class="tag" href="../../index.html#topic=ai-security">AI 安全</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/xn8EsW0wxyc-secrets-leak-through-ai-agents-stop-it" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="xn8EsW0wxyc"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=xn8EsW0wxyc" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">隐私始于一次泄露可能暴露什么</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>隐私始于一次泄露可能暴露什么</span></li><li data-t="162"><span class="ts">2:42</span><span>不同的数据路径需要不同的保护</span></li><li data-t="302"><span class="ts">5:02</span><span>日志和密钥库集成可能把密钥复制到新的地方</span></li><li data-t="391"><span class="ts">6:31</span><span>让标识符保持精简、分散保管，并让访问可撤销</span></li><li data-t="511"><span class="ts">8:31</span><span>需要一个工具，不该带来二十个工具的暴露面</span></li><li data-t="646"><span class="ts">10:46</span><span>让模型请求动作，让执行环节提供凭据</span></li><li data-t="706"><span class="ts">11:46</span><span>沙箱仍然可能把数据发出去</span></li><li data-t="793"><span class="ts">13:13</span><span>证明推理可信，再直面工具调用问题</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 13 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Who am I?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Who am I?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Joshua Mo is the lead developer relations engineer at Venice AI. He previously was the lead maintainer of Rig, an AI framework in Rust.
+
+[0:25](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=25s) [Introduction slide describing the speaker’s roles at Venice AI and a Rust AI framework, with a photograph.](https://assets.ai.engineer/sites/aiecode2025/sha256/6382033096be66675bcfc291b56e1d0ebdf3e77fbd95336b386e64fdcbfa8583.webp)
+
+Who am I?
+
+• Lead DevRel Eng @ Venice AI
+• Previously maintainer of lead AI framework in Rust
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="What is Venice?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is Venice?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Venice combines chat and a creator studio with an OpenAI-compatible model API. Joshua Mo says it does not store prompts or conversations.
+
+[0:37](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=37s) [Slide describing Venice as a private AI platform offering chat, studio and an OpenAI-compatible model API.](https://assets.ai.engineer/sites/aiecode2025/sha256/aa05c3fda4910994d3d26de795673aa499e45bd351ec8f16cb163e9f5bd38c6f.webp)
+
+What is Venice?
+
+• A private and unrestricted AI platform
+• Chat, Studio, and API
+• OpenRouter style model API (OpenAI compliant)
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Why does privacy matter?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why does privacy matter?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker argues that storing less user data reduces a breach’s blast radius, while a single breach can cost user trust or an enterprise customer.
+
+[1:41](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=101s) [Slide links data breaches and sensitive data to reputational risk and argues that storing less data reduces the impact.](https://assets.ai.engineer/sites/aiecode2025/sha256/8d4ac1b2491faf523d72a51678885256f0f5b3c0cdd4c1c1bc6f47d6e79d72ec.webp)
+
+Why does privacy matter?
+
+• Data breaches are an eventuality – reputational risk matters
+• Sensitive data severely increases the impact of any security incident
+• Storing less user data directly reduces the blast radius
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="How Venice does privacy today" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How Venice does privacy today</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Venice says conversations stay on users’ devices rather than its servers. For video generation, it says split-key custody protects encrypted results from attackers and compromised team accounts.
+
+[2:36](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=156s) [Slide lists claimed privacy practices including not storing prompts, privacy tiers, TEE-hosted models, encryption and privacy-first architecture.](https://assets.ai.engineer/sites/aiecode2025/sha256/739bd087c34574ce14bce3718424b10ce5bcf15b083e397beb2cc8373630b635.webp)
+
+How Venice does privacy today
+
+• No prompts or conversations stored
+• Predefined tiers of privacy
+• TEE-hosted models &amp; E2E encryption
+• Privacy-first software architecture
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Not all systems are made equal" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Not all systems are made equal</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker cautions that some companies claim privacy without delivering it. Models are only one part of an agentic system.
+
+[4:04](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=244s) [Orange slide with the centered statement: Not all systems are made equal.](https://assets.ai.engineer/sites/aiecode2025/sha256/b1ea92ee28934989b8e17992c0e30351ac2500fd9cd0a9c4e9d541b3fb2584c8.webp)
+
+Not all systems are made equal.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Models are not the entire system" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Models are not the entire system</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker argues that processes built around an LLM are prone to data leaks and breaches, making the surrounding system part of the privacy problem.
+
+[4:27](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=267s) [Slide explains that LLMs are one part of a system and that surrounding systems can be prone to data leakage and breaches.](https://assets.ai.engineer/sites/aiecode2025/sha256/080da7e1bc88bd5cf95126ef5bedcf58228a5184b6f23074964d3c3b7a658d21.webp)
+
+Models are not the entire system
+
+• LLMs are the most important part of the system, but still only one part
+• The systems built around LLMs are much more prone to data leakage, breaches and more
+• How can we ensure that we optimise for this?
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Example: observability logging" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Example: observability logging</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Logging helps debug systems, but can accidentally store prompts and conversations by default if not handled carefully. They may contain personal information and secrets. The speaker says Venice avoids this risk.
+
+[5:01](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=301s) [Slide describing observability and the risk of logging prompts, personal information and secrets; it claims Venice avoids this concern.](https://assets.ai.engineer/sites/aiecode2025/sha256/b81f87ff30f26c283009756bb0ebf676c7b4929955241c50b483dcd071e9939d.webp)
+
+Example: observability logging
+
+• Observability is a core part of any serious production system today (metrics, logs, traces)
+• Logging is great for debugging...
+• ... but can accidentally store prompts and conversations by default if not careful - which can hold PII &amp; secrets
+• No need to worry about this with Venice
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="How secrets flow through an agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How secrets flow through an agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A user request reaches the agent runtime, which may fetch a secret from a vault and pass it to the LLM reasoning layer. The LLM then makes an API request through a tool call.
+
+[5:54](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=354s) [Diagram connecting a user request, agent runtime, secret store, LLM reasoning layer and external APIs.](https://assets.ai.engineer/sites/aiecode2025/sha256/98c0f3fc428bb145f74a0204fdb9b8728cc2c378ac231936c60c31ff7de17d7e.webp)
+
+How secrets flow through an agent
+
+User Request
+Agent Runtime
+Secret Store
+1Password / Vault
+LLM Reasoning Layer
+External APIs
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Protecting agent-handled data" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Protecting agent-handled data</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Limit an agent’s tools to its task, and use a classification layer to check for prompt injection and out-of-scope requests. Narrow scope can also improve context-window performance.
+
+[6:24](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=384s) [Slide recommending narrow agent scope, prompt injection checks and tight context loops.](https://assets.ai.engineer/sites/aiecode2025/sha256/33c788c08c699a4338bd5a94cb461a54ea78bcd0bbea85ca90fb1c4e743bcfd5.webp)
+
+Protecting agent-handled data
+
+• Ensure narrow agent scope to decrease risk
+• Classification layer in front of agent to check for prompt injection (to stop exfiltration + check if prompt is within scope)
+• Tight context loops also improve context window performance
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Privacy preserving patterns that work" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Privacy preserving patterns that work</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Venice uses hashed identifiers and encrypted storage with split key custody. Revocable handles can remove access, while prompts can be designed with privacy in mind.
+
+[6:51](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=411s) [Slide listing hashed identifiers, encrypted storage, revocable handles and privacy-aware prompts.](https://assets.ai.engineer/sites/aiecode2025/sha256/6f508a9d3bfe9f901bee8f8560ece31470d730024a49d1a5689e0bd9936327ec.webp)
+
+Privacy preserving patterns that work
+
+• Storing hashes representative of IDs as opposed to direct data
+• Encrypting data and storing it in an inaccessible enclave (with split key custody)
+• Use design patterns like handles that can be easily revoked
+• Engineer your prompts with privacy in mind!
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Keeping secrets out of the model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Keeping secrets out of the model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The reasoning layer sends an action plan to the agent runtime, which accesses the secret store and HTTP client. This lets the runtime handle credentials without feeding them directly into the reasoning layer.
+
+[10:45](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=645s) [Diagram routes a user request through an LLM reasoning layer to an agent runtime connected to a secret store and an HTTP client that accesses external APIs.](https://assets.ai.engineer/sites/aiecode2025/sha256/c6e0cbb5da733feccd712209e431d9da18e6cb072626a76f42c9ef00e4a9f6aa.webp)
+
+Keeping secrets out of the model
+
+User Request
+LLM Reasoning Layer
+Action Plan
+Agent Runtime
+Secret Store
+1Password / Vault
+Browser / HTTP Client
+External APIs
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Sandboxing your agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Sandboxing your agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Sandboxes reduce an agent’s blast radius, but external API access can still leak data. The speaker recommends monitoring permissions and building a custom runtime to control tools and observability.
+
+[12:05](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=725s) [Slide discussing agent isolation, API data exfiltration, permission monitoring, and custom agent runtimes.](https://assets.ai.engineer/sites/aiecode2025/sha256/40b77aa4a5d22d13c86b943e2e16b4029bbade54314d35c43ada9f14d317614b.webp)
+
+Sandboxing your agents
+
+• Agent isolation can help massively reduce blast radius
+• ... but external API access can still exfiltrate data
+• Monitoring permissions is essential
+• Building your own agent runtime?
+
+Venice</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Privacy at the hardware level" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Privacy at the hardware level</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Trusted execution environments run inference privately; Venice returns an attestation for verification. Confidential tool calls remain an open challenge.
+
+[12:50](https://www.youtube.com/watch?v=xn8EsW0wxyc&amp;t=770s) [Slide discussing confidential compute, trusted execution environments, attestation, and confidential tool calls.](https://assets.ai.engineer/sites/aiecode2025/sha256/b5d34c6b28dacadf07172d5523ec57db84fbcae331b9da9b773af2f3ed5a76bb.webp)
+
+Privacy at the hardware level
+
+• “Confidential compute”
+• Using Trusted Execution Environments you can fully isolate an agent cryptographically – and prove it
+• Verifiable attestation
+• Confidential tool calls?
+
+Venice</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">隐私始于一次泄露可能暴露什么</a></li><li><a href="#sec-2">不同的数据路径需要不同的保护</a></li><li><a href="#sec-3">日志和密钥库集成可能把密钥复制到新的地方</a></li><li><a href="#sec-4">让标识符保持精简、分散保管，并让访问可撤销</a></li><li><a href="#sec-5">需要一个工具，不该带来二十个工具的暴露面</a></li><li><a href="#sec-6">让模型请求动作，让执行环节提供凭据</a></li><li><a href="#sec-7">沙箱仍然可能把数据发出去</a></li><li><a href="#sec-8">证明推理可信，再直面工具调用问题</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">机密如何通过 AI 智能体泄露（以及如何阻止） —— Venice AI</h2>
+      <div class="lede"><p>一个私有模型只覆盖了智能体数据路径的一部分。Joshua Mo 梳理了日志、凭据和工具调用如何造成暴露——以及把推理与执行分开如何改变模型可能泄露的内容。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>隐私始于一次泄露可能暴露什么</h3>
+      <p>A single breach can cost a product its users’ trust. For an enterprise vendor, it might mean losing the customer that supplies most of its revenue. Joshua Mo, Venice AI’s lead developer relations engineer and previously lead maintainer of the Rust AI framework Rig, opens with this practical reason to care about privacy: sensitive data increases the damage an incident can do. Storing less of it reduces the blast radius.</p>
+<p>Venice supplies the opening example. Mo describes an OpenAI-compatible platform hosting open-source models, a chat application, and a studio for video, audio, image generation and transcription. Its stated policy is to retain no prompts or conversations. That makes retention a product architecture decision from the start: what the service keeps determines what a later compromise could reveal.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="162">▶ 2:42</button></div>
+      <h3>不同的数据路径需要不同的保护</h3>
+      <p>Venice’s privacy measures address several different places where data could remain or become visible. Mo describes these as distinct protections rather than a single property of the model:</p>
+<p>- <strong>Conversation retention.</strong> Prompts and conversations are not saved on Venice’s side; conversation storage stays local.
+- <strong>Requests to closed providers.</strong> Venice anonymizes the user footprint when forwarding requests to providers such as OpenAI and Claude. The talk does not explain the transformation, so this claim should not be read as a guarantee that identifying information inside a prompt disappears.
+- <strong>Inference execution.</strong> Some models run in trusted execution environments, with evidence intended to let a user verify the protected inference process.
+- <strong>Stored generation results.</strong> Video-generation endpoints require polling for a result. Venice stores that result as an encrypted payload using split-key custody, intended to prevent access even if an attacker compromises a team account.</p>
+<p>The polling example exposes a useful distinction. Avoiding stored conversations does not eliminate every reason a service might need storage: an asynchronous job still needs to make its result available later. Encryption and key custody address that separate requirement. The model, the request path and the stored output each create a different privacy question.</p>
+<p>An agent adds still more machinery. A model is one component inside a process that retrieves information, invokes tools and returns results. Each surrounding component can introduce another route for data leakage. Choosing a private inference service therefore leaves an application builder with substantial work elsewhere in the system.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="302">▶ 5:02</button></div>
+      <h3>日志和密钥库集成可能把密钥复制到新的地方</h3>
+      <p>Observability is an early trap because its purpose is to preserve information about what happened. Mo separates metrics—numbers such as counters and gauges—from traces, which describe spans of work over time, and logs, which contain messages. Those messages are valuable when debugging production failures. They can also quietly retain prompts, personal information and credentials. A model provider’s retention policy does not prevent application logging from creating its own sensitive records.</p>
+<p>The next example follows a credential through an agent. A user request reaches the runtime. To complete the task, the runtime retrieves a secret from a vault such as 1Password or HashiCorp Vault, then sends that secret to the LLM reasoning layer. The reasoning layer makes an API request through a tool call, and an answer returns to the user. The critical transfer happens before the API call: the credential has become model input.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/4b76028cd9d758f374ccdbfaaf3d901e827596dd4e318bbed62928ba43fcd46f" alt="The diagram routes the agent runtime through a secret store and into the LLM reasoning layer before an external API call—the credential enters model reasoning here." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The diagram routes the agent runtime through a secret store and into the LLM reasoning layer before an external API call—the credential enters model reasoning here.</figcaption></figure>
+<p>The diagram routes the agent runtime through a secret store and into the LLM reasoning layer before an external API call—the credential enters model reasoning here.</p>
+<p>Mo warns that this could expose the credential to training-data use. That possibility depends on the receiving provider’s policies; sending a secret to a model does not by itself establish that it will be used for training. The architectural exposure is clearer: the model receives a credential even though the eventual API request is the operation that needs it. Later in the talk, that same placement becomes the starting point for tool-based exfiltration.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="391">▶ 6:31</button></div>
+      <h3>让标识符保持精简、分散保管，并让访问可撤销</h3>
+      <p>Rate limiting illustrates how an application can retain less data without abandoning a function it needs. The service must recognize requests associated with a user so it can apply a limit. Mo proposes storing a hash representing the needed identifier instead of directly storing the user’s personal data. The rate limiter still has an identifier to work with, while its record contains less direct personal information. This is a data-minimization pattern; the talk does not establish that every hashed identifier is anonymous.</p>
+<p>Split-key custody addresses a different failure: someone obtains access to encrypted storage or part of its key material. Mo describes two key halves, called a read half and a write half, with both required for decryption. The intended protection comes from making one compromised part insufficient to recover the data. This is a high-level description of Venice’s custody approach, without enough cryptographic detail to reproduce the scheme.</p>
+<p>Revocable handles move the discussion from identifying data to granting access. A handle is an object through which a caller can reach a resource. In the database-pool example, possession of the handle permits access; without it, access is unavailable. Making that access revocable gives the application a way to withdraw permission. Mo connects the pattern to authorization systems using JSON web tokens or session keys, although the recording does not specify a revocation implementation.</p>
+<p>Privacy-conscious prompts also belong in the development workflow, including coding harnesses such as Cursor and Claude Code. But the next example moves beyond prompt wording to the scope of the agent itself: how many tools it can use, and what sensitive material accompanies those tools.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="511">▶ 8:31</button></div>
+      <h3>需要一个工具，不该带来二十个工具的暴露面</h3>
+      <p>Suppose an MCP server offers fifteen or twenty tools, but the task requires only one. That tool needs an API key. If the agent retrieves the key from a password vault and includes it in the model’s working material, a subsequent tool call can send it to a bad actor’s web server. The failure combines two kinds of access: the agent can see the secret, and it can call a destination that should never receive it. Narrowing tool scope reduces the opportunities available to the agent.</p>
+<p>A classification layer in front of the agent adds a separate check for prompt injection. Mo gives several implementation options:</p>
+<p>- <strong>LLM classification.</strong> Use a model-based layer to examine incoming material for injection attempts.
+- <strong>Semantic search.</strong> Use vector search through systems such as Qdrant or LanceDB as part of the screening layer.
+- <strong>An in-memory process.</strong> Keep the screening process in memory rather than requiring the named search systems.</p>
+<p>These are proposed implementation choices. The recording does not specify classification thresholds, detection accuracy or how the application handles a flagged request.</p>
+<p>Narrow scope also has a context benefit. Fewer tools mean less tool-related material competing for the model’s context window. Mo links this to avoiding performance degradation as the window fills. His advice to keep context nearly empty is best understood here as a push to remove unnecessary material; the talk provides no benchmark establishing an optimal context size. The useful connection is that limiting capabilities can reduce both exposure and irrelevant context.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="646">▶ 10:46</button></div>
+      <h3>让模型请求动作，让执行环节提供凭据</h3>
+      <p>The central architectural correction changes where the vault connects. A user request first reaches the reasoning layer, which formulates inputs for the agent runtime. The password vault connects to that runtime rather than supplying credentials to the model. The runtime becomes an execution layer: model-generated requests enter it, and the credential is supplied where the action runs.</p>
+<p>A browser login makes the difference concrete. The task requires a website login, so something must use the user’s credentials. In this design, execution handles those credentials while carrying out the login; the reasoning layer does not need the password in its context. External API calls follow the same pattern. Mo calls the execution layer deterministic, contrasting its programmed behavior with the model’s nondeterministic outputs. The separation makes credential handling more controllable, while permission checks still matter.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/28ff29935e586404014e54110b662ad7cb2b4810cc12f1765217c722fe45c270" alt="The diagram routes the action plan to the agent runtime and connects the Secret Store there, alongside the Browser / HTTP Client and external APIs." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The diagram routes the action plan to the agent runtime and connects the Secret Store there, alongside the Browser / HTTP Client and external APIs.</figcaption></figure>
+<p>Where does the secret enter the revised system? The diagram separates the model’s action inputs from the vault’s credential path. They meet at execution. That topology is the consequential change: the model can help choose an action without receiving the secret used to carry it out.</p>
+<p>Action inputs and credentials meet at execution
+The reasoning layer supplies action inputs. The vault supplies secrets to the runtime that performs the action.
+- User request — Ask the agent to perform a task.
+- Reasoning layer — Formulate nondeterministic inputs for the runtime.
+- Password vault — Connect credential access to the runtime.
+- Execution layer — Use programmed execution to handle the requested action and its credentials.
+- Website login or API call — Use the credential where the external operation runs.
+- User request → Reasoning layer (Task request)
+- Reasoning layer → Execution layer (Action inputs)
+- Password vault → Execution layer (Credential access)
+- Execution layer → Website login or API call (Perform authenticated operation)</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="706">▶ 11:46</button></div>
+      <h3>沙箱仍然可能把数据发出去</h3>
+      <p>Sandboxes and virtual machines strengthen isolation. Mo names Firecracker and EC2 deployments inside a VPC as examples. But isolation does not settle the question of outbound access: an agent with internet access can still leak data through an external API call. Monitoring permissions remains essential because an allowed network operation can carry sensitive content out of an otherwise isolated environment.</p>
+<p>This motivates Mo’s recommendation to build and own the agent runtime or coding harness. Controlling the runtime lets a team add its own execution steps, observability and tools, and decide how reasoning connects to execution. The recommendation is about having a place to enforce those decisions: a sandbox alone cannot choose appropriate permissions or prevent sensitive values from entering logs.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="793">▶ 13:13</button></div>
+      <h3>证明推理可信，再直面工具调用问题</h3>
+      <p>Confidential compute moves privacy protection down to the hardware level. A trusted execution environment protects the inference process. In Venice’s described flow, a request produces a response and an attestation, which the user can check with an attestation verifier. The attestation supplies something inspectable about the protected reasoning environment, rather than requiring the user to rely only on a service’s privacy claim.</p>
+<p>That protection has a defined scope: inference at the reasoning layer. Confidential tool calls remain an open engineering problem in the talk. Mo describes TEEs as useful for tool calls and says Venice also offers end-to-end encryption, then identifies the unresolved API challenge: returning entirely encrypted tool calls while preserving an ergonomic experience for developers. Protecting model execution does not automatically solve how external actions and their data move through the rest of an agent.</p>
+<p>One proposed direction is for providers to own the compute layer where tool calls run. That would extend their role from inference into tool execution. Mo leaves the proposal undeveloped and closes with confidential tool calls still unfinished. The ending preserves the distinction the architecture requires: verifiable private reasoning is one achievement; carrying that protection through useful external actions requires further design.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Reducing retained sensitive data reduces what a breach can expose; application logs can recreate exposure even when the model provider retains no conversations.</li><li>Connect the credential vault to execution so the model can request an action without receiving the secret needed to perform it.</li><li>Narrow tool scope and prompt-injection screening address different risks. Internet-enabled sandboxes still require permission monitoring.</li><li>Attested confidential inference protects the reasoning environment; ergonomic, fully encrypted tool calls remain an unresolved part of the design presented here.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Hi, everyone. Uh, welcome to my talk. I'm Joshua Mo. And today, we're going to be talking about some of the challenges of building a privacy-respecting AI system. So just for an introduction as to who I am, I'm currently the lead developer relations engineer at Venice AI. So currently, I handle partnerships, documentation, talking to developers, um, some engineering,</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">and other things, other things as well.</span></div><div class="tline" data-t="48"><span class="ts">0:48</span><span class="tx">Uh, so prior to this, I was actually the lead maintainer for Rig, which is the leading AI framework in Rust. Um, so what is Venice? So Venice is a private and unrestricted AI platform. Uh, so we host all the latest open source models. We're a hundred percent OpenAI compatible. We don't store any prompts or</span></div><div class="tline" data-t="77"><span class="ts">1:17</span><span class="tx">conversations, and we also have a web app that you can use to talk to our models as well. We also have a studio offering that is, um, a offering for our content creators. That includes video, audio, image generation, and transcription.</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">So why does privacy matter? So let's di- deep dive into this. So, as we know, data breaches are increasingly becoming an eventuality, which means that essentially, reputational risk matters. You only need one data breach before your users stop trusting you and then move on to another provider. Or, if you're enterprise, maybe you lose that enterprise customer who's been</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">fueling almost ninety percent of your annual revenue. So in this case, sensitive data can severely increase the impact of any security incident. As well as that, storing less use, uh, user data directly reduces the blast radius of a security, security incident that happens. So how does Venice do privacy today? Well, there's a few ways.</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">The first way is that we don't store any prompts or conversations, of course, as we mentioned previously, which means that any digital footprint incurred in your side is sa- is essentially reduced to zero. So when you use models like GLM five point two and Kimi two point seven, you can guarantee that none of your conversations will be saved on our side. It'll be all stored locally. We also have predefined tiers of privacy. So private by default means that the aforementioned,</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">uh, measures apply. For providers like OpenAI and Claude, uh, we anonymize your user footprint so that none of-- Well, they can't identify you from your, simply from your prompt or your request. We also have models hosted in trusted execution environments, meaning that you can verifiably prove that your inference</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">was run in a totally private process. As well as that, we also use a privacy-first software architecture. So for endpoints like video, uh, generation, where you have to poll the endpoints, we store the results in a totally encrypted payload using split key custody, meaning that attackers can't access your data, and neither can the team should their accounts be compromised. So I</span></div><div class="tline" data-t="252"><span class="ts">4:12</span><span class="tx">just want to introduce you to the guide- the, uh, the idea that not all systems are made equal. So not all systems are made private. Some companies may claim their systems are private, but they're not really. Uh, you guys know how it goes. So while models are a very important part of an agentic system, in fact, they're a vital part of the system, um, they are still only one part. And in fact, to</span></div><div class="tline" data-t="282"><span class="ts">4:42</span><span class="tx">create a complete system to accompany an LLM in doing a task, you have to build an entire process around it. However, these systems are also much more prone to data leakage and breaches. So the real question is: How can we optimize for this kind of problem?</span></div><div class="tline" data-t="302"><span class="ts">5:02</span><span class="tx">So one example I just wanted to bring up was observability logging. So observability, as many of you know, is a core part of any serious production system today. So just to break it down quickly, observability can be broken down into metrics, logs, and traces. So traces are simply a span of work, uh, done over a unit of time. Metrics as, are simply numbers like counters, gauges, for instance. And logs are the actual messages.</span></div><div class="tline" data-t="333"><span class="ts">5:33</span><span class="tx">So logging, as we all know, is actually pretty great for debugging, especially in production or deve- dev environments. But you can also accidentally store prompts and secrets by default if you're not careful, which can also hold personal information. However, when you use Venice, you don't need to worry about any of that. So let's talk about how secrets can flow through a regular agent. So for example, let's say you're, you're</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">using OpenClaw. You send a user request that gets sent to an agent runtime. The runtime might need a secret that it will fetch from a 1Password vault, for instance, or HashiCorp Vault. The secret will then get sent to the LLM reasoning layer.</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">Um, oh my God.</span></div><div class="tline" data-t="391"><span class="ts">6:31</span><span class="tx">So the reasoning layer will then make an API request through a tool call, which will then return the answer back to the user. However, due to this, the way that it's architected, the secrets get fed directly to the LLM, which means it then may get used in training data. So in terms of privacy preserving patterns that work, one thing that we've used at Venice is storing hashes that rep-</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">represent IDs that we need, as opposed to direct data. So for example, if you need to identify a user for rate limiting purposes, you might not want to use their direct user footprint directly. You might want to, you know, store it as a hash, for instance, just so you can identify them without directly using any of their personal data. As well as that, we encrypt data and store it in an inaccessible enclave using split key custody.</span></div><div class="tline" data-t="451"><span class="ts">7:31</span><span class="tx">So for context, encryption keys are stored in two halves, a read half and a write half. By splitting these, the attacker cannot access the data due to needing both halves for the decryption to complete. Additionally, you can use design patterns like handles that can be easily revoked. So a handle is simply an object that grants you access to something. So for example, let's</span></div><div class="tline" data-t="481"><span class="ts">8:01</span><span class="tx">say you have a database pool using a handle. So when you have the handle, you can access the database pool. When you don't, then you can't access it. This is very important, especially when you're using authorization like JSON web tokens or session keys. That may be, uh, a core part of your authorization system. Other than that, of course, engineering your prompts with privacy in mind can be,</span></div><div class="tline" data-t="511"><span class="ts">8:31</span><span class="tx">uh, very helpful for engineering teams who are using coding harnesses like Cursor and Claude Code. In terms of protecting agent handle data, so essentially ensuring narrow agent scope to re- to decrease risk. So for example, let's say you pull tools from an MCP server that may have fifteen, twenty different tools. You don't really want to use all of them. You actually only really need one. But you also need an API</span></div><div class="tline" data-t="541"><span class="ts">9:01</span><span class="tx">key to handle that, uh, API call. So if you pull that API key in from, you know, your, your password vault, and then you send it as part of the agent, um, what can happen is that it gets exfiltrated through, through the agent, uh, on a tool call to whatever, you know, web server is being hosted by a bad actor, for instance. As well as that, um, we also have a</span></div><div class="tline" data-t="571"><span class="ts">9:31</span><span class="tx">classification layer in front of an agent to check for prompt injection, for example. So there's a couple of ways you can do this. So you can either use an LLM-based, uh, layer to do this, or you can alternatively use a semantic, um, search layer. For example, using vector search, uh, via something like Qdrant, LanceDB, or additionally you can</span></div><div class="tline" data-t="601"><span class="ts">10:01</span><span class="tx">use an in-memory process.</span></div><div class="tline" data-t="605"><span class="ts">10:05</span><span class="tx">It should also be noted that tight context loops caused by narrow agent scope can also improve context window performance. So for example, because you don't have as many tools, uh, your agents may be able to perform much better. It's well known that when you fill your context window, by doing so, when you reach near the limit of your context window, performance can actually degrade, uh, considerably.</span></div><div class="tline" data-t="635"><span class="ts">10:35</span><span class="tx">By keeping an empty or near empty context window, we can make sure that the agent is performing at its best.</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">So let's look at keeping secrets out of the model. So here we have a user request that gets sent to the reasoning layer. This reasoning layer is actually then, uh, formulating a series of non-deterministic inputs for an agentic runtime. So by tying the password vault to the agentic runtime instead of the reasoning layer, what happens then is that the run-- the agent runtime is</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">essentially turned into an execution layer, which then we can, you know, we can consider it deterministic. We can, uh, do all kinds of things that you normally wouldn't be able to do for privacy and security reasons at the LLM layer. Uh, so for example, let's say you want to use a, a browse use tool, and you need to log into a, into a website that requires your credentials. With this, uh,</span></div><div class="tline" data-t="706"><span class="ts">11:46</span><span class="tx">software architecture, it's much more reasonable to say that it's private and secure rather than feeding your password se-- uh, directly into the reasoning layer. As well as, you know, calling external APIs. So in terms of sandboxing your agents, um, it, it's a very well-known fact that using sandboxes and VMs, for example, Firecracker, um, and, you</span></div><div class="tline" data-t="736"><span class="ts">12:16</span><span class="tx">know, AWS EC2 in a VPC, can significantly upgrade the security of your agent. However, this doesn't act as a cure-all for your agentic systems. Uh, so for example, if you have internet access enabled for your agent, it can still accidentally exfiltrate data through external API access if you're not careful, and therefore monitoring permissions</span></div><div class="tline" data-t="766"><span class="ts">12:46</span><span class="tx">is essential. So my personal suggestion is</span></div><div class="tline" data-t="775"><span class="ts">12:55</span><span class="tx">building your own agentic runtime. So essentially building your own coding harnesses where you can add your own steps, your own observability, uh, your own tools, things of that nature, essentially owning the execution layer and reasoning layer.</span></div><div class="tline" data-t="793"><span class="ts">13:13</span><span class="tx">So let's talk about privacy at the hardware level very quickly. So in terms of this, um, there's something I like to call confidential compute, where a trusted execution environment essentially, uh, at the hardware level enables the inference process to be run privately. So with Venice, how this works is that when you send a request, uh, you get a response, and then we actually return an attestation that you can then, um,</span></div><div class="tline" data-t="823"><span class="ts">13:43</span><span class="tx">verify with our attestation verifier. So in terms of this, what this actually means is that you can fully isolate an agent at the reasoning layer cryptographically and prove it. In terms of, oh, confidential tool calls, there is still some work to be done. Um, TEEs are still great for tool calls. However, we also offer end-to-end encryption. Um, but there's also, you know, some work to be done there because of,</span></div><div class="tline" data-t="853"><span class="ts">14:13</span><span class="tx">uh, the need to provide an ergonomic API experience while still allowing users to return entirely encrypted tool calls. This is still kind of an ongoing challenge. Um, in terms of this, a very reliable solution would be to allow providers to own the compute layer at which your tool call's being run. However, um, ooh.</span></div><div class="tline" data-t="880"><span class="ts">14:40</span><span class="tx">Sorry, just give me a sec.</span></div><div class="tline" data-t="891"><span class="ts">14:51</span><span class="tx">So in terms of confidential tool calls, um, yeah, there's definitely some work to be done.</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">Um, yeah, that's it. Thank you for listening.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

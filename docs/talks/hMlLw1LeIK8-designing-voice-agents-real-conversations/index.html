@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>为真实对话设计语音智能体 | AI 工程师中文版</title>
+<meta name="description" content="一个语音智能体需要知道什么时候该开口、什么时候该停下。三种 Pipecat 配置展示了静音计时器、服务商事件和本地话轮模型如何做出这些决定。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>为真实对话设计语音智能体</h1>
+    <div class="orig-title">Designing Voice Agents for Real Conversations</div>
+    <div class="meta"><span class="speaker">Chintan Agrawal、Daniel Wirjo</span> · AI Engineer World's Fair 2026 · 32:57</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=voice-ai">语音 AI</a><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=design-engineering-and-ai-interfaces">AI 界面设计</a><a class="tag" href="../../index.html#topic=harness-engineering">框架工程</a><a class="tag" href="../../index.html#topic=local-inference">本地推理</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/hMlLw1LeIK8-designing-voice-agents-real-conversations" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="hMlLw1LeIK8"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=hMlLw1LeIK8" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">同样的纠正，两段不同的对话</div></div>
+      <div class="label row">章节跳转 <span>共 15 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="104"><span class="ts">1:44</span><span>同样的纠正，两段不同的对话</span></li><li data-t="157"><span class="ts">2:37</span><span>为什么短暂的延迟会让人觉得很长</span></li><li data-t="234"><span class="ts">3:54</span><span>话轮转换包裹着生成流水线</span></li><li data-t="317"><span class="ts">5:17</span><span>第一级：让静默结束话轮</span></li><li data-t="507"><span class="ts">8:27</span><span>第二级：让语音识别服务商发出完成信号</span></li><li data-t="595"><span class="ts">9:55</span><span>第三级：一个带静默兜底的本地模型</span></li><li data-t="695"><span class="ts">11:35</span><span>快速取消仍然需要一个意图判断</span></li><li data-t="794"><span class="ts">13:14</span><span>同一条 Python 流水线的三种配置</span></li><li data-t="895"><span class="ts">14:55</span><span>响应预算花在了哪里</span></li><li data-t="1096"><span class="ts">18:16</span><span>快速的中位数掩盖不了一次缓慢的对话话轮</span></li><li data-t="1196"><span class="ts">19:56</span><span>话轮错误变成运营问题</span></li><li data-t="1306"><span class="ts">21:46</span><span>一个旅行助手让策略变得可见</span></li><li data-t="1501"><span class="ts">25:01</span><span>静默计时器把犹豫误当成说完了</span></li><li data-t="1581"><span class="ts">26:21</span><span>服务商在等 Sydney</span></li><li data-t="1770"><span class="ts">29:30</span><span>日志区分了模型判断完成与超时</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 16 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Eight stops" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Eight stops</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk moves from the 200ms constraint and voice-agent pipeline through three turn-detection approaches, then closes with latency budgets and production lessons.
+
+[0:53](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=53s) [Agenda covering voice-agent turn-taking, latency, architecture, detection approaches and production lessons.](https://assets.ai.engineer/sites/aiecode2025/sha256/e884cdfd78d101dee6dfa80f51a87fed1fc8bcd5cd745599f6a3e84854d4a96e.webp)
+
+aws
+
+WHAT WE'LL COVER
+Eight stops
+
+01 What does a natural-sounding AI voice agent feel like?
+02 The 200ms constraint
+03 Architecture — the pipeline
+04 Level 1 — Silero VAD
+05 Level 2 — built-in turn detection
+06 Level 3 — Smart Turn, own your stack
+07 Latency budget
+08 Production lessons &amp; open problems
+
+02 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Same user. Same sentence. Different result." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Same user. Same sentence. Different result.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>With the same model and prompt, one agent talks over a correction for 1.8 seconds; the other detects the interruption in 180 ms, stops, and lets the user clarify.
+
+[1:28](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=88s) [A broken voice agent ignores an interruption, while a working agent stops and responds to the correction.](https://assets.ai.engineer/sites/aiecode2025/sha256/3dd4d3662ffa9e6c7e2715a393b85d3495aa12371bdf729f07943805e96ed5c5.webp)
+
+aws
+
+01 · INTRODUCTION
+
+Same user. Same sentence. Different result.
+
+The difference between a voice agent that feels broken and one that feels natural comes down to how well it handles interrupts and turn-taking.
+
+BROKEN
+User: &quot;I want to fly to—&quot;
+Agent keeps talking — ignores interruption for 1.8 s
+User: &quot;no wait, a HOTEL—&quot; (ignored)
+1.8 s delay
+
+WORKING
+User: &quot;I want to fly to—&quot;
+✖ STOP — interruption detected
+User: &quot;actually, a hotel in Sydney&quot;
+Agent: &quot;Hotel in Sydney — got it!&quot;
+180 ms
+
+03 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="The 200 ms constraint" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The 200 ms constraint</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Humans switch conversational turns in about 200 ms; Agrawal says delays around 800 ms start to feel off.
+
+[2:37](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=157s) [Section title introducing the 200 millisecond constraint.](https://assets.ai.engineer/sites/aiecode2025/sha256/f50a0576254aa488d2411651dd483900ff8cc32ab309bd78e3607dac6e05dfb1.webp)
+
+aws
+
+02 · THE CONSTRAINT
+
+The 200 ms constraint
+
+02
+04 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Human turn-gap: measured across 10 languages" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Human turn-gap: measured across 10 languages</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide sets a 200 ms human turn gap against a best measured 755 ms cascaded-pipeline response—almost four times longer. Its latency scale moves from natural conversation toward a delay users may mistake for a dropped call.
+
+[2:41](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=161s) [A latency scale compares a 200 millisecond human turn gap with a 755 millisecond cascaded pipeline measurement.](https://assets.ai.engineer/sites/aiecode2025/sha256/285228a5ce118b13663d44e22085632d86e351faff581d96801efa00e6330f10.webp)
+
+aws
+
+THE 200 MS TARGET
+
+Human turn-gap: measured across 10 languages
+
+200 ms is the time from when the user stops speaking to when the agent starts responding. Below that, conversation feels natural. Above it, users pause, repeat themselves, or assume the call dropped. Chat agents get seconds — voice agents don't get a second chance.
+
+Latency scale:
+0 ms — NATURAL
+200 ms — ACCEPTABLE
+400 ms — NOTICEABLE
+800 ms — BROKEN
+1500 ms+ — CALL DROPPED?
+
+200 ms
+Best measured human TTFA
+Stivers et al., PNAS 2009 — 10 languages, 10K+ conversations
+
+755 ms
+Best measured TTFA — cascaded pipeline
+Qiu et al., Salesforce 2026
+
+05 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="The voice agent pipeline" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The voice agent pipeline</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Agrawal introduces the architecture by asking where time goes in a 755 ms budget and where turn-taking fits.
+
+[3:39](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=219s) [Section title introducing voice-agent architecture.](https://assets.ai.engineer/sites/aiecode2025/sha256/7f43c282b0f2abb927ac64585f71b3e09915f3318b105f976b562eb8048957a8.webp)
+
+The voice agent pipeline
+
+03 · ARCHITECTURE
+
+aws
+
+03
+06 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Voice agents need a pipeline" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Voice agents need a pipeline</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>VAD sits ahead of speech recognition to detect when the user stops. Smart turn detection decides whether to respond or wait; the interruption handler flushes TTS and LLM buffers when the user barges in.
+
+[3:52](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=232s) [A pipeline runs from WebRTC through voice activity detection, speech recognition, a language model and speech synthesis to WebRTC output; separate boxes describe turn detection and interruption handling.](https://assets.ai.engineer/sites/aiecode2025/sha256/17bffe16e9df92e5529774d639ad1afd67773516e91d6d5ebb79777941e38964.webp)
+
+aws
+
+FRAME-BASED · ASYNC · BACKPRESSURE-AWARE
+
+Voice agents need a pipeline
+
+Speech-to-Text (STT), a Language Model (LLM), and Text-to-Speech (TTS) are all critical components of a voice agent. But VAD — voice activity detection — is an often-overlooked layer. It decides when the user has finished speaking. Get it wrong and everything downstream breaks.
+
+WebRTC
+DAILY
+20 MS FRAMES
+→
+VAD
+SILERO V5
+32 MS FRAMES
+→
+STT
+CARTESIA INK
+STREAMING
+→
+LLM
+CLAUDE / GPT
+TOKEN STREAM
+→
+TTS
+CARTESIA
+PCM 24 KHZ
+→
+WebRTC
+DAILY
+OUT
+
+SMART TURN DETECTION
+Listens to VAD + audio features. Decides: respond or wait.
+
+INTERRUPTION HANDLER
+Propagates InterruptionFrame — flushes TTS + LLM buffers.
+
+WHAT IS PIPECAT?
+Open-source framework for real-time voice agents — wires STT, LLM, TTS, and VAD into a frame-based pipeline with backpressure, interruption handling, and streaming built in.
+
+10k+
+GITHUB STARS
+
+07 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Silero VAD: take control" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Silero VAD: take control</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Level 1 starts with Silero VAD, a component developers fully own. Agrawal says many production voice agents still use it alone for turn-taking.
+
+[5:09](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=309s) [Level 1 introduces Silero VAD as a component the developer controls.](https://assets.ai.engineer/sites/aiecode2025/sha256/dd55e3076bf87bf9ac945a67caef7d1ef07eee03cb21e49e2353c802458cfad1.webp)
+
+aws
+
+04 · LEVEL 1
+
+Silero VAD:
+take control
+
+The simplest component you fully own. This is where most production systems start.
+
+04
+08 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Silero VAD architecture and metrics" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Silero VAD architecture and metrics</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Silero VAD converts audio to spectral features, then uses convolutional layers and an LSTM to estimate speech probability. The slide reports a 2 MB model and &lt;1 ms per 32 ms frame.
+
+[5:28](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=328s) [Diagram of Silero VAD from spectral features through convolutional layers and an LSTM to speech probability, with model metrics.](https://assets.ai.engineer/sites/aiecode2025/sha256/2367145fc14737bedeefd601d43bc4bf927631aff96cb3f7daa36383d8a63ae7.webp)
+
+aws
+
+04 · LEVEL 1
+
+Silero VAD — 309K parameters, &lt;1 ms
+
+STFT
+16 KHZ PCM
+SPECTRAL
+→ 4× Conv1d
++ RELU
+FEATURES
+→ LSTM (128)
+TEMPORAL
+CONTEXT
+→ Linear
++ SIGMOID
+P(SPEECH)
+→ 0 → 1
+SPEECH PROB
+
+309K PARAMETERS
+2 MB MODEL SIZE
+&lt;1 ms PER 32 MS FRAME
+MCC 0.72 VS WEBRTC 0.41
+
+vad = SileroVADAnalyzer(params=VADParams(stop_secs=0.3))  # confirmed: Qiu et al. (2026) same config
+
+09 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Tuning stop_secs" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tuning stop_secs</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Shorter silence thresholds make an agent snappier but can cut off thinking; longer thresholds give users more time but risk dead air. The examples range from 0.2 s for sales to 1.2 s for data entry.
+
+[6:04](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=364s) [Silence-duration examples for sales, general use, health, and data entry, alongside VAD parameter settings.](https://assets.ai.engineer/sites/aiecode2025/sha256/2dbad11ab7cfbf9ca88413db51d5707469b8bd99f6a0674897e8a20517a01a73.webp)
+
+aws
+
+04 · LEVEL 1
+
+Tuning stop_secs — the critical parameter
+
+SALES / 0.2 S
+Snappy. May cut off thinking.
+
+GENERAL / 0.5 S
+Balanced. Most users happy.
+
+HEALTH / 0.8 S
+Patient. Respects pauses.
+
+DATA ENTRY / 1.2 S
+Never interrupts. Dead-air risk.
+
+# The critical parameter
+class VADParams:
+  threshold      = 0.5
+  min_speech_ms  = 250
+  min_silence_ms = 300  # THIS ONE
+  speech_pad_ms  = 100
+
+10 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="What VAD alone can't solve" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What VAD alone can't solve</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>VAD detects speech and silence, but a pause alone doesn't reveal whether someone has finished. An agent also needs context to decide how to respond when a user talks over it.
+
+[6:56](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=416s) [Three columns describe silence detection, barge-in, and turn detection challenges.](https://assets.ai.engineer/sites/aiecode2025/sha256/7760b1a7132562196431cc699b80ddf23c288fa5cca7e31b07bdb72fcdb3b164.webp)
+
+What VAD alone can't solve
+
+THREE LEVELS OF SOLVING THIS — INCREASING CONTROL, INCREASING COMPLEXITY
+
+01 SILENCE DETECTION
+When did they stop talking?
+Is the user done, or just thinking? 300 ms and 1200 ms silence look identical to raw VAD.
+
+02 BARGE-IN
+They started talking. Stop, fade, or finish?
+The decision depends on context — correction, affirmation, or ambient noise. Most agents don't distinguish.
+
+03 TURN DETECTION
+Same silence means four things
+Complete sentence. Incomplete thought. Thinking pause. Backchannel &quot;yeah&quot;. VAD fires on all of them.
+
+aws
+11 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Built-in turn detection" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Built-in turn detection</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Instead of treating every silence alike, Level 2 lets the speech-to-text service signal when the user's turn is over.
+
+[8:26](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=506s) [Level 2 introduces turn detection incorporated into speech-to-text models.](https://assets.ai.engineer/sites/aiecode2025/sha256/8f0173349e3f616a0fa9df88877507ab02e98e30e481482e54c1b5b9ed94bc78.webp)
+
+aws
+
+05 · LEVEL 2
+
+Built-in turn detection
+
+Smarter than raw VAD. State-of-the-art STT models are now starting to incorporate turn detection.
+
+05
+12 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Cartesia Ink-2 and Deepgram Flux" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Cartesia Ink-2 and Deepgram Flux</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Cartesia emits turn events through its STT WebSocket; Deepgram uses configurable endpointing. Both move turn decisions to the service, trading local control and visibility for simpler deployment.
+
+[8:38](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=518s) [Comparison of built-in turn detection features, latency figures, and control trade-offs for Cartesia Ink-2 and Deepgram Flux.](https://assets.ai.engineer/sites/aiecode2025/sha256/5d999406d556b499754907d3949916d3bbd73602f2229943a841d5fb45fda204.webp)
+
+Cartesia Ink-2 and Deepgram Flux
+
+aws
+05 · LEVEL 2
+
+CARTESIA INK-2
+- Turn detection built into the STT WebSocket protocol — emits turn.start / turn.end events
+- No local VAD or turn analyzer needed — the server drives boundaries
+- P50 STT latency: 299 ms · P95: 328 ms
+- Pipecat: CartesiaTurnsSTTService
+
+DEEPGRAM FLUX
+- Endpointing built into the Deepgram streaming API — single-service turn detection
+- Configurable endpointing parameter controls silence threshold
+- P50 STT latency: 247 ms · P95: 298 ms (nova-3)
+- Trade-off: no visibility into model decisions, vendor-specific behaviour
+
+Both are Level 2 — smarter than raw VAD, no local model required. Best for prototypes and latency-sensitive deployments where control is less critical.
+
+13 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Silero VAD + Smart Turn" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Silero VAD + Smart Turn</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Level 3 runs Silero VAD locally to detect speech, then adds Smart Turn, a small model that runs during silence.
+
+[9:54](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=594s) [Level 3 introduction describing Silero VAD and Smart Turn as controllable, transparent, tunable, and portable.](https://assets.ai.engineer/sites/aiecode2025/sha256/39318f0c90404856ead90ebbb8847765ed9925e00e1fef326eeb03611202f1f2.webp)
+
+aws
+
+06 · LEVEL 3
+
+Silero VAD + Smart Turn
+
+Full control. Transparent. Tunable. Portable.
+
+06
+14 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Smart Turn v3.2 comparison" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Smart Turn v3.2 comparison</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Smart Turn runs during silence and reports 58.9% recall; a VAD timer provides a fallback when it does not fire. The slide contrasts its deployable BSD-2 release with higher-recall Meta research that has no released code.
+
+[10:11](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=611s) [Table compares Smart Turn with research and proprietary turn detectors by recall, precision, size, license, and availability.](https://assets.ai.engineer/sites/aiecode2025/sha256/21cad445e54dc22d90c6029e3f5ae4b88874b444b41959bf29b9ff176792e96f.webp)
+
+aws
+
+06 · LEVEL 3
+
+Smart Turn v3.2 — open source and deployable today
+
+SYSTEM | RECALL | PRECISION | SIZE | LICENSE | STATUS
+Smart Turn v3.2 ✓ OPEN SOURCE | 58.9% | 68.4% | 8–32 MB | BSD-2 | pip install today
+Helwani (Meta, 2026) | 87.7% | 57.2% | 1.14M params | No code released | Research only
+Cartesia Ink-2 | — | — | API | Proprietary | Built into STT
+Deepgram Flux | — | — | API | Proprietary | Built into STT
+LiveKit Turn Detector | — | — | v1 / v1-mini | Proprietary | v1: cloud (LiveKit); v1-mini: local CPU
+
+pipecat-ai/smart-turn
+
+Smart Turn: 12 ms inference, 200–400 ms effective detection. Runs only during silence. CPU (8 MB quantized) and GPU (32 MB unquantized) versions available.
+
+Interface text:
+Chintan Agrawal
+15 / 23</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Interruption in 50 ms" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Interruption in 50 ms</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide maps a 50 ms interruption sequence from speech to pipeline readiness. Its decision logic calls for an immediate stop for corrections, a 200 ms fade for affirmations, and finishing the sentence for noise.
+
+[11:32](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=692s) [A timeline shows interruption processing from speech onset to pipeline readiness, alongside stop, fade, and finish decision options.](https://assets.ai.engineer/sites/aiecode2025/sha256/de27a367971e5fd6fb7329204553a3741ceb36be4a8220642056b327d5d6f58f.webp)
+
+aws
+
+06 · LEVEL 3
+
+The full stack — interruption in 50 ms
+
+t = 0 ms   UserStartedSpeakingFrame
+t = 32 ms  VAD confirms speech (&gt; threshold)
+t = 33 ms  InterruptionFrame propagates downstream
+t = 35 ms  TTS buffer flushed — playback stops
+t = 36 ms  LLM generation cancelled
+t = 50 ms  Pipeline ready for new input
+
+DECISION LOGIC
+
+STOP
+Correction detected. Cut audio immediately.
+
+FADE
+Affirmation (&quot;yeah&quot;). Taper over 200 ms.
+
+FINISH
+Noise / backchannel. Complete current sentence.
+
+16 / 23
+
+Interface text:
+Chintan Agrawal
+16 / 23
+Reset R</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Where time goes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Where time goes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Chintan Agrawal turns to where time goes in voice-agent latency, following earlier figures of 755 ms and 1.3 seconds.
+
+[14:54](https://www.youtube.com/watch?v=hMlLw1LeIK8&amp;t=894s) [Section title introduces latency in the voice pipeline.](https://assets.ai.engineer/sites/aiecode2025/sha256/de58d45c0e4fb152a5df875bcb5227bba30616c0c79ea737acb9247d2fb33e95.webp)
+
+Where time goes
+
+07 · LATENCY
+
+aws
+07
+19 / 23
+
+Interface text:
+Chintan Agrawal</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">同样的纠正，两段不同的对话</a></li><li><a href="#sec-2">为什么短暂的延迟会让人觉得很长</a></li><li><a href="#sec-3">话轮转换包裹着生成流水线</a></li><li><a href="#sec-4">第一级：让静默结束话轮</a></li><li><a href="#sec-5">第二级：让语音识别服务商发出完成信号</a></li><li><a href="#sec-6">第三级：一个带静默兜底的本地模型</a></li><li><a href="#sec-7">快速取消仍然需要一个意图判断</a></li><li><a href="#sec-8">同一条 Python 流水线的三种配置</a></li><li><a href="#sec-9">响应预算花在了哪里</a></li><li><a href="#sec-10">快速的中位数掩盖不了一次缓慢的对话话轮</a></li><li><a href="#sec-11">话轮错误变成运营问题</a></li><li><a href="#sec-12">一个旅行助手让策略变得可见</a></li><li><a href="#sec-13">静默计时器把犹豫误当成说完了</a></li><li><a href="#sec-14">服务商在等 Sydney</a></li><li><a href="#sec-15">日志区分了模型判断完成与超时</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">为真实对话设计语音智能体</h2>
+      <div class="lede"><p>一个语音智能体需要知道什么时候该开口、什么时候该停下。三种 Pipecat 配置展示了静音计时器、服务商事件和本地话轮模型如何做出这些决定。</p><p>熟悉 Python 以及语音转文字、语言模型和文字转语音的基本作用，有助于理解配置示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="104">▶ 1:44</button></div>
+      <h3>同样的纠正，两段不同的对话</h3>
+      <p>A user starts planning a flight, then tries to correct themselves. In one interaction, the agent keeps talking for almost two seconds while the user struggles to get a word in. In the other, it catches the interruption in under 200 ms and yields. The model and prompt are identical; the difference is the audio pipeline.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/6dc82f1dc647cd56f10f6708ebd88871c21d164fd89ae525b1a9ad51fe37c2dd" alt="Slide comparing a broken interaction with a 1.8 s delay against a working interaction that stops and accepts a correction in 180 ms." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The same interruption produces two different conversational outcomes.</figcaption></figure>
+<p><strong>Conversational quality depends on knowing when to stop as much as knowing what to say.</strong> Chintan Agrawal and Daniel Wirjo approach this as an audio-engineering problem: detect that someone is speaking, decide whether a pause ends their turn, and stop the agent promptly when the user takes the floor.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="157">▶ 2:37</button></div>
+      <h3>为什么短暂的延迟会让人觉得很长</h3>
+      <p>Agrawal uses roughly 200 ms as the human turn-switching baseline, describes 800 ms as noticeably awkward, and warns that a 1.5-second pause can prompt a hangup. These are conversational design heuristics, rather than measured abandonment thresholds presented in the talk. A chat response can take several seconds without losing its place; silence in a voice conversation can sound like a broken connection.</p>
+<p>The cited <a href="https://arxiv.org/abs/2603.05413" target="_blank" rel="noopener">enterprise realtime voice tutorial</a> illustrates how difficult that budget is. Its reported 755 ms streaming result is nearly four times the stated human baseline, but the measurement boundary matters: the <a href="https://arxiv.org/html/2603.05413v1" target="_blank" rel="noopener">experimental breakdown</a> covers LLM time to first token, sentence detection and TTS synthesis, without separately including endpointing, STT or client playback. It is a particular pipeline result, not an industry-wide voice-to-voice record. Where raw latency cannot reach human timing, turn-taking must at least make the wait intelligible and avoid taking the floor prematurely.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="234">▶ 3:54</button></div>
+      <h3>话轮转换包裹着生成流水线</h3>
+      <p>The familiar pipeline is speech-to-text (<strong>STT</strong>), an LLM, and text-to-speech (<strong>TTS</strong>): audio becomes text, the model generates a response, and that response becomes audio. <strong>Voice activity detection</strong>, or <strong>VAD</strong>, sits at the front and supplies a more basic signal: is speech present? A turn detector can combine that signal with audio features to decide whether the agent should respond or continue waiting.</p>
+<p>An interruption needs a separate path through the system. When the user barges in, the handler propagates a flush downstream, stops TTS and cancels LLM generation. Agrawal describes about 15 ms for this cancellation and cleanup step. That is a pipeline-handling interval, not the complete time from the user's first sound to silence at their speaker. Canceling only generation would leave already-buffered speech playing; stopping only playback would leave obsolete work running.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="317">▶ 5:17</button></div>
+      <h3>第一级：让静默结束话轮</h3>
+      <p><strong>Silero VAD</strong> provides a small, locally controlled speech detector. Agrawal describes an approximately 300,000-parameter, 2 MB model: raw audio becomes spectral features through a short-time Fourier transform; four convolutional layers extract patterns; an LSTM retains information across frames; and a sigmoid produces a speech probability. The memory matters because a speech decision should not depend on one isolated audio chunk.</p>
+<p>With silence-only endpointing, the crucial policy is how long speech must be absent before the user is considered finished.</p>
+<p>- <strong>Short timeout:</strong> the agent responds promptly, but can cut into a breath or a thinking pause.
+- <strong>Long timeout:</strong> the agent leaves more room, but the resulting dead air can make users wonder whether it is still connected.</p>
+<p>Agrawal suggests 200 ms for a brisk sales interaction and 1,000–1,200 ms for a domain where people need time to formulate an answer. These are example settings to tune for the task.</p>
+<p>The limitation is information, not merely calibration. Silence after a completed sentence, an unfinished thought, a thinking pause or a backchannel acknowledgment can look the same to VAD. A pause lasting 200 or 300 ms does not tell the detector whether the speaker is catching their breath or has finished. Nor does detecting overlapping speech decide whether the agent should yield. <strong>Speech detection supplies a signal; conversational policy assigns its meaning.</strong></p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="507">▶ 8:27</button></div>
+      <h3>第二级：让语音识别服务商发出完成信号</h3>
+      <p>The next option moves the decision into the transcription service. <strong>Cartesia Ink-2</strong> accepts streaming audio over its STT WebSocket and emits turn events as well as transcription. Instead of inferring completion from a local timer alone, the application waits for the provider's completion signal.</p>
+<p>Agrawal reports approximate provider P50 latencies of 300 ms for Cartesia Ink-2 and 250 ms for <strong>Deepgram Nova-3</strong>, without specifying a common measurement boundary or workload. The two endpointing mechanisms should also be distinguished: current <a href="https://developers.deepgram.com/docs/endpointing" target="_blank" rel="noopener">Deepgram endpointing documentation</a> describes VAD-based silence detection and a <code>speech_final</code> signal, not semantic completion detection. The talk's broader description of audio plus linguistic context should therefore not be applied to Nova endpointing as though the features were equivalent.</p>
+<p>The trade-off is visibility. A remote service can make useful decisions without exposing its internal evidence. When it ends a turn too early, an event tells the application what happened, but may not explain why. Owning the surrounding logs does not mean owning the decision process inside the provider's server.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="595">▶ 9:55</button></div>
+      <h3>第三级：一个带静默兜底的本地模型</h3>
+      <p>A locally owned alternative keeps Silero active and adds <a href="https://github.com/pipecat-ai/smart-turn" target="_blank" rel="noopener"><strong>Smart Turn</strong></a>. VAD identifies a pause; Smart Turn evaluates the audio to judge whether the turn is complete. Agrawal introduces <strong>Smart Turn v3.2</strong>, then quotes 58.9% recall and 68.4% precision. Those figures belong to a specific evaluation labeled Smart Turn v3, rather than a universal performance guarantee for v3.2.</p>
+<p>The architecture does not require the model to recognize every completion. A confident completion can advance the conversation; otherwise, a silence timer remains available. Agrawal gives 300 ms as an example timeout, referred to in the walkthrough as <code>stopSeconds</code>. His six-in-ten explanation conveys the role of recall: missed completions can fall back to waiting. It does not establish that four in ten turns in every deployment will use the timer.</p>
+<p>The matching <a href="https://arxiv.org/html/2603.13379v1" target="_blank" rel="noopener">hierarchical end-of-turn paper</a> makes the precision–recall trade-off explicit:</p>
+<p>| Evaluated system | Recall | Precision |
+| --- | ---: | ---: |
+| Smart Turn v3 | 58.9% | 68.4% |
+| Hierarchical EOT | 87.7% | 57.2% |</p>
+<p>The evaluation used 357 conversation samples, with Smart Turn evaluated on eight-second windows at 100 ms hops. Higher recall comes with lower precision here: catching more true endings also means accepting more incorrect completion decisions. Agrawal describes the higher-recall research model as unavailable to deploy because its code had not been released at recording time.</p>
+<p>Deployability is part of the choice. Smart Turn is BSD 2-Clause licensed and can be installed for local use. The documented 8 MB size applies to its quantized CPU variant; the unquantized GPU variant is 32 MB. This gives an application a practical way to own the turn decision instead of depending on a remote endpointing service.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/0a78fbe91b3d0eb844eaf57573ad35b4030b367773cc66b0a708832a0416cd2c" alt="Comparison table listing recall, precision, size, license and availability for Smart Turn, Helwani, Cartesia, Deepgram and LiveKit, with a QR code." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Smart Turn v3.2 alongside other turn-detection systems.</figcaption></figure>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="695">▶ 11:35</button></div>
+      <h3>快速取消仍然需要一个意图判断</h3>
+      <p>Starting a response is only half the problem. Once the agent is speaking, Agrawal describes a barge-in path with 32 ms for VAD pickup followed by about 15 ms to flush the pipeline. Pipecat handles the mechanical work of stopping TTS and canceling generation. These are the component timings described in the talk, not a measured end-to-end guarantee for every transport and playback buffer.</p>
+<p>The harder question is whether the sound should have stopped the agent at all.</p>
+<p>- <strong>Correction:</strong> a user saying that the answer is wrong needs the agent to stop immediately—the red case in the presentation.
+- <strong>Acknowledgment or filler:</strong> agreement can mean continue; an amber response might keep speaking, perhaps more quietly.
+- <strong>Cough or background noise:</strong> the blue case can be ignored while the agent finishes its sentence.</p>
+<p>Local control creates room for this classification, but adding Smart Turn does not automatically implement it. Agrawal describes interruption intent as an improving area where many systems still stop whenever overlapping speech is detected.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="794">▶ 13:14</button></div>
+      <h3>同一条 Python 流水线的三种配置</h3>
+      <p>The three Python examples leave most of the pipeline unchanged. Their central difference is which component answers the question: has the user finished?</p>
+<p>| Approach | Completion decision | Control |
+| --- | --- | --- |
+| Silence only | <code>SileroVADAnalyzer</code> plus a timeout | Local threshold |
+| Provider events | Cartesia turn-aware STT service | Provider decision |
+| Local model | Silero plus <code>LocalSmartTurnAnalyzerV3</code> | Local inference and policy |</p>
+<p>In the first example, 300 ms of silence is enough to assume completion. The second uses a server event. The third adds a model that examines prosody and intonation during the pause.</p>
+<p>The silence configuration can be expressed directly in Python:</p>
+<p>```python
+from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADParams</p>
+<p>vad = SileroVADAnalyzer(
+    params=VADParams(stop_secs=0.3)
+)
+```</p>
+<p>Here <code>stop_secs</code> is the Python parameter for the silence interval discussed as <code>stopSeconds</code>. The analyzer is one component of the surrounding turn policy, not the complete agent. Keeping that boundary explicit makes the alternatives easier to compare: local silence control, provider-managed completion, or portable local detection with an additional model.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="895">▶ 14:55</button></div>
+      <h3>响应预算花在了哪里</h3>
+      <p>Agrawal attributes the next latency breakdown to Kwindla, Daily co-founder and Pipecat creator. In the cited production measurements, capture and transport already consume time before the model begins responding:</p>
+<p>| Stage | Reported latency |
+| --- | ---: |
+| Microphone and encoding | About 40 ms |
+| Network and jitter buffer | 52 ms |
+| Transcription and endpointing | About 300 ms |
+| LLM time to first byte | 500–650 ms |</p>
+<p>The LLM interval varies with the model, cloud provider and region. Sentence aggregation, TTS, outbound transport and playback add further delay before the user hears the response.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c3cb66d0a324743293d69c37b847d230e3978e3a0aad1a82fc37eec656aeea2d" alt="Horizontal latency chart showing microphone encoding, network jitter, transcription and endpointing, LLM TTFB, sentence aggregation, TTS TTFB and playback." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Voice-to-voice latency breakdown, with LLM TTFB the largest component.</figcaption></figure>
+<p>Agrawal puts a standard cloud-API setup at roughly 1,100–1,300 ms and reports a roughly 500 ms voice-to-voice demonstration from Kwindla's team with all models colocated in one GPU cluster. Colocation removes inter-server network hops. These reports have different measurement boundaries from the earlier 755 ms tutorial result, so they do not form a directly comparable leaderboard.</p>
+<p>For developers calling APIs, Agrawal gives a broader working range of 800–1,300 ms and estimates that STT plus the LLM consume about two-thirds of the budget. The practical implication is to measure those stages first: endpointing determines when generation may start, and the LLM's initial response determines when downstream speech synthesis can begin. Infrastructure can shorten transport, but choosing when to release a turn remains an application decision.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1096">▶ 18:16</button></div>
+      <h3>快速的中位数掩盖不了一次缓慢的对话话轮</h3>
+      <p>For their June 2026 voice-model comparison, the speakers set a target below 700 ms time to first token. Agrawal reports the following observations; the workload, regions, percentile methodology and exact Sonnet version are not supplied.</p>
+<p>| Model named in the talk | P50 TTFT | P95 TTFT |
+| --- | ---: | ---: |
+| <strong>Nemotron-3 Ultra</strong> | 529 ms | Not given |
+| <strong>GPT-4.1</strong> | 536 ms | 1.7 s |
+| <strong>Claude Sonnet</strong> | Not given | Over 4 s |</p>
+<p>The tail matters because the listener experiences each turn separately. A good median does not repair a long pause that breaks the flow of the current exchange.</p>
+<p>Latency is not the only property that can deteriorate during a call. Agrawal reports instruction-following drift after 15–20 turns: a model may become verbose, go off-script or ignore parts of the system prompt. In voice, the user has to sit through the resulting output. Context pruning or session resets can help maintain the intended behavior across a longer conversation.</p>
+    </section>
+<section class="section" id="sec-11">
+      <div class="section-head"><span class="num">11</span>
+      <button class="seek" data-t="1196">▶ 19:56</button></div>
+      <h3>话轮错误变成运营问题</h3>
+      <p>False interruptions can turn a timing defect into a support escalation. Agrawal reports that users are more likely to ask for a human when an agent repeatedly cuts them off. His production discussion returns to the gap between human timing and cascaded pipelines, and to the need for a timer alongside an imperfect completion model. The earlier 755 ms result and Smart Turn recall figures motivate those concerns; neither establishes a universal best available system.</p>
+<p>Deployment also requires coordinating several systems that scale and fail differently. Agrawal frames the operational burden as five constituent systems, then offers two hosting directions: Pipecat Cloud for managed infrastructure that lets a team concentrate on agent logic, and an AWS Guidance reference architecture for enterprise deployments with guardrails. The choice of hosting does not remove the need to understand why a turn ended or why an interruption was accepted.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/fe1a61a53dad65c5f1ece6b5306200a6bedefcdc5d6eb4861f844b6e5cc70ab9" alt="Slide with three headline figures—3×, 755 ms and 58.9%—above sections on infrastructure, Pipecat Cloud and AWS Guidance." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Production lessons and deployment options for voice agents.</figcaption></figure>
+    </section>
+<section class="section" id="sec-12">
+      <div class="section-head"><span class="num">12</span>
+      <button class="seek" data-t="1306">▶ 21:46</button></div>
+      <h3>一个旅行助手让策略变得可见</h3>
+      <p>Wirjo's <a href="https://github.com/wirjo/pipecat-turn-detection-demo" target="_blank" rel="noopener">Pipecat turn detection demo</a> puts the three approaches into a shared travel-assistant task. Its examples cover silence detection, STT-integrated turn events and local Smart Turn. Running the turn model under your own control also creates options for compliance requirements and fine-tuning with your own data.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f1d84e2acd05ee016130c1a41bce31b6fdebfb4eca4ccdfd20061e9b21f0117c" alt="GitHub README with an examples table for silence detection, built-in STT turn detection and a local Smart Turn model, followed by setup instructions beside an idle terminal." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The demo README outlines three turn-detection examples and local setup.</figcaption></figure>
+<p>The first example uses Silero defaults, with confidence, silence duration and minimum audio volume available for configuration. The shared services are Cartesia STT, <strong>Sonic</strong> TTS with a British-sounding female voice, and Anthropic <strong>Claude Haiku</strong> for generation. Pipecat supplies a local prototyping environment; Wirjo mutes his microphone during connection so his narration does not accidentally interrupt the assistant's opening greeting.</p>
+    </section>
+<section class="section" id="sec-13">
+      <div class="section-head"><span class="num">13</span>
+      <button class="seek" data-t="1501">▶ 25:01</button></div>
+      <h3>静默计时器把犹豫误当成说完了</h3>
+      <p>The assistant greets the user and asks where they want to go. With real-time terminal logs alongside the conversation, Wirjo begins: “So I'm thinking of going to, um-”. Before he supplies a destination, the assistant replies, “I'm all ears. Where are you thinking of heading?” The response is linguistically reasonable, but its timing exposes the problem: the user's thought was still unfinished.</p>
+<p>The logs identify the cause. An end-of-turn event has fired because the silence interval reached the configured <code>stopSeconds</code> threshold, which Wirjo identifies as approximately 300 ms. The agent did not discover that the destination request was complete; the timer authorized it to respond.</p>
+    </section>
+<section class="section" id="sec-14">
+      <div class="section-head"><span class="num">14</span>
+      <button class="seek" data-t="1581">▶ 26:21</button></div>
+      <h3>服务商在等 Sydney</h3>
+      <p>Wirjo restarts with the STT-integrated turn detector and repeats the unfinished destination request. This time the assistant waits. Cartesia Ink emits turn events in the logs, but the application has not completed the turn or generated a reply. Wirjo remains muted while inspecting the events, then resumes with “So, Sydney.” The assistant responds with questions about travel dates and the length of the trip.</p>
+<p>Waiting preserves the unfinished thought, but the extended muted pause reveals the other side of the policy. In a deployed agent, there must also be a way to handle a user who never resumes. Wirjo recommends combining turn detection with silence handling, both to avoid unbounded waiting and to support barge-in. A completion model answers whether an utterance sounds finished; the application still decides how long a conversation may remain idle.</p>
+    </section>
+<section class="section" id="sec-15">
+      <div class="section-head"><span class="num">15</span>
+      <button class="seek" data-t="1770">▶ 29:30</button></div>
+      <h3>日志区分了模型判断完成与超时</h3>
+      <p>The final example runs Smart Turn alongside silence detection. Wirjo notes that the model can run locally or in a cloud GPU environment, then starts the assistant and repeats the hesitation: “I'm thinking of going to, um-”. The assistant responds before he names a destination, much as it did in the silence-only example.</p>
+<p>The debug logs reveal an important distinction: Smart Turn's end-of-turn state is incomplete, but the silence policy nevertheless advances the conversation. The model has not necessarily misunderstood the unfinished thought. Its judgment and the timeout are separate inputs to the application, and the timeout can still authorize a response.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/69f41dcaf25343178ca5ee172e924af81c3ab54b434fb0e225003d8529c1e15f" alt="Pipecat Playground shows the user's unfinished destination statement and the assistant's follow-up, beside terminal logs containing an incomplete end-of-turn state." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Smart Turn debug logs beside the resulting conversation.</figcaption></figure>
+<p>Wirjo then supplies a complete request: “I'm actually thinking of, um, going to Sydney.” The assistant asks about the time of year, trip duration and traveling companions. Rather than infer success from the reply alone, Wirjo returns to the logs to check what caused it.</p>
+<p>This time he identifies a complete end-of-turn state and a high completion probability from Smart Turn; no numerical probability is supplied. The final distinction is the one a production debugger needs: <strong>did the model recognize completion, or did another policy end the wait?</strong> The spoken result can look similar while the underlying decisions are different.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/wirjo/pipecat-turn-detection-demo" target="_blank" rel="noopener">Pipecat turn detection demo</a> — Three runnable Python examples comparing silence detection, Cartesia turn events and local Smart Turn, with setup instructions.</li><li><a href="https://arxiv.org/abs/2603.05413" target="_blank" rel="noopener">Building Enterprise Realtime Voice Agents from Scratch</a> — Technical tutorial covering a streaming voice pipeline, function calling and measured time to first audio.</li><li><a href="https://arxiv.org/html/2603.13379v1" target="_blank" rel="noopener">Hierarchical End-of-Turn Detection with Primary Speaker Segmentation</a> — Research combining speaker tracking and conversational-state prediction, including a 357-sample comparison with Smart Turn v3.</li><li><a href="https://github.com/pipecat-ai/smart-turn" target="_blank" rel="noopener">Smart Turn</a> — Open audio-based turn completion model with local inference examples, model weights and training guidance.</li><li><a href="https://developers.deepgram.com/docs/endpointing" target="_blank" rel="noopener">Deepgram Endpointing</a> — Configuration and response semantics for detecting speech pauses and finalizing streaming transcripts.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="3"><span class="ts">0:03</span><span class="tx">Hey, everyone. I'm Chintan, and I have my colleague Daniel with me. We are solutions architect on the AWS APJ Startups team. So today we are going to talk about something we've been working on for a while, which is turn-taking in voice agents.</span></div><div class="tline" data-t="18"><span class="ts">0:18</span><span class="tx">What I mean by that is, how does the system actually know that you have finished speaking and it's time for the agent to respond? These are all audio engineering problems.</span></div><div class="tline" data-t="27"><span class="ts">0:27</span><span class="tx">They are not, uh, LLM problems because you can have the perfect model, perfect RAG, but the experience still might feel broken if the turn-taking is off. So we are going to walk you through the concepts and, uh, three different approaches to solving this.</span></div><div class="tline" data-t="44"><span class="ts">0:44</span><span class="tx">And Daniel is going to, you know, make it more concrete by running all the three demo for you.</span></div><div class="tline" data-t="56"><span class="ts">0:56</span><span class="tx">So to kick things off, uh, we'll start with the two hundred millisecond constraint, which is basically the physics of why voice is hard. Then we look into the pipeline architecture, what are the components, where turn-taking actually lives.</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">We'll then look at three level of solving this problem, going from simple silence detection all the way up to running your own turn detection model. And then we'll also talk about the latency, the budget, and, uh, production issues that, uh, we have seen.</span></div><div class="tline" data-t="90"><span class="ts">1:30</span><span class="tx">So, but to-- before any of that, I just want to show you the problem statement more clearly because you have the same user, you have the same sentence on the both side, but, uh, the user outcome is very different.</span></div><div class="tline" data-t="104"><span class="ts">1:44</span><span class="tx">Because on the left, when the user says, &quot;I want to fly,&quot; and midway they try to correct themselves, the agent just does not notice because it keeps going on for almost two second, while the person is sitting there [chuckles] trying to get a word in.</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">On the right side, the same exact interaction is happening, but the agent is able to capture the interruption in under two hundred milliseconds, and immediately backs out so the user can now speak.</span></div><div class="tline" data-t="133"><span class="ts">2:13</span><span class="tx">Both the scenarios, the LLM was identical. It was the same model, it was the same prompt, but the difference in the user experience is so different, and the difference is purely because of the audio pipeline.</span></div><div class="tline" data-t="146"><span class="ts">2:26</span><span class="tx">And how fast, uh, does it notices, like, someone else is talking and it knows when to shut up. Like, uh, that's the problem we are trying to solve today.</span></div><div class="tline" data-t="157"><span class="ts">2:37</span><span class="tx">So we'll cover this two hundred millisecond constraint because two hundred millisecond is how fast humans switch turns with each other in a conversation. And the implications are pretty brutal because at eight hundred milliseconds, things start to feel off.</span></div><div class="tline" data-t="173"><span class="ts">2:53</span><span class="tx">While at one point five second, your user would just hang up on you because you have, like, your H-- your chat agents might get five seconds to respond and nobody will care.</span></div><div class="tline" data-t="185"><span class="ts">3:05</span><span class="tx">But, uh, with the voice agents, you don't get that luxury. We've seen recently, like, Salesforce was able to paper the pipeline, and they published their results in March twenty-sixth, but even their best measured response time was seven hundred fifty-five milliseconds, so that's like almost four x more than how humans naturally take turns while talking.</span></div><div class="tline" data-t="206"><span class="ts">3:26</span><span class="tx">So the question here becomes: How do we close this gap? And where we cannot close it, like at least how do we get the turn-taking right so the user experience does not feel as bad as the raw numbers, uh, might suggest here?</span></div><div class="tline" data-t="220"><span class="ts">3:40</span><span class="tx">So if you're working with a budget of seven hundred fifty-five millisecond, and every millisecond count, you also need to understand what's actually in the pipeline. Like, where does the time go, and where does this turn-taking fit?</span></div><div class="tline" data-t="234"><span class="ts">3:54</span><span class="tx">So the pipeline itself, you probably might know the main components, the STT, the LLM, the TTS. You have the audio in, text out, text in, audio out. But the piece that's often missing, like, from people, uh, while people are thinking about this, is this voice activity detection, commonly called as VAD.</span></div><div class="tline" data-t="255"><span class="ts">4:15</span><span class="tx">It's a tiny component that sits right at the front, and it is the one that controls turn-taking. Its job is to basically detect whether the user has stopped talking or not.</span></div><div class="tline" data-t="266"><span class="ts">4:26</span><span class="tx">And the two other thing that you set alongside the main pipeline are also very critical for turn-taking. So you have the smart turn detection, which watches the VAD signal, plus the audio features, and then it has to make a decision that, uh, whether should it respond now or should it wait because the user might still be talking.</span></div><div class="tline" data-t="287"><span class="ts">4:47</span><span class="tx">And the interruption handler is triggered when someone barges in. So what it'll do is it'll propagate a flush downstream, like the TTS would stop, and the LLM generation need to be canceled so that the pipeline is ne-- ready for the new input within about, you know, fifteen millisecond.</span></div><div class="tline" data-t="305"><span class="ts">5:05</span><span class="tx">So, uh, if you remember, I was talking about, like, how there are different levels to, you know, building, uh, this turn-taking in voice agents. So we'll start with, uh, level one.</span></div><div class="tline" data-t="317"><span class="ts">5:17</span><span class="tx">Level one is your Silero VAD. So this is a simple component which you fully own, and like a lot of production system even today, uh, we see are running agents just by using this.</span></div><div class="tline" data-t="330"><span class="ts">5:30</span><span class="tx">So coming to Silero VAD, it's a small three hundred, uh, thousand parameter model. It takes in like a short-time Fourier transform. It has a short-- And it takes raw audio, and it'll convert it into spectral features.</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">It has four convolutional layers, uh, to pick up the pattern, an LSTM that gives it memory, so across the frame, so it's just not looking at one chunk in isolation.</span></div><div class="tline" data-t="357"><span class="ts">5:57</span><span class="tx">And then it has a sigmoid that gives a probability of speech, and it's like a very small two-megabyte model.</span></div><div class="tline" data-t="365"><span class="ts">6:05</span><span class="tx">And the one parameter, that minimum silence millisecond, is basically the entire user experience of level one. If you keep it very low, the agent is gonna be snappy. Like, it will cut people off while they're still, you know, thinking.</span></div><div class="tline" data-t="379"><span class="ts">6:19</span><span class="tx">But if you keep it very high, the agent might become super patient, and it'll never interrupt, but you might get to, uh, get, like, a dead air where people will wonder if the agent is still connected or not.</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">So there's, like, no universally right answer. It depends on the domain. If, uh, if you're working on it from a perspective of a sales agent, you probably want it to be, like, two hundred millisecond.</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">If you're in a domain where you need some-- to give some time to your user to respond, it could be, like, a one-- a thousand to twelve hundred millisecond.</span></div><div class="tline" data-t="413"><span class="ts">6:53</span><span class="tx">It depends entirely on what you're building. So VAD works well. Like, that's why a lot of people are using it, and it's generally good at what it does. That is to return fast response to the basic question of whether there's someone talking right now.</span></div><div class="tline" data-t="430"><span class="ts">7:10</span><span class="tx">But, uh, there are things, like, it was never designed to handle because there'll be situation where just knowing that is there silence will not be enough. Because you also need to answer these questions of how long to wait, like, uh, the silence duration.</span></div><div class="tline" data-t="446"><span class="ts">7:26</span><span class="tx">If someone is pausing for three hundred millisecond or for two hundred milliseconds, uh, VAD is seeing the same exact thing. It has no idea, like, whether the person is, uh, catching up their breath or whether they've, uh, completely finished their thought.</span></div><div class="tline" data-t="461"><span class="ts">7:41</span><span class="tx">So, like, they, they cannot distinguish that. And the second scenario is, like, what if the, you know, the user talks over the agent? Like, uh, it barges in. It does not know how to handle it.</span></div><div class="tline" data-t="474"><span class="ts">7:54</span><span class="tx">And, uh, the same silence can have a different intent, and it can be, like, completely different things. It could be, like, a completed sentence, or it could be an incompleted thought.</span></div><div class="tline" data-t="485"><span class="ts">8:05</span><span class="tx">It could be, like, a thinking pause, or maybe it could be something as basic as, like, a backchannel acknowledgement. Uh, the situation of the silence is same, but the intent, uh, again, was very different in all the scenarios.</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">But VAD considers all four equally, and it literally cannot tell them apart.</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">So those are the limitation of level one. And with the level two, basically what you get is that you let the STT service tell you, like, when the turn is over.</span></div><div class="tline" data-t="519"><span class="ts">8:39</span><span class="tx">So Cartesia Ink-2 does, uh, turn detection right inside their STT WebSocket. So when they stream your audio in, the server would handle both the transcription and the turn detection together, and, uh, it will emit event when it thinks, like, the turn is done.</span></div><div class="tline" data-t="537"><span class="ts">8:57</span><span class="tx">Similarly, Deepgram does the same thing with their-- what they call is their, I think, at the endpointing. And their P50 latency for Cartesia Ink-2 is about three hundred, and it's about two fifty for Deepgram Nova-3.</span></div><div class="tline" data-t="550"><span class="ts">9:10</span><span class="tx">Both of these are also working really well. Like, we see a lot of customers use that because they are using, like, full audio signals plus some linguistic context to make these decisions, so which is, uh, like, much more information than your VAD will ever have.</span></div><div class="tline" data-t="567"><span class="ts">9:27</span><span class="tx">However, the trade-off is with the transparency because when it is working, it works great. But when it misfires or when it cuts someone off at the wrong moment, you, like, have no way to figure out because there's no log that will say, uh, it was done because of this reason, because of the-- what was-- what it saw.</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">And that decision was made inside someone else's server, and you just gotta live with that, basically.</span></div><div class="tline" data-t="595"><span class="ts">9:55</span><span class="tx">So that brings us to level three. So in level three, you keep Silero VAD running locally for the basic signal that is there a speech, and you add Smart Turn on top of it, which is a small model that runs during silence.</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">So Smart Turn v3.2 is the latest model, like, and, uh, let me share some numbers with you. And it has about fifty-eight point nine percent recall and, uh, sixty-eight point four percent precision.</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">So what this means is that about six out of ten time when someone finishes a sentence, Smart Turn will be able to catch it quickly. But the other four times it might not be confident enough.</span></div><div class="tline" data-t="637"><span class="ts">10:37</span><span class="tx">But, uh, that's also fine because you still have your VAD timer, which is running underneath as a safety net. If the Smart Turn doesn't fire, your stopSeconds will kick in, like, at the configured latency anyway.</span></div><div class="tline" data-t="650"><span class="ts">10:50</span><span class="tx">So it could be, like, three hundred millisecond.</span></div><div class="tline" data-t="654"><span class="ts">10:54</span><span class="tx">So in that scenario, you will never get stuck waiting. You just, like, get the fast respond when the model is confident, and you get a slightly slower, but a safer response when it's not.</span></div><div class="tline" data-t="665"><span class="ts">11:05</span><span class="tx">The other number on this list is from, like, a Meta's, uh, published paper earlier this year in-- around March, where they had reported a high recall at eighty-seven point seven percent.</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">But, uh, they haven't released the code, so you really cannot deploy it.</span></div><div class="tline" data-t="682"><span class="ts">11:22</span><span class="tx">Smart Turn is BSD 2-licensed, and it's a eight-megabyte, uh, small model. You can pip install it today as well. So yeah, like, uh, that works out better for a lot of our customers deciding when to start talking.</span></div><div class="tline" data-t="695"><span class="ts">11:35</span><span class="tx">But, like, what about the other direction? What happens when the user interrupts and, uh, while you are already-- you know, the agent is talking?</span></div><div class="tline" data-t="704"><span class="ts">11:44</span><span class="tx">So on the left side, you can see what happens mechanically. Like, user opens, uh, you-- mouth, the VAD will pick it up in thirty-two milliseconds, and then, then, like, fifteen millisecond, the entire pipeline is flushed.</span></div><div class="tline" data-t="717"><span class="ts">11:57</span><span class="tx">TTS stops, LLM cancels, everything is clean. Like, the user never hears the agent. Uh, you know, that part is taken care by Pipecat.</span></div><div class="tline" data-t="726"><span class="ts">12:06</span><span class="tx">But, uh, the important thing is, like, should it have stopped there on-- Because think about a normal conversation when someone says, &quot;Yeah,&quot; like, uh, they send an acknowledgment while you speak, you don't stop, right?</span></div><div class="tline" data-t="740"><span class="ts">12:20</span><span class="tx">You know, they're just agreeing. But if you-- they say, like, &quot;Okay, wait, no, like, that was wrong,&quot; you have to stop immediately. Same thing here. Like, the red is the-- it's a correction, s-stop on everything.</span></div><div class="tline" data-t="752"><span class="ts">12:32</span><span class="tx">Um, the amber could be just some sort of a filler background noise. Hope you wanna go ahead and keep going, maybe get a bit quieter.</span></div><div class="tline" data-t="761"><span class="ts">12:41</span><span class="tx">Blue is like a signal for cough or a background noise, uh, so you can just ignore it and finish your sentence.</span></div><div class="tline" data-t="768"><span class="ts">12:48</span><span class="tx">So at level three, because you own this classification, you can start a distinction between, like, a real interruption and someone just, uh, you know, going, &quot;Mm.&quot; So today, most of these system stop every time, but, uh, this is a piece that's improving.</span></div><div class="tline" data-t="785"><span class="ts">13:05</span><span class="tx">Uh, like, we are seeing a lot of, uh, incremental improvement in this.</span></div><div class="tline" data-t="794"><span class="ts">13:14</span><span class="tx">So by now that you've seen all three levels, and if you look at these three Python files, uh, pipeline is almost identical in all of them. The only thing that differs is how you answer this question, when is the user done talking?</span></div><div class="tline" data-t="811"><span class="ts">13:31</span><span class="tx">In file one, you pass in SileroVADAnalyzer, and that says the user had been silent for three hundred milliseconds, so you can assume they are done.</span></div><div class="tline" data-t="821"><span class="ts">13:41</span><span class="tx">In file two, you swap it with the Cartesia turn's, uh, STT service, uh, class, and now the server is gonna tell you when the turn is over.</span></div><div class="tline" data-t="831"><span class="ts">13:51</span><span class="tx">And in file three, you keep your SileroVADAnalyzer, but you also add, like, a LocalSmartTurnAnalyzerV3, which is, uh, sort of a small model that runs during your silence.</span></div><div class="tline" data-t="842"><span class="ts">14:02</span><span class="tx">And it's gonna look at the prosody, and it's gonna look at prosody and intonation to decide whether that pause meant I'm done or I'm still thinking.</span></div><div class="tline" data-t="856"><span class="ts">14:16</span><span class="tx">So you have the code-wise the same pipeline, but the configuration changes, which, you know, leads to completely different behavior.</span></div><div class="tline" data-t="866"><span class="ts">14:26</span><span class="tx">So to summarize your three levels, your level one was Silero VAD, so you basically own the silence detection completely. Level two, you let the STT provider handle it for you.</span></div><div class="tline" data-t="878"><span class="ts">14:38</span><span class="tx">In, in most cases, it, uh, it will be smarter, but then you cannot see what, uh, happened inside it.</span></div><div class="tline" data-t="886"><span class="ts">14:46</span><span class="tx">Level three is your VAD plus Smart Turn, so where we basically own everything, like, uh, you have full portability.</span></div><div class="tline" data-t="895"><span class="ts">14:55</span><span class="tx">And, uh, now coming to the latency piece, because we've been throwing around these numbers, seven hundred and fifty-five milliseconds, one point three seconds, but, uh, let me show you where, uh, the time actually goes in.</span></div><div class="tline" data-t="908"><span class="ts">15:08</span><span class="tx">So this is a breakdown from Kwindla, uh, who is a co-founder of Data... Daily, and is the person who created Pipecat. And these are some of the numbers based on their production measurement.</span></div><div class="tline" data-t="919"><span class="ts">15:19</span><span class="tx">So you have the numbers for mic and encoding, which is about forty milliseconds. Then you have network and jitter buffer of fifty-two.</span></div><div class="tline" data-t="927"><span class="ts">15:27</span><span class="tx">So these are physics, like you can't really change them much. Then you have your transcription plus, uh, endpointing. That's about three hundred milliseconds. Again, that's your STT doing its thing.</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">LLM time to first byte, and this is generally the dominant bottleneck, because in a typical API setup, you're looking at five hundred to six hundred fifty milliseconds, depending on what model you're calling in from which cloud provider, which region.</span></div><div class="tline" data-t="957"><span class="ts">15:57</span><span class="tx">And then, uh, you have your network out and playback, uh, TTS. That's-- It's gonna take about one twenty to ninety, eighty-five milliseconds.</span></div><div class="tline" data-t="968"><span class="ts">16:08</span><span class="tx">So you are totally looking at roughly eleven hundred to thirteen hundred milliseconds in a standard setup calling cloud APIs. Now, the Kwindla's team had demonstrated about five hundred, uh, milliseconds total voice-to-voice by co-locating all models in the same GPU cluster,</span></div><div class="tline" data-t="985"><span class="ts">16:25</span><span class="tx">because they were able to eliminate the network hops between the servers.</span></div><div class="tline" data-t="990"><span class="ts">16:30</span><span class="tx">When-- It's sort of an achievable floor because if you're willing to invest in infrastructure, but for most of the developers today calling APIs, you are somewhere in the range of eight hundred to thirteen hundred, uh, milliseconds.</span></div><div class="tline" data-t="1003"><span class="ts">16:43</span><span class="tx">And the key insight to note here is that the STT and LLM together eat about two-third of these, uh, latency budget. So these are the really the only two levers that, uh, we have to move this, uh, latency metric, uh, needle in a meaningful manner.</span></div><div class="tline" data-t="1023"><span class="ts">17:03</span><span class="tx">So coming to, like, which, uh, LLMs are actually fast enough for this. We benchmark current models specifically for voice and the target, uh, we kept it as under seven hundred milliseconds time to first token, because anything slower will push our total response past where the user is gonna start noticing.</span></div><div class="tline" data-t="1043"><span class="ts">17:23</span><span class="tx">So for now, like recording in June 2026, what we've observed Nemotron-3 Ultra gives us a five hundred and twenty-nine P50, uh, latency. GPT-4.1 at about five hundred and thirty-six.</span></div><div class="tline" data-t="1059"><span class="ts">17:39</span><span class="tx">But also, like what matters more in voice, uh, than P95...</span></div><div class="tline" data-t="1074"><span class="ts">17:54</span><span class="tx">Hmm. So which LLMs are actually fast enough for this? We benchmark current models, especially, uh, for voice and</span></div><div class="tline" data-t="1096"><span class="ts">18:16</span><span class="tx">So coming to the, so coming to the LLMs models, which are actually fast enough for the... We benchmark current models, uh, for voice. Uh, so these benchmarks are from June twenty-six, and the target that we kept was under seven hundred millisecond for time to first token, because anything slower would push our total response time past the limit,</span></div><div class="tline" data-t="1119"><span class="ts">18:39</span><span class="tx">like where users is gonna start noticing. So for now, the Nemotron-3 Ultra had, uh, five twenty-nine P50.</span></div><div class="tline" data-t="1130"><span class="ts">18:50</span><span class="tx">We observed GPT-4.1 at five thirty-six, again P50.</span></div><div class="tline" data-t="1135"><span class="ts">18:55</span><span class="tx">But, uh, what matters more in voice than maybe anywhere else is at the P95 tail, because GPT-4.1 was great at P50, but it spikes to one point seven at P95.</span></div><div class="tline" data-t="1151"><span class="ts">19:11</span><span class="tx">And it was even worse for Claude Sonnet that it hit over four seconds. And because in a conversation, you cannot average this out, because one slow response and your entire flow is gone.</span></div><div class="tline" data-t="1163"><span class="ts">19:23</span><span class="tx">And there's one more dimension that, uh, people often miss, which is the multi-turn drift. Because after fifteen or twenty turn, sometime model starts ignoring parts of the system prompt.</span></div><div class="tline" data-t="1175"><span class="ts">19:35</span><span class="tx">They might get too verbose, they go off-script. Because in voice, that's fatal. You can't just, uh, dump a wall of text on, uh, someone. If the instruction following degrades across turn, then you have to do some sort of a context pruning or session resets.</span></div><div class="tline" data-t="1196"><span class="ts">19:56</span><span class="tx">So a few production issues that we've seen are, mm, that, uh, false interruptions significantly increase your escalation rate. Because when agents cut people off incorrectly, then users are more likely to request for a human-in-the-loop, uh, support.</span></div><div class="tline" data-t="1217"><span class="ts">20:17</span><span class="tx">And a seven hundred fifty-five millisecond, that's still, I think, the best measured voice-to-voice for a cascaded pipeline like the ones which we propose. We are nowhere near the human speed of interaction, which means that the turn-taking also needs to do a lot of heavy lifting to make the experience feel better than the raw numbers it would suggest.</span></div><div class="tline" data-t="1240"><span class="ts">20:40</span><span class="tx">And at fifty-eight point nine percent recall on Smart Turn, that's actually the best deployable turn detection you can get today. Um, because although it still leaves like four out of ten, uh, turns to be filled by a VAD timer, but, uh, this space is going to improve a lot over the next year, few years, and, uh,</span></div><div class="tline" data-t="1263"><span class="ts">21:03</span><span class="tx">we'd have better model. And on infrastructure, running all of this in production is also hard, because five systems that all scale differently and, and also fail differently.</span></div><div class="tline" data-t="1276"><span class="ts">21:16</span><span class="tx">You can explore Pipecat Cloud for managed hosting, where your focus is on agent, uh, logic, or the AWS, uh, Guidance Reference Architecture for enterprise deployments with all the enterprise guardrails.</span></div><div class="tline" data-t="1290"><span class="ts">21:30</span><span class="tx">So yeah, like, uh, uh, that's it from me. Everything, uh, we've discussed, uh, mentioned is linked on the screen, the FO benchmark. Okay, over to you, Daniel.</span></div><div class="tline" data-t="1306"><span class="ts">21:46</span><span class="tx">Thanks, Chintan. Hi, everyone. Uh, my name is Daniel Wirjo. I'm also a solutions architect with the AWS Startups team. So I think, um, Chintan walked you through a great overview of some of the key challenges when building voice agents.</span></div><div class="tline" data-t="1319"><span class="ts">21:59</span><span class="tx">So what I might do in this session is just to walk you through a hands-on demo, um, just to make the concepts a bit more concrete, and hopefully, um, you can kind of, um, incorporate some of the learnings into your own voice agent pipelines as well.</span></div><div class="tline" data-t="1336"><span class="ts">22:16</span><span class="tx">So what we'll be going through is just this Pipecat turn detection demo, which is just a simple repository that we've created. Um, we'll talk through three examples. So one with, um, silence detection, another with, um, built-in turn detection in the speech-to-text model.</span></div><div class="tline" data-t="1356"><span class="ts">22:36</span><span class="tx">And then finally, um, we'll go through the open Smart Turn model as well. So this is really useful when you either want full control of your, um, voice pipeline, just for from a compliance perspective, or if you wanna also fine-tune and customize your own turn detection model base your own-- based on your own data.</span></div><div class="tline" data-t="1378"><span class="ts">22:58</span><span class="tx">So yeah, let's get started. So let's just go through the source code of the first example. As you can see here, um, using Silero is pretty easy in Pipecat.</span></div><div class="tline" data-t="1390"><span class="ts">23:10</span><span class="tx">All you have to do is import the relevant libraries, and you can configure the parameters as well. Um, I haven't actually, uh, configured any of the parameters, so these are just the default, but you can change the parameters like the confidence to trigger the silence duration before the turn ends, and the minimum audio volume as well.</span></div><div class="tline" data-t="1414"><span class="ts">23:34</span><span class="tx">And in terms of the voice, voice pipeline, it's pretty standard. So we've used, um, an STT model, LLM, and also a TTS model here. We've just defined it as the Cartesia model for STT.</span></div><div class="tline" data-t="1427"><span class="ts">23:47</span><span class="tx">Same with the Sonic model for TTS. And as you can see, we've used the voice that sounds like a, a British lady. And for the LLM in the voice agent's brain, we have just used the Anthropic Claude Haiku model.</span></div><div class="tline" data-t="1440"><span class="ts">24:00</span><span class="tx">So we'll see, um, what that looks like, and I'll spin up this example right now. So,</span></div><div class="tline" data-t="1449"><span class="ts">24:09</span><span class="tx">so if you haven't used Pipecat before, one of the nice things is that it can spin up a local prototyping environment, really useful for playing around with your voice agent pipeline.</span></div><div class="tline" data-t="1461"><span class="ts">24:21</span><span class="tx">So let me just see if this now works. Okay. So as you can see, it will come up with a, um, local, um, development environment.</span></div><div class="tline" data-t="1472"><span class="ts">24:32</span><span class="tx">So what I might do is just connect to the voice agent. But before I do that, I might just mute just in case, um, I'm interrupting the voice agent.</span></div><div class="tline" data-t="1482"><span class="ts">24:42</span><span class="tx">It should come up with, like, an opening greeting, and then I'll test it with some, uh, interactions to see how the turn detection is working.</span></div><div class="tline" data-t="1501"><span class="ts">25:01</span><span class="tx">Hey there. I'm your travel assistant, and I'm excited to help you plan an amazing trip. So where are you thinking of going? Anywhere in the world you've got your eye on.</span></div><div class="tline" data-t="1510"><span class="ts">25:10</span><span class="tx">As you can see, the assistant's, uh, gone ahead to do the opening greeting. And on the right here in the terminal, I've just got, um, some real-time logs just so we can see what's happening.</span></div><div class="tline" data-t="1523"><span class="ts">25:23</span><span class="tx">So what I might do now is just I'm gonna pretend that I'm, uh, thinking about my travel destination and see how the voice agent behaves.</span></div><div class="tline" data-t="1533"><span class="ts">25:33</span><span class="tx">So I'm thinking of going to, um-</span></div><div class="tline" data-t="1541"><span class="ts">25:41</span><span class="tx">I'm all ears. Where are you thinking of heading?</span></div><div class="tline" data-t="1544"><span class="ts">25:44</span><span class="tx">As you can see, I haven't really finished my, uh, sentence yet, but the voice agent is already, uh, responding. So you can see how this works in the debug logs.</span></div><div class="tline" data-t="1557"><span class="ts">25:57</span><span class="tx">And as you can see, there's an end of turn complete here. And the reason for that is due to the stopSeconds parameter, which is, um, set to, um, three hundred milliseconds it looks like here.</span></div><div class="tline" data-t="1570"><span class="ts">26:10</span><span class="tx">So that's why it's gone ahead and ended the turn. Um, what I might do is I might just exit this local server</span></div><div class="tline" data-t="1581"><span class="ts">26:21</span><span class="tx">and try the second example. So let's just clear that, and I'll refresh that. Okay, so I'm gonna try the second example here. And in this, uh, example, we'll use a, um, speech-to-text model which has turn detection.</span></div><div class="tline" data-t="1599"><span class="ts">26:39</span><span class="tx">So we'll see how the voice agent behaves. Okay.</span></div><div class="tline" data-t="1606"><span class="ts">26:46</span><span class="tx">I'm going to try, uh, the same example, so let me just mute myself here.</span></div><div class="tline" data-t="1617"><span class="ts">26:57</span><span class="tx">Hey there. I'm your travel assistant, and I'm excited to help you plan an amazing trip. So where are you thinking of heading? Are you dreaming of a beach getaway, a city adventure, mountains, or maybe somewhere completely different?</span></div><div class="tline" data-t="1631"><span class="ts">27:11</span><span class="tx">All right, let's see how the model behaves this time.</span></div><div class="tline" data-t="1636"><span class="ts">27:16</span><span class="tx">Hi, I'm thinking of going to, um... As you can see, the model is pretty smart.</span></div><div class="tline" data-t="1651"><span class="ts">27:31</span><span class="tx">It now can detect the turn. So let's see if we can find out what's going on in the debug logs. So, um, let's see if it emits, uh, some of those turn-taking events here.</span></div><div class="tline" data-t="1673"><span class="ts">27:53</span><span class="tx">So as you can see, um, the Cartesia Ink model does emit some turn events here.</span></div><div class="tline" data-t="1690"><span class="ts">28:10</span><span class="tx">And as you can see, it hasn't really completed the turn. It hasn't sort of, um, responded back with any response. But maybe I can unmute myself and then resume and get to the destination.</span></div><div class="tline" data-t="1705"><span class="ts">28:25</span><span class="tx">So, Sydney.</span></div><div class="tline" data-t="1711"><span class="ts">28:31</span><span class="tx">Oh, Sydney is fantastic. You're gonna have such a great time there. Are you thinking about when you'd like to go? And how long are you planning to stay? That'll help me figure out the best flights and hotels for you.</span></div><div class="tline" data-t="1722"><span class="ts">28:42</span><span class="tx">So as you can see, once the model detects that it's a full, complete sentence, it's able to then respond. Now, in practice, you would also incorporate, uh, some silence detection there because as you can see, I was quite silent.</span></div><div class="tline" data-t="1736"><span class="ts">28:56</span><span class="tx">Um, I was muted for a while, and you'd probably want the voice agent to respond in practice. Um, having, like, voice, uh, activity detection or silence detection is also useful for, um, interrupting the voice models, um, um, or what you call barge-in as well.</span></div><div class="tline" data-t="1754"><span class="ts">29:14</span><span class="tx">So definitely this is just a, a quick demo, but in practice, you would probably combine both the turn detection model and the silence detection. Um, just for the final demo, I might quickly show the Smart Turn model as well and see what that looks like.</span></div><div class="tline" data-t="1770"><span class="ts">29:30</span><span class="tx">Um, it will behave very similar to, to this. It's just that, um, the model will be running on your, uh, either your local machine or, um, on a GPU, uh, environment as well if you wanna deploy that into your-- into the cloud.</span></div><div class="tline" data-t="1787"><span class="ts">29:47</span><span class="tx">So let me just maybe clear this just to avoid confusion.</span></div><div class="tline" data-t="1794"><span class="ts">29:54</span><span class="tx">And then I'll use, um... I'll refresh this as well, and I'll start now the Smart Turn example.</span></div><div class="tline" data-t="1801"><span class="ts">30:01</span><span class="tx">I'll refresh this to see if we can... Okay, there you go. It's starting it, and I'm just gonna do the same example, so I'll mute myself again.</span></div><div class="tline" data-t="1818"><span class="ts">30:18</span><span class="tx">Hey there. I'm your travel assistant, and I'm excited to help you plan an amazing trip. So where are you thinking about going? Are you dreaming of a beach getaway, exploring a new city, or maybe something else entirely?</span></div><div class="tline" data-t="1833"><span class="ts">30:33</span><span class="tx">I'm thinking of going to, um-</span></div><div class="tline" data-t="1838"><span class="ts">30:38</span><span class="tx">I'm all ears. Where are you thinking of going?</span></div><div class="tline" data-t="1841"><span class="ts">30:41</span><span class="tx">Now let's take a look at the, um, both the silence detection, which is incorporated into this example, and also the turn detection model. Hopefully, there are some, um, debug logs that we can see.</span></div><div class="tline" data-t="1855"><span class="ts">30:55</span><span class="tx">As you can see, um, it's not detecting that I've completed the turn. The end of turn state is incomplete, but it did complete it, um, due to the silence that I've, um,</span></div><div class="tline" data-t="1867"><span class="ts">31:07</span><span class="tx">I've, um, incurred there. Um, so there, there was some silence and therefore it sort of kept going with the, with the, um, next turn. What I might do is see if I can do a complete sentence and see if, you know, um, it can be detected through the local Smart Turn model.</span></div><div class="tline" data-t="1890"><span class="ts">31:30</span><span class="tx">I'm actually thinking of, um, going to Sydney.</span></div><div class="tline" data-t="1896"><span class="ts">31:36</span><span class="tx">Oh, Sydney's fantastic. I'd love to help you plan that trip. So tell me, what time of year are you thinking about going, and how long are you planning to stay?</span></div><div class="tline" data-t="1904"><span class="ts">31:44</span><span class="tx">Also, are you traveling solo, with a partner, or with family?</span></div><div class="tline" data-t="1910"><span class="ts">31:50</span><span class="tx">Okay, fantastic. So the voice agent was able to respond as soon as I, uh, completed the sentence. But let's see if that was actually intentional or was that, um, something that, um, you know, can be detected through the Smart Turn model.</span></div><div class="tline" data-t="1926"><span class="ts">32:06</span><span class="tx">So let's have a look here to see if we can find the Smart Turn, um, debug logs.</span></div><div class="tline" data-t="1941"><span class="ts">32:21</span><span class="tx">As you can see, this line here, um, sorry about the legibility of the highlight, but effectively this here says that, um, the end of turn state in, is complete, and the Smart Turn model is actually classifying that there is a high probability there that, um, the sentence is complete and therefore it's okay to go to the next</span></div><div class="tline" data-t="1962"><span class="ts">32:42</span><span class="tx">turn. So that's, um, in a nutshell how, um, turn detection works. Hope that was helpful.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>我们如何搞定了智能体构建 —— Andrew Qu，Vercel | AI 工程师中文版</title>
+<meta name="description" content="Andrew Qu 讲述了 Vercel 数据智能体的演进：从粘贴一份 Snowflake 表结构开始，到限定范围的智能体、沙箱文件系统、可复用的技能，再到 Eve。每一次重写都改变了智能体寻找上下文、从错误中恢复以及使用公司知识的方式。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>我们如何搞定了智能体构建 —— Andrew Qu，Vercel</h1>
+    <div class="orig-title">How We Solved Agent Building — Andrew Qu, Vercel</div>
+    <div class="meta"><span class="speaker">Andrew Qu</span> · 17:34</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=agent-skills">智能体技能</a><a class="tag" href="../../index.html#topic=natural-language-database-queries">自然语言数据库查询</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/9dYcwOkpCE8-we-solved-agent-building" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="9dYcwOkpCE8"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=9dYcwOkpCE8" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">从智能体基础设施到数据团队的瓶颈</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>从智能体基础设施到数据团队的瓶颈</span></li><li data-t="226"><span class="ts">3:46</span><span>生成 SQL 变成一个端到端的工作流</span></li><li data-t="347"><span class="ts">5:47</span><span>一个智能体可以重新审视失败的决策</span></li><li data-t="438"><span class="ts">7:18</span><span>把语义层放在智能体能探索的地方</span></li><li data-t="587"><span class="ts">9:47</span><span>重复的问题变成下一次运行的知识</span></li><li data-t="698"><span class="ts">11:38</span><span>Eve 把有效的工作模式变成文件约定</span></li><li data-t="900"><span class="ts">15:00</span><span>公司知识让自动化变得有用</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 22 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="We Solved Agent Building" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>We Solved Agent Building</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Andrew Qu introduces Vercel’s approach to agent building and his work across internal engineering and external experimentation.
+
+[0:15](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=15s) [Vercel title slide for We Solved Agent Building, presented by Andrew Qu.](https://assets.ai.engineer/sites/aiecode2025/sha256/552862e7ae3e5e4dc1c27ab1cc7e8e7f1c046cd2e35748d4abcfac84291cecef.webp)
+
+Vercel
+
+We Solved Agent Building
+
+Andrew Qu
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Vercel AI Products" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Vercel AI Products</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Qu says AI SDK gives model providers a shared interface. Vercel’s other tools support model fallbacks, secure code execution, pricing for idle time, and resumable workflows.
+
+[0:34](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=34s) [Six panels introduce AI SDK, AI Gateway, Fluid Compute, Sandbox, Workflow, and Chat SDK.](https://assets.ai.engineer/sites/aiecode2025/sha256/3c6be5e73a3089a0eb9d3c91bb3cd74343310e841e0c8e1ff928142311cc8ddc.webp)
+
+AI SDK
+Toolkit for unified model access
+
+AI SDK 5.0
+1  // Type-safe tool parts with specific names
+2  {
+3    message.parts.map(part =&gt; {
+4      switch (part.type) {
+5        case 'tool-getWeatherInformation':
+6          return &lt;div&gt;Getting weather...&lt;/div&gt;;
+
+AI Gateway
+Hundreds of AI models.
+Zero API keys.
+
+Fluid Compute
+Active CPU pricing.
+Pay for what you actually use.
+Active | Idle - no charge | Active
+
+Sandbox
+Fast, secure code execution
+
+Workflow
+Make any TypeScript function durable
+workflow()  100ms
+process()
+parse()
+transform()
+enrich()
+validate()
+
+Chat SDK
+One codebase, every chat platform
+
+Interface text:
+[illegible]
+Play demo</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="A Computer on Every Desk" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A Computer on Every Desk</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Andrew Qu uses Microsoft’s early goal of a computer on every desk to ask whether every desk could have an agent.
+
+[1:44](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=104s) [An excerpt about Microsoft's early goal highlights the phrase a computer on every desk.](https://assets.ai.engineer/sites/aiecode2025/sha256/077f9777aed051291ee2c3385191a5fd578e9307d7ead93265248a7abefe2145.webp)
+
+In the early days of Microsoft, Bill Gates and Paul Allen set a goal of having a computer on every desk and in every home – all running Microsoft products, of course. They first met as children at a private school in Seattle, where they discovered a shared love of computers. Both went on to college but dropped out and created Microsoft, so-called because it provided microcomputer software.
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="An Agent on Every Desk" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>An Agent on Every Desk</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Andrew Qu explored this idea with Vercel’s data team, which had to interrupt its work to query and analyze data for colleagues in marketing and sales.
+
+[2:08](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=128s) [Centered text reads An agent on every desk.](https://assets.ai.engineer/sites/aiecode2025/sha256/f3b1b8d6139b95bdf126561b8679285e3e6969628c0079884c2344c5f6390009.webp)
+
+An agent on every desk
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="V0: The Mega Prompt" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>V0: The Mega Prompt</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The first version put a question and Snowflake schema into one large prompt and made a single model call. Qu then ran the generated SQL himself.
+
+[3:34](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=214s) [A user question passes through a giant prompt and a one-shot model call to a naive answer.](https://assets.ai.engineer/sites/aiecode2025/sha256/8e4f5dd21900072dfac714a071bdd7109031c5bb4fe4ecca244e673233e12de4.webp)
+
+V0: The Mega Prompt
+
+User question → Giant prompt → 1 shot model call → Naive answer
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="SQL Generation Prompt" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>SQL Generation Prompt</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The first version sends a question and schemas in one prompt and asks the model for SQL. Qu then copied the generated SQL and ran it himself to test whether the model could produce valid queries.
+
+[3:49](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=229s) [TypeScript code calls generateText with a prompt to write SQL from a question and schemas.](https://assets.ai.engineer/sites/aiecode2025/sha256/4afc273aaafaa5ca413c7dc7b6750616b94dc9ac4915339ce2c1bf0b0f7a5b72.webp)
+
+import { generateText } from &quot;ai&quot;;
+
+const { text } = await generateText({
+  model: &quot;...&quot;,
+  prompt: `You are an expert data scientist,
+  write a valid SQL query given
+  the user question and schemas
+
+&lt;Schemas&gt;
+      ${getSchemas()}
+    &lt;/Schemas&gt;
+
+&lt;Question&gt;
+      ${question}
+    &lt;/Question&gt;
+
+Only return valid SQL.
+  `,
+});
+
+Interface text:
+d0/agent.ts
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Chained subagents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Chained subagents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>D0 chains query, planning, SQL, and reporting calls, each with its own prompt and scoped tools. Each call passes its output to the next, creating a loop from question to answer.
+
+[5:11](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=311s) [Code chains query, planning, SQL, and reporting calls with scoped tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/fe58eff2c90e01f674221e71febdafea877b177bfc0160cfca9c889a709246ec.webp)
+
+import { generateText } from &quot;ai&quot;;
+
+const { text: queryContext } = await generateText({
+  model: &quot;...&quot;,
+  messages: [...queryPrompt, { role: &quot;user&quot;, content: question }],
+  tools: { ReadEntityYaml, SearchSchemas },
+});
+
+const { text: plan } = await generateText({
+  model: &quot;...&quot;,
+  messages: [...planningPrompt, { role: &quot;user&quot;, content: queryContext }],
+  tools: { AssessEntityCoverage, BuildPlan },
+});
+
+const { text: sql } = await generateText({
+  model: &quot;...&quot;,
+  messages: [...sqlPrompt, { role: &quot;user&quot;, content: plan }],
+  tools: { BuildSQL, SyntaxValidator },
+});
+
+const { text: report } = await generateText({
+  model: &quot;...&quot;,
+  messages: [...reportingPrompt, { role: &quot;user&quot;, content: sql }],
+  tools: { ExecuteSQL, FormatResults, VisualizeData },
+});
+
+Interface text:
+d0/subagents.ts
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="One agent, many modes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One agent, many modes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>One agent shares context across query, planning, execution and reporting modes. It can look back on its work and retry planning before reporting an answer.
+
+[5:57](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=357s) [A user question enters shared context connected to query, execution, planning, and reporting modes, leading to an answer.](https://assets.ai.engineer/sites/aiecode2025/sha256/968dc52b37c25715f22ff62e81f06e85e1011a43e03888bedc1f8ef66df7ac9b.webp)
+
+One agent, many modes
+
+AGENT
+User question
+Shared context / same loop
+Query mode
+Execution mode
+retry
+Planning mode
+Reporting mode
+Answer
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Claude Code agent example" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Claude Code agent example</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example asks Claude Code to investigate an API error spike using file, SQL, cost-estimation and visualization tools. Qu says the agent can explore and write work as needed.
+
+[8:08](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=488s) [Code queries an agent about API errors and lists file, SQL, cost, and visualization tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/416b181996af728ad91ddec42cfd9b97aa6e6ed03d2b4536bb6601f825f65486.webp)
+
+import { query } from &quot;@anthropic-ai/claude-agent-sdk&quot;;
+
+for await (const message of query({
+  prompt: &quot;What drove the spike in API errors?&quot;,
+  options: {
+    allowedTools: [
+      &quot;ListFiles&quot;,
+      &quot;ReadFiles&quot;,
+      &quot;WriteFiles&quot;,
+      &quot;ValidateSQL&quot;,
+      &quot;EstimateCost&quot;,
+      &quot;ExecuteSQL&quot;,
+      &quot;VisualizeData&quot;,
+    ],
+  },
+})) {
+  console.log(message);
+}
+
+Interface text:
+d0/claude-code.ts
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="You can just use a File System" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>You can just use a File System</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Claude Code’s local execution inspired the team to let an agent explore and write using a file system.
+
+[8:41](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=521s) [A black slide with the centered statement, “You can just use a File System.”](https://assets.ai.engineer/sites/aiecode2025/sha256/a2e8da057d0fa26d2f0a1ffa741372f6a0e836f9c189c4fe6ee2981800748aee.webp)
+
+You can just use a File System
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="We removed 80% of our agent’s tools" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>We removed 80% of our agent’s tools</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Vercel stripped its text-to-SQL agent down to Bash and direct file access. Qu says the simpler agent answered many questions the earlier version had failed.
+
+[9:55](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=595s) [A Vercel blog post describes simplifying a text-to-SQL agent to use Bash and direct file access.](https://assets.ai.engineer/sites/aiecode2025/sha256/2917531c75896e4a0d956d9819140e914800d444e64439607f77db20886cda1c.webp)
+
+Blog
+
+We removed 80% of our agent’s tools
+
+Andrew Qu  Chief of Software, Vercel
+
+4 min read  Copy URL  Dec 22, 2025
+
+It got better.
+
+We spent months building a sophisticated internal text-to-SQL agent, d0, with specialized tools, heavy prompt engineering, and careful context management. It worked... kind of. But it was fragile, slow, and required constant maintenance.
+
+So we tried something different. We deleted most of it and stripped the agent down to a single tool: execute arbitrary bash commands. We call this a file system agent. Claude gets direct access to your files and figures things out using grep, cat, and ls.
+
+Interface text:
+vercel.com/blog
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Patterns show up" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Patterns show up</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A recurring job distills recent data queries into skills, giving future agent runs context from earlier work. Qu says the team has roughly 100 skills, from aggregations to specific data lookups.
+
+[10:07](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=607s) [Several example data questions feed into a data agent, followed by distillation into a skill.](https://assets.ai.engineer/sites/aiecode2025/sha256/e9bf7d8f193b1f96c826b5c086d2f95a42476010a593955e45e446feb6ddb3ac.webp)
+
+Patterns show up
+
+which table has revenue
+what was product X growth like MoM
+why did this metric spike
+how did this marketing campaign do?
+what's the trend of X over X
+
+Data agent
+Distill
+Skill
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Skills and Bash tool example" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Skills and Bash tool example</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example loads a skills directory, passes its files and instructions to the Bash tool, and gives both the skill and Bash tools to a tool-loop agent.
+
+[11:08](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=668s) [TypeScript code creates a skill tool and Bash tools, then supplies them to a tool-loop agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/e2febc3470605f6c33bad65d2f7431db0a21535abe72b1bc94d9b88a374cb17b.webp)
+
+import {
+  experimental_createSkillTool as createSkillTool,
+  createBashTool,
+} from &quot;bash-tool&quot;;
+import { ToolLoopAgent } from &quot;ai&quot;;
+
+const { skill, files, instructions } = await createSkillTool({
+  skillsDirectory: &quot;./skills&quot;,
+});
+
+const { tools } = await createBashTool({
+  files,
+  extraInstructions: instructions,
+});
+
+const agent = new ToolLoopAgent({
+  model,
+  tools: { skill, ...tools },
+});
+
+Interface text:
+d0/skills.ts
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Agent development progression" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent development progression</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Qu traces a path from a simple prompt through subagents, agent modes, Claude Code, the file system and skills, then asks how developers can start from the latest insights instead of rebuilding them.
+
+[11:21](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=681s) [A flowchart progresses from a simple prompt through subagents, agent modes, Claude Code, the file system and skills to an unknown next step.](https://assets.ai.engineer/sites/aiecode2025/sha256/054efcbcda3efd9e081bf351510af82df7a883a2052f18f40bbd24b9f2a4a8af.webp)
+
+Simple Prompt
+Subagents
+One agent, many modes
+Claude Code
+File System
+Skills
+???
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Next.js for agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Next.js for agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Qu proposes applying Next.js file conventions to agents: developers would declare skills, tools and channels in folders, and the framework would build an agent from them.
+
+[12:03](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=723s) [A question about building Next.js for agents sits beside an example Next.js project tree.](https://assets.ai.engineer/sites/aiecode2025/sha256/e018a97546d5584c3e354154a485375bd4c45f704d2d3dac338ecf3780941665.webp)
+
+What if we built the Next.js for agents?
+
+next-app/
+  proxy.ts
+  app/
+    page.tsx
+    layout.tsx
+    api/
+      route.ts
+  components/
+    Button.tsx
+    Card.tsx
+
+Vercel
+~/ai-engineer-worlds-fair
+
+Interface text:
+next-app/</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Announcing Eve" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Announcing Eve</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Qu introduces Eve, an agent framework for starting from a template and adding custom knowledge, tools and channel integrations.
+
+[12:44](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=764s) [An announcement graphic introduces Eve as Next.js for agents.](https://assets.ai.engineer/sites/aiecode2025/sha256/5660bc7af9697c6bb56c0c9ef7f29c64304743d8fc19280541b408aa186233c8.webp)
+
+ANNOUNCING
+
+EVE
+
+NEXT.JS FOR AGENTS</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Example agent project structure" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Example agent project structure</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The rewritten agent groups instructions, tools, subagents, skills and a Slack channel in one file tree. Qu says this structure makes the agent easy to compose and iterate on.
+
+[13:49](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=829s) [A project tree organizes agent instructions, tools, subagents, skills and a channel.](https://assets.ai.engineer/sites/aiecode2025/sha256/d197eb097b35ac85d8bc1b3529bcb7411957a1d061a20e792e3f0b1643ca4c80.webp)
+
+agent/
+  agent.ts
+  system.md
+  system/
+    INSTRUCTIONS.md
+    RULES.md
+    REPORTING.md
+  tools/
+    preflight_sql.ts
+    finalize_slack_answer.ts
+    enrich_csv_with_sql.ts
+  subagents/
+    notion_workspace/
+    honeycomb_observability/
+  skills/
+    resolving-entities/
+  channels/
+    slack.ts
+
+Interface text:
+d0-agent/
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Agent run observability" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent run observability</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The run shows three Linear issues, a Salesforce update approval prompt, and a completion summary. The side panel exposes a tool call’s criteria and output.
+
+[14:43](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=883s) [An agent run shows tool calls and a summary of completed tasks in the Vercel dashboard.](https://assets.ai.engineer/sites/aiecode2025/sha256/6efa89fa08ca657daca09756eef2d84cf9ae5711beb378ab2da8cc895ab49bfb.webp)
+
+Opportunity: [illegible]
+Customer name: Acme Company
+Feature requests:
+• Confetti in dashboard
+• Confetti in mobile app...
+
+4  34s
+I’ll create all three Linear issues in parallel right away!
+
+All 3 Linear issues have been created! Now let me update the Salesforce Opportunity record.
+
+Approve tool call: update_salesforce_opportunity
+
+0  11s
+Everything is done! Here's a summary of what was completed:
+
+Linear Issues Created
+Issue | Title | Link
+VER-32 | Confetti animation in Dashboard | View
+VER-33 | Confetti animation in Mobile App | View
+VER-34 | Confetti animation across all surfaces (global rollout) | View
+
+Salesforce Updated ✅
+• Opportunity [illegible] (Acme Company) has been updated successfully.
+
+Tool Calls
+achievements or positive events, improving the overall user experience and making the product more enjoyable.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Acceptance Criteria" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Acceptance Criteria</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>- Confetti animation is displayed on the dashboard upon triggering a relevant event or milestone
+- The animation is visually appealing and does not interfere with dashboard usability
+- The confetti effect can be dismissed or fades out naturally after a short duration
+- Performance is not negatively impacted by the animation&quot;
+}
+
+Output
+{
+  success: true,
+  identifier: &quot;VER-32&quot;,
+  url: &quot;https://linear.app/vercel-demo/issue/VER-32/confetti-animation-in-dashboard&quot;
+}
+
+create_linear_issue [illegible]
+create_linear_issue [illegible]
+
+Output  Markdown  Raw
+I’ll create all three Linear issues in parallel right away!
+
+Interface text:
+Ship 26  Pro
+Find...
+my-agent
+Observability / Agent Runs / [illegible]
+New Chat
+Turns  Metadata
+turn_0
+Observability
+Overview
+Query
+Notebooks
+Alerts
+COMPUTE
+Functions
+Agent Runs
+Cron Jobs
+External APIs
+Middleware
+Runtime Cache
+CDN
+Edge Requests
+ISR
+Fast Data Transfer
+Image Optimization
+External Origins
+Microfrontends
+Shar Dara</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Get started with Eve" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Get started with Eve</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Andrew Qu points to eve.dev as a starting point: clone a template, deploy it, and self-host if needed. He encourages teams to build agents with company-specific knowledge.
+
+[14:59](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=899s) [A Vercel slide displays the Eve website address.](https://assets.ai.engineer/sites/aiecode2025/sha256/06c50470c8f275f5ec3d1746cf49d535ab50f9eb2aa498b3435a232eec454353.webp)
+
+https://eve.dev
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Thanks" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Thanks</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Andrew Qu shares his social profiles and invites attendees to chat outside.
+
+[17:08](https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=1028s) [A Vercel thank-you slide lists Andrew Qu and his social profiles.](https://assets.ai.engineer/sites/aiecode2025/sha256/1aea3d338c05889237a36cf2defe0876d94976b95573f1f0847a4bc918df1c5d.webp)
+
+Vercel
+Thanks!
+
+Andrew Qu
+@andrewqu
+andrew-qu
+
+Vercel
+~/ai-engineer-worlds-fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/f180df864a5b2fd68ff08a80f18e0bf34350f99f2adbb8eceefe2debc983352d.webp" alt="White AI Engineer World's Fair logo centered on a black background." loading="lazy" data-lb="21" data-cap="AI Engineer World's Fair" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer World's Fair</h3>
+        <p>White AI Engineer World's Fair logo centered on a black background.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+World’s Fair
+
+HTTPS://AI.ENGINEER</pre></details>
+        <button class="ts" data-t="1045">▶ 17:25</button>
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">从智能体基础设施到数据团队的瓶颈</a></li><li><a href="#sec-2">生成 SQL 变成一个端到端的工作流</a></li><li><a href="#sec-3">一个智能体可以重新审视失败的决策</a></li><li><a href="#sec-4">把语义层放在智能体能探索的地方</a></li><li><a href="#sec-5">重复的问题变成下一次运行的知识</a></li><li><a href="#sec-6">Eve 把有效的工作模式变成文件约定</a></li><li><a href="#sec-7">公司知识让自动化变得有用</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">我们如何搞定了智能体构建</h2>
+      <div class="lede"><p>Andrew Qu 讲述了 Vercel 数据智能体的演进：从粘贴一份 Snowflake 表结构开始，到限定范围的智能体、沙箱文件系统、可复用的技能，再到 Eve。每一次重写都改变了智能体寻找上下文、从错误中恢复以及使用公司知识的方式。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>从智能体基础设施到数据团队的瓶颈</h3>
+      <p><a href="https://www.andrewqu.com/" target="_blank" rel="noopener">Andrew Qu</a>, Vercel’s Chief of Software, begins with the infrastructure surrounding agents. The AI SDK supplies a common interface across model providers; he contrasts changing one line with replacing 300–400 lines of provider-specific code. Model fallbacks, secure execution, durability, and resumability address other operational needs. His internal experiment asks what useful business work those capabilities can support.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ead6122664feae253c44a40136e94185e6d7e997f1cfb1cccd7275bb5e827732" alt="Recording frame at 95 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Recording frame at 95 seconds</figcaption></figure>
+<p>The ambition was “an agent on every desk.” At <a href="https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=106s" target="_blank" rel="noopener">1:46</a>, that ambition turns into a practical search: ask people in marketing, sales, finance, and legal what they dislike doing. The strongest candidate comes from the data team, which is lean and growing more slowly than the company’s demand for analysis.</p>
+<p>A question about a customer or product interrupts a data scientist’s existing work. They must write a query, process its output, analyze the result, and return a recommendation. Meanwhile, customer data, analytics, metrics, and sales information still need to be aggregated and made usable. Qu and the VP of data therefore target the whole question-to-answer workflow: completing individual requests should stop consuming so much of the team’s time.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="226">▶ 3:46</button></div>
+      <h3>生成 SQL 变成一个端到端的工作流</h3>
+      <p>The first prototype, introduced around <a href="https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=226s" target="_blank" rel="noopener">3:46</a>, tests a small capability before automating the surrounding work. A dump of the Snowflake schema goes into a large system prompt with a question. The model returns SQL, and Qu copies it into the database interface and runs it himself. The result gives him enough confidence to continue improving the context and harness, while execution still depends on a person.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/6cbc705a508f202ade5ee84b0dbc6d0835c31679b18102d724cc09625860123f" alt="Recording frame at 230 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Recording frame at 230 seconds</figcaption></figure>
+<p>A useful answer requires several kinds of work:</p>
+<p>- <strong>Interpretation and exploration:</strong> Understand the question, inspect the semantic layer, and find the join patterns that connect the relevant entities.
+- <strong>Execution and revision:</strong> Run SQL, then revisit it if execution fails or the query is too expensive.
+- <strong>Reporting:</strong> Turn the results into visualizations, written analysis, or a retrospective.</p>
+<p>Generated SQL is an intermediate artifact. Execution can reveal that the earlier interpretation needs to change.</p>
+<p>At <a href="https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=288s" target="_blank" rel="noopener">4:48</a>, the second version gives those phases separate agents. <strong>D0</strong>, the data science agent, becomes a chain covering query interpretation, planning, execution, and reporting. Each specialist has a dedicated system prompt and tools restricted to its job. Schema exploration, for example, can read entity YAML and search schemas before passing its findings onward.</p>
+<p>This version removes the manual SQL copying and completes the loop from question to answer. The architecture expresses the workflow through explicit handoffs: each stage does its assigned work, then gives the next stage enough information to continue. That is a real improvement in automation, but the contents of those handoffs become the next design problem.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="347">▶ 5:47</button></div>
+      <h3>一个智能体可以重新审视失败的决策</h3>
+      <p>The chain passes only a summary and a small snippet of preceding work to each downstream agent. At <a href="https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=347s" target="_blank" rel="noopener">5:47</a>, the redesign begins with a different requirement: let the system look back through its work and reconsider how it reached its current state. D0 becomes one agent that shifts among planning, building, executing, and reporting while retaining the broader working context. Qu describes a possible maximum of 100 steps for that run.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/82fb3a8dbed6b6dd1653b2cb3ed07ba051ad2b61f5103feb1182a5863e02618a" alt="Recording frame at 391 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Recording frame at 391 seconds</figcaption></figure>
+<p>Follow the join-error case through this change. An execution attempt exposes a problem with how the query connects entities. The single agent can return to exploration, read more of the semantic layer, reconsider the relationship it chose, and try execution again. The important change is the direction of travel: a failure can send the same run backward to investigate an earlier decision, with its reasoning history still available.</p>
+<p>How does retaining history change recovery? The diagram shows exploration and execution inside one run, with an error returning the agent to the information that can explain it. Reporting follows the result, rather than forcing every execution attempt directly into a reporting stage.</p>
+<p>Confidence in that recovery loop leads to a small rollout among trusted users, avoiding very critical workloads. The verdict is “awful.” The team had been pleased to pass 30% of its evaluations—“we thought we were cooking”—but employees ask questions the team had not anticipated. Manually mapping each new scenario into the system does not look scalable.</p>
+<p>Recovery within one D0 run
+Keeping the working history lets an execution or join error trigger more exploration before another attempt.
+- Explore relationships — Read the semantic layer and determine join patterns.
+- Build and execute SQL — The same agent moves from planning into execution.
+- Report the result — Explain or visualize the query output.
+- Explore relationships → Build and execute SQL (Use the discovered join patterns)
+- Build and execute SQL → Explore relationships (Execution or join error: read more and reconsider)
+- Build and execute SQL → Report the result (Turn results into an answer)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="438">▶ 7:18</button></div>
+      <h3>把语义层放在智能体能探索的地方</h3>
+      <p>At <a href="https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=468s" target="_blank" rel="noopener">7:48</a>, <strong>Claude Code</strong> used with <strong>Opus 4.5</strong> provides a different reference point. It answers many questions that trouble the custom agent. Qu attributes much of its advantage to an ordinary environment: a file system with a minimal set of operations for listing files, reading them, and running bash.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/65244fa11479878ee880cd4876b2b7414ae5c1a456a0c878f76b0ef2739a710c" alt="Recording frame at 546 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Recording frame at 546 seconds</figcaption></figure>
+<p>The proposed mechanism is familiarity and freedom to investigate. Models are well trained on these operations, so the harness can let them explore and write intermediate work instead of prescribing every discovery through a specialized tool. A few tools can support many sequences of work; the agent chooses the sequence as it learns what the question requires.</p>
+<p>D0 is rebuilt in a sandbox containing the whole semantic layer. Bash, <code>grep</code>, file reads, and file writes let it inspect that material, while a few additional tools handle Vercel-specific capabilities. In the join-error example, the recovery loop now has a searchable working environment: the agent can return to the dumped definitions and investigate what it misunderstood. The semantic layer is available as files to explore, rather than only through the earlier narrow schema tools.</p>
+<p>Qu reports that the evaluation score roughly doubles through the progression from the single agent to the Claude Code SDK and then the purpose-built file-system agent. The model and harness both changed, and the talk gives no evaluation methodology that separates their contributions, so this is a reported improvement in the combined system. The implementation he describes is small: attach a bash tool to a sandbox and supply files the agent can read, write, and execute.</p>
+<p>The newly successful questions encourage broader access within Vercel and a public write-up. Qu calls it a “banger blog post” and says it accounted for 70% of Vercel’s website traffic during the week he wrote it. That is the moment the internal experiment becomes a pattern other builders want to adopt.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="587">▶ 9:47</button></div>
+      <h3>重复的问题变成下一次运行的知识</h3>
+      <p>Broader use produces thousands of queries a day. At <a href="https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=617s" target="_blank" rel="noopener">10:17</a>, the next opportunity comes from repetition: customer metrics, sales metrics, npm downloads, product lookups, and billing questions often share the same shape even when their subjects differ.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/8f644924818549c3cb21be84b4bc52810a15b3b4a98ec6e92161333e672bee34" alt="Recording frame at 662 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Recording frame at 662 seconds</figcaption></figure>
+<p>A recurring job takes recent queries and tries to distill them into skills. Qu reports roughly 100 skills covering aggregation and specific lookups. A new run previously began with the semantic layer and system prompt; a skill adds contextual knowledge from work already done. The persistence is in reusable files that later runs can use, rather than a described model-retraining process. The talk leaves skill validation and selection unspecified.</p>
+<p>What crosses from one run to another? The diagram separates the stream of recent questions from the reusable skills folder. It makes the accumulation visible: the recurring job turns repeated work into additional starting context, so each new run need not rediscover every familiar procedure.</p>
+<p>Qu also mentions <a href="https://skills.sh" target="_blank" rel="noopener">skills.sh</a> for discovering and running agent skills. Inside Vercel, however, the larger distribution problem is D0 itself. Employees keep forking it at different stages of development, inheriting whichever architecture existed at the time. A framework could let the next builder begin with the latest insight instead of repeating the whole journey.</p>
+<p>Recent queries become reusable starting context
+The recurring job carries knowledge across runs by adding skills to the file-system environment.
+- Recent queries — Repeated aggregations, product lookups, billing requests, and other questions.
+- Recurring distillation job — Attempts to turn recurring query patterns into skills.
+- Skills folder — Roughly 100 skills preserve context from prior work.
+- New agent run — Starts with reusable knowledge alongside the system prompt and semantic layer.
+- Recent queries → Recurring distillation job (Supply recent work)
+- Recurring distillation job → Skills folder (Distill common patterns)
+- Skills folder → New agent run (Carry prior context forward)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="698">▶ 11:38</button></div>
+      <h3>Eve 把有效的工作模式变成文件约定</h3>
+      <p>At <a href="https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=729s" target="_blank" rel="noopener">12:09</a>, the framework analogy is Next.js. File conventions let developers declare application structure while the framework determines how pages, functions, and caching fit into infrastructure. For agents, the proposed conventions are folders for skills, tools, and channels. Builders supply knowledge, capabilities, and ways to interact; the framework composes them.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/2e2f7bed5e48cf49cacbead0281ac7615515a00e7655c46b2cc9c4d99c925b3f" alt="Recording frame at 824 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Recording frame at 824 seconds</figcaption></figure>
+<p><strong>Eve</strong>, released two weeks before the talk, packages that approach. A sample template supplies the starting agent, which builders extend with custom knowledge, tools, and familiar channels. The architectural distinction is between those channels and the runtime that performs the work.</p>
+<p>The runtime has several parallel responsibilities:</p>
+<p>- <strong>Durability:</strong> Support work that must continue or resume. The integrated Vercel path uses Vercel Workflows.
+- <strong>Isolated execution:</strong> Give executable work an isolated environment. Vercel Sandbox supplies this part of the hosted setup.
+- <strong>Model access:</strong> Allow different model interfaces, including an adapter for OpenAI’s Responses API.
+- <strong>Connections:</strong> Reach other systems through adapters and connectors. Vercel Connect generates short-lived OAuth tokens.</p>
+<p>The open adapter options named in the talk include Postgres, OpenAI’s Responses API, Docker, and other connectors. These examples are not all assigned to a particular runtime responsibility. The talk does not develop the underlying persistence, isolation, or token protocols.</p>
+<p>D0 is rewritten in Eve while the framework is being built. The resulting agent is expressed through system instructions, skills, and tools, replacing more convoluted structures behind earlier versions. The maintainability benefit is that the pieces shaping behavior are easy to compose and iterate on.</p>
+<p>One beta partner rebuilds a service-testing agent that visits websites, installs services, and attempts to use them. Qu reports fewer steps, better success, and better insights than the partner obtained with an off-the-shelf coding agent. This is a qualitative comparison without numerical results or test conditions, illustrating the intended value of a purpose-built agent rather than establishing a general performance advantage.</p>
+<p>At <a href="https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=884s" target="_blank" rel="noopener">14:44</a>, deployment on Vercel adds visibility into the work itself: agent runs, tool calls, individual steps, estimated costs, and possible optimizations. Those views expose the path to an answer, giving builders something more useful to inspect than the final response alone. Qu closes the product introduction with <a href="https://eve.dev" target="_blank" rel="noopener">eve.dev</a>, where builders can clone a template, deploy it, or self-host if needed.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="900">▶ 15:00</button></div>
+      <h3>公司知识让自动化变得有用</h3>
+      <p>The ending returns to the choice to build D0. At <a href="https://www.youtube.com/watch?v=9dYcwOkpCE8&amp;t=930s" target="_blank" rel="noopener">15:30</a>, database connectivity gives way to the harder question of business understanding. Vercel had tested vertical agents that could connect to Snowflake and run queries. Its own agent’s distinguishing ingredient was specific company knowledge: customers have websites and web properties, and useful analysis requires knowing how those entities relate and when to query particular information.</p>
+<p>That explains why a semantic layer and reusable procedures matter so much. The agent needs guidance about what the company’s data means and how the business uses it. Qu regards packaged agents as useful to try, but recommends building a custom agent with as much company-specific knowledge as possible when seeking deeper value. This recommendation grows from Vercel’s experience rather than a comparison covering every organization.</p>
+<p>Vercel has roughly 20 internal agents that Qu considers to have found useful roles:</p>
+<p>- <strong>Marketing:</strong> Retrospectives and identifying whom to contact.
+- <strong>Legal:</strong> An initial contract redline when a new negotiation arrives.
+- <strong>Data:</strong> Answering data questions through the data science agent.</p>
+<p>The scope of the legal example matters: the agent produces a first redline, one contribution to the negotiation.</p>
+<p>The data-team example reaches its most useful outcome here. Individual questions no longer consume so much of the day, and the team can spend more time improving Snowflake performance, adding missing data sources, and filling gaps it previously could not address. Qu reports time savings and greater productivity without measured hours. The concrete organizational change is the shift from repeatedly writing requested queries toward improving the system that supports future analysis.</p>
+<p>The invitation extends to companies of different sizes and to work in HR, finance, and sales. Start with tasks people dislike or spend too much time doing, then supply the knowledge needed for that particular job. Eve is Qu’s preferred way to assemble those agents; the lesson from D0 is why the assembly must include the company’s own relationships and procedures.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>自动化从问题到答案的完整工作流：理解数据关系、执行并修改 SQL，以及解释结果。</li><li>基于摘要的交接限制了恢复能力。一个有状态的智能体可以在执行暴露出错误的表关联之后，回头重新探索。</li><li>文件系统的重新设计让语义层可以在沙箱内被搜索，使用熟悉的文件操作和 bash，再加上少量 Vercel 专用工具。</li><li>一个定期任务把常见查询提炼成大约 100 个技能，把有用的上下文带进后续的运行中。</li><li>Eve 通过文件约定打包技能、工具和渠道；而最终的智能体能否做出有用的业务决策，仍取决于公司知识。</li></ul></section>
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://skills.sh/" target="_blank" rel="noopener">skills.sh</a> — The destination Qu names for discovering and running agent skills, a practical next step for exploring reusable capabilities.</li><li><a href="https://eve.dev/" target="_blank" rel="noopener">Eve</a> — Qu’s starting point for cloning an agent template, adding company knowledge and tools, and choosing deployment or self-hosting.</li><li><strong>Related talks</strong></li><li><a href="https://ai.engineer/talks/CEvIs9y1uog-agent-skills" target="_blank" rel="noopener">Don't Build Agents, Build Skills Instead</a> — Develops the complementary idea of reusable procedural knowledge, including file-based skills and selective loading of their contents.</li><li><a href="https://ai.engineer/talks/u6jJcIFDLE4-why-we-killed-our-multi-agent-pipeline" target="_blank" rel="noopener">Why We Killed Our Multi-Agent Pipeline — Subbiah Sethuraman and Abhilash Asokan, ZS Associates</a> — A companion topic for examining the decision to replace specialized agent handoffs.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Hey everyone, thanks for coming. I'm</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">Andrew. I'm the chief of software at</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">Verscell</span></div><div class="tline" data-t="19"><span class="ts">0:19</span><span class="tx">and I'm here to talk to you about how we</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">solved agent building at Verscell. I'm</span></div><div class="tline" data-t="24"><span class="ts">0:24</span><span class="tx">the chief of software. So I work on a</span></div><div class="tline" data-t="26"><span class="ts">0:26</span><span class="tx">mix of internal engineering, external</span></div><div class="tline" data-t="28"><span class="ts">0:28</span><span class="tx">experimentation, and generally being at</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">the frontier and building new libraries,</span></div><div class="tline" data-t="32"><span class="ts">0:32</span><span class="tx">frameworks, and technologies. For those</span></div><div class="tline" data-t="34"><span class="ts">0:34</span><span class="tx">of you that don't know Verscell,</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">Verscell builds a gentic infrastructure</span></div><div class="tline" data-t="39"><span class="ts">0:39</span><span class="tx">so people can build what's next. We get</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">started in the web world helping people</span></div><div class="tline" data-t="43"><span class="ts">0:43</span><span class="tx">ship websites and web apps without</span></div><div class="tline" data-t="46"><span class="ts">0:46</span><span class="tx">having to worry about the infrastructure</span></div><div class="tline" data-t="47"><span class="ts">0:47</span><span class="tx">that doesn't make their app any better.</span></div><div class="tline" data-t="49"><span class="ts">0:49</span><span class="tx">It can scale to a million and scale down</span></div><div class="tline" data-t="50"><span class="ts">0:50</span><span class="tx">to zero effortlessly. But we're seeing a</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">change in what people want to build. You</span></div><div class="tline" data-t="55"><span class="ts">0:55</span><span class="tx">know, people started by building pages,</span></div><div class="tline" data-t="57"><span class="ts">0:57</span><span class="tx">but now we see them want to build</span></div><div class="tline" data-t="58"><span class="ts">0:58</span><span class="tx">agents. And we've been embarking on a</span></div><div class="tline" data-t="60"><span class="ts">1:00</span><span class="tx">similar journey to make it easy for</span></div><div class="tline" data-t="62"><span class="ts">1:02</span><span class="tx">people to build agents and agentic</span></div><div class="tline" data-t="65"><span class="ts">1:05</span><span class="tx">applications easier. We built this thing</span></div><div class="tline" data-t="68"><span class="ts">1:08</span><span class="tx">called the AIDK. So instead of needing</span></div><div class="tline" data-t="70"><span class="ts">1:10</span><span class="tx">to switch out 300 400 lines of provider</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">specific code, you're just going to</span></div><div class="tline" data-t="74"><span class="ts">1:14</span><span class="tx">switch out one line of code and we have</span></div><div class="tline" data-t="76"><span class="ts">1:16</span><span class="tx">the same model interface underlying for</span></div><div class="tline" data-t="78"><span class="ts">1:18</span><span class="tx">all these different providers.</span></div><div class="tline" data-t="81"><span class="ts">1:21</span><span class="tx">We built a lot of other tools to make it</span></div><div class="tline" data-t="82"><span class="ts">1:22</span><span class="tx">easier to have model fallbacks, secure</span></div><div class="tline" data-t="85"><span class="ts">1:25</span><span class="tx">code execution, better pricing when it's</span></div><div class="tline" data-t="87"><span class="ts">1:27</span><span class="tx">inactive and waiting for responses, as</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">well as for durability and resumability.</span></div><div class="tline" data-t="92"><span class="ts">1:32</span><span class="tx">And I'm here to talk to you about how I</span></div><div class="tline" data-t="95"><span class="ts">1:35</span><span class="tx">went on this crazy experiment roughly a</span></div><div class="tline" data-t="97"><span class="ts">1:37</span><span class="tx">year ago that led to a aentic explosion</span></div><div class="tline" data-t="101"><span class="ts">1:41</span><span class="tx">at Verscell and led to a really cool</span></div><div class="tline" data-t="103"><span class="ts">1:43</span><span class="tx">thing that we built recently</span></div><div class="tline" data-t="106"><span class="ts">1:46</span><span class="tx">about uh this is 1980. Uh, Bill Gates</span></div><div class="tline" data-t="109"><span class="ts">1:49</span><span class="tx">before my time had this quote saying he</span></div><div class="tline" data-t="112"><span class="ts">1:52</span><span class="tx">imagined there would be a computer on</span></div><div class="tline" data-t="113"><span class="ts">1:53</span><span class="tx">every desk and in every home. You know,</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">that was probably pretty contrarian then</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">and today it seems like very normal to</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">have that happen. And me and the CTO had</span></div><div class="tline" data-t="123"><span class="ts">2:03</span><span class="tx">this thought, you know, instead of a</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">computer on every desk, could we</span></div><div class="tline" data-t="128"><span class="ts">2:08</span><span class="tx">potentially have an agent on every desk?</span></div><div class="tline" data-t="130"><span class="ts">2:10</span><span class="tx">You know, today we only really use</span></div><div class="tline" data-t="133"><span class="ts">2:13</span><span class="tx">agents for coding and technical</span></div><div class="tline" data-t="135"><span class="ts">2:15</span><span class="tx">workloads, but we're starting to see</span></div><div class="tline" data-t="137"><span class="ts">2:17</span><span class="tx">expansion into things like design,</span></div><div class="tline" data-t="139"><span class="ts">2:19</span><span class="tx">product management, and other verticals.</span></div><div class="tline" data-t="142"><span class="ts">2:22</span><span class="tx">And this was maybe about a year ago, so</span></div><div class="tline" data-t="144"><span class="ts">2:24</span><span class="tx">I would say I'm pretty early to this,</span></div><div class="tline" data-t="145"><span class="ts">2:25</span><span class="tx">but that was when it was like sonnet 4</span></div><div class="tline" data-t="147"><span class="ts">2:27</span><span class="tx">and things weren't as sophisticated as</span></div><div class="tline" data-t="149"><span class="ts">2:29</span><span class="tx">they were today. And I tried to actually</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">explore this out, see what we could do</span></div><div class="tline" data-t="154"><span class="ts">2:34</span><span class="tx">about it. I went around to various job</span></div><div class="tline" data-t="156"><span class="ts">2:36</span><span class="tx">functions at Verscell, marketing, sales,</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">finance, legal, and I asked them, what</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">do you hate most about your job? And the</span></div><div class="tline" data-t="165"><span class="ts">2:45</span><span class="tx">most compelling use case I heard was</span></div><div class="tline" data-t="167"><span class="ts">2:47</span><span class="tx">that the data team, they were growing.</span></div><div class="tline" data-t="170"><span class="ts">2:50</span><span class="tx">They were a very lean team, but Versel</span></div><div class="tline" data-t="172"><span class="ts">2:52</span><span class="tx">was growing faster. You know, they had</span></div><div class="tline" data-t="174"><span class="ts">2:54</span><span class="tx">so much more data from customers,</span></div><div class="tline" data-t="176"><span class="ts">2:56</span><span class="tx">analytics, metrics, sales. They just had</span></div><div class="tline" data-t="179"><span class="ts">2:59</span><span class="tx">to keep on aggregating and keep on</span></div><div class="tline" data-t="181"><span class="ts">3:01</span><span class="tx">making available for themselves to use.</span></div><div class="tline" data-t="185"><span class="ts">3:05</span><span class="tx">And at this time, if you think about</span></div><div class="tline" data-t="187"><span class="ts">3:07</span><span class="tx">what the data science people ever have</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">to do, whenever someone from marketing</span></div><div class="tline" data-t="190"><span class="ts">3:10</span><span class="tx">or sales has a question about a customer</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">or product, the data science team has to</span></div><div class="tline" data-t="195"><span class="ts">3:15</span><span class="tx">drop everything they're doing, write the</span></div><div class="tline" data-t="197"><span class="ts">3:17</span><span class="tx">query, process it, do an analysis, and</span></div><div class="tline" data-t="199"><span class="ts">3:19</span><span class="tx">come back with some recommendation on</span></div><div class="tline" data-t="201"><span class="ts">3:21</span><span class="tx">what to do. And this was really killer</span></div><div class="tline" data-t="204"><span class="ts">3:24</span><span class="tx">to productivity. You know, the data team</span></div><div class="tline" data-t="206"><span class="ts">3:26</span><span class="tx">did not want to drop everything and just</span></div><div class="tline" data-t="208"><span class="ts">3:28</span><span class="tx">write queries all day. And so I worked</span></div><div class="tline" data-t="209"><span class="ts">3:29</span><span class="tx">with our VP of data to try to build a</span></div><div class="tline" data-t="211"><span class="ts">3:31</span><span class="tx">better way for them to operate this way.</span></div><div class="tline" data-t="216"><span class="ts">3:36</span><span class="tx">And so if you think about the very first</span></div><div class="tline" data-t="217"><span class="ts">3:37</span><span class="tx">thing you would ever do if you want to</span></div><div class="tline" data-t="219"><span class="ts">3:39</span><span class="tx">try to use AI to solve a problem, you</span></div><div class="tline" data-t="221"><span class="ts">3:41</span><span class="tx">may just build like a huge mega prompt.</span></div><div class="tline" data-t="223"><span class="ts">3:43</span><span class="tx">You know, you just have a question, you</span></div><div class="tline" data-t="226"><span class="ts">3:46</span><span class="tx">pass into an LM, you have it respond,</span></div><div class="tline" data-t="228"><span class="ts">3:48</span><span class="tx">and that's it. You know, this was how</span></div><div class="tline" data-t="230"><span class="ts">3:50</span><span class="tx">the first version really looked.</span></div><div class="tline" data-t="231"><span class="ts">3:51</span><span class="tx">Honestly, I asked them for a dump of of</span></div><div class="tline" data-t="234"><span class="ts">3:54</span><span class="tx">the snowflake schema. I pasted it into a</span></div><div class="tline" data-t="237"><span class="ts">3:57</span><span class="tx">system prompt with a question and then</span></div><div class="tline" data-t="239"><span class="ts">3:59</span><span class="tx">when it generated SQL I actually copy</span></div><div class="tline" data-t="241"><span class="ts">4:01</span><span class="tx">and pasted that in and just ran it</span></div><div class="tline" data-t="242"><span class="ts">4:02</span><span class="tx">myself. You know I just want to see are</span></div><div class="tline" data-t="244"><span class="ts">4:04</span><span class="tx">the models good enough today in order to</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">write valid SQL given some decent</span></div><div class="tline" data-t="249"><span class="ts">4:09</span><span class="tx">structure. And I would say this gave us</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">a little bit of confidence that you know</span></div><div class="tline" data-t="253"><span class="ts">4:13</span><span class="tx">models today aren't that good but maybe</span></div><div class="tline" data-t="255"><span class="ts">4:15</span><span class="tx">we can harness engineer or make the</span></div><div class="tline" data-t="257"><span class="ts">4:17</span><span class="tx">context around it a little better and</span></div><div class="tline" data-t="259"><span class="ts">4:19</span><span class="tx">give us some more guardrails to operate</span></div><div class="tline" data-t="261"><span class="ts">4:21</span><span class="tx">a little better.</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">And so if you actually think about what</span></div><div class="tline" data-t="264"><span class="ts">4:24</span><span class="tx">a data scientist actually needs to do</span></div><div class="tline" data-t="265"><span class="ts">4:25</span><span class="tx">when they get a question, you know, they</span></div><div class="tline" data-t="267"><span class="ts">4:27</span><span class="tx">have to process the question, they may</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">have to explore the semantic layer and</span></div><div class="tline" data-t="271"><span class="ts">4:31</span><span class="tx">actually figure out what the join</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">patterns are. They will actually go and</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">execute the SQL. They may go back and do</span></div><div class="tline" data-t="277"><span class="ts">4:37</span><span class="tx">that again if the SQL did not execute or</span></div><div class="tline" data-t="279"><span class="ts">4:39</span><span class="tx">was too expensive. And they'll</span></div><div class="tline" data-t="280"><span class="ts">4:40</span><span class="tx">eventually report on it, including</span></div><div class="tline" data-t="282"><span class="ts">4:42</span><span class="tx">visualize the data, maybe write some</span></div><div class="tline" data-t="284"><span class="ts">4:44</span><span class="tx">paragraphs, maybe do a retro, maybe do</span></div><div class="tline" data-t="286"><span class="ts">4:46</span><span class="tx">some other stuff.</span></div><div class="tline" data-t="288"><span class="ts">4:48</span><span class="tx">And so if you think about those</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">different phases, me and the VP of data</span></div><div class="tline" data-t="291"><span class="ts">4:51</span><span class="tx">tried to sit down and map those out into</span></div><div class="tline" data-t="293"><span class="ts">4:53</span><span class="tx">specific agent workloads. And so the</span></div><div class="tline" data-t="295"><span class="ts">4:55</span><span class="tx">second version of this data science</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">agent uh called D0. I'm going to</span></div><div class="tline" data-t="299"><span class="ts">4:59</span><span class="tx">reference D0 from now on is you ask a</span></div><div class="tline" data-t="302"><span class="ts">5:02</span><span class="tx">question. We have a query agent that</span></div><div class="tline" data-t="304"><span class="ts">5:04</span><span class="tx">passes on a query to the planning agent</span></div><div class="tline" data-t="306"><span class="ts">5:06</span><span class="tx">that will then have an execution agent</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">etc. And if you chain all of these</span></div><div class="tline" data-t="311"><span class="ts">5:11</span><span class="tx">together, you actually get something</span></div><div class="tline" data-t="312"><span class="ts">5:12</span><span class="tx">that looks like this where each agent</span></div><div class="tline" data-t="314"><span class="ts">5:14</span><span class="tx">has a very dedicated system prompt</span></div><div class="tline" data-t="316"><span class="ts">5:16</span><span class="tx">focused to what that does with tools</span></div><div class="tline" data-t="318"><span class="ts">5:18</span><span class="tx">scoped to exactly that function. So</span></div><div class="tline" data-t="320"><span class="ts">5:20</span><span class="tx">example here, you can see that for the</span></div><div class="tline" data-t="323"><span class="ts">5:23</span><span class="tx">first one, the planning agent has a read</span></div><div class="tline" data-t="325"><span class="ts">5:25</span><span class="tx">entity YAML and a and a search schemas</span></div><div class="tline" data-t="329"><span class="ts">5:29</span><span class="tx">tool. And so it will only use those</span></div><div class="tline" data-t="332"><span class="ts">5:32</span><span class="tx">capabilities until it has an answer to</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">pass on to the planning agent and then</span></div><div class="tline" data-t="336"><span class="ts">5:36</span><span class="tx">to the SQL agent and then to reporting.</span></div><div class="tline" data-t="338"><span class="ts">5:38</span><span class="tx">And this was getting better. You know,</span></div><div class="tline" data-t="340"><span class="ts">5:40</span><span class="tx">we were able to get away from having to</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">copy and paste a SQL and have to come</span></div><div class="tline" data-t="345"><span class="ts">5:45</span><span class="tx">back and report on it. It was now</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">actually doing like the end to end loop</span></div><div class="tline" data-t="348"><span class="ts">5:48</span><span class="tx">from question to answer.</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">But we started hitting some walls with</span></div><div class="tline" data-t="354"><span class="ts">5:54</span><span class="tx">this architecture. And around this time</span></div><div class="tline" data-t="356"><span class="ts">5:56</span><span class="tx">we came to the conclusion that you know</span></div><div class="tline" data-t="358"><span class="ts">5:58</span><span class="tx">what you actually need is you need one</span></div><div class="tline" data-t="359"><span class="ts">5:59</span><span class="tx">agent with all the mega context within</span></div><div class="tline" data-t="361"><span class="ts">6:01</span><span class="tx">it and for it to sort of manage its own</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">memory. You know this was around the</span></div><div class="tline" data-t="366"><span class="ts">6:06</span><span class="tx">time when we realized that you want to</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">actually have the agent be able to look</span></div><div class="tline" data-t="371"><span class="ts">6:11</span><span class="tx">back on what it's done sort of reflect</span></div><div class="tline" data-t="373"><span class="ts">6:13</span><span class="tx">and figure out the steps that got to get</span></div><div class="tline" data-t="375"><span class="ts">6:15</span><span class="tx">here. And with the previous model you</span></div><div class="tline" data-t="377"><span class="ts">6:17</span><span class="tx">may have noticed that the only thing</span></div><div class="tline" data-t="378"><span class="ts">6:18</span><span class="tx">that the next agent gets is a summary</span></div><div class="tline" data-t="381"><span class="ts">6:21</span><span class="tx">and a small snippet of the previous</span></div><div class="tline" data-t="382"><span class="ts">6:22</span><span class="tx">thing that was done. Now this way you</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">can imagine that you have one mega agent</span></div><div class="tline" data-t="387"><span class="ts">6:27</span><span class="tx">and internally it manages its own state.</span></div><div class="tline" data-t="389"><span class="ts">6:29</span><span class="tx">At some points it's planning, some</span></div><div class="tline" data-t="391"><span class="ts">6:31</span><span class="tx">points it's building, some points it's</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">executing and some points it's</span></div><div class="tline" data-t="393"><span class="ts">6:33</span><span class="tx">reporting. And this is sort of what it</span></div><div class="tline" data-t="396"><span class="ts">6:36</span><span class="tx">looked like. You know you have one big</span></div><div class="tline" data-t="398"><span class="ts">6:38</span><span class="tx">AI call maybe max steps 100 and you give</span></div><div class="tline" data-t="402"><span class="ts">6:42</span><span class="tx">it the ability to manage its own state</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">based on where it's at inside of its</span></div><div class="tline" data-t="406"><span class="ts">6:46</span><span class="tx">execution journey. And so you can see</span></div><div class="tline" data-t="408"><span class="ts">6:48</span><span class="tx">similar tools, you can see a similar</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">shape, but the best part about this is</span></div><div class="tline" data-t="411"><span class="ts">6:51</span><span class="tx">if it ever ran to an error when</span></div><div class="tline" data-t="413"><span class="ts">6:53</span><span class="tx">executing or joining, it could go back</span></div><div class="tline" data-t="415"><span class="ts">6:55</span><span class="tx">and explore more or it could go and read</span></div><div class="tline" data-t="417"><span class="ts">6:57</span><span class="tx">more and figure out what it was doing</span></div><div class="tline" data-t="419"><span class="ts">6:59</span><span class="tx">wrong. And it was very good at this</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">point. We were pretty confident in the</span></div><div class="tline" data-t="424"><span class="ts">7:04</span><span class="tx">actual system at hand and we actually</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">spread it to a few trusted members ever.</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">You know, this is a very powerful tool</span></div><div class="tline" data-t="430"><span class="ts">7:10</span><span class="tx">and we didn't really want to put in the</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">hands of the wrong people or people that</span></div><div class="tline" data-t="432"><span class="ts">7:12</span><span class="tx">were using very critical workloads. So,</span></div><div class="tline" data-t="435"><span class="ts">7:15</span><span class="tx">we got to a few people's hands and the</span></div><div class="tline" data-t="437"><span class="ts">7:17</span><span class="tx">immediate response was it was awful. You</span></div><div class="tline" data-t="438"><span class="ts">7:18</span><span class="tx">know, we thought we were cooking. We</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">thought this was, you know, nailing 30%</span></div><div class="tline" data-t="442"><span class="ts">7:22</span><span class="tx">of our evals, but we couldn't have</span></div><div class="tline" data-t="444"><span class="ts">7:24</span><span class="tx">anticipated some of the questions that</span></div><div class="tline" data-t="445"><span class="ts">7:25</span><span class="tx">were being asked. And for us to spend</span></div><div class="tline" data-t="447"><span class="ts">7:27</span><span class="tx">more time manually mapping out some of</span></div><div class="tline" data-t="449"><span class="ts">7:29</span><span class="tx">these scenarios, it didn't seem like a</span></div><div class="tline" data-t="452"><span class="ts">7:32</span><span class="tx">very scalable way to do this.</span></div><div class="tline" data-t="455"><span class="ts">7:35</span><span class="tx">And then claude code and opus 4.5 came</span></div><div class="tline" data-t="459"><span class="ts">7:39</span><span class="tx">out. Well, more like Opus 4.5 came out</span></div><div class="tline" data-t="461"><span class="ts">7:41</span><span class="tx">and it in tangent with claw code which</span></div><div class="tline" data-t="463"><span class="ts">7:43</span><span class="tx">is so powerful. You know they sort of</span></div><div class="tline" data-t="466"><span class="ts">7:46</span><span class="tx">unlocked the concept of a file system</span></div><div class="tline" data-t="468"><span class="ts">7:48</span><span class="tx">agent and we on the side were like wow</span></div><div class="tline" data-t="472"><span class="ts">7:52</span><span class="tx">clawed code and Opus 4.5 is basically</span></div><div class="tline" data-t="475"><span class="ts">7:55</span><span class="tx">AGI compared to what we had before. You</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">know it would answer most of our</span></div><div class="tline" data-t="478"><span class="ts">7:58</span><span class="tx">questions without even without even</span></div><div class="tline" data-t="482"><span class="ts">8:02</span><span class="tx">missing a beat um compared to the</span></div><div class="tline" data-t="483"><span class="ts">8:03</span><span class="tx">handgrown agent we had. And when we</span></div><div class="tline" data-t="485"><span class="ts">8:05</span><span class="tx">tried to step back and wonder what we</span></div><div class="tline" data-t="487"><span class="ts">8:07</span><span class="tx">were doing wrong and why this was so</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">much better, we realized that the big</span></div><div class="tline" data-t="491"><span class="ts">8:11</span><span class="tx">unlock was that it was just a file</span></div><div class="tline" data-t="493"><span class="ts">8:13</span><span class="tx">system. You know, we it had a very</span></div><div class="tline" data-t="495"><span class="ts">8:15</span><span class="tx">minimal set of tools, list file, read</span></div><div class="tline" data-t="497"><span class="ts">8:17</span><span class="tx">file, run bash, and we gave a few more</span></div><div class="tline" data-t="500"><span class="ts">8:20</span><span class="tx">here for uh our own data agent use case.</span></div><div class="tline" data-t="504"><span class="ts">8:24</span><span class="tx">But the biggest thing was it was able to</span></div><div class="tline" data-t="506"><span class="ts">8:26</span><span class="tx">use the tools that agents are well</span></div><div class="tline" data-t="508"><span class="ts">8:28</span><span class="tx">trained on and was able to explore and</span></div><div class="tline" data-t="510"><span class="ts">8:30</span><span class="tx">write work where it needs to. you know,</span></div><div class="tline" data-t="512"><span class="ts">8:32</span><span class="tx">we weren't giving it claw code was not</span></div><div class="tline" data-t="515"><span class="ts">8:35</span><span class="tx">giving it a very prescriptive set of</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">tools. It was sort of just letting it go</span></div><div class="tline" data-t="518"><span class="ts">8:38</span><span class="tx">wild and explore emergent behavior. And</span></div><div class="tline" data-t="521"><span class="ts">8:41</span><span class="tx">so from this, we learned that you can</span></div><div class="tline" data-t="523"><span class="ts">8:43</span><span class="tx">really just use a file system. You know,</span></div><div class="tline" data-t="525"><span class="ts">8:45</span><span class="tx">we we saw the learnings from claw code</span></div><div class="tline" data-t="527"><span class="ts">8:47</span><span class="tx">and how powerful it was given that it</span></div><div class="tline" data-t="529"><span class="ts">8:49</span><span class="tx">just executes locally. And we tried to</span></div><div class="tline" data-t="532"><span class="ts">8:52</span><span class="tx">rebuild it in a way that was very cloud</span></div><div class="tline" data-t="534"><span class="ts">8:54</span><span class="tx">codeesque. You know, it was now going to</span></div><div class="tline" data-t="536"><span class="ts">8:56</span><span class="tx">run in a sandbox. That sandbox would</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">dump the whole semantic layer into it.</span></div><div class="tline" data-t="540"><span class="ts">9:00</span><span class="tx">You could the agent would be able to</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">grab, bash, read file, write file all</span></div><div class="tline" data-t="544"><span class="ts">9:04</span><span class="tx">around to figure out what it needs and</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">we would just sprinkle a few tools on</span></div><div class="tline" data-t="547"><span class="ts">9:07</span><span class="tx">top to make sure it could do everything</span></div><div class="tline" data-t="548"><span class="ts">9:08</span><span class="tx">that is versel specific.</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">And this was actually the biggest unlock</span></div><div class="tline" data-t="554"><span class="ts">9:14</span><span class="tx">ever. You know, the leap from single</span></div><div class="tline" data-t="557"><span class="ts">9:17</span><span class="tx">agent to cloud code SDK and then from</span></div><div class="tline" data-t="559"><span class="ts">9:19</span><span class="tx">cloud code SDK to file system agent in</span></div><div class="tline" data-t="562"><span class="ts">9:22</span><span class="tx">general, fine-tuned or purpose-built for</span></div><div class="tline" data-t="565"><span class="ts">9:25</span><span class="tx">our use case was an amazing leap. At</span></div><div class="tline" data-t="567"><span class="ts">9:27</span><span class="tx">this point, we were starting to get</span></div><div class="tline" data-t="568"><span class="ts">9:28</span><span class="tx">ready to give it away to more people at</span></div><div class="tline" data-t="571"><span class="ts">9:31</span><span class="tx">Versell.</span></div><div class="tline" data-t="572"><span class="ts">9:32</span><span class="tx">And at this point, the eval score</span></div><div class="tline" data-t="575"><span class="ts">9:35</span><span class="tx">basically doubled. And I wrote this uh</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">this is basically how it looks. Um it's</span></div><div class="tline" data-t="579"><span class="ts">9:39</span><span class="tx">very simple. You just give it a bash</span></div><div class="tline" data-t="581"><span class="ts">9:41</span><span class="tx">tool. We have a nice helper called bash</span></div><div class="tline" data-t="582"><span class="ts">9:42</span><span class="tx">tool on npm and you attach it to a</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">sandbox and you can attach files to the</span></div><div class="tline" data-t="586"><span class="ts">9:46</span><span class="tx">sandbox for it to read, write and</span></div><div class="tline" data-t="588"><span class="ts">9:48</span><span class="tx">execute.</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">And after this revelation and after I</span></div><div class="tline" data-t="592"><span class="ts">9:52</span><span class="tx">saw that we were passing so many of the</span></div><div class="tline" data-t="594"><span class="ts">9:54</span><span class="tx">questions that we failed to do before, I</span></div><div class="tline" data-t="596"><span class="ts">9:56</span><span class="tx">wrote this banger blog post. It's uh</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">it's actually up today. And the week</span></div><div class="tline" data-t="601"><span class="ts">10:01</span><span class="tx">that I wrote this, it was responsible</span></div><div class="tline" data-t="602"><span class="ts">10:02</span><span class="tx">for 70% of our versel.com traffic. So</span></div><div class="tline" data-t="605"><span class="ts">10:05</span><span class="tx">you know it's a banger. And after that,</span></div><div class="tline" data-t="609"><span class="ts">10:09</span><span class="tx">the next logical step was that we want</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">to figure out the common use cases we</span></div><div class="tline" data-t="614"><span class="ts">10:14</span><span class="tx">had. So by then we've already sort of</span></div><div class="tline" data-t="616"><span class="ts">10:16</span><span class="tx">let a leash on all of our cell and we</span></div><div class="tline" data-t="619"><span class="ts">10:19</span><span class="tx">were getting thousands of queries a day</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">from people wanting everything from</span></div><div class="tline" data-t="623"><span class="ts">10:23</span><span class="tx">customer metrics sales metrics number</span></div><div class="tline" data-t="625"><span class="ts">10:25</span><span class="tx">metrics npm downloads and it turns out</span></div><div class="tline" data-t="628"><span class="ts">10:28</span><span class="tx">that a lot of these queries are actually</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">the same in shape you know there's only</span></div><div class="tline" data-t="631"><span class="ts">10:31</span><span class="tx">so many ways you can do an aggregation</span></div><div class="tline" data-t="633"><span class="ts">10:33</span><span class="tx">only so many ways you can look up a</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">product only so many ways you can do</span></div><div class="tline" data-t="636"><span class="ts">10:36</span><span class="tx">billing info and so we actually have a</span></div><div class="tline" data-t="638"><span class="ts">10:38</span><span class="tx">recurring job that takes the most recent</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">queries and tries to distill them into a</span></div><div class="tline" data-t="642"><span class="ts">10:42</span><span class="tx">skill and right now we have roughly 100</span></div><div class="tline" data-t="644"><span class="ts">10:44</span><span class="tx">skills that do a mix of aggregation all</span></div><div class="tline" data-t="647"><span class="ts">10:47</span><span class="tx">the way through looking up specific data</span></div><div class="tline" data-t="649"><span class="ts">10:49</span><span class="tx">about certain people. And we found this</span></div><div class="tline" data-t="651"><span class="ts">10:51</span><span class="tx">very effective because if you think</span></div><div class="tline" data-t="653"><span class="ts">10:53</span><span class="tx">about every new agent run, it sort of</span></div><div class="tline" data-t="655"><span class="ts">10:55</span><span class="tx">just starts from nothing. You know,</span></div><div class="tline" data-t="656"><span class="ts">10:56</span><span class="tx">there's really no pre-established</span></div><div class="tline" data-t="658"><span class="ts">10:58</span><span class="tx">context besides, you know, the semantic</span></div><div class="tline" data-t="660"><span class="ts">11:00</span><span class="tx">layer and the system prompt. But with a</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">skill, it already starts off with a lot</span></div><div class="tline" data-t="664"><span class="ts">11:04</span><span class="tx">of contextual knowledge that has</span></div><div class="tline" data-t="665"><span class="ts">11:05</span><span class="tx">otherwise already been done.</span></div><div class="tline" data-t="669"><span class="ts">11:09</span><span class="tx">And this is roughly how it looks. It's</span></div><div class="tline" data-t="671"><span class="ts">11:11</span><span class="tx">very similar to the previous one, but</span></div><div class="tline" data-t="672"><span class="ts">11:12</span><span class="tx">the inclusion of a skills folder is</span></div><div class="tline" data-t="674"><span class="ts">11:14</span><span class="tx">actually very powerful. Um, we also</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">built this tool at Verscell called</span></div><div class="tline" data-t="677"><span class="ts">11:17</span><span class="tx">Skillsh. It's the most popular way to</span></div><div class="tline" data-t="679"><span class="ts">11:19</span><span class="tx">find agent skills and run them yourself.</span></div><div class="tline" data-t="683"><span class="ts">11:23</span><span class="tx">And I I'm saying all this because this</span></div><div class="tline" data-t="685"><span class="ts">11:25</span><span class="tx">journey is something that most of you</span></div><div class="tline" data-t="687"><span class="ts">11:27</span><span class="tx">may hit once in a while where you start</span></div><div class="tline" data-t="689"><span class="ts">11:29</span><span class="tx">from something simple and you gradually</span></div><div class="tline" data-t="690"><span class="ts">11:30</span><span class="tx">add complexity and you eventually hit a</span></div><div class="tline" data-t="692"><span class="ts">11:32</span><span class="tx">system in which you can ship to prod.</span></div><div class="tline" data-t="695"><span class="ts">11:35</span><span class="tx">And I'm telling you this because at</span></div><div class="tline" data-t="697"><span class="ts">11:37</span><span class="tx">every step along building this agent,</span></div><div class="tline" data-t="699"><span class="ts">11:39</span><span class="tx">someone Everell was agent curious and</span></div><div class="tline" data-t="702"><span class="ts">11:42</span><span class="tx">they tried to fork off of my DZero agent</span></div><div class="tline" data-t="705"><span class="ts">11:45</span><span class="tx">and build their own. And at every step,</span></div><div class="tline" data-t="707"><span class="ts">11:47</span><span class="tx">we sort of had a better way to do</span></div><div class="tline" data-t="709"><span class="ts">11:49</span><span class="tx">something that was not previously known.</span></div><div class="tline" data-t="711"><span class="ts">11:51</span><span class="tx">And we were wondering like what if</span></div><div class="tline" data-t="713"><span class="ts">11:53</span><span class="tx">people today could start from the very</span></div><div class="tline" data-t="715"><span class="ts">11:55</span><span class="tx">last insight and not have to ever start</span></div><div class="tline" data-t="717"><span class="ts">11:57</span><span class="tx">from just a simple prompt or from</span></div><div class="tline" data-t="720"><span class="ts">12:00</span><span class="tx">reinventing best principles from first</span></div><div class="tline" data-t="723"><span class="ts">12:03</span><span class="tx">principles.</span></div><div class="tline" data-t="724"><span class="ts">12:04</span><span class="tx">And so we actually thought what if we</span></div><div class="tline" data-t="726"><span class="ts">12:06</span><span class="tx">built the Nex.js for agents. For those</span></div><div class="tline" data-t="729"><span class="ts">12:09</span><span class="tx">that don't know, Nex.js is a popular web</span></div><div class="tline" data-t="731"><span class="ts">12:11</span><span class="tx">framework that Verscell built that</span></div><div class="tline" data-t="733"><span class="ts">12:13</span><span class="tx">invented this thing of file system uh</span></div><div class="tline" data-t="736"><span class="ts">12:16</span><span class="tx">framework defined infrastructure. You</span></div><div class="tline" data-t="738"><span class="ts">12:18</span><span class="tx">don't have to worry about where things</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">go. You just have to write files in the</span></div><div class="tline" data-t="742"><span class="ts">12:22</span><span class="tx">right conventions and it automatically</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">declares where they should go. Your</span></div><div class="tline" data-t="746"><span class="ts">12:26</span><span class="tx">pages go to the CDN. Your serverless</span></div><div class="tline" data-t="748"><span class="ts">12:28</span><span class="tx">functions go there. Your caching goes in</span></div><div class="tline" data-t="750"><span class="ts">12:30</span><span class="tx">the middle. And we thought, you know,</span></div><div class="tline" data-t="752"><span class="ts">12:32</span><span class="tx">building agents should be this simple.</span></div><div class="tline" data-t="754"><span class="ts">12:34</span><span class="tx">You should only have to create a skills</span></div><div class="tline" data-t="755"><span class="ts">12:35</span><span class="tx">folder, a tools folder, a channels</span></div><div class="tline" data-t="757"><span class="ts">12:37</span><span class="tx">folder, and you should be able to just</span></div><div class="tline" data-t="759"><span class="ts">12:39</span><span class="tx">declare these very easily. And the</span></div><div class="tline" data-t="760"><span class="ts">12:40</span><span class="tx">framework should know exactly how to</span></div><div class="tline" data-t="762"><span class="ts">12:42</span><span class="tx">make an agent out of it.</span></div><div class="tline" data-t="765"><span class="ts">12:45</span><span class="tx">And that's why two weeks ago we released</span></div><div class="tline" data-t="766"><span class="ts">12:46</span><span class="tx">Eve. Eve is a agent framework like the</span></div><div class="tline" data-t="769"><span class="ts">12:49</span><span class="tx">next.js GS for agents where it's very</span></div><div class="tline" data-t="771"><span class="ts">12:51</span><span class="tx">easy from just starting with a sample</span></div><div class="tline" data-t="773"><span class="ts">12:53</span><span class="tx">template to having a fully agent ready</span></div><div class="tline" data-t="776"><span class="ts">12:56</span><span class="tx">and being able to add in your own custom</span></div><div class="tline" data-t="777"><span class="ts">12:57</span><span class="tx">knowledge, your own custom tools and</span></div><div class="tline" data-t="779"><span class="ts">12:59</span><span class="tx">even integrated into the channels that</span></div><div class="tline" data-t="781"><span class="ts">13:01</span><span class="tx">you are familiar with.</span></div><div class="tline" data-t="784"><span class="ts">13:04</span><span class="tx">This is roughly what we think an agent</span></div><div class="tline" data-t="785"><span class="ts">13:05</span><span class="tx">actually looks like. You know, an agent</span></div><div class="tline" data-t="787"><span class="ts">13:07</span><span class="tx">has a runtime and it has channels. And</span></div><div class="tline" data-t="789"><span class="ts">13:09</span><span class="tx">in that runtime, you're going to have</span></div><div class="tline" data-t="790"><span class="ts">13:10</span><span class="tx">durability. You're going to want to run</span></div><div class="tline" data-t="792"><span class="ts">13:12</span><span class="tx">things in an isolate environment. You're</span></div><div class="tline" data-t="794"><span class="ts">13:14</span><span class="tx">going to want to call into different</span></div><div class="tline" data-t="795"><span class="ts">13:15</span><span class="tx">models. And you're going to want to have</span></div><div class="tline" data-t="796"><span class="ts">13:16</span><span class="tx">connections. And we built this with open</span></div><div class="tline" data-t="799"><span class="ts">13:19</span><span class="tx">source in mind. You know, we built Eve</span></div><div class="tline" data-t="801"><span class="ts">13:21</span><span class="tx">so you can plug in your own open source</span></div><div class="tline" data-t="802"><span class="ts">13:22</span><span class="tx">adapters for Postgress, OpenAI's uh</span></div><div class="tline" data-t="805"><span class="ts">13:25</span><span class="tx">responses API, Docker, other connectors.</span></div><div class="tline" data-t="808"><span class="ts">13:28</span><span class="tx">But we also made it incredibly easy to</span></div><div class="tline" data-t="810"><span class="ts">13:30</span><span class="tx">deploy in Verscell. The only thing here</span></div><div class="tline" data-t="812"><span class="ts">13:32</span><span class="tx">you see different is that everything</span></div><div class="tline" data-t="813"><span class="ts">13:33</span><span class="tx">here is using a Verscell product that</span></div><div class="tline" data-t="815"><span class="ts">13:35</span><span class="tx">we've been building over the years in</span></div><div class="tline" data-t="816"><span class="ts">13:36</span><span class="tx">order to make it easy to build these</span></div><div class="tline" data-t="818"><span class="ts">13:38</span><span class="tx">experiences. Versell workflows for</span></div><div class="tline" data-t="820"><span class="ts">13:40</span><span class="tx">durability, sandbox for secure</span></div><div class="tline" data-t="822"><span class="ts">13:42</span><span class="tx">execution, and Verscell connect,</span></div><div class="tline" data-t="824"><span class="ts">13:44</span><span class="tx">something we just released to make it</span></div><div class="tline" data-t="825"><span class="ts">13:45</span><span class="tx">easy to generate short-lived ODC tokens</span></div><div class="tline" data-t="828"><span class="ts">13:48</span><span class="tx">for connections.</span></div><div class="tline" data-t="831"><span class="ts">13:51</span><span class="tx">And we actually rewrote the whole D0ero</span></div><div class="tline" data-t="833"><span class="ts">13:53</span><span class="tx">agent in Eve as we were building Eve and</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">from the convoluted structures behind</span></div><div class="tline" data-t="837"><span class="ts">13:57</span><span class="tx">the scenes that you did not see from the</span></div><div class="tline" data-t="839"><span class="ts">13:59</span><span class="tx">code. Um, this is roughly how the file</span></div><div class="tline" data-t="841"><span class="ts">14:01</span><span class="tx">system looks. It's very simple. You have</span></div><div class="tline" data-t="842"><span class="ts">14:02</span><span class="tx">a bunch of system instructions, a couple</span></div><div class="tline" data-t="845"><span class="ts">14:05</span><span class="tx">skills, a couple tools, and it's very</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">easy to compose this into a real agent,</span></div><div class="tline" data-t="849"><span class="ts">14:09</span><span class="tx">and it's very easy to iterate on. We</span></div><div class="tline" data-t="852"><span class="ts">14:12</span><span class="tx">actually gave this out to a few beta</span></div><div class="tline" data-t="853"><span class="ts">14:13</span><span class="tx">customers before we actually fully</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">released it two weeks ago at our London</span></div><div class="tline" data-t="856"><span class="ts">14:16</span><span class="tx">event. And this one company that</span></div><div class="tline" data-t="858"><span class="ts">14:18</span><span class="tx">partners closely with us, Aura. They've</span></div><div class="tline" data-t="860"><span class="ts">14:20</span><span class="tx">rebuilt their agent that's sort of like</span></div><div class="tline" data-t="862"><span class="ts">14:22</span><span class="tx">a mini claw to go and test people's</span></div><div class="tline" data-t="865"><span class="ts">14:25</span><span class="tx">services. It goes to websites, installs</span></div><div class="tline" data-t="867"><span class="ts">14:27</span><span class="tx">them, it tries to use them. And they've</span></div><div class="tline" data-t="870"><span class="ts">14:30</span><span class="tx">seen incredible success on building</span></div><div class="tline" data-t="873"><span class="ts">14:33</span><span class="tx">their own agent from the ground up using</span></div><div class="tline" data-t="875"><span class="ts">14:35</span><span class="tx">Eve compared to using an off-the-shelf</span></div><div class="tline" data-t="877"><span class="ts">14:37</span><span class="tx">cloud code. Fewer steps, better</span></div><div class="tline" data-t="880"><span class="ts">14:40</span><span class="tx">successes, as well as better insights.</span></div><div class="tline" data-t="885"><span class="ts">14:45</span><span class="tx">And when you deploy Eve to Verscell, you</span></div><div class="tline" data-t="887"><span class="ts">14:47</span><span class="tx">get observability observability out of</span></div><div class="tline" data-t="889"><span class="ts">14:49</span><span class="tx">the box. You can see here that you get</span></div><div class="tline" data-t="890"><span class="ts">14:50</span><span class="tx">all the agent runs, you see all the tool</span></div><div class="tline" data-t="892"><span class="ts">14:52</span><span class="tx">calls, you see each step it takes as</span></div><div class="tline" data-t="895"><span class="ts">14:55</span><span class="tx">well as maybe some estimated costs and</span></div><div class="tline" data-t="896"><span class="ts">14:56</span><span class="tx">some optimizations you could potentially</span></div><div class="tline" data-t="898"><span class="ts">14:58</span><span class="tx">take.</span></div><div class="tline" data-t="900"><span class="ts">15:00</span><span class="tx">And you can get start today at eve.dev.</span></div><div class="tline" data-t="903"><span class="ts">15:03</span><span class="tx">You can just clone it and you can just</span></div><div class="tline" data-t="904"><span class="ts">15:04</span><span class="tx">start a template, deploy easily,</span></div><div class="tline" data-t="906"><span class="ts">15:06</span><span class="tx">self-host if you need. And the reason</span></div><div class="tline" data-t="908"><span class="ts">15:08</span><span class="tx">why I bring this up is because I hope</span></div><div class="tline" data-t="910"><span class="ts">15:10</span><span class="tx">that there will be more and more</span></div><div class="tline" data-t="912"><span class="ts">15:12</span><span class="tx">business specific use case agents. You</span></div><div class="tline" data-t="915"><span class="ts">15:15</span><span class="tx">know, before we built Ezero, we actually</span></div><div class="tline" data-t="917"><span class="ts">15:17</span><span class="tx">battle tested a lot of the industry</span></div><div class="tline" data-t="920"><span class="ts">15:20</span><span class="tx">well-funded startups that were doing</span></div><div class="tline" data-t="922"><span class="ts">15:22</span><span class="tx">these vertical agents that were</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">dedicated to taking your Snowflake</span></div><div class="tline" data-t="926"><span class="ts">15:26</span><span class="tx">instance and making it so their agent</span></div><div class="tline" data-t="928"><span class="ts">15:28</span><span class="tx">could run Snowflake queries against it.</span></div><div class="tline" data-t="931"><span class="ts">15:31</span><span class="tx">But we found out that what really makes</span></div><div class="tline" data-t="933"><span class="ts">15:33</span><span class="tx">this agent good is it has a lot of very</span></div><div class="tline" data-t="936"><span class="ts">15:36</span><span class="tx">specific uh company knowledge. You know,</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">the way that Versel is a web- based</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">company. We have a lot of customers that</span></div><div class="tline" data-t="943"><span class="ts">15:43</span><span class="tx">have websites and web properties. That</span></div><div class="tline" data-t="945"><span class="ts">15:45</span><span class="tx">goes a lot deeper into when you should</span></div><div class="tline" data-t="948"><span class="ts">15:48</span><span class="tx">query for what and what things link to</span></div><div class="tline" data-t="950"><span class="ts">15:50</span><span class="tx">what. And so a lot of these</span></div><div class="tline" data-t="952"><span class="ts">15:52</span><span class="tx">off-the-shelf agents, they're great.</span></div><div class="tline" data-t="954"><span class="ts">15:54</span><span class="tx">They're good to try, but I think if you</span></div><div class="tline" data-t="956"><span class="ts">15:56</span><span class="tx">really want to get the most juice out of</span></div><div class="tline" data-t="957"><span class="ts">15:57</span><span class="tx">a squeeze, you should really try to</span></div><div class="tline" data-t="958"><span class="ts">15:58</span><span class="tx">build your own agent and add in as much</span></div><div class="tline" data-t="960"><span class="ts">16:00</span><span class="tx">company specific knowledge as you can.</span></div><div class="tline" data-t="963"><span class="ts">16:03</span><span class="tx">Today, you know, we've had 20 roughly</span></div><div class="tline" data-t="966"><span class="ts">16:06</span><span class="tx">decently PMF agents adversel that range</span></div><div class="tline" data-t="969"><span class="ts">16:09</span><span class="tx">from anything from marketing retros to</span></div><div class="tline" data-t="973"><span class="ts">16:13</span><span class="tx">figure out who to reach out to to the</span></div><div class="tline" data-t="975"><span class="ts">16:15</span><span class="tx">first ever red line of a contract when</span></div><div class="tline" data-t="978"><span class="ts">16:18</span><span class="tx">legal sees a new negotiation all the way</span></div><div class="tline" data-t="980"><span class="ts">16:20</span><span class="tx">to my data science agent helping with</span></div><div class="tline" data-t="982"><span class="ts">16:22</span><span class="tx">with data queries. And that goes to show</span></div><div class="tline" data-t="986"><span class="ts">16:26</span><span class="tx">that we ever have been very</span></div><div class="tline" data-t="987"><span class="ts">16:27</span><span class="tx">agent-filled. You know, all of this</span></div><div class="tline" data-t="990"><span class="ts">16:30</span><span class="tx">stuff is actually saving us a lot of</span></div><div class="tline" data-t="992"><span class="ts">16:32</span><span class="tx">time. The data team has never been more</span></div><div class="tline" data-t="994"><span class="ts">16:34</span><span class="tx">productive. They have more time to go</span></div><div class="tline" data-t="996"><span class="ts">16:36</span><span class="tx">and improve the performance of</span></div><div class="tline" data-t="998"><span class="ts">16:38</span><span class="tx">Snowflake, to add new data sources that</span></div><div class="tline" data-t="1000"><span class="ts">16:40</span><span class="tx">were missing, to fill in the gaps that</span></div><div class="tline" data-t="1002"><span class="ts">16:42</span><span class="tx">they previously did not have time to</span></div><div class="tline" data-t="1003"><span class="ts">16:43</span><span class="tx">because they were so busy writing</span></div><div class="tline" data-t="1005"><span class="ts">16:45</span><span class="tx">queries. And I think it's never been</span></div><div class="tline" data-t="1008"><span class="ts">16:48</span><span class="tx">easier for you at your big, small,</span></div><div class="tline" data-t="1010"><span class="ts">16:50</span><span class="tx">medium-sized company to sort of automate</span></div><div class="tline" data-t="1013"><span class="ts">16:53</span><span class="tx">away some of the things that you do not</span></div><div class="tline" data-t="1015"><span class="ts">16:55</span><span class="tx">want to do or some of the things that</span></div><div class="tline" data-t="1016"><span class="ts">16:56</span><span class="tx">you're spending too much time doing. You</span></div><div class="tline" data-t="1018"><span class="ts">16:58</span><span class="tx">know, I think a lot of HR, finance,</span></div><div class="tline" data-t="1020"><span class="ts">17:00</span><span class="tx">sales can be somewhat automated with</span></div><div class="tline" data-t="1024"><span class="ts">17:04</span><span class="tx">agents. And I think Eve is the best way</span></div><div class="tline" data-t="1026"><span class="ts">17:06</span><span class="tx">to build said agents today.</span></div><div class="tline" data-t="1029"><span class="ts">17:09</span><span class="tx">And these are my socials. Thank you all</span></div><div class="tline" data-t="1031"><span class="ts">17:11</span><span class="tx">for coming and listening. I'm Andrew and</span></div><div class="tline" data-t="1033"><span class="ts">17:13</span><span class="tx">I'll be around if you want to chat</span></div><div class="tline" data-t="1035"><span class="ts">17:15</span><span class="tx">outside.</span></div><div class="tline" data-t="1051"><span class="ts">17:31</span><span class="tx">&gt;&gt; [music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

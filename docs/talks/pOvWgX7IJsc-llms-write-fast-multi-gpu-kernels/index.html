@@ -1,0 +1,943 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LLM 能写出快速的多 GPU 内核吗？ —— Simran Arora，Together AI | AI 工程师中文版</title>
+<meta name="description" content="Simran Arora 解释了为什么在许多生产级分布式训练和推理工作负载中，通信已经成为限制性资源；她把多 GPU 内核设计提炼为数据传输和调度两方面的选择，并在 87 个实际问题上检验模型能否做出这些选择。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>LLM 能写出快速的多 GPU 内核吗？ —— Simran Arora，Together AI</h1>
+    <div class="orig-title">Can LLMs Write Fast Multi-GPU Kernels? — Simran Arora, Together AI</div>
+    <div class="meta"><span class="speaker">Simran Arora</span> · AI Engineer World's Fair 2026 · 30:00</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=gpu-programming-and-kernel-optimization">GPU 编程与内核优化</a><a class="tag" href="../../index.html#topic=benchmarks">基准测试</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/pOvWgX7IJsc-llms-write-fast-multi-gpu-kernels" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="pOvWgX7IJsc"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=pOvWgX7IJsc" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">瓶颈在 GPU 之间转移</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>瓶颈在 GPU 之间转移</span></li><li data-t="337"><span class="ts">5:37</span><span>工作负载和硬件正变得越来越以网络为中心</span></li><li data-t="670"><span class="ts">11:10</span><span>方便的集合通信留下了性能差距</span></li><li data-t="960"><span class="ts">16:00</span><span>根据消息选择传输机制</span></li><li data-t="1098"><span class="ts">18:18</span><span>在一个 SM 内重叠工作——或在多个 SM 之间拆分</span></li><li data-t="1290"><span class="ts">21:30</span><span>ParallelKernelBench 测试实际的分布式设计</span></li><li data-t="1438"><span class="ts">23:58</span><span>正确率提升得比性能快</span></li><li data-t="1588"><span class="ts">26:28</span><span>重试更容易修好语法，而不是分布式设计</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 25 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Accelerator interconnect topologies" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Accelerator interconnect topologies</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>TPU chips form a wraparound torus, Nvidia compares direct GPU links with an NVSwitch fabric, and AMD XGMI connects GPUs point to point.
+
+[7:06](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=426s) [Diagrams compare TPU torus interconnects, Nvidia NVLink and NVSwitch, and AMD XGMI.](https://assets.ai.engineer/sites/aiecode2025/sha256/769d24dcfa1709f182f5ab8c705d31d098e2974ceb9eab34aeaeb10b3ace460e.webp)
+
+Networking is rapidly evolving and the frontier of new inference algorithms (disaggregation).
+
+TPU inter-chip interconnects (torus).
+Chip  Chip  Chip  Chip
+Chip  Chip  Chip  Chip
+Chip  Chip  Chip  Chip
+Chip  Chip  Chip  Chip
+
+Multi-GPU Configuration without NVSwitch
+GPU  GPU  GPU  GPU
+GPU  GPU  GPU  GPU
+
+Multi-GPU Configuration with NVSwitch
+GPU  GPU  GPU  GPU
+NVSwitch
+GPU  GPU  GPU  GPU
+
+Nvidia NVLink / NVSwitch (Switched any-to-any).
+
+AMD XGMI (point-to-point).
+GPU 0
+GPU 1
+GPU 2
+GPU 3
+GPU 4
+GPU 5
+GPU 6
+GPU 7
+Link labels: 45.21 GB/s; 47.056 GB/s; 46.432 GB/s; [illegible] GB/s
+
+Interface text:
+Simran's slides - Google Slides
+Ask Gemini
+Work
+Relaunch to update
+Google Slides address: [illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Evolving hardware and communication" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evolving hardware and communication</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Inference systems can spread KV cache across GPUs, CPUs, disks and remote machines, and run stages on different hardware. Larger scale-up domains and device-initiated transfers change how kernels communicate.
+
+[8:17](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=497s) [Four panels illustrate hierarchical caching, larger scale-up domains, heterogeneous hardware, and device-initiated communication.](https://assets.ai.engineer/sites/aiecode2025/sha256/69b4bf981c66c7725d4ec44e93bd3be21226e3567de83fab1fb49451a3166aa3.webp)
+
+Networking is rapidly evolving and the frontier of new inference algorithms (disaggregation).
+
+Hierarchical caching (GPU, CPU, Disk).
+Diagram labels: Host; PCIe Gen5 128 GB/s; B200; NVLink Gen5 1,800 GB/s; NVSwitch.
+
+Growing scale up domains (NVL72, Helios).
+Diagram labels: GPU [illegible]; 18x NVSwitches.
+
+Heterogenous hardware (Vera + LPU).
+Image labels: Rubin GPU; Groq 3 LPU.
+
+Device-initiated communication (TMA, TDM).
+
+Interface text:
+Simran's slides - Google Slide[illegible]
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Hardware utilization and development simplicity" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Hardware utilization and development simplicity</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The goal is to achieve peak hardware utilization while keeping multi-GPU kernels simple to develop.
+
+[9:51](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=591s) [Problem statement: maximizing hardware utilization and development simplicity.](https://assets.ai.engineer/sites/aiecode2025/sha256/9136982fd045e61f98f3262cde00142c7258868f357406fb727ec0a3da9ccfff.webp)
+
+Problem:
+Maximizing hardware utilization and development simplicity.
+
+Interface text:
+Simran’s slides - Google Slides
+Ask Gemini
+Work
+Relaunch to update
+docs.google.com/presentation/d/[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Challenges in multi-GPU kernel development" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Challenges in multi-GPU kernel development</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Communication can leave GPUs idle, while networking hardware has improved more slowly than compute and memory. From A100 to B200, BF16 tensor cores improved 7.2×, versus 3× for intra-node and 2× for inter-node communication.
+
+[10:04](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=604s) [Text describes communication overhead and hardware improvements, alongside images referencing Comet and DeepEP.](https://assets.ai.engineer/sites/aiecode2025/sha256/fef5788acf5065abd1ab3e3f292064e07eabf901a71fa3014413ad83867cc73c.webp)
+
+It is difficult to write high performance multi-GPU kernels.
+
+1. Communication can occupy over 50% of execution time in large language model workloads, leaving GPU compute idle [1].
+2. There have been slow improvements in communication hardware: from A100 to the B200, BF16 tensor cores improved by 7.2× HBM by 5.1×, intra-node (NVLink) by only 3× and inter-node (PCIe/InfiniBand) by just 2×.
+
+ByteDance | Seed
+Comet: Fine-grained Computation-communication Overlapping for Mixture-of-Experts
+Shulai Zhang, Ningxin Zheng, Haibin Lin, Ziheng Jiang, Wenlei Bao, Chengquan Jiang, Qi Hou, Weihao Cui, Size Zheng, Li-Wen Chang, Quan Chen, Xin Liu [author markers illegible]
+¹ByteDance Seed, ²Shanghai Jiao Tong University
+
+deepseek-ai / DeepEP
+Code  Issues 198  Pull requests 78  Agents  Actions  More
+Watch 102
+DeepEP: an efficient expert-parallel communication library
+MIT license
+9.8k stars  1.3k forks  102 watching  14 Branches  1 Tag
+
+[1] FLUX: Fast Software-based Communication Overlap On GPUs Through Kernel Fusion
+
+Interface text:
+Simran’s slides - Google Sli[illegible]
+Ask Gemini
+Work
+Relaunch to update
+docs.google.com/presentation/d/[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Networking overhead and hardware utilization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Networking overhead and hardware utilization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The GEMM + All-Gather trace shows separated communication blocks and scattered memory operations in the PyTorch + NCCL reference: 320.6 μs versus a 4.99 μs theoretical roofline.
+
+[11:08](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=668s) [A profiler trace compares a PyTorch and NCCL GEMM plus all-gather reference at 320.6 microseconds with a theoretical roofline of 4.99 microseconds.](https://assets.ai.engineer/sites/aiecode2025/sha256/9161fafd3b19ff55c5d72a88de48f9ab34c30e2361f05b2c42f8f736fec70748.webp)
+
+Networking overheads waste hardware utilization.
+
+roofline: 4.993 μs
+LLM solution: 87.9 μs
+PyTorch reference: 320.6 μs
+
+Theoretical roofline
+memory
+compute
+comm
+
+torch.dist reference
+memory
+compute
+comm
+
+Time (μs)
+X-axis ticks: 0, 50, 100, 150, 200, 250, 300
+Legend: Memory, Compute, Communication
+
+Profiler trace for GEMM + All-Gather: PyTorch + NCCL reference (320.6 μs) versus the ideal theoretical roofline (4.99 μs).
+
+Interface text:
+Simran’s slides - Google Slide[illegible]
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Approaches to multi-GPU kernel development" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Approaches to multi-GPU kernel development</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Arora says NCCL-based systems synchronize around transfers, compilers struggle to track networking advances, and adapting some hand-tuned kernels to another precision can take five or six months.
+
+[12:32](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=752s) [Three approaches are shown: off-the-shelf APIs, compilers, and low-level primitives.](https://assets.ai.engineer/sites/aiecode2025/sha256/a40e50ddcc5596ce22327ef84ff93b0f6848f0e2d8f55ca0cf85723f06a944b8.webp)
+
+There are three current approaches for multi-GPU kernel development.
+
+NVIDIA
+NVIDIA COLLECTIVE COMMUNICATION LIBRARY (NCCL)
+[illegible] | May 2019
+Installation Guide
+
+NVIDIA/cutlass
+CUDA Templates for Linear Algebra Subroutines
+NVIDIA
+164 Contributors
+227 Issues
+235 Discussions
+6k Stars
+1k Forks
+
+Off-the-shelf APIs (NCCL, RCCL).
+Compilers (Triton Distributed).
+Low-level primitives (Comet, CUTLASS).
+
+Interface text:
+Simran’s slides - Google Slides
+Ask Gemini
+Work
+Relaunch to update
+docs.google.com/presentation/d/[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Research question" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Research question</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Hand-tuning a method for another precision can take five or six months. Arora asks whether a small set of principles and methods could simplify fast multi-GPU kernel development.
+
+[14:10](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=850s) [Question asking whether a small set of principles and methods can simplify writing fast multi-GPU kernels.](https://assets.ai.engineer/sites/aiecode2025/sha256/b59703b300285c2570afa1af5a40a87414d19a1149f3e505d0b6b01f5d4b64f2.webp)
+
+Question:
+Is there a small set of principles that suffices for writing fast multi-gpu kernels and are there methods that simplify the development of the kernels?
+
+Interface text:
+Simran’s slides - Google Slide[illegible]
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="ParallelKittens and ParallelKernelBench" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>ParallelKittens and ParallelKernelBench</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>ParallelKittens distills multi-GPU kernel primitives and patterns; ParallelKernelBench evaluates frontier AI systems on generating fast kernels. Arora reports that the models performed poorly.
+
+[14:30](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=870s) [Two columns introduce ParallelKittens and ParallelKernelBench, with author lists, kitten illustrations, and summaries of each project.](https://assets.ai.engineer/sites/aiecode2025/sha256/0ad11bb5a5f436cced381d5844e9544df40619f05ea9140dcf0aea257ffa0707.webp)
+
+ParallelKittens (MLSys ’26)
+Stuart Sul, Simran Arora, Benjamin Spector, Christopher Ré
+
+We 1) show that a small set of principles suffices for writing performant multi-gpu AI kernels and thus 2) create a minimal set of multi-gpu kernel programming primitives.
+
+ParallelKernelBench
+Willy Chan, Nathan Paek, Simon Guo, Simran Arora, Daniel Y. Fu
+
+We 1) produce a benchmark that covers the space of multi-gpu AI problems and 2) measure the abilities of frontier AI systems in generating fast multi-gpu kernels.
+
+Interface text:
+Simran’s slides - Google Slide
+Ask Gemini
+Warik
+Relaunch to update
+docs.google.com/presentation/d/[illegible]/edit?slide=[illegible]#slide=[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Fundamentals" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fundamentals</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>This section introduces the hardware mechanisms and parallelism strategies behind multi-GPU kernel tradeoffs.
+
+[15:46](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=946s) [Section slide introducing hardware mechanisms and parallelism strategies.](https://assets.ai.engineer/sites/aiecode2025/sha256/80a49268c909907909d0565576ecc6cf893c1a13d28721fa21f80cf8b8d9ae20.webp)
+
+Fundamentals:
+Hardware mechanisms and parallelism strategies.
+
+Interface text:
+Simran’s slides - Google Slide…
+Ask Gemini
+https://docs.google.com/presentation/d/[illegible]/edit?slide=id.[illegible]
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Transfer mechanisms and message size" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Transfer mechanisms and message size</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For a 1 GB NVLink transfer between two H100s, device-initiated transfers reach high throughput at small message sizes. Host-initiated throughput climbs with message size and eventually exceeds it.
+
+[15:54](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=954s) [Copy engine, TMA, and register instructions are listed beside a chart comparing host-initiated and device-initiated transfer throughput by message size.](https://assets.ai.engineer/sites/aiecode2025/sha256/cfa83144704aff3e5bdfa1f051a54cac5bbdfe2f1a4f8d6ef03a87e1b580c150.webp)
+
+Tradeoff #1: Transfer mechanism.
+
+1. Copy engine: host-initiated bulk communication.
+2. TMA: device-initiated fine-grained communication.
+3. Register instructions: device-initiated fine-grained communication.
+
+Y-axis: Throughput (GB/s)
+Y-axis ticks: 0, 100, 200, 300, 400
+X-axis: Message Size (Bytes)
+X-axis ticks: 2¹¹, 2¹³, 2¹⁵, 2¹⁷, 2¹⁹, 2²¹, 2²³, 2²⁵, 2²⁷, 2²⁹
+Legend: Host-initiated; Device-initiated
+Max SMEM
+
+Observed memory bandwidth utilization for a 1 GB peer-to-peer transfer over NVLink between 2 H100s.
+
+Interface text:
+Simran's slides - Google Slides
+Ask Gemini
+[illegible address]
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Transfer mechanisms and GPU resource use" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Transfer mechanisms and GPU resource use</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The copy engine delivers the highest measured bandwidth without using GPU processors. TMA approaches it with few processors and registers; register instructions use more processors and achieve less bandwidth.
+
+[17:01](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1021s) [Resource-use tradeoffs for copy engine, TMA, and register instructions, with bandwidth charts and a table for H100 and B200 GPUs.](https://assets.ai.engineer/sites/aiecode2025/sha256/35e1d9359b3114e2ce8ab1b39b45498610c4ace159358cbbc6630bcd4f966f32.webp)
+
+Tradeoff #1: Transfer mechanism.
+
+1. Copy engine: consumes none of the GPU processors, achieves peak B/W amongst mechanisms.
+2. TMA: consumes few GPU processors and registers.
+3. Register instructions: consumes many GPU processors and struggles to saturate B/W.
+
+H100s
+Y-axis: Bandwidth (GB/s)
+Y-axis ticks: 0, 100, 200, 300
+X-axis: Number of SMs
+X-axis ticks: 0, 50, 100
+Legend: TMA Op, Register Op, Copy Engine
+
+B200s
+Y-axis: Bandwidth (GB/s)
+Y-axis ticks: 0, 200, 400, 600
+X-axis: Number of SMs
+X-axis ticks: 0, 50, 100, 150
+Legend: TMA Op, Register Op, Copy Engine
+
+Method | H100 BW (Ratio) | B200 BW (Ratio)
+Copy Engine | 368.82 (82%) | 726.13 (81%)
+TMA Op | 350.01 (78%) | 669.12 (74%)
+Register Op | 342.68 (76%) | 628.35 (70%)
+
+Interface text:
+Simran’s slides - Google Slides
+Ask Gemini
+Work
+Relaunch to update
+Address: docs.google.com/presentation/d/[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Transfer functionality and NVSwitch" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Transfer functionality and NVSwitch</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>All three mechanisms support P2P transfer and in-fabric broadcast; only register instructions support in-fabric reduction and elementwise transfer. The diagrams contrast direct GPU links with an NVSwitch fabric.
+
+[18:07](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1087s) [GPU connection diagrams and a table compare copy engine, TMA, and register instruction functionality, including in-fabric reduction.](https://assets.ai.engineer/sites/aiecode2025/sha256/2dfbf928a97b711cecccd2cc0fd7763f49c5a6cc0b45a75f75734948f0ccd819.webp)
+
+Tradeoff #1: Transfer mechanism.
+
+Register instructions uniquely enable NVSwitch in-network reduction.
+
+Multi-GPU Configuration without NVSwitch
+GPU  GPU  GPU  GPU
+GPU  GPU  GPU  GPU
+
+Multi-GPU Configuration with NVSwitch
+GPU  GPU  GPU  GPU
+NVSwitch
+GPU  GPU  GPU  GPU
+
+Functionality | CE | TMA | Reg
+P2P Transfer | ✓ | ✓ | ✓
+In-fabric Broadcast | ✓ | ✓ | ✓
+P2P Reduction | × | ✓ | ✓
+In-fabric Reduction | × | × | ✓
+Elementwise Transfer | × | × | ✓
+
+Interface text:
+Simran’s slides - Google Slide[illegible]
+docs.google.com/presentation/d/[illegible]/edit?slide=[illegible]
+Ask Gemini
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Foundation models and multi-GPU fundamentals" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Foundation models and multi-GPU fundamentals</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Can models reason through multi-GPU kernel tradeoffs and generalize beyond single-GPU benchmarks?
+
+[21:30](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1290s) [Question asking how well foundation models understand and exploit these fundamentals.](https://assets.ai.engineer/sites/aiecode2025/sha256/30ca95e6541e35c3c64ebf683e65c7b0748c7ec711c564ee57831d30dfb4e535.webp)
+
+How well do foundation models understand and exploit these fundamentals?
+
+Interface text:
+Simran’s slides - Google Slide[illegible]
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="ParallelKernelBench" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>ParallelKernelBench</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>ParallelKernelBench gives a model a distributed PyTorch reference and GPU topology, then compares its generated CUDA kernel with the reference per rank for correctness, performance, and communication.
+
+[21:57](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1317s) [Diagram showing a language model generating a multi-GPU kernel from a distributed reference and topology, then evaluating it per GPU rank.](https://assets.ai.engineer/sites/aiecode2025/sha256/a8e3161200ec95bc01f9439e8ec540b05c7a4125b67d80d02ecb4679ed7fe3ae.webp)
+
+ParallelKernelBench
+
+A distributed PyTorch reference and network topology go in; the model returns a kernel, evaluated per-rank.
+
+Task instruction
+
+Network topology &amp; capability
+4x H100
+NVLink · NVSwitch · NVLS on
+NVSWITCH
+
+PyTorch (NCCL calls)
+def solution():
+    C_t = B.T @ A
+    dist.all_reduce()
+    ...
+
+Reference torch distributed
+
+Language model
+
+Custom kernel
+CUDA
+with multi-GPU communication
+
+Optimized CUDA kernel
+
+Evaluate per GPU rank
+Randomized inputs
+Reference
+Generated
+Benchmark over n_trial times
+
+Correctness
+Output match?
+
+Performance
+Wall-clock speedup?
+
+Communication
+Comm. roofline?
+
+Interface text:
+Simran’s slides - Google Slides
+Ask Gemini
+Work
+Relaunch to update
+docs.google.com/presentation/d/[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Taxonomy of multi-GPU parallelism" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Taxonomy of multi-GPU parallelism</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>PKB maps parallelism choices across transformer layers and selects representative problems for each. The example combines sequence and tensor parallelism, with AllGather and ReduceScatter between operations.
+
+[22:35](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1355s) [Parallelism schemes for transformer layers alongside a representative model using sequence and tensor parallelism.](https://assets.ai.engineer/sites/aiecode2025/sha256/feb798939f530d3caca38e7b056c170732f0ce4969e18fddc3de5d140d495cb7.webp)
+
+To ensure that PKB provides high coverage over multi-GPU settings, we identify a taxonomy of parallelism schemes and propose problems for each setting.
+
+[PP] layers
+Normalization: [SP]
+Attention:
+[TP] Shard heads
+[CP] Ring attention / Ulysses
+[DP] Different sequence
+Normalization: [SP]
+MLP:
+[TP] Dense
+[EP] MoE
+[TP] MoE
+[EP + TP] MoE
+Other: Graph, Spatial, ...
+
+[D]ata · [S]equence · [T]ensor · [C]ontext · [E]xpert · [P]ipeline
+Parallelism
+
+[SP] RMS norm
+AllGather
+[TP] GQA attention
+shard on heads
+ReduceScatter
+[SP] RMS norm
+AllGather
+[TP] Dense MLP
+(GeGLU)
+ReduceScatter
+...
+
+Expresses representative models
+e.g. one Gemma3-27B layer
+
+Interface text:
+Simran's slides - Google Slides
+Ask Gemini
+Work
+Relaunch to update
+docs.google.com/presentation/d/[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="PKB problem composition" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>PKB problem composition</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Among 100 parallelism strategies, tensor leads with 17, followed by data and context with 15 each. Among 87 problem sources, RL post-training leads with 25, followed by LLM training with 17.
+
+[23:21](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1401s) [Pie charts show parallelism strategies and problem source categories in ParallelKernelBench.](https://assets.ai.engineer/sites/aiecode2025/sha256/8ebc64586610cca97ecd5e99df808f88cf4b6e64e854b85a7f65c63fff03f8c8.webp)
+
+PKB problem composition.
+
+Parallelism strategies (n = 100)
+Tensor (17)
+Data (15)
+Context (15)
+Expert (13)
+FSDP / ZeRO (12)
+Collective (8)
+Graph (6)
+Geometric / Spatial (5)
+Vocab (4)
+Sequence (2)
+Other (2)
+Pipeline (1)
+
+Problem source categories (n = 87)
+RL post-training (25)
+LLM training (17)
+Kernel libraries (10)
+NVIDIA/nccl (8)
+Vision models (8)
+Other (6)
+GNN frameworks (6)
+Scientific computing (5)
+Inference engines (2)
+
+Interface text:
+Simran’s slides - Google Slide[illegible]
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Results" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Results</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk turns to how models perform on ParallelKernelBench.
+
+[23:50](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1430s) [Results section title on a pale blue background.](https://assets.ai.engineer/sites/aiecode2025/sha256/9e3e614618f5dade1110bd81b60ef6f9bbc19bc471245982dd131650ff30d9d9.webp)
+
+Results
+
+Interface text:
+Simran’s slides - Google Slide[illegible]
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="The few correct kernels are slow" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The few correct kernels are slow</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>As the required speedup relative to the reference rises, the fraction of problems solved with a qualifying correct kernel falls for every model. GPT-5.5 leads, dropping from about 0.30 at p=0 to 0.12 at p=3.
+
+[25:49](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1549s) [Line chart comparing fast-p scores across models as the speedup threshold increases; GPT-5.5 leads throughout.](https://assets.ai.engineer/sites/aiecode2025/sha256/4da7a3d36220ec847f360f91badd1e3c12807b61d1a3005cfa4c792fced4440e.webp)
+
+The few correct kernels are slow.
+
+Y-axis: fastₚ score
+Y-axis ticks: 0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30
+X-axis: Speedup threshold (p)
+X-axis ticks: 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0
+Legend: GPT-5.5; Gemini 3 Pro; Claude Opus 4.7; GLM 5.1; DeepSeek V4 Pro
+
+fast-p: fraction of problems solved with a correct kernel at least p times faster than the reference; higher is better.
+
+Interface text:
+Simran’s slides - Google Slide[illegible]
+Ask Gemini
+Work
+Relaunch to update
+docs.google.com/presentation/d/[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="PKB failure modes by model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>PKB failure modes by model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Across 87 PKB problems per model, GPT-5.5 has 28 correct outcomes; GLM-5.1 has 6. Arora says models also struggle with tradeoffs such as collective ordering and data partitioning.
+
+[26:26](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1586s) [Stacked bars show counts of correctness and failure categories across 87 problems for each model.](https://assets.ai.engineer/sites/aiecode2025/sha256/832900f3266d8f9e1ff23f15285fb879812ffe37e1f40eb8093d8fc4c65daa31.webp)
+
+PKB failure modes by model.
+
+GPT-5.5: 16, 3, 3, 6, 26, 5, 28
+Gemini 3 Pro: 10, 7, 11, 24, 10, 24
+Opus 4.7: 26, 7, 12, 12, 9, 20
+GLM-5.1: 31, 6, 9, 8, 17, 10, 6
+DeepSeek V4 Pro: 36, 20, 8, 6, 14
+
+X-axis: Percentage of problems in batch
+X-axis ticks: 0, 20, 40, 60, 80, 100
+
+Legend: nvcc/syntax errors; Tensor shape error; Attribute/name/API typo; Runtime error; Output mismatch; Deadlock; Correct
+
+Outcome distribution across 87 PKB problems per model; segment labels show problem counts.
+
+Interface text:
+Simran’s slides - Google Slides
+Ask Gemini
+Work
+Relaunch to update
+[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Agentic evaluation loops" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agentic evaluation loops</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Gemini 3 Pro used a local shell to write and test solutions, raising the number solved from 24 to 35 of 87 problems. Performance plateaued as the team gave it more time.
+
+[27:05](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1625s) [Diagram shows a language model running commands and iterating until a solution passes or the budget is exhausted. The slide says loops correct syntax and shape errors but do not foster algorithmic innovation.](https://assets.ai.engineer/sites/aiecode2025/sha256/145b1085ed7a928a060c7224061d18829fd9264f1a0e0904a33bcad9bd2d6c4c.webp)
+
+Agentic loops help correct syntax and shape errors, but does not help the model innovate algorithmically.
+
+Evaluation instructions
+System prompt
+In-context examples
+Language model
+Write a file?
+Run evaluation?
+Run test?
+Shell executes command
+Satisfied / out of budget?
+No? Then iterate!
+Yes? Done!
+Solution
+Python file
+
+Agentic evaluation loop: the model writes files, runs correctness tests and benchmarks, and iterates until the solution passes or the step budget is exhausted.
+
+Interface text:
+Simran’s slides - Google Slide [truncated]
+Ask Gemini
+docs.google.com/presentation/d/[illegible]
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="NeMo vocab-parallel log-prob with top-k and top-p filtering" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>NeMo vocab-parallel log-prob with top-k and top-p filtering</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Gemini 3 Pro-generated CUDA reaches 1.28× the CuBLAS + NCCL reference at sequence length 1,024, then 1.06–1.07× at longer lengths.
+
+[27:58](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1678s) [Bar chart shows Gemini 3 Pro-generated CUDA speedups of 1.06 to 1.28 times the CuBLAS and NCCL reference across sequence lengths.](https://assets.ai.engineer/sites/aiecode2025/sha256/743c7c9e3763c971e3bfdcc92ca79b46f4b37c08a74ef89e8b0336f3cbcd3cf8.webp)
+
+Net new! NeMo vocab-parallel log-prob with top-k/top-p filtering.
+
+Y-axis: Kernel speedup (x)
+Y-axis ticks: 0.00, 0.25, 0.50, 0.75, 1.00, 1.25, 1.50
+X-axis: Sequence length
+X-axis ticks: 1,024, 2,048, 4,096, 8,192, 16,384
+Speedup labels: 1.28x, 1.06x, 1.07x, 1.07x, 1.06x
+Legend: CuBLAS + NCCL (reference); Gemini 3 Pro-generated CUDA
+
+Mean kernel speedup relative to the CuBLAS + NCCL reference.
+
+Interface text:
+Simran’s slides - Google Slid[illegible]
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Hyena forward context parallelism" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Hyena forward context parallelism</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GPT-5.5-generated CUDA reaches 3.55× and 1.82× the CuBLAS + NCCL reference at sequence lengths 1,024 and 2,048, then falls to 0.70× at 8,192 and 16,384.
+
+[28:37](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1717s) [Bar chart shows GPT-5.5-generated CUDA speedups of 3.55, 1.82, 0.70 and 0.70 times the reference at increasing sequence lengths.](https://assets.ai.engineer/sites/aiecode2025/sha256/265a4f2ed4925d220e5402e3c4a38029318818e32f78a9817563486c116e4992.webp)
+
+Net new! Hyena forward context parallelism.
+
+Y-axis: Kernel speedup (x)
+Y-axis ticks: 0.00, 0.50, 1.00, 1.50, 2.00, 2.50, 3.00, 3.50, 4.00
+X-axis: Sequence length
+X-axis ticks: 1,024, 2,048, 8,192, 16,384
+Bar labels: 3.55x, 1.82x, 0.70x, 0.70x
+Legend: CuBLAS + NCCL (reference); GPT-5.5-generated CUDA
+
+Mean kernel speedup relative to the CuBLAS + NCCL reference.
+
+Interface text:
+Simran’s slides - Google Slides
+Ask Gemini
+Work
+Relaunch to update
+docs.google.com/presentation/d/[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="SAM3 IoU suppression" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>SAM3 IoU suppression</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GPT-5.5-generated CUDA reaches 1.03× to 1.38× the reference speed across 16–512 tracked objects, with the largest gain at 16 objects.
+
+[28:43](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1723s) [Bar chart shows GPT-5.5-generated CUDA speedups of 1.03 to 1.38 times the reference across numbers of tracked objects.](https://assets.ai.engineer/sites/aiecode2025/sha256/791aa14012576fcc3c0552dfd4821ee654a103ebb61888bcd48d9162a58f6d8f.webp)
+
+Net new! SAM3 IoU suppression.
+
+Y-axis: Kernel speedup (x)
+Y-axis ticks: 0.00, 0.25, 0.50, 0.75, 1.00, 1.25, 1.50
+X-axis: Number of objects tracked
+X-axis ticks: 16, 32, 64, 128, 256, 512
+GPT-5.5-generated CUDA values: 1.38x, 1.25x, 1.13x, 1.03x, 1.10x, 1.03x
+Legend: Reference (1x); GPT-5.5-generated CUDA
+
+Mean kernel speedup relative to the reference implementation.
+
+Interface text:
+Simran’s slides - Google Slid[illegible]
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="In conclusion" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>In conclusion</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>ParallelKittens captures multi-GPU programming tradeoffs in a few primitives, but models still struggle to reason through them in context. Next steps include solving PKB and exploring evolving networking and communication.
+
+[28:50](https://www.youtube.com/watch?v=pOvWgX7IJsc&amp;t=1730s) [Conclusion slide summarizing multi-GPU kernel programming lessons, future research directions, and a hiring announcement.](https://assets.ai.engineer/sites/aiecode2025/sha256/92f297849701644620588242b0d7527f889b50e3eeb675cdb35a0c8e5df4210e.webp)
+
+In conclusion.
+
+1. Lessons.
+• A few simple tradeoffs govern multi-gpu kernel programming, demonstrated by our ability encapsulate the principles in a few programming primitives (ParallelKittens).
+• Models do not currently understand these tradeoffs or demonstrate an ability to reason about the tradeoffs in-context.
+
+2. Next steps.
+• Solving PKB to obtain net new kernels!
+• How should AI architectures change as the networking stack evolves (larger scale up, disaggregated inference, heterogeneous hardware)?
+• Inter-node communication, multi-silicon communication.
+
+We’re hiring for Frontier Performance Research! Contact [redacted].
+
+Interface text:
+Simran’s slides - Google Slide
+Ask Gemini
+Google Slides URL: docs.google.com/presentation/d/[illegible]
+Work
+Relaunch to update</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/c24648b4784e191004b72e48b2d0c5946ecec65a1333a8db47fb2edb7933fd4c.webp" alt="Black slide with the white AI Engineer World's Fair logo in a rectangular frame and the event website below." loading="lazy" data-lb="24" data-cap="AI Engineer World's Fair" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer World's Fair</h3>
+        <p>Black slide with the white AI Engineer World's Fair logo in a rectangular frame and the event website below.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+World’s Fair
+
+HTTPS://AI.ENGINEER</pre></details>
+        <button class="ts" data-t="1795">▶ 29:55</button>
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">瓶颈在 GPU 之间转移</a></li><li><a href="#sec-2">工作负载和硬件正变得越来越以网络为中心</a></li><li><a href="#sec-3">方便的集合通信留下了性能差距</a></li><li><a href="#sec-4">根据消息选择传输机制</a></li><li><a href="#sec-5">在一个 SM 内重叠工作——或在多个 SM 之间拆分</a></li><li><a href="#sec-6">ParallelKernelBench 测试实际的分布式设计</a></li><li><a href="#sec-7">正确率提升得比性能快</a></li><li><a href="#sec-8">重试更容易修好语法，而不是分布式设计</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">LLM 能写出快速的多 GPU 内核吗？</h2>
+      <div class="lede"><p>Simran Arora 解释了为什么在许多生产级分布式训练和推理工作负载中，通信已经成为限制性资源；她把多 GPU 内核设计提炼为数据传输和调度两方面的选择，并在 87 个实际问题上检验模型能否做出这些选择。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>瓶颈在 GPU 之间转移</h3>
+      <p>Work inside one GPU has improved through kernels such as FlashAttention, memory-efficient architectures, sparse attention, and better domain-specific languages. Arora’s starting point is the consequence of that progress: as single-GPU execution gets better, communication between GPUs becomes a larger share of the remaining runtime. The new problem is to make kernels spanning several GPUs fast without requiring months of specialized engineering for each operator.</p>
+<p>The hardware explains why data movement matters. Threads and blocks execute on processors distributed across the GPU. Those processors retrieve weights and activations through a hierarchy that includes a relatively small L2 cache and much larger high-bandwidth memory. Registers sit closest to computation and can supply data at a cited 130 terabytes per second on an H100, but their capacity is limited. Moving farther away generally provides more storage at the cost of slower access.</p>
+<p>Multiple GPUs extend that hierarchy into a network. PCIe carries CPU–GPU traffic, while communication across nodes can use InfiniBand or TCP. Within the NVIDIA systems emphasized in the talk, NVLink connects GPUs point to point and NVSwitch joins NVLink endpoints into a nonblocking fabric. NVSwitch can also accelerate operations such as multicast and reductions in the network rather than requiring every step to run on a GPU.</p>
+<p>Data gets larger—and farther away
+Within a GPU, fast, scarce registers give way to larger memories farther from computation. Beyond the GPU, communication links provide access to remote memory; the links are not additional storage tiers.
+- Registers — Closest to computation and very fast, but scarce.
+- L2 cache — On-GPU memory surrounding the processors, with limited capacity.
+- High-bandwidth memory — Stores large weights and activations and supplies the GPU memory capacity reported by system tools.
+- NVLink and NVSwitch — Connect GPUs within the NVIDIA scale-up domain; NVSwitch can perform multicast and reductions in the fabric.
+- InfiniBand or TCP — Carries communication across nodes.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="337">▶ 5:37</button></div>
+      <h3>工作负载和硬件正变得越来越以网络为中心</h3>
+      <p>Several optimization layers have advanced together: architectures reduce compute and memory requirements, hardware-aware algorithms improve execution, programming tools make kernels easier to express, and megakernels overlap work across operators. Yet distributed training and inference still exchange data. Arora reports that communication increasingly consumes most of the runtime in many production workloads, leaving low model FLOP utilization as systems scale.</p>
+<p>Networking is also less uniform than matrix multiplication or memory hierarchies. The talk contrasts AMD’s point-to-point XGMI links, TPU systems using a 3D torus with optical wraparound links, and NVIDIA’s NVSwitch fabric with in-network reductions. Arora cites up to 900 gigabytes per second of unidirectional NVLink bandwidth between remote GPUs’ high-bandwidth memories on a particular NVIDIA generation. That hardware qualification matters: it is an example of one system, not a universal link rate.</p>
+<p>The workloads themselves now cross more boundaries. KV-cache storage can span GPU memory, CPU memory, disk, and remote machines. Inference systems can place speculative decoding, prefill, and decode on different hardware. Arora also describes scale-up domains reaching 72 GPUs and cites a plan for a 576-GPU system in 2027. Device-side tensor memory acceleration adds asynchronous transfers to this environment, giving kernels finer control over when communication begins and how it overlaps with other work.</p>
+<p>Compute has nevertheless improved faster than the links carrying its data. From NVIDIA’s A100 in 2020 to B200 in 2024, the reported BF16 tensor-core gain is 7.2×, compared with 3× for intra-node communication and 2× for inter-node communication. Faster arithmetic cannot remove that mismatch. It increases the amount of useful computation that can sit idle while communication catches up.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="670">▶ 11:10</button></div>
+      <h3>方便的集合通信留下了性能差距</h3>
+      <p>NCCL makes common multi-GPU operations accessible, but its bulk-transfer orientation does not fit every kernel. It works naturally with large contiguous chunks. Fine-grained communication, tightly fused collectives, and communication that must overlap with a particular computation require more control. In the team’s benchmark, most simple PyTorch-plus-NCCL baselines fall below 50% of their communication-aware roofline, leaving headroom even after accounting for the communication limit.</p>
+<p>The available alternatives each carry a cost:</p>
+<p>- <strong>Higher-level frameworks:</strong> Systems built around bulk NCCL collectives often synchronize before and after transfers, preserving the same coarse execution structure.
+- <strong>Compilers and distributed DSLs:</strong> These can offer better abstractions, but tuning may not transfer across rapidly changing network architectures. Arora cites a distributed compiler configuration tuned around eight H800 GPUs that did not adapt efficiently to H100s in the team’s results.
+- <strong>Hand-tuned operators:</strong> Specialized kernels can reach peak performance, but the work does not scale. Arora says adapting some implementations from one precision to another can take five or six months.</p>
+<p>This leads to the project’s core research question: can a small set of reusable principles capture the important decisions in multi-GPU kernel design? The team first investigated those decisions manually through <strong>ParallelKittens</strong>, a compact set of primitives and patterns used to build high-performance kernels across several parallelism schemes. Only after developing that understanding did they ask whether language models could apply it.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="960">▶ 16:00</button></div>
+      <h3>根据消息选择传输机制</h3>
+      <p>The first reusable decision is how data crosses GPUs. A copy engine performs host-initiated transfers and suits large messages that can approach peak communication bandwidth. Because the transfer does not occupy the GPU’s compute processors or consume many of its registers, those resources remain available for other parts of the workload.</p>
+<p>Device-initiated communication offers two other paths. Tensor memory acceleration, or TMA, can saturate NVLink with relatively small messages while consuming few registers and few processors, making it useful for fine-grained overlap. Register-level transfer instructions also support fine-grained movement and can exploit the in-network reductions that NVSwitch provides. TMA cannot effectively use those in-network computations in the design space Arora describes.</p>
+<p>There is no single best path. Large independent transfers favor the copy engine’s resource isolation. Small transfers interleaved with computation favor device initiation. Operations that need reduction inside the switch may justify register-level instructions. The kernel writer must trade message size against register pressure, processor use, overlap, and network functionality.</p>
+<p>Three paths for inter-GPU data
+The useful choice depends on message size, GPU resource consumption, desired overlap, and whether the operation needs computation inside NVSwitch.
+- Copy engine — Host-initiated; strong for large messages; leaves processors and registers available.
+- Tensor memory acceleration — Device-initiated; saturates NVLink with smaller messages; uses few registers and processors; useful for overlap.
+- Register-level instructions — Device-initiated instructions that can use NVSwitch in-network reductions.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="1098">▶ 18:18</button></div>
+      <h3>在一个 SM 内重叠工作——或在多个 SM 之间拆分</h3>
+      <p>After choosing a transfer mechanism, the kernel must schedule computation, memory work, and communication. An intra-SM schedule assigns different warps or threads inside one streaming multiprocessor to compute and communication concurrently. This is effective when both activities consume the same data in compatible patterns. When their data or resource needs diverge, packing them into one SM can create awkward competition for registers and shared memory.</p>
+<p>An inter-SM schedule instead gives different streaming multiprocessors distinct responsibilities for computation, communication, or memory work. This can avoid misaligned resource sharing and can better drive NVLink when intra-SM overlap cannot. Arora’s examples are operation-specific: intra-SM overlap works well for GEMM plus reduce-scatter, while inter-SM overlap works well for GEMM plus all-reduce when it uses NVSwitch’s in-network reduction capability.</p>
+<p>Buffering and synchronization between senders and receivers remain part of the design. ParallelKittens packages these choices into programming primitives and templates while preserving developer control over them. Arora reports that the approach typically adds roughly a dozen lines to a single-GPU kernel and is used in production at Together AI and Cursor. The displayed comparisons show state-of-the-art results against strong reference baselines across data, sequence, and expert parallelism.</p>
+<p>Two ways to overlap communication and computation
+The schedule follows data alignment and resource pressure; neither strategy is universally superior.
+- Intra-SM overlap — Different warps in one SM specialize in compute or communication. Best when their data patterns align.
+- GEMM + reduce-scatter — The talk’s example where intra-SM overlap is effective.
+- Inter-SM overlap — Different SMs specialize in compute, communication, or memory work, avoiding misaligned resource sharing.
+- GEMM + all-reduce — The talk’s example where inter-SM scheduling uses NVSwitch reductions effectively.
+- Intra-SM overlap → GEMM + reduce-scatter (example)
+- Inter-SM overlap → GEMM + all-reduce (example)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="1290">▶ 21:30</button></div>
+      <h3>ParallelKernelBench 测试实际的分布式设计</h3>
+      <p><strong>ParallelKernelBench</strong> asks whether promising single-GPU kernel-generation results carry over to multi-GPU design. Each task gives a model an unoptimized PyTorch reference using distributed NCCL operations and a topology specifying the rank count and intra-node hardware. The model must replace that reference with a performant CUDA kernel that uses unified virtual addressing.</p>
+<p>The search space grows combinatorially because a transformer layer can be parallelized across data, sequence, tensor, context, layer, pipeline, and expert dimensions. Each composition changes which data must move, which ranks participate, and when communication occurs. The team built a taxonomy covering these patterns and selected 87 problems arising in inference, reinforcement learning, and post-training, drawing from real repositories, optimized libraries, and existing DSL implementations.</p>
+<p>The benchmark is intended to produce useful kernels rather than isolated programming puzzles. Its references represent work that practitioners already express through PyTorch and NCCL, while the candidates must provide an optimized implementation for the supplied topology. The public <a href="https://github.com/togethercomputer/ParallelKernelBench" target="_blank" rel="noopener">ParallelKernelBench repository</a> contains the benchmark and evaluation harness.</p>
+<p>What one benchmark task asks the model to do
+A topology-aware rewrite must preserve per-rank behavior while replacing coarse distributed operations with a faster kernel.
+- PyTorch reference — Unoptimized implementation using distributed NCCL operations.
+- System topology — Specifies rank count and intra-node hardware configuration.
+- Kernel-generating model — Must reason about the operation and the available multi-GPU system.
+- CUDA candidate — Uses unified virtual addressing and aims to outperform the reference.
+- PyTorch reference → Kernel-generating model (operation semantics)
+- System topology → Kernel-generating model (hardware constraints)
+- Kernel-generating model → CUDA candidate (rewrites)</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1438">▶ 23:58</button></div>
+      <h3>正确率提升得比性能快</h3>
+      <p>The evaluation separates two outcomes. <code>pass@K</code> asks whether at least one correct kernel appears within K attempts. The performance-oriented <code>fast₁@K</code> also requires the candidate to beat the PyTorch-plus-NCCL reference. That distinction matters because a compiling, numerically correct kernel may still communicate inefficiently or leave hardware idle.</p>
+<p>In the zero-shot setting, the best tested frontier model solves 28 of 87 problems, and 22 of those solutions beat the reference. Drawing additional samples raises the number of correct solutions to 36, but the correct-and-faster share plateaus at roughly 31%. More parallel generations therefore find additional valid implementations without producing a comparable rise in high-performance ones.</p>
+<p>When a solution is correct, its speedup often comes from removing NCCL staging and replacing it with direct NVLink loads and stores. Success clusters around familiar collective primitives, tensor-parallel GEMMs, and Ulysses-style context parallelism. Arora interprets this concentration as a sign that models perform best on patterns well represented online. It suggests uneven generalization, although the distribution alone cannot reveal the reasoning process behind any individual solution.</p>
+<p>The talk identifies GPT 5.5 as the strongest model in the displayed comparison and reports that its qualifying solution count drops quickly as the required speedup rises. Beating a coarse reference on some tasks is therefore a lower bar than consistently finding kernels with substantial gains.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1588">▶ 26:28</button></div>
+      <h3>重试更容易修好语法，而不是分布式设计</h3>
+      <p>The persistent failures are deeper than CUDA syntax. Multiple samples or error feedback often get a kernel to compile, but models still mishandle collective ordering, data partitioning, intra-SM versus inter-SM scheduling, and transfer selection. Generated kernels also often omit TMA and register-level transfer instructions. Compilation proves that the program is expressible; it does not prove that the model chose the right communication design.</p>
+<p>The team also placed Gemini 3 Pro in a multi-turn mini-SWE-agent harness with access to a local shell. This improved the result from 24 solved problems to 35 of 87, with 26 candidates beating the reference. More execution time eventually reached another plateau. The environment helps the model inspect failures and revise code, but it does not supply the missing judgment about data movement and scheduling.</p>
+<p>Aggregate limitations do not make the benchmark fruitless. Arora reports useful new examples for NeMo vocabulary-parallel filtering, Hyena context parallelism, and intersection-over-union suppression for the SAM 3 video-segmentation model. The talk does not give individual speedups for these kernels, so they demonstrate practical directions rather than quantified wins.</p>
+<p>The ending preserves the central tension. A small set of primitives can express many effective multi-GPU patterns, yet the tested models still fail to apply their tradeoffs reliably even when those ideas are supplied in context. Arora points toward better methods for attacking the benchmark and toward architectures designed for larger scale-up domains, less dependence on scale-out, and much larger on-chip memories. Kernel generation is only one part of that opportunity: models and systems must ultimately be designed around the changing balance among computation, memory, and networking.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Communication now deserves explicit optimization: the reported A100-to-B200 gains are 7.2× for BF16 compute, 3× for intra-node communication, and 2× for inter-node communication.</li><li>Fast multi-GPU kernels match the transfer path to message size, GPU resource use, desired overlap, and any need for in-network reduction.</li><li>Scheduling is operation-specific: intra-SM overlap works when computation and communication align around the same data, while inter-SM specialization helps when their resources or communication patterns diverge.</li><li>Correctness and speed are separate benchmark outcomes. The best zero-shot result is 28 correct kernels out of 87, with 22 faster than the reference; more samples reach 36 correct while correct-and-faster performance plateaus near 31%.</li><li>A shell-equipped agent harness improves iteration—Gemini 3 Pro reaches 35 solved problems and 26 faster solutions—but ordering, partitioning, scheduling, and transfer selection remain difficult after compilation errors are repaired.</li><li>Limited aggregate coverage can still yield useful kernels, including the reported NeMo, Hyena, and SAM 3 examples, but reliable reasoning about evolving multi-GPU systems remains open.</li></ul></section>
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/togethercomputer/ParallelKernelBench" target="_blank" rel="noopener">ParallelKernelBench</a> — The public benchmark and evaluation harness for turning PyTorch-plus-NCCL references into fine-grained multi-GPU kernels, including generation and local evaluation workflows.</li><li><a href="https://arorasimran.com/" target="_blank" rel="noopener">Simran Arora</a> — Arora’s personal site for her research and contact information.</li><li><a href="https://github.com/simran-arora" target="_blank" rel="noopener">Simran Arora on GitHub</a> — Arora’s GitHub profile, including pinned systems and kernel projects.</li><li><a href="https://ai.engineer/talks/pOvWgX7IJsc-youtube-7ee21c4ee99ca26b43d7" target="_blank" rel="noopener">Official AI Engineer talk page</a> — The recording’s official read-along page with video chapters and a timestamped transcript.</li><li><strong>Related talks</strong></li><li><a href="https://ai.engineer/talks/6guQG_tGt0o-ai-kernel-generation-whats-working-whats-not" target="_blank" rel="noopener">AI Kernel Generation: What's Working, What's Not, What's Next</a> — A companion discussion of progress, limitations, and next steps in AI kernel generation.</li><li><a href="https://ai.engineer/talks/y-UGrYbJsJk-what-every-ai-engineer-needs-know-about" target="_blank" rel="noopener">What every AI engineer needs to know about GPUs</a> — A broader introduction to GPUs for AI engineers.</li><li><a href="https://ai.engineer/talks/eZ8WWZzoaR0-homa-end-tcp-ai-clusters-john-ousterhout" target="_blank" rel="noopener">Homa: The End of TCP for AI Clusters — John Ousterhout, Stanford</a> — Explores Homa as an alternative to TCP for communication in AI clusters.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="1"><span class="ts">0:01</span><span class="tx">[music]</span></div><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Hi everyone. Uh, sorry it's a bit loud</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">in here. Was not expecting this. Um, I'm</span></div><div class="tline" data-t="18"><span class="ts">0:18</span><span class="tx">Siman. I'm a principal scientist at</span></div><div class="tline" data-t="20"><span class="ts">0:20</span><span class="tx">Together AI. Um, I previously did my PhD</span></div><div class="tline" data-t="23"><span class="ts">0:23</span><span class="tx">in the Hazy Research Lab with Chris Ray</span></div><div class="tline" data-t="25"><span class="ts">0:25</span><span class="tx">at Stanford and I'm an incoming</span></div><div class="tline" data-t="27"><span class="ts">0:27</span><span class="tx">professor at Caltech. Um I lead the</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">frontier performance research team at</span></div><div class="tline" data-t="33"><span class="ts">0:33</span><span class="tx">together where we develop systems,</span></div><div class="tline" data-t="34"><span class="ts">0:34</span><span class="tx">frameworks and algorithms to extract as</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">much performance as possible out of</span></div><div class="tline" data-t="39"><span class="ts">0:39</span><span class="tx">modern um AI hardware. Today I want to</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">share a little bit about our</span></div><div class="tline" data-t="44"><span class="ts">0:44</span><span class="tx">contributions towards simplifying the</span></div><div class="tline" data-t="46"><span class="ts">0:46</span><span class="tx">development of uh multi-GPU AI kernels.</span></div><div class="tline" data-t="51"><span class="ts">0:51</span><span class="tx">A few years ago, um, GPU utilization</span></div><div class="tline" data-t="54"><span class="ts">0:54</span><span class="tx">used to be limited by poor intraGPU</span></div><div class="tline" data-t="57"><span class="ts">0:57</span><span class="tx">memory access and single GPU kernels.</span></div><div class="tline" data-t="61"><span class="ts">1:01</span><span class="tx">But with significant investment in</span></div><div class="tline" data-t="63"><span class="ts">1:03</span><span class="tx">better kernels like flash attention, uh,</span></div><div class="tline" data-t="66"><span class="ts">1:06</span><span class="tx">memory efficient architectures like from</span></div><div class="tline" data-t="68"><span class="ts">1:08</span><span class="tx">deepseek, sparse attentions, mambas and</span></div><div class="tline" data-t="71"><span class="ts">1:11</span><span class="tx">so on, um, and better DSLs, we've sort</span></div><div class="tline" data-t="74"><span class="ts">1:14</span><span class="tx">of shifted the bottleneck to multi-GPU</span></div><div class="tline" data-t="77"><span class="ts">1:17</span><span class="tx">communication.</span></div><div class="tline" data-t="81"><span class="ts">1:21</span><span class="tx">During this talk, I'll start by telling</span></div><div class="tline" data-t="83"><span class="ts">1:23</span><span class="tx">you a little bit about why now, why GPU</span></div><div class="tline" data-t="86"><span class="ts">1:26</span><span class="tx">networking now. Then I'll tell you about</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">um the sort of problem space. So what</span></div><div class="tline" data-t="91"><span class="ts">1:31</span><span class="tx">are the challenges in maximizing</span></div><div class="tline" data-t="93"><span class="ts">1:33</span><span class="tx">hardware utilization and development</span></div><div class="tline" data-t="95"><span class="ts">1:35</span><span class="tx">simplicity for multiGPU kernels. Um</span></div><div class="tline" data-t="98"><span class="ts">1:38</span><span class="tx">three, we'll talk a little bit about the</span></div><div class="tline" data-t="100"><span class="ts">1:40</span><span class="tx">fundamentals be behind designing</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">effective multiGGPU kernels. Four, we'll</span></div><div class="tline" data-t="105"><span class="ts">1:45</span><span class="tx">look at whether frontier AI models can</span></div><div class="tline" data-t="109"><span class="ts">1:49</span><span class="tx">uh leverage these fundamental</span></div><div class="tline" data-t="111"><span class="ts">1:51</span><span class="tx">principles. Do they understand them? Can</span></div><div class="tline" data-t="113"><span class="ts">1:53</span><span class="tx">they reason about them? Um, you know, in</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">theory, these models are very good at</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">reasoning. Um, and then five, we'll talk</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">through the results of these frontier</span></div><div class="tline" data-t="121"><span class="ts">2:01</span><span class="tx">models on a benchmark that we've</span></div><div class="tline" data-t="123"><span class="ts">2:03</span><span class="tx">developed called um parallel kernel</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">bench for multiGPU kernel generation</span></div><div class="tline" data-t="128"><span class="ts">2:08</span><span class="tx">evaluation.</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">Okay, before we dive into those five</span></div><div class="tline" data-t="134"><span class="ts">2:14</span><span class="tx">parts, just basic preliminaries. So,</span></div><div class="tline" data-t="137"><span class="ts">2:17</span><span class="tx">this is an Nvidia GPU, uh, an H100 GPU</span></div><div class="tline" data-t="141"><span class="ts">2:21</span><span class="tx">that you can see on the screen. Um, I</span></div><div class="tline" data-t="144"><span class="ts">2:24</span><span class="tx">always like to help ground people in GPU</span></div><div class="tline" data-t="147"><span class="ts">2:27</span><span class="tx">kernels via looking at the hardware. So,</span></div><div class="tline" data-t="150"><span class="ts">2:30</span><span class="tx">these rainbow colored dots are</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">processors where actual compute is</span></div><div class="tline" data-t="154"><span class="ts">2:34</span><span class="tx">happening. um all of the you know</span></div><div class="tline" data-t="156"><span class="ts">2:36</span><span class="tx">parallel threads are operating within</span></div><div class="tline" data-t="158"><span class="ts">2:38</span><span class="tx">one of those colored dots and there's</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">typically you know 100 200 of them on</span></div><div class="tline" data-t="164"><span class="ts">2:44</span><span class="tx">modern AI GPUs.</span></div><div class="tline" data-t="167"><span class="ts">2:47</span><span class="tx">Um around those processors you can see</span></div><div class="tline" data-t="170"><span class="ts">2:50</span><span class="tx">um some of the memory that these</span></div><div class="tline" data-t="172"><span class="ts">2:52</span><span class="tx">processors retrieve data so large</span></div><div class="tline" data-t="175"><span class="ts">2:55</span><span class="tx">weights activations from. So these</span></div><div class="tline" data-t="178"><span class="ts">2:58</span><span class="tx">rectangles between the colored dots are</span></div><div class="tline" data-t="181"><span class="ts">3:01</span><span class="tx">an L2 cache slightly faster memory. um</span></div><div class="tline" data-t="184"><span class="ts">3:04</span><span class="tx">not a ter like crazy large amount of it.</span></div><div class="tline" data-t="187"><span class="ts">3:07</span><span class="tx">And then these black boxes are high</span></div><div class="tline" data-t="189"><span class="ts">3:09</span><span class="tx">bandwidth memory. So when you Nvidia Smi</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">and see you know 80 gigabytes, 1008</span></div><div class="tline" data-t="195"><span class="ts">3:15</span><span class="tx">gigabytes, whatever it is on your GPU,</span></div><div class="tline" data-t="197"><span class="ts">3:17</span><span class="tx">that's that memory.</span></div><div class="tline" data-t="199"><span class="ts">3:19</span><span class="tx">Um a GPU is operating a highly parallel</span></div><div class="tline" data-t="203"><span class="ts">3:23</span><span class="tx">program. So multiple threads are</span></div><div class="tline" data-t="206"><span class="ts">3:26</span><span class="tx">combined together in uh into larger</span></div><div class="tline" data-t="209"><span class="ts">3:29</span><span class="tx">coarser units. and we schedule these</span></div><div class="tline" data-t="212"><span class="ts">3:32</span><span class="tx">threads and and blocks onto these</span></div><div class="tline" data-t="214"><span class="ts">3:34</span><span class="tx">processors to perform our AI compute.</span></div><div class="tline" data-t="218"><span class="ts">3:38</span><span class="tx">Beyond the GPU, we'll have multiple GPUs</span></div><div class="tline" data-t="221"><span class="ts">3:41</span><span class="tx">and we'll also have, you know, CPUs um</span></div><div class="tline" data-t="224"><span class="ts">3:44</span><span class="tx">that have memory as well.</span></div><div class="tline" data-t="229"><span class="ts">3:49</span><span class="tx">Um so to perform computation um the</span></div><div class="tline" data-t="233"><span class="ts">3:53</span><span class="tx">memory that these threads use is going</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">to be stored in a really fast register</span></div><div class="tline" data-t="237"><span class="ts">3:57</span><span class="tx">memory that's right next to the</span></div><div class="tline" data-t="239"><span class="ts">3:59</span><span class="tx">computation units. um simple physics if</span></div><div class="tline" data-t="242"><span class="ts">4:02</span><span class="tx">I am pulling data from very very close</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">to my proc my compute unit it's really</span></div><div class="tline" data-t="248"><span class="ts">4:08</span><span class="tx">fast to get to it because it you know</span></div><div class="tline" data-t="250"><span class="ts">4:10</span><span class="tx">that data is right next to me but</span></div><div class="tline" data-t="252"><span class="ts">4:12</span><span class="tx">there's not a large radius and not a</span></div><div class="tline" data-t="254"><span class="ts">4:14</span><span class="tx">large volume of space that's close by to</span></div><div class="tline" data-t="257"><span class="ts">4:17</span><span class="tx">my process uh my my compute units and so</span></div><div class="tline" data-t="260"><span class="ts">4:20</span><span class="tx">I don't have very much of it so you can</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">see that the fastest memory here the</span></div><div class="tline" data-t="264"><span class="ts">4:24</span><span class="tx">registers is sup is you know 130</span></div><div class="tline" data-t="267"><span class="ts">4:27</span><span class="tx">terabytes per second on an H100 but we</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">don't have very much on of it and as we</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">go to the further away memory we have a</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">lot more of it but it takes longer to</span></div><div class="tline" data-t="276"><span class="ts">4:36</span><span class="tx">reach it. Uh again simple physics.</span></div><div class="tline" data-t="280"><span class="ts">4:40</span><span class="tx">So in multiGPU systems in particular um</span></div><div class="tline" data-t="284"><span class="ts">4:44</span><span class="tx">there is a hierarchy of interconnects.</span></div><div class="tline" data-t="286"><span class="ts">4:46</span><span class="tx">So we will have something called PCIe um</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">as the channel for CPUGGPU</span></div><div class="tline" data-t="291"><span class="ts">4:51</span><span class="tx">communications. We'll have multiGPU or</span></div><div class="tline" data-t="294"><span class="ts">4:54</span><span class="tx">multi- uh node communications over</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">infiniband TCP and then in the we're</span></div><div class="tline" data-t="301"><span class="ts">5:01</span><span class="tx">going to focus mostly on the Nvidia</span></div><div class="tline" data-t="303"><span class="ts">5:03</span><span class="tx">sphere here. Um in uh the intraGPU</span></div><div class="tline" data-t="306"><span class="ts">5:06</span><span class="tx">regime we'll have NVLink um providing</span></div><div class="tline" data-t="309"><span class="ts">5:09</span><span class="tx">point-to-point connections between GPUs</span></div><div class="tline" data-t="312"><span class="ts">5:12</span><span class="tx">and the NV switch. NV switch connects</span></div><div class="tline" data-t="315"><span class="ts">5:15</span><span class="tx">all NVLink in endpoints into a</span></div><div class="tline" data-t="318"><span class="ts">5:18</span><span class="tx">non-blocking fabric for full GPUGGPU</span></div><div class="tline" data-t="321"><span class="ts">5:21</span><span class="tx">communication and NV switch is exciting</span></div><div class="tline" data-t="324"><span class="ts">5:24</span><span class="tx">because it also provides support for in</span></div><div class="tline" data-t="326"><span class="ts">5:26</span><span class="tx">network offdevice acceleration for oper</span></div><div class="tline" data-t="330"><span class="ts">5:30</span><span class="tx">like communication primitives like</span></div><div class="tline" data-t="333"><span class="ts">5:33</span><span class="tx">multiccast and reductions.</span></div><div class="tline" data-t="337"><span class="ts">5:37</span><span class="tx">Okay, so diving in with the</span></div><div class="tline" data-t="339"><span class="ts">5:39</span><span class="tx">preliminaries in mind. Why GPU</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">networking now?</span></div><div class="tline" data-t="344"><span class="ts">5:44</span><span class="tx">So as I mentioned at the beginning,</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">we've really put a lot of effort into</span></div><div class="tline" data-t="349"><span class="ts">5:49</span><span class="tx">making AIO uh more efficient over recent</span></div><div class="tline" data-t="352"><span class="ts">5:52</span><span class="tx">years. Um again, we have uh</span></div><div class="tline" data-t="355"><span class="ts">5:55</span><span class="tx">architectures that use less compute,</span></div><div class="tline" data-t="357"><span class="ts">5:57</span><span class="tx">less memory like Mamba or sparse</span></div><div class="tline" data-t="359"><span class="ts">5:59</span><span class="tx">attentions. We have algorithms that make</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">AI more hardware affair aware like flash</span></div><div class="tline" data-t="365"><span class="ts">6:05</span><span class="tx">attention. We have tools to make it easy</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">to map AI algorithms to the hardware</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">like tileang, mojo, triton, gluon,</span></div><div class="tline" data-t="373"><span class="ts">6:13</span><span class="tx">thunder kittens. Um, and we have new</span></div><div class="tline" data-t="376"><span class="ts">6:16</span><span class="tx">techniques to overlap uh execution</span></div><div class="tline" data-t="379"><span class="ts">6:19</span><span class="tx">across many AI operators very tightly</span></div><div class="tline" data-t="381"><span class="ts">6:21</span><span class="tx">like mega kernels. And we also have</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">tools to make it easy to run on multiple</span></div><div class="tline" data-t="387"><span class="ts">6:27</span><span class="tx">vendor and silicon platforms like</span></div><div class="tline" data-t="389"><span class="ts">6:29</span><span class="tx">thunder mittens for Apple silicon or or</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">hipkittens for AMD and so on.</span></div><div class="tline" data-t="395"><span class="ts">6:35</span><span class="tx">Um, at this point we really believe that</span></div><div class="tline" data-t="398"><span class="ts">6:38</span><span class="tx">GPU networking offers many new and</span></div><div class="tline" data-t="400"><span class="ts">6:40</span><span class="tx">exciting opportunities for AI</span></div><div class="tline" data-t="402"><span class="ts">6:42</span><span class="tx">efficiency.</span></div><div class="tline" data-t="405"><span class="ts">6:45</span><span class="tx">Modern AI workloads are getting very big</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">and require kernels that span multiple</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">um, you know, GPUs. So on many</span></div><div class="tline" data-t="413"><span class="ts">6:53</span><span class="tx">production um distributed training and</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">inference workloads, communication is</span></div><div class="tline" data-t="418"><span class="ts">6:58</span><span class="tx">increasingly consuming the majority of</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">the runtime and yields low model flop</span></div><div class="tline" data-t="424"><span class="ts">7:04</span><span class="tx">utilization at scale.</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">So the uh pace of innovation and</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">diversity of approaches that different</span></div><div class="tline" data-t="433"><span class="ts">7:13</span><span class="tx">hardware providers are taking in their</span></div><div class="tline" data-t="435"><span class="ts">7:15</span><span class="tx">networking stacks is another reason why</span></div><div class="tline" data-t="437"><span class="ts">7:17</span><span class="tx">it's an exciting time to study um you</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">know networking and communication. So we</span></div><div class="tline" data-t="442"><span class="ts">7:22</span><span class="tx">can see here um AMD hardware with uh</span></div><div class="tline" data-t="446"><span class="ts">7:26</span><span class="tx">what's called XGMI interconnects um</span></div><div class="tline" data-t="449"><span class="ts">7:29</span><span class="tx">providing pointto-point links between</span></div><div class="tline" data-t="451"><span class="ts">7:31</span><span class="tx">different GPUs in a scaleup domain. We</span></div><div class="tline" data-t="455"><span class="ts">7:35</span><span class="tx">can see here TPU and uh interconnect uh</span></div><div class="tline" data-t="459"><span class="ts">7:39</span><span class="tx">as well. So the TPU will use a 3D Taurus</span></div><div class="tline" data-t="462"><span class="ts">7:42</span><span class="tx">and also have optical wraparound links.</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">So yet another diverse form of the</span></div><div class="tline" data-t="468"><span class="ts">7:48</span><span class="tx">topology and links. Um and then again</span></div><div class="tline" data-t="470"><span class="ts">7:50</span><span class="tx">for Nvidia we'll have the INV um switch</span></div><div class="tline" data-t="474"><span class="ts">7:54</span><span class="tx">which integrates um compute capabilities</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">directly into the interconnect fabric</span></div><div class="tline" data-t="480"><span class="ts">8:00</span><span class="tx">like for in network reductions and then</span></div><div class="tline" data-t="483"><span class="ts">8:03</span><span class="tx">we'll have our NV link providing up to</span></div><div class="tline" data-t="485"><span class="ts">8:05</span><span class="tx">you know 900 gigabytes of unidirectional</span></div><div class="tline" data-t="487"><span class="ts">8:07</span><span class="tx">bandwidth between any two remote GPUs</span></div><div class="tline" data-t="490"><span class="ts">8:10</span><span class="tx">high bandwidth memory um on you know</span></div><div class="tline" data-t="494"><span class="ts">8:14</span><span class="tx">particular generation of Nvidia hardware</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">um Beyond the diversity in the</span></div><div class="tline" data-t="500"><span class="ts">8:20</span><span class="tx">networking stacks, there's also a lot of</span></div><div class="tline" data-t="503"><span class="ts">8:23</span><span class="tx">evolution in um how AI workloads are</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">adapting to take advantage of this</span></div><div class="tline" data-t="509"><span class="ts">8:29</span><span class="tx">hardware and the diversity of types of</span></div><div class="tline" data-t="512"><span class="ts">8:32</span><span class="tx">um you know hardware that we're we're</span></div><div class="tline" data-t="514"><span class="ts">8:34</span><span class="tx">using simultaneously for one AI</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">workload. So um KV cache memory in</span></div><div class="tline" data-t="520"><span class="ts">8:40</span><span class="tx">modern inference systems is going to</span></div><div class="tline" data-t="521"><span class="ts">8:41</span><span class="tx">beworked across GPU, CPU, disk and</span></div><div class="tline" data-t="524"><span class="ts">8:44</span><span class="tx">remote machines. um inference systems</span></div><div class="tline" data-t="527"><span class="ts">8:47</span><span class="tx">increasingly disagregate different steps</span></div><div class="tline" data-t="530"><span class="ts">8:50</span><span class="tx">of inference across different hardware</span></div><div class="tline" data-t="532"><span class="ts">8:52</span><span class="tx">backends. So you could run speculative</span></div><div class="tline" data-t="534"><span class="ts">8:54</span><span class="tx">decoding on some hardware, decode on</span></div><div class="tline" data-t="537"><span class="ts">8:57</span><span class="tx">different hardware, prefill on different</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">hardware. Um hardware is also evolving</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">to have larger scaleup domains than ever</span></div><div class="tline" data-t="544"><span class="ts">9:04</span><span class="tx">before with you know 72 GPUs and a</span></div><div class="tline" data-t="547"><span class="ts">9:07</span><span class="tx">scaleup domain in in the coming um chips</span></div><div class="tline" data-t="550"><span class="ts">9:10</span><span class="tx">and Nvidia planning on a single system</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">in 2027 with 576 GPUs.</span></div><div class="tline" data-t="557"><span class="ts">9:17</span><span class="tx">Um at the same time to take advantage of</span></div><div class="tline" data-t="559"><span class="ts">9:19</span><span class="tx">these more uh intensive scaleup domains</span></div><div class="tline" data-t="562"><span class="ts">9:22</span><span class="tx">we're getting richer uh primitives for</span></div><div class="tline" data-t="564"><span class="ts">9:24</span><span class="tx">fine grained control and kernel writing</span></div><div class="tline" data-t="567"><span class="ts">9:27</span><span class="tx">over these domains. So we have something</span></div><div class="tline" data-t="570"><span class="ts">9:30</span><span class="tx">called tensor memory acceleration where</span></div><div class="tline" data-t="572"><span class="ts">9:32</span><span class="tx">we can provide uh perform asynchronous</span></div><div class="tline" data-t="575"><span class="ts">9:35</span><span class="tx">network transfers from the device side</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">um on these GPUs.</span></div><div class="tline" data-t="580"><span class="ts">9:40</span><span class="tx">So all of these changes are opening up</span></div><div class="tline" data-t="582"><span class="ts">9:42</span><span class="tx">new opportunities and challenges in um</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">both AI you know how do we build models</span></div><div class="tline" data-t="588"><span class="ts">9:48</span><span class="tx">that take advantage of these trends and</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">in systems.</span></div><div class="tline" data-t="593"><span class="ts">9:53</span><span class="tx">Okay, so the problems that we're going</span></div><div class="tline" data-t="596"><span class="ts">9:56</span><span class="tx">to go after um how do we get peak</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">hardware utilization and also</span></div><div class="tline" data-t="600"><span class="ts">10:00</span><span class="tx">development simplicity um for these</span></div><div class="tline" data-t="603"><span class="ts">10:03</span><span class="tx">multiGPU kernels.</span></div><div class="tline" data-t="606"><span class="ts">10:06</span><span class="tx">So um it's been very difficult to write</span></div><div class="tline" data-t="610"><span class="ts">10:10</span><span class="tx">multiGGPU kernels and there's a lot of</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">there are a lot of papers a lot of</span></div><div class="tline" data-t="614"><span class="ts">10:14</span><span class="tx">systems reports that document you know</span></div><div class="tline" data-t="616"><span class="ts">10:16</span><span class="tx">challenges here. Um, one of the things</span></div><div class="tline" data-t="619"><span class="ts">10:19</span><span class="tx">here is it's compounded by the fact that</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">communication hardware around GPUs has</span></div><div class="tline" data-t="624"><span class="ts">10:24</span><span class="tx">progressed a lot more slowly relative to</span></div><div class="tline" data-t="627"><span class="ts">10:27</span><span class="tx">compute and memory. Um, so comparing</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">NVIDIA A100's in 2020 to B200s in 2024,</span></div><div class="tline" data-t="636"><span class="ts">10:36</span><span class="tx">u BF16 tensor core speeds improved by</span></div><div class="tline" data-t="639"><span class="ts">10:39</span><span class="tx">7.2x.</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">um while intra node communication by</span></div><div class="tline" data-t="643"><span class="ts">10:43</span><span class="tx">just 3x and inter node communication by</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">just 2x. Um and coming back to my points</span></div><div class="tline" data-t="649"><span class="ts">10:49</span><span class="tx">about how diverse networking is right</span></div><div class="tline" data-t="651"><span class="ts">10:51</span><span class="tx">now things like tensor cores that run</span></div><div class="tline" data-t="654"><span class="ts">10:54</span><span class="tx">map moles and our memory hierarchies are</span></div><div class="tline" data-t="657"><span class="ts">10:57</span><span class="tx">pretty consistent and resemble one</span></div><div class="tline" data-t="659"><span class="ts">10:59</span><span class="tx">another across diverse AI vendors and</span></div><div class="tline" data-t="661"><span class="ts">11:01</span><span class="tx">multisilicon. Um but again as I I</span></div><div class="tline" data-t="664"><span class="ts">11:04</span><span class="tx">mentioned the networking stack is</span></div><div class="tline" data-t="665"><span class="ts">11:05</span><span class="tx">something that is really different</span></div><div class="tline" data-t="666"><span class="ts">11:06</span><span class="tx">across vendors still</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">um you know a first step as we went</span></div><div class="tline" data-t="672"><span class="ts">11:12</span><span class="tx">about all this work is to just study the</span></div><div class="tline" data-t="674"><span class="ts">11:14</span><span class="tx">baselines um that are out there. So um</span></div><div class="tline" data-t="677"><span class="ts">11:17</span><span class="tx">one of the popular tools for um</span></div><div class="tline" data-t="681"><span class="ts">11:21</span><span class="tx">communications is this nickel library or</span></div><div class="tline" data-t="684"><span class="ts">11:24</span><span class="tx">Rickle on AMD um that both you know</span></div><div class="tline" data-t="687"><span class="ts">11:27</span><span class="tx">companies respectively spend a lot of</span></div><div class="tline" data-t="689"><span class="ts">11:29</span><span class="tx">you know engineering investment into</span></div><div class="tline" data-t="691"><span class="ts">11:31</span><span class="tx">releasing to make it easy for people to</span></div><div class="tline" data-t="693"><span class="ts">11:33</span><span class="tx">do multiGPU work. Um but they're not</span></div><div class="tline" data-t="696"><span class="ts">11:36</span><span class="tx">very flexible. So they're tuned for bulk</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">transfers for large contiguous chunks of</span></div><div class="tline" data-t="701"><span class="ts">11:41</span><span class="tx">data transfers. And the design really</span></div><div class="tline" data-t="704"><span class="ts">11:44</span><span class="tx">breaks down when you care about peak</span></div><div class="tline" data-t="706"><span class="ts">11:46</span><span class="tx">performance, fine grain communication,</span></div><div class="tline" data-t="708"><span class="ts">11:48</span><span class="tx">um, and sort of non-trivial collectives</span></div><div class="tline" data-t="711"><span class="ts">11:51</span><span class="tx">that you want to fuse together.</span></div><div class="tline" data-t="714"><span class="ts">11:54</span><span class="tx">So as a result, you can achieve much</span></div><div class="tline" data-t="716"><span class="ts">11:56</span><span class="tx">higher performance by writing custom</span></div><div class="tline" data-t="718"><span class="ts">11:58</span><span class="tx">communication kernels that directly</span></div><div class="tline" data-t="721"><span class="ts">12:01</span><span class="tx">address these needs.</span></div><div class="tline" data-t="723"><span class="ts">12:03</span><span class="tx">If we look at a naive baseline that's</span></div><div class="tline" data-t="725"><span class="ts">12:05</span><span class="tx">representative of very popular libraries</span></div><div class="tline" data-t="728"><span class="ts">12:08</span><span class="tx">in machine learning stacking pietorch</span></div><div class="tline" data-t="730"><span class="ts">12:10</span><span class="tx">with nickel um we can we find that</span></div><div class="tline" data-t="733"><span class="ts">12:13</span><span class="tx">across um you know the many uh problems</span></div><div class="tline" data-t="737"><span class="ts">12:17</span><span class="tx">in our parallel kernel bench benchmark</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">that the majority of these um simple</span></div><div class="tline" data-t="742"><span class="ts">12:22</span><span class="tx">baselines will fall below 50% of their</span></div><div class="tline" data-t="746"><span class="ts">12:26</span><span class="tx">communication aware roof line bound. So</span></div><div class="tline" data-t="750"><span class="ts">12:30</span><span class="tx">there's a lot of room for improvement</span></div><div class="tline" data-t="752"><span class="ts">12:32</span><span class="tx">here.</span></div><div class="tline" data-t="753"><span class="ts">12:33</span><span class="tx">Um the current frameworks beyond um</span></div><div class="tline" data-t="756"><span class="ts">12:36</span><span class="tx">nickel which is popular in like Megatron</span></div><div class="tline" data-t="759"><span class="ts">12:39</span><span class="tx">LM, Flex Flow, Nanoflow um you know all</span></div><div class="tline" data-t="763"><span class="ts">12:43</span><span class="tx">again these systems are primarily</span></div><div class="tline" data-t="765"><span class="ts">12:45</span><span class="tx">orchestrating bulk collectives via</span></div><div class="tline" data-t="767"><span class="ts">12:47</span><span class="tx">nickel um and require synchronization</span></div><div class="tline" data-t="770"><span class="ts">12:50</span><span class="tx">before and after data transfers. So</span></div><div class="tline" data-t="772"><span class="ts">12:52</span><span class="tx">beyond th those off-the-shelf libraries,</span></div><div class="tline" data-t="774"><span class="ts">12:54</span><span class="tx">we have compilers and DSLs that exist.</span></div><div class="tline" data-t="778"><span class="ts">12:58</span><span class="tx">So there's Triton distributed is one of</span></div><div class="tline" data-t="781"><span class="ts">13:01</span><span class="tx">them. Um and uh you know tile link is</span></div><div class="tline" data-t="784"><span class="ts">13:04</span><span class="tx">another one. Um we have found that it's</span></div><div class="tline" data-t="787"><span class="ts">13:07</span><span class="tx">very difficult to support the rapid pace</span></div><div class="tline" data-t="790"><span class="ts">13:10</span><span class="tx">of networking improvements within these</span></div><div class="tline" data-t="792"><span class="ts">13:12</span><span class="tx">frameworks. So our benchmarks and our</span></div><div class="tline" data-t="795"><span class="ts">13:15</span><span class="tx">papers highlight results where Triton</span></div><div class="tline" data-t="797"><span class="ts">13:17</span><span class="tx">distributed originally tuned around 8 uh</span></div><div class="tline" data-t="800"><span class="ts">13:20</span><span class="tx">H800 GPUs fails to adapt efficiently to</span></div><div class="tline" data-t="804"><span class="ts">13:24</span><span class="tx">other architectures like H100s.</span></div><div class="tline" data-t="807"><span class="ts">13:27</span><span class="tx">And then the third category of how</span></div><div class="tline" data-t="810"><span class="ts">13:30</span><span class="tx">people can proceed here is to really</span></div><div class="tline" data-t="812"><span class="ts">13:32</span><span class="tx">handtune specific AI operators one by</span></div><div class="tline" data-t="816"><span class="ts">13:36</span><span class="tx">one. So there's a lot of popular work um</span></div><div class="tline" data-t="818"><span class="ts">13:38</span><span class="tx">DPP um comet ring attention um flux</span></div><div class="tline" data-t="823"><span class="ts">13:43</span><span class="tx">flashdoe</span></div><div class="tline" data-t="825"><span class="ts">13:45</span><span class="tx">um and then several distributed gem</span></div><div class="tline" data-t="827"><span class="ts">13:47</span><span class="tx">kernels from cutless and these methods</span></div><div class="tline" data-t="830"><span class="ts">13:50</span><span class="tx">achieve peak performance but often um</span></div><div class="tline" data-t="834"><span class="ts">13:54</span><span class="tx">they do not you know some of these</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">methods have been designed in one</span></div><div class="tline" data-t="838"><span class="ts">13:58</span><span class="tx">precision and it takes five or six</span></div><div class="tline" data-t="840"><span class="ts">14:00</span><span class="tx">months to scale it to another precision</span></div><div class="tline" data-t="842"><span class="ts">14:02</span><span class="tx">and just the scalability of this hand</span></div><div class="tline" data-t="844"><span class="ts">14:04</span><span class="tx">tuning and um fine grain kernel writing</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">is not very um effective.</span></div><div class="tline" data-t="850"><span class="ts">14:10</span><span class="tx">So um with this landscape in mind, our</span></div><div class="tline" data-t="853"><span class="ts">14:13</span><span class="tx">research question was really about</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">whether there is a small set of</span></div><div class="tline" data-t="857"><span class="ts">14:17</span><span class="tx">principles and fundamentals that really</span></div><div class="tline" data-t="860"><span class="ts">14:20</span><span class="tx">governs multiGPU kernel writing and</span></div><div class="tline" data-t="863"><span class="ts">14:23</span><span class="tx">whether there are methods that can</span></div><div class="tline" data-t="865"><span class="ts">14:25</span><span class="tx">leverage those principles if they exist</span></div><div class="tline" data-t="867"><span class="ts">14:27</span><span class="tx">to simplify the development of these</span></div><div class="tline" data-t="869"><span class="ts">14:29</span><span class="tx">kernels.</span></div><div class="tline" data-t="872"><span class="ts">14:32</span><span class="tx">Um I'll briefly highlight two works here</span></div><div class="tline" data-t="874"><span class="ts">14:34</span><span class="tx">that um govern like that that represent</span></div><div class="tline" data-t="877"><span class="ts">14:37</span><span class="tx">our approach. So first we think it's</span></div><div class="tline" data-t="880"><span class="ts">14:40</span><span class="tx">important to build our own fundamental</span></div><div class="tline" data-t="882"><span class="ts">14:42</span><span class="tx">understanding and to manually do the</span></div><div class="tline" data-t="884"><span class="ts">14:44</span><span class="tx">work to understand it rather than just</span></div><div class="tline" data-t="886"><span class="ts">14:46</span><span class="tx">throwing say an LLM at the problem. So</span></div><div class="tline" data-t="890"><span class="ts">14:50</span><span class="tx">we spent the time to build out parallel</span></div><div class="tline" data-t="892"><span class="ts">14:52</span><span class="tx">kittens which is a small set of minimal</span></div><div class="tline" data-t="895"><span class="ts">14:55</span><span class="tx">primitives and patterns for multiGPU</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">kernels. Um we use this to understand</span></div><div class="tline" data-t="900"><span class="ts">15:00</span><span class="tx">the trade-offs of multiGPU kernels and</span></div><div class="tline" data-t="903"><span class="ts">15:03</span><span class="tx">to one write a large collection of um</span></div><div class="tline" data-t="906"><span class="ts">15:06</span><span class="tx">peak performance kernels for a variety</span></div><div class="tline" data-t="909"><span class="ts">15:09</span><span class="tx">of parallelism schemes. Um and this I</span></div><div class="tline" data-t="912"><span class="ts">15:12</span><span class="tx">will use to hopefully you know educate</span></div><div class="tline" data-t="915"><span class="ts">15:15</span><span class="tx">and bring us all on the same page on</span></div><div class="tline" data-t="916"><span class="ts">15:16</span><span class="tx">what patterns we figured out. Um and</span></div><div class="tline" data-t="919"><span class="ts">15:19</span><span class="tx">then once we found that there is indeed</span></div><div class="tline" data-t="922"><span class="ts">15:22</span><span class="tx">a small set of trade-offs governing this</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">landscape, we were curious whether</span></div><div class="tline" data-t="926"><span class="ts">15:26</span><span class="tx">models, especially these models right</span></div><div class="tline" data-t="928"><span class="ts">15:28</span><span class="tx">now that claim to be very good at kernel</span></div><div class="tline" data-t="931"><span class="ts">15:31</span><span class="tx">writing and also reasoning um could</span></div><div class="tline" data-t="934"><span class="ts">15:34</span><span class="tx">reason about these trade-offs when we</span></div><div class="tline" data-t="936"><span class="ts">15:36</span><span class="tx">provide them in context to actually</span></div><div class="tline" data-t="938"><span class="ts">15:38</span><span class="tx">generate a bunch of net new multiGPU</span></div><div class="tline" data-t="940"><span class="ts">15:40</span><span class="tx">kernels for us. Unfortunately, we found</span></div><div class="tline" data-t="944"><span class="ts">15:44</span><span class="tx">they were not very good, but we'll dive</span></div><div class="tline" data-t="945"><span class="ts">15:45</span><span class="tx">into more of that at the end.</span></div><div class="tline" data-t="948"><span class="ts">15:48</span><span class="tx">Um so just the fundamental section this</span></div><div class="tline" data-t="950"><span class="ts">15:50</span><span class="tx">is going to be more you know educational</span></div><div class="tline" data-t="952"><span class="ts">15:52</span><span class="tx">what are the trade-offs that go into</span></div><div class="tline" data-t="954"><span class="ts">15:54</span><span class="tx">these kernels.</span></div><div class="tline" data-t="956"><span class="ts">15:56</span><span class="tx">So there are three main ways to do um</span></div><div class="tline" data-t="959"><span class="ts">15:59</span><span class="tx">intraGPU data transfers. Um there's the</span></div><div class="tline" data-t="963"><span class="ts">16:03</span><span class="tx">per GPU what's called copy engine and</span></div><div class="tline" data-t="966"><span class="ts">16:06</span><span class="tx">this is host or CPU initiated work. It's</span></div><div class="tline" data-t="969"><span class="ts">16:09</span><span class="tx">really good for large message transfers.</span></div><div class="tline" data-t="972"><span class="ts">16:12</span><span class="tx">So when your message size, the amount of</span></div><div class="tline" data-t="975"><span class="ts">16:15</span><span class="tx">data being transferred is really big um</span></div><div class="tline" data-t="977"><span class="ts">16:17</span><span class="tx">and it can get to sort of like peak</span></div><div class="tline" data-t="979"><span class="ts">16:19</span><span class="tx">bandwidth um on on the communication</span></div><div class="tline" data-t="982"><span class="ts">16:22</span><span class="tx">side. In contrast, you can use device</span></div><div class="tline" data-t="985"><span class="ts">16:25</span><span class="tx">initiated or GPU initiated transfers via</span></div><div class="tline" data-t="988"><span class="ts">16:28</span><span class="tx">that tensor memory accelerator that I</span></div><div class="tline" data-t="990"><span class="ts">16:30</span><span class="tx">mentioned or via register level</span></div><div class="tline" data-t="992"><span class="ts">16:32</span><span class="tx">instructions called uh in sort of their</span></div><div class="tline" data-t="995"><span class="ts">16:35</span><span class="tx">PTX lingo like LDST red multime. Um, and</span></div><div class="tline" data-t="1000"><span class="ts">16:40</span><span class="tx">the uh T TMA is really nice. These</span></div><div class="tline" data-t="1003"><span class="ts">16:43</span><span class="tx">device initiated ones are really nice</span></div><div class="tline" data-t="1005"><span class="ts">16:45</span><span class="tx">because they can saturate our NVLink</span></div><div class="tline" data-t="1007"><span class="ts">16:47</span><span class="tx">bandwidth using relatively small message</span></div><div class="tline" data-t="1011"><span class="ts">16:51</span><span class="tx">sizes. And this means that they can be</span></div><div class="tline" data-t="1013"><span class="ts">16:53</span><span class="tx">really nice when we're trying to do fine</span></div><div class="tline" data-t="1015"><span class="ts">16:55</span><span class="tx">grain communication rather than sending</span></div><div class="tline" data-t="1017"><span class="ts">16:57</span><span class="tx">bulk amounts of data over the links all</span></div><div class="tline" data-t="1019"><span class="ts">16:59</span><span class="tx">at once coarsely.</span></div><div class="tline" data-t="1022"><span class="ts">17:02</span><span class="tx">Um, there are some trade-offs here. So</span></div><div class="tline" data-t="1025"><span class="ts">17:05</span><span class="tx">the copy engine is really nice because</span></div><div class="tline" data-t="1027"><span class="ts">17:07</span><span class="tx">it doesn't take away or you know waste a</span></div><div class="tline" data-t="1030"><span class="ts">17:10</span><span class="tx">lot of our precious registers that I</span></div><div class="tline" data-t="1032"><span class="ts">17:12</span><span class="tx">mentioned are important for compute on</span></div><div class="tline" data-t="1034"><span class="ts">17:14</span><span class="tx">the GPU. Um and it doesn't also use any</span></div><div class="tline" data-t="1038"><span class="ts">17:18</span><span class="tx">of those rainbow colored dots the</span></div><div class="tline" data-t="1040"><span class="ts">17:20</span><span class="tx">processors on our GPU allowing us to</span></div><div class="tline" data-t="1042"><span class="ts">17:22</span><span class="tx">repurpose those for memory or um</span></div><div class="tline" data-t="1045"><span class="ts">17:25</span><span class="tx">computation on our uh you know other</span></div><div class="tline" data-t="1047"><span class="ts">17:27</span><span class="tx">parts of the AI pipeline. Um, TMA, the</span></div><div class="tline" data-t="1051"><span class="ts">17:31</span><span class="tx">second option here, consumes very few</span></div><div class="tline" data-t="1053"><span class="ts">17:33</span><span class="tx">registers, which is why it's nice. Um,</span></div><div class="tline" data-t="1056"><span class="ts">17:36</span><span class="tx">and it also can achieve high utilization</span></div><div class="tline" data-t="1058"><span class="ts">17:38</span><span class="tx">using very few of our processors. So,</span></div><div class="tline" data-t="1061"><span class="ts">17:41</span><span class="tx">it's a nice useful tool for fine grain</span></div><div class="tline" data-t="1064"><span class="ts">17:44</span><span class="tx">overlapping. Um, TMA does have</span></div><div class="tline" data-t="1067"><span class="ts">17:47</span><span class="tx">limitations. It can't effectively take</span></div><div class="tline" data-t="1069"><span class="ts">17:49</span><span class="tx">advantage of these in network um,</span></div><div class="tline" data-t="1071"><span class="ts">17:51</span><span class="tx">computations that I mentioned are</span></div><div class="tline" data-t="1073"><span class="ts">17:53</span><span class="tx">feasible with technologies like NV</span></div><div class="tline" data-t="1075"><span class="ts">17:55</span><span class="tx">switch. And the register level</span></div><div class="tline" data-t="1078"><span class="ts">17:58</span><span class="tx">instructions are really nice for being</span></div><div class="tline" data-t="1080"><span class="ts">18:00</span><span class="tx">able to take advantage of um you know</span></div><div class="tline" data-t="1083"><span class="ts">18:03</span><span class="tx">those those sort of in network</span></div><div class="tline" data-t="1085"><span class="ts">18:05</span><span class="tx">reductions that NV switch offers.</span></div><div class="tline" data-t="1088"><span class="ts">18:08</span><span class="tx">So again there are different tradeoffs</span></div><div class="tline" data-t="1091"><span class="ts">18:11</span><span class="tx">different functionalities that these</span></div><div class="tline" data-t="1093"><span class="ts">18:13</span><span class="tx">transfer mechanisms offer and they face</span></div><div class="tline" data-t="1095"><span class="ts">18:15</span><span class="tx">different trade-offs.</span></div><div class="tline" data-t="1098"><span class="ts">18:18</span><span class="tx">Second um beyond transfer mechanism the</span></div><div class="tline" data-t="1101"><span class="ts">18:21</span><span class="tx">trade-off is around how to overlap</span></div><div class="tline" data-t="1104"><span class="ts">18:24</span><span class="tx">compute memory and uh communication in</span></div><div class="tline" data-t="1108"><span class="ts">18:28</span><span class="tx">GPU kernels. So there's two main</span></div><div class="tline" data-t="1110"><span class="ts">18:30</span><span class="tx">categories of schedules. The first is</span></div><div class="tline" data-t="1114"><span class="ts">18:34</span><span class="tx">intraSM within one of those rainbow dots</span></div><div class="tline" data-t="1118"><span class="ts">18:38</span><span class="tx">um where we'll we'll have different</span></div><div class="tline" data-t="1119"><span class="ts">18:39</span><span class="tx">warps or threads within that processor</span></div><div class="tline" data-t="1122"><span class="ts">18:42</span><span class="tx">specialized to handle either compute or</span></div><div class="tline" data-t="1125"><span class="ts">18:45</span><span class="tx">one specialized for communication</span></div><div class="tline" data-t="1127"><span class="ts">18:47</span><span class="tx">concurrently. Um we can dedicate you</span></div><div class="tline" data-t="1129"><span class="ts">18:49</span><span class="tx">know different warps to each of these.</span></div><div class="tline" data-t="1132"><span class="ts">18:52</span><span class="tx">The challenge with this intm overlapping</span></div><div class="tline" data-t="1135"><span class="ts">18:55</span><span class="tx">is that the communication and</span></div><div class="tline" data-t="1137"><span class="ts">18:57</span><span class="tx">computation pattern really need to like</span></div><div class="tline" data-t="1139"><span class="ts">18:59</span><span class="tx">align and jive with one another. they</span></div><div class="tline" data-t="1141"><span class="ts">19:01</span><span class="tx">need to use the same data as inputs for</span></div><div class="tline" data-t="1144"><span class="ts">19:04</span><span class="tx">the computation and communication. When</span></div><div class="tline" data-t="1147"><span class="ts">19:07</span><span class="tx">they don't align, you could use</span></div><div class="tline" data-t="1148"><span class="ts">19:08</span><span class="tx">something like interm um schedules that</span></div><div class="tline" data-t="1152"><span class="ts">19:12</span><span class="tx">are shown on your right here where we'll</span></div><div class="tline" data-t="1155"><span class="ts">19:15</span><span class="tx">now have each of the different rainbow</span></div><div class="tline" data-t="1157"><span class="ts">19:17</span><span class="tx">colored dots on our GPUs, those</span></div><div class="tline" data-t="1159"><span class="ts">19:19</span><span class="tx">different processors specialized to</span></div><div class="tline" data-t="1161"><span class="ts">19:21</span><span class="tx">compute communication and memory. Um and</span></div><div class="tline" data-t="1166"><span class="ts">19:26</span><span class="tx">so this this is nice when the colonel</span></div><div class="tline" data-t="1169"><span class="ts">19:29</span><span class="tx">would others wise need to split across</span></div><div class="tline" data-t="1171"><span class="ts">19:31</span><span class="tx">resources like the register file or</span></div><div class="tline" data-t="1173"><span class="ts">19:33</span><span class="tx">shared memory um across these different</span></div><div class="tline" data-t="1176"><span class="ts">19:36</span><span class="tx">steps in misaligned ways.</span></div><div class="tline" data-t="1181"><span class="ts">19:41</span><span class="tx">Um this is also really nice when it's</span></div><div class="tline" data-t="1183"><span class="ts">19:43</span><span class="tx">hard to maximize NVLink traversal with</span></div><div class="tline" data-t="1185"><span class="ts">19:45</span><span class="tx">intram</span></div><div class="tline" data-t="1187"><span class="ts">19:47</span><span class="tx">overlapping.</span></div><div class="tline" data-t="1190"><span class="ts">19:50</span><span class="tx">So I just wanted to highlight one quick</span></div><div class="tline" data-t="1192"><span class="ts">19:52</span><span class="tx">example here where each of the patterns</span></div><div class="tline" data-t="1194"><span class="ts">19:54</span><span class="tx">excels in popular you know AI uh uh like</span></div><div class="tline" data-t="1197"><span class="ts">19:57</span><span class="tx">kind of patterns that you'll see. So on</span></div><div class="tline" data-t="1200"><span class="ts">20:00</span><span class="tx">a gem plus uh reduced uh scatter here we</span></div><div class="tline" data-t="1204"><span class="ts">20:04</span><span class="tx">can see that the um intraSM overlapping</span></div><div class="tline" data-t="1208"><span class="ts">20:08</span><span class="tx">scheduleuler schedule is very effective</span></div><div class="tline" data-t="1211"><span class="ts">20:11</span><span class="tx">in the gem plus all reduce we can see</span></div><div class="tline" data-t="1214"><span class="ts">20:14</span><span class="tx">that the interSM which again leverages</span></div><div class="tline" data-t="1217"><span class="ts">20:17</span><span class="tx">the in network reductions of envy switch</span></div><div class="tline" data-t="1219"><span class="ts">20:19</span><span class="tx">is very effective. So we face these</span></div><div class="tline" data-t="1222"><span class="ts">20:22</span><span class="tx">trade-offs and you can read more about</span></div><div class="tline" data-t="1224"><span class="ts">20:24</span><span class="tx">um the design decisions that go into</span></div><div class="tline" data-t="1226"><span class="ts">20:26</span><span class="tx">them in our parallel kittens paper.</span></div><div class="tline" data-t="1230"><span class="ts">20:30</span><span class="tx">Um, and then finally, ideally,</span></div><div class="tline" data-t="1231"><span class="ts">20:31</span><span class="tx">abstraction should allow the developer</span></div><div class="tline" data-t="1233"><span class="ts">20:33</span><span class="tx">flexibility to control how they're</span></div><div class="tline" data-t="1235"><span class="ts">20:35</span><span class="tx">buffering and synchronizing between data</span></div><div class="tline" data-t="1239"><span class="ts">20:39</span><span class="tx">senders and receivers.</span></div><div class="tline" data-t="1241"><span class="ts">20:41</span><span class="tx">So, we encapsulated these ideas into</span></div><div class="tline" data-t="1244"><span class="ts">20:44</span><span class="tx">parallel kittens. Again, a simple set of</span></div><div class="tline" data-t="1246"><span class="ts">20:46</span><span class="tx">programming primitives and templates for</span></div><div class="tline" data-t="1249"><span class="ts">20:49</span><span class="tx">these multiGPU kernels. Parallel Kittens</span></div><div class="tline" data-t="1252"><span class="ts">20:52</span><span class="tx">is used in production at Together AI as</span></div><div class="tline" data-t="1254"><span class="ts">20:54</span><span class="tx">well as our partner um you know Cursor</span></div><div class="tline" data-t="1257"><span class="ts">20:57</span><span class="tx">and other uh companies in the AI space.</span></div><div class="tline" data-t="1261"><span class="ts">21:01</span><span class="tx">Um here's some sample code. I won't</span></div><div class="tline" data-t="1263"><span class="ts">21:03</span><span class="tx">spend too much time here, but we usually</span></div><div class="tline" data-t="1265"><span class="ts">21:05</span><span class="tx">add roughly a dozen lines of code over a</span></div><div class="tline" data-t="1267"><span class="ts">21:07</span><span class="tx">single GPU kernel to insert these</span></div><div class="tline" data-t="1270"><span class="ts">21:10</span><span class="tx">multiGPU primitives.</span></div><div class="tline" data-t="1273"><span class="ts">21:13</span><span class="tx">Um, and you can see here across data</span></div><div class="tline" data-t="1276"><span class="ts">21:16</span><span class="tx">sequence and expert parallelism how our</span></div><div class="tline" data-t="1279"><span class="ts">21:19</span><span class="tx">parallel kittens kernels are achieving</span></div><div class="tline" data-t="1282"><span class="ts">21:22</span><span class="tx">state-of-the-art results um, compared to</span></div><div class="tline" data-t="1284"><span class="ts">21:24</span><span class="tx">strong reference baselines. And you can</span></div><div class="tline" data-t="1286"><span class="ts">21:26</span><span class="tx">check out our repo to learn more.</span></div><div class="tline" data-t="1290"><span class="ts">21:30</span><span class="tx">Okay, so we understand a little bit</span></div><div class="tline" data-t="1293"><span class="ts">21:33</span><span class="tx">about um the trade-offs that underly</span></div><div class="tline" data-t="1295"><span class="ts">21:35</span><span class="tx">these multiGPU kernels and there's just</span></div><div class="tline" data-t="1297"><span class="ts">21:37</span><span class="tx">a couple main, you know, ones that</span></div><div class="tline" data-t="1299"><span class="ts">21:39</span><span class="tx">exist. So can models reason through them</span></div><div class="tline" data-t="1302"><span class="ts">21:42</span><span class="tx">um and give us these uh you know kernels</span></div><div class="tline" data-t="1305"><span class="ts">21:45</span><span class="tx">models are getting better at reasoning</span></div><div class="tline" data-t="1307"><span class="ts">21:47</span><span class="tx">today. Um do they generalize well to</span></div><div class="tline" data-t="1310"><span class="ts">21:50</span><span class="tx">these problems or are we benchmaxed on</span></div><div class="tline" data-t="1313"><span class="ts">21:53</span><span class="tx">you know benchmarks of the past which</span></div><div class="tline" data-t="1315"><span class="ts">21:55</span><span class="tx">are more single GPU centric</span></div><div class="tline" data-t="1318"><span class="ts">21:58</span><span class="tx">uh models right now are showing really</span></div><div class="tline" data-t="1320"><span class="ts">22:00</span><span class="tx">promising results on single GPU uh</span></div><div class="tline" data-t="1322"><span class="ts">22:02</span><span class="tx">benchmarks. So it's a ripe time to to</span></div><div class="tline" data-t="1325"><span class="ts">22:05</span><span class="tx">extend it.</span></div><div class="tline" data-t="1327"><span class="ts">22:07</span><span class="tx">In our benchmark parallel kernel bench,</span></div><div class="tline" data-t="1330"><span class="ts">22:10</span><span class="tx">each task presents the model with an</span></div><div class="tline" data-t="1332"><span class="ts">22:12</span><span class="tx">unoptimized reference implementation</span></div><div class="tline" data-t="1334"><span class="ts">22:14</span><span class="tx">written in PyTorch with torch</span></div><div class="tline" data-t="1336"><span class="ts">22:16</span><span class="tx">distributed um nickel operations and</span></div><div class="tline" data-t="1339"><span class="ts">22:19</span><span class="tx">then a system topology that specifies</span></div><div class="tline" data-t="1342"><span class="ts">22:22</span><span class="tx">the number of ranks and intraode</span></div><div class="tline" data-t="1344"><span class="ts">22:24</span><span class="tx">hardware configuration. And the model</span></div><div class="tline" data-t="1346"><span class="ts">22:26</span><span class="tx">needs to rewrite the reference into a</span></div><div class="tline" data-t="1348"><span class="ts">22:28</span><span class="tx">performance CUDA kernel that uh uses</span></div><div class="tline" data-t="1351"><span class="ts">22:31</span><span class="tx">unified virtual addressing.</span></div><div class="tline" data-t="1357"><span class="ts">22:37</span><span class="tx">The um multiGPU problem space expands</span></div><div class="tline" data-t="1360"><span class="ts">22:40</span><span class="tx">combinatorally beyond single GPU um</span></div><div class="tline" data-t="1364"><span class="ts">22:44</span><span class="tx">cases. So a standard transformer layer</span></div><div class="tline" data-t="1366"><span class="ts">22:46</span><span class="tx">can be parallelized across data</span></div><div class="tline" data-t="1369"><span class="ts">22:49</span><span class="tx">sequence, tensor, context, layer,</span></div><div class="tline" data-t="1371"><span class="ts">22:51</span><span class="tx">pipeline and expert dimensions. and each</span></div><div class="tline" data-t="1373"><span class="ts">22:53</span><span class="tx">composition um induces a different</span></div><div class="tline" data-t="1376"><span class="ts">22:56</span><span class="tx">communication pass uh pattern. So to</span></div><div class="tline" data-t="1378"><span class="ts">22:58</span><span class="tx">make sure that our benchmark has high</span></div><div class="tline" data-t="1381"><span class="ts">23:01</span><span class="tx">coverage over the representative types</span></div><div class="tline" data-t="1383"><span class="ts">23:03</span><span class="tx">of multiGPU problems um we created this</span></div><div class="tline" data-t="1386"><span class="ts">23:06</span><span class="tx">taxonomy um that you can read more about</span></div><div class="tline" data-t="1389"><span class="ts">23:09</span><span class="tx">in our paper and then picked</span></div><div class="tline" data-t="1390"><span class="ts">23:10</span><span class="tx">representative problems for each part of</span></div><div class="tline" data-t="1392"><span class="ts">23:12</span><span class="tx">the taxonomy.</span></div><div class="tline" data-t="1395"><span class="ts">23:15</span><span class="tx">Um these are all patterns that arise in</span></div><div class="tline" data-t="1398"><span class="ts">23:18</span><span class="tx">real AI workloads from inference to RL</span></div><div class="tline" data-t="1400"><span class="ts">23:20</span><span class="tx">to post-training.</span></div><div class="tline" data-t="1403"><span class="ts">23:23</span><span class="tx">There are 87 problems overall um drawn</span></div><div class="tline" data-t="1406"><span class="ts">23:26</span><span class="tx">from GitHub repositories that we found</span></div><div class="tline" data-t="1409"><span class="ts">23:29</span><span class="tx">to be very informative. Um and we uh and</span></div><div class="tline" data-t="1414"><span class="ts">23:34</span><span class="tx">like optimized library implementations</span></div><div class="tline" data-t="1416"><span class="ts">23:36</span><span class="tx">and DSLs that people have written</span></div><div class="tline" data-t="1418"><span class="ts">23:38</span><span class="tx">multiGPU kernels in.</span></div><div class="tline" data-t="1420"><span class="ts">23:40</span><span class="tx">Um, we wanted to really make sure that</span></div><div class="tline" data-t="1422"><span class="ts">23:42</span><span class="tx">solving PK this parallel kernel bench</span></div><div class="tline" data-t="1425"><span class="ts">23:45</span><span class="tx">would lead to net new useful production</span></div><div class="tline" data-t="1427"><span class="ts">23:47</span><span class="tx">kernels rather than artificial or</span></div><div class="tline" data-t="1429"><span class="ts">23:49</span><span class="tx">useless kernels.</span></div><div class="tline" data-t="1431"><span class="ts">23:51</span><span class="tx">Okay, so that's parallel kernel bench.</span></div><div class="tline" data-t="1434"><span class="ts">23:54</span><span class="tx">How do models perform?</span></div><div class="tline" data-t="1438"><span class="ts">23:58</span><span class="tx">So we measured to sorry that this is a</span></div><div class="tline" data-t="1440"><span class="ts">24:00</span><span class="tx">bit small. We measured two main metrics.</span></div><div class="tline" data-t="1443"><span class="ts">24:03</span><span class="tx">Um pass at K which is the number of</span></div><div class="tline" data-t="1446"><span class="ts">24:06</span><span class="tx">correct kernels generated after K</span></div><div class="tline" data-t="1448"><span class="ts">24:08</span><span class="tx">attempts and then fast um one at K which</span></div><div class="tline" data-t="1453"><span class="ts">24:13</span><span class="tx">counts solutions that are both correct</span></div><div class="tline" data-t="1456"><span class="ts">24:16</span><span class="tx">and outperform the speed of the pi torch</span></div><div class="tline" data-t="1459"><span class="ts">24:19</span><span class="tx">plus nickel baseline.</span></div><div class="tline" data-t="1461"><span class="ts">24:21</span><span class="tx">Um so pass K just correctness fast one</span></div><div class="tline" data-t="1465"><span class="ts">24:25</span><span class="tx">at K is whether you're getting a 1x or</span></div><div class="tline" data-t="1468"><span class="ts">24:28</span><span class="tx">higher speed up over the reference. So</span></div><div class="tline" data-t="1470"><span class="ts">24:30</span><span class="tx">performanceoriented</span></div><div class="tline" data-t="1472"><span class="ts">24:32</span><span class="tx">um we found that in the zeroot setting</span></div><div class="tline" data-t="1475"><span class="ts">24:35</span><span class="tx">the best of the frontier models we tried</span></div><div class="tline" data-t="1477"><span class="ts">24:37</span><span class="tx">solves 28 out of 87 problems and 22 of</span></div><div class="tline" data-t="1481"><span class="ts">24:41</span><span class="tx">those problems are faster than the</span></div><div class="tline" data-t="1482"><span class="ts">24:42</span><span class="tx">pietorch plus nickel baseline.</span></div><div class="tline" data-t="1485"><span class="ts">24:45</span><span class="tx">If we make multiple samples, you know,</span></div><div class="tline" data-t="1487"><span class="ts">24:47</span><span class="tx">standard uh scaling up test time</span></div><div class="tline" data-t="1490"><span class="ts">24:50</span><span class="tx">compute, we can uh get that number from</span></div><div class="tline" data-t="1494"><span class="ts">24:54</span><span class="tx">say like to to 36 correct solutions, but</span></div><div class="tline" data-t="1497"><span class="ts">24:57</span><span class="tx">the fast uh one performance still</span></div><div class="tline" data-t="1501"><span class="ts">25:01</span><span class="tx">plateaus out at roughly 31%. So we don't</span></div><div class="tline" data-t="1505"><span class="ts">25:05</span><span class="tx">see much room from continuing to scale</span></div><div class="tline" data-t="1507"><span class="ts">25:07</span><span class="tx">there as we increase the number of</span></div><div class="tline" data-t="1509"><span class="ts">25:09</span><span class="tx">parallel generations.</span></div><div class="tline" data-t="1512"><span class="ts">25:12</span><span class="tx">Um we find that the correct once</span></div><div class="tline" data-t="1514"><span class="ts">25:14</span><span class="tx">correctness is established um speedups</span></div><div class="tline" data-t="1516"><span class="ts">25:16</span><span class="tx">naturally come from eliminating nickel</span></div><div class="tline" data-t="1518"><span class="ts">25:18</span><span class="tx">staging overhead in favor of direct</span></div><div class="tline" data-t="1520"><span class="ts">25:20</span><span class="tx">NVLink loads in stores.</span></div><div class="tline" data-t="1524"><span class="ts">25:24</span><span class="tx">Um the success patterns here are really</span></div><div class="tline" data-t="1527"><span class="ts">25:27</span><span class="tx">concentrated into familiar patterns. So</span></div><div class="tline" data-t="1530"><span class="ts">25:30</span><span class="tx">collective primitives, tensor parallel</span></div><div class="tline" data-t="1532"><span class="ts">25:32</span><span class="tx">gems and Ulyses style context</span></div><div class="tline" data-t="1534"><span class="ts">25:34</span><span class="tx">parallelism. So in other words, patterns</span></div><div class="tline" data-t="1537"><span class="ts">25:37</span><span class="tx">that we see heavily represented um on</span></div><div class="tline" data-t="1540"><span class="ts">25:40</span><span class="tx">the internet rather than necessarily</span></div><div class="tline" data-t="1543"><span class="ts">25:43</span><span class="tx">patterns that the model has used its</span></div><div class="tline" data-t="1545"><span class="ts">25:45</span><span class="tx">reasoning abilities to think through.</span></div><div class="tline" data-t="1550"><span class="ts">25:50</span><span class="tx">Okay, even the best available model that</span></div><div class="tline" data-t="1553"><span class="ts">25:53</span><span class="tx">we benchmarked here GPT 5.5 drops off</span></div><div class="tline" data-t="1556"><span class="ts">25:56</span><span class="tx">very quickly as the speed up threshold</span></div><div class="tline" data-t="1559"><span class="ts">25:59</span><span class="tx">increases. So on the x-axis here, we're</span></div><div class="tline" data-t="1562"><span class="ts">26:02</span><span class="tx">increasing the speed up threshold over</span></div><div class="tline" data-t="1564"><span class="ts">26:04</span><span class="tx">that pietor torch plus nickel baseline.</span></div><div class="tline" data-t="1567"><span class="ts">26:07</span><span class="tx">And then we're showing the number of</span></div><div class="tline" data-t="1569"><span class="ts">26:09</span><span class="tx">correct kernels that are faster than</span></div><div class="tline" data-t="1571"><span class="ts">26:11</span><span class="tx">that baseline or this much faster than</span></div><div class="tline" data-t="1573"><span class="ts">26:13</span><span class="tx">the baseline on the y-axis.</span></div><div class="tline" data-t="1576"><span class="ts">26:16</span><span class="tx">So GPT 5.5 is this orange line here and</span></div><div class="tline" data-t="1580"><span class="ts">26:20</span><span class="tx">then DeepSeek V4 Pro is the aqua line at</span></div><div class="tline" data-t="1584"><span class="ts">26:24</span><span class="tx">the bottom.</span></div><div class="tline" data-t="1588"><span class="ts">26:28</span><span class="tx">um we found that there's deeper issues</span></div><div class="tline" data-t="1591"><span class="ts">26:31</span><span class="tx">than CUDA syntax. So we found that if</span></div><div class="tline" data-t="1594"><span class="ts">26:34</span><span class="tx">you do multiple sampling or have the</span></div><div class="tline" data-t="1596"><span class="ts">26:36</span><span class="tx">model kind of look at its errors and</span></div><div class="tline" data-t="1598"><span class="ts">26:38</span><span class="tx">correct them, it can often compile the</span></div><div class="tline" data-t="1601"><span class="ts">26:41</span><span class="tx">kernels. But the models really struggle</span></div><div class="tline" data-t="1604"><span class="ts">26:44</span><span class="tx">to reason through the tradeoffs that we</span></div><div class="tline" data-t="1606"><span class="ts">26:46</span><span class="tx">talked about in the prior section. um</span></div><div class="tline" data-t="1608"><span class="ts">26:48</span><span class="tx">collective ordering, data partitioning,</span></div><div class="tline" data-t="1610"><span class="ts">26:50</span><span class="tx">thinking about intra versus interm</span></div><div class="tline" data-t="1613"><span class="ts">26:53</span><span class="tx">scheduling or deciding between the</span></div><div class="tline" data-t="1615"><span class="ts">26:55</span><span class="tx">different transfer mechanisms. Um we</span></div><div class="tline" data-t="1618"><span class="ts">26:58</span><span class="tx">find that they often do not use things</span></div><div class="tline" data-t="1620"><span class="ts">27:00</span><span class="tx">like the register transfer instructions</span></div><div class="tline" data-t="1622"><span class="ts">27:02</span><span class="tx">or tensor memory acceleration when</span></div><div class="tline" data-t="1624"><span class="ts">27:04</span><span class="tx">writing the kernels.</span></div><div class="tline" data-t="1627"><span class="ts">27:07</span><span class="tx">Um we wanted to try a pretty simple</span></div><div class="tline" data-t="1630"><span class="ts">27:10</span><span class="tx">instantiation of something like a clawed</span></div><div class="tline" data-t="1632"><span class="ts">27:12</span><span class="tx">code um coding agent. So, we took uh the</span></div><div class="tline" data-t="1637"><span class="ts">27:17</span><span class="tx">mini sui agent multi-turn harness and</span></div><div class="tline" data-t="1640"><span class="ts">27:20</span><span class="tx">one of the best performing models,</span></div><div class="tline" data-t="1641"><span class="ts">27:21</span><span class="tx">Gemini 3 Pro, and gave it access to a</span></div><div class="tline" data-t="1644"><span class="ts">27:24</span><span class="tx">local bash environment to sort of mimic</span></div><div class="tline" data-t="1646"><span class="ts">27:26</span><span class="tx">the standard claude code setup. We found</span></div><div class="tline" data-t="1649"><span class="ts">27:29</span><span class="tx">that this could help the agent um go</span></div><div class="tline" data-t="1653"><span class="ts">27:33</span><span class="tx">from solving 24 problems to 35 of 87</span></div><div class="tline" data-t="1656"><span class="ts">27:36</span><span class="tx">problems um with um 26 achieving over a</span></div><div class="tline" data-t="1661"><span class="ts">27:41</span><span class="tx">1x speed up over the reference. But we</span></div><div class="tline" data-t="1664"><span class="ts">27:44</span><span class="tx">found that as we scaled the amount of</span></div><div class="tline" data-t="1666"><span class="ts">27:46</span><span class="tx">time um the performance plateaued as uh</span></div><div class="tline" data-t="1670"><span class="ts">27:50</span><span class="tx">and we find that additional techniques</span></div><div class="tline" data-t="1672"><span class="ts">27:52</span><span class="tx">would be required to continue seeing the</span></div><div class="tline" data-t="1674"><span class="ts">27:54</span><span class="tx">scaling there. Again these results are</span></div><div class="tline" data-t="1677"><span class="ts">27:57</span><span class="tx">discussed in more detail in our paper.</span></div><div class="tline" data-t="1680"><span class="ts">28:00</span><span class="tx">Um we think this is a really exciting</span></div><div class="tline" data-t="1682"><span class="ts">28:02</span><span class="tx">you know just to wrap up here we hope</span></div><div class="tline" data-t="1684"><span class="ts">28:04</span><span class="tx">that people out here can use both</span></div><div class="tline" data-t="1685"><span class="ts">28:05</span><span class="tx">parallel kittens and parallel kernel</span></div><div class="tline" data-t="1687"><span class="ts">28:07</span><span class="tx">bench. We think that the kernels</span></div><div class="tline" data-t="1689"><span class="ts">28:09</span><span class="tx">generated from solving parallel kernel</span></div><div class="tline" data-t="1691"><span class="ts">28:11</span><span class="tx">bench will lead to net new production</span></div><div class="tline" data-t="1694"><span class="ts">28:14</span><span class="tx">kernels that are important bottlenecks</span></div><div class="tline" data-t="1696"><span class="ts">28:16</span><span class="tx">for inference in RL right now. um</span></div><div class="tline" data-t="1699"><span class="ts">28:19</span><span class="tx">they're you know we tried our best to</span></div><div class="tline" data-t="1701"><span class="ts">28:21</span><span class="tx">make them you know non-artificial and we</span></div><div class="tline" data-t="1703"><span class="ts">28:23</span><span class="tx">can already see signs of life and</span></div><div class="tline" data-t="1705"><span class="ts">28:25</span><span class="tx">exciting results where people have not</span></div><div class="tline" data-t="1707"><span class="ts">28:27</span><span class="tx">invested a bunch of time to handw write</span></div><div class="tline" data-t="1709"><span class="ts">28:29</span><span class="tx">a multiGPU kernel and we've gotten some</span></div><div class="tline" data-t="1711"><span class="ts">28:31</span><span class="tx">net new interesting ones like this Nemo</span></div><div class="tline" data-t="1714"><span class="ts">28:34</span><span class="tx">vocab parallel um you know filtering</span></div><div class="tline" data-t="1717"><span class="ts">28:37</span><span class="tx">kernel um a hyena architecture context</span></div><div class="tline" data-t="1721"><span class="ts">28:41</span><span class="tx">parallelism kernel</span></div><div class="tline" data-t="1724"><span class="ts">28:44</span><span class="tx">and uh the SAM 3 video segmentation</span></div><div class="tline" data-t="1728"><span class="ts">28:48</span><span class="tx">model um IOU suppression kernel.</span></div><div class="tline" data-t="1732"><span class="ts">28:52</span><span class="tx">Just to conclude here um we're really</span></div><div class="tline" data-t="1734"><span class="ts">28:54</span><span class="tx">excited about um how uh well just</span></div><div class="tline" data-t="1739"><span class="ts">28:59</span><span class="tx">talking about the lessons. First off, we</span></div><div class="tline" data-t="1740"><span class="ts">29:00</span><span class="tx">think there aren't that many patterns</span></div><div class="tline" data-t="1742"><span class="ts">29:02</span><span class="tx">that are involved in writing intragpu</span></div><div class="tline" data-t="1745"><span class="ts">29:05</span><span class="tx">effective kernels again encapsulated by</span></div><div class="tline" data-t="1748"><span class="ts">29:08</span><span class="tx">our small set of programming primitives.</span></div><div class="tline" data-t="1751"><span class="ts">29:11</span><span class="tx">Um, but unfortunately models do not</span></div><div class="tline" data-t="1753"><span class="ts">29:13</span><span class="tx">currently understand how to reason</span></div><div class="tline" data-t="1755"><span class="ts">29:15</span><span class="tx">through these trade-offs even when we</span></div><div class="tline" data-t="1756"><span class="ts">29:16</span><span class="tx">provide them in context. Um, we're</span></div><div class="tline" data-t="1759"><span class="ts">29:19</span><span class="tx">really excited about methods that can</span></div><div class="tline" data-t="1761"><span class="ts">29:21</span><span class="tx">help attack this benchmark. We're</span></div><div class="tline" data-t="1763"><span class="ts">29:23</span><span class="tx">excited about architectures that can</span></div><div class="tline" data-t="1765"><span class="ts">29:25</span><span class="tx">grow with the trends of how networking</span></div><div class="tline" data-t="1767"><span class="ts">29:27</span><span class="tx">stacks are evolving. Um, you know,</span></div><div class="tline" data-t="1769"><span class="ts">29:29</span><span class="tx">larger scale up domains shift away from</span></div><div class="tline" data-t="1772"><span class="ts">29:32</span><span class="tx">scale out um and massive onchip memory</span></div><div class="tline" data-t="1775"><span class="ts">29:35</span><span class="tx">structures. And we hope that uh you know</span></div><div class="tline" data-t="1778"><span class="ts">29:38</span><span class="tx">we can also extend and you you can feel</span></div><div class="tline" data-t="1780"><span class="ts">29:40</span><span class="tx">free to reach out to me at my email.</span></div><div class="tline" data-t="1782"><span class="ts">29:42</span><span class="tx">Thanks.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

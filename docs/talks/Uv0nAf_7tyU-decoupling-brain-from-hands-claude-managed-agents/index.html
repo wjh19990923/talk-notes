@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>把大脑与双手解耦：Claude Managed Agents（第 1 部分，共 4 部分） —— Anthropic | AI 工程师中文版</title>
+<meta name="description" content="Anthropic 最初的 Managed Agents 架构把会话历史、框架和沙箱放在同一个容器里。把它们拆开之后，故障恢复、凭据处理、上下文管理和首次响应的路径都随之改变。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>把大脑与双手解耦：Claude Managed Agents（第 1 部分，共 4 部分） —— Anthropic</h1>
+    <div class="orig-title">Decoupling the Brain from the Hands: Claude Managed Agents (Part 1 of 4) — Anthropic</div>
+    <div class="meta"><span class="speaker">Priyanka Phatak、Gabe Cemaj</span> · AI Engineer World's Fair 2026 · 17:39</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=agent-orchestration">智能体编排</a><a class="tag" href="../../index.html#topic=sandboxes-and-execution-isolation">沙箱与执行隔离</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=context-engineering">上下文工程</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/Uv0nAf_7tyU-decoupling-brain-from-hands-claude-managed-agents" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="Uv0nAf_7tyU"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=Uv0nAf_7tyU" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">框架里带着对模型的假设</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>框架里带着对模型的假设</span></li><li data-t="291"><span class="ts">4:51</span><span>第一个容器变成了宠物</span></li><li data-t="473"><span class="ts">7:53</span><span>把历史、大脑和双手分开</span></li><li data-t="548"><span class="ts">9:08</span><span>在沙箱发出请求之后再注入凭据</span></li><li data-t="591"><span class="ts">9:51</span><span>保持历史完整，更早开始推理</span></li><li data-t="703"><span class="ts">11:43</span><span>用一个环境和一份智能体定义构建 Joke Teller</span></li><li data-t="939"><span class="ts">15:39</span><span>用事件流启动工作、处理工具调用并停止</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 26 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="What we’ll cover" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What we’ll cover</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The session traces the development of managed agents, then moves from a no-code Claude Platform exercise to a coded financial agent, followed by Q&amp;A.
+
+[1:01](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=61s) [Agenda covering managed agents, two hands-on workshops, and Q&amp;A.](https://assets.ai.engineer/sites/aiecode2025/sha256/b33dbc61f3a57fcb3ce2942c5542bba1c0b3e069055a10392e75de98696afc73.webp)
+
+What we’ll cover
+
+01 Scaling Managed Agents
+An evolution story
+
+02 Hands-on workshop - Part 1
+Build your first simple agent with Claude Platform
+
+03 Hands-on workshop - Part 2
+Building a Financial Analytics Agent that can explore SEC filings and evaluate different financial instruments
+
+04 Q&amp;A
+Open forum for questions</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="What makes an agent work" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What makes an agent work</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker begins with the basics of what an agent is and how it works.
+
+[2:04](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=124s) [Section 01 divider: What makes an agent work.](https://assets.ai.engineer/sites/aiecode2025/sha256/fa955a660b222d867e18b86026761bfc30f1ede3b2a0c0b566ca628dc930b08c.webp)
+
+Section 01
+
+What makes an agent work</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="An agent is a model in a loop with tools" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>An agent is a model in a loop with tools</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The model chooses an action and sends a tool call to the environment, which returns a result. The loop repeats until the task is done.
+
+[2:12](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=132s) [Diagram showing a model calling tools in an environment and receiving results in a loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/ce77fcb0bfb92f3067a7cbafd018a0ee555a664fc7f04ccabb9e6df4a2adabfa.webp)
+
+An agent is a model in a loop with tools
+
+The model
+decides the next action
+
+tool call
+result
+
+The environment
+tools, files, code
+
+The loop repeats until the task is done</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="The harness encodes assumptions about the model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The harness encodes assumptions about the model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Sonnet 4.5 rushed to finish near its context limit; context resets stopped the behavior. Opus 4.5 did not need the resets, showing why harness assumptions must change with the model.
+
+[2:30](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=150s) [A harness runs the loop and manages context; an example traces how a context reset became unnecessary with a newer model.](https://assets.ai.engineer/sites/aiecode2025/sha256/7757a2edea89276378d8dede30004a2cf0441ff8990c2c005945fb0e8786ceab.webp)
+
+The harness encodes assumptions about the model
+
+It runs the loop, routes tool calls, and manages context — encapsulating everything the model cannot do on its own.
+
+The shelf life of one assumption
+
+1 Sonnet 4.5 wrapped up tasks early as it sensed the context limit — context anxiety
+2 We added context resets to the harness, and the behavior went away
+3 Opus 4.5 had no anxiety at all — the resets had become dead weight</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="The sandbox gives the agent a safe place to act" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The sandbox gives the agent a safe place to act</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Claude needs a computer to run code and edit files. The sandbox contains that untrusted code; the speaker recommends a separate container for each task to limit the blast radius.
+
+[4:15](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=255s) [Three points explain computer access, untrusted generated code, and an isolated, disposable sandbox.](https://assets.ai.engineer/sites/aiecode2025/sha256/23a96c0945b3a3d31f7ec49448045f5d20f949f31c1b92b4689c30fd0b1dc326.webp)
+
+The sandbox gives the agent a safe place to act
+
+Give Claude a computer
+Useful agents run code, edit files, and install dependencies — they need access to a container
+
+Generated code is untrusted
+It might be buggy, or it might be doing what a prompt injection asked for. Either way, it cannot run next to anything you care about.
+
+Isolated and disposable
+The sandbox contains the blast radius. Ideally there is nothing valuable inside it at all.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Our first architecture" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Our first architecture</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Anthropic shipped its first managed agents architecture to early access customers, then pivoted after receiving feedback.
+
+[5:11](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=311s) [Section 02 divider: Our first architecture.](https://assets.ai.engineer/sites/aiecode2025/sha256/c5624be147f0942c16318be7450db1b64632451c56cb5236c1952dd088b4d9a3.webp)
+
+Section 02
+
+Our first architecture</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="One container held the brain, the hands, and the session" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One container held the brain, the hands, and the session</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The first architecture put the session log, harness, sandbox, and credentials in one container per session. File edits were direct syscalls, with no service boundaries to design.
+
+[5:33](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=333s) [Diagram showing the session, harness, and sandbox inside one container.](https://assets.ai.engineer/sites/aiecode2025/sha256/559389b53a8a2eb69383be02e6660b3a08ab92d054e103fa5dfa772d295f4c7f.webp)
+
+One container held the brain, the hands, and the session
+
+One container per session
+credentials inside too
+
+Session
+the log of everything that happened
+
+Harness
+the loop that calls Claude and routes tools
+
+Sandbox
+where generated code runs and files live
+
+File edits are direct syscalls
+No service boundaries to design</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="We had adopted a pet" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>We had adopted a pet</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each container became a pet: losing it also meant losing its session, so it could not be replaced like disposable cattle.
+
+[6:06](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=366s) [Pet and cattle comparison explaining why a container holding a session was difficult to replace.](https://assets.ai.engineer/sites/aiecode2025/sha256/f442b57465720da62822d561a7d9280e81fbc9b3ce62b022cfca90f7ba57d86d.webp)
+
+We had adopted a pet
+
+A pet
+Named and hand-tended. When it gets sick, you nurse it back to health — you cannot afford to lose it.
+
+Cattle
+Interchangeable and disposable. When one fails, you replace it and move on — nothing to mourn.
+
+If a container failed, the session inside was lost — so every container became a pet.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="The pet became a liability" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The pet became a liability</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Failures looked alike through one WebSocket stream, customer data blocked shell access, and connecting a customer VPC meant peering networks or shipping the harness.
+
+[6:54](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=414s) [Three problems: blind debugging, limited access to investigate, and network coupling.](https://assets.ai.engineer/sites/aiecode2025/sha256/10209128a62c175ab2d7449ac526a63afb8661d7a58541bc9a7bfd70324d7f53.webp)
+
+The pet became a liability
+
+Debugging blind
+A harness bug, a dropped packet, and a dead container all looked the same through one WebSocket stream.
+
+No way in
+Opening a shell to investigate was off the table — the same container held user data.
+
+Welded to our network
+The harness assumed every resource sat next to it — connecting a customer VPC meant peering networks or shipping them our harness.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Decoupling the brain from the hands" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Decoupling the brain from the hands</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The team introduces its decision to separate the agent’s brain from its hands after encountering challenges with its earlier architecture.
+
+[7:43](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=463s) [Section 03 divider titled Decoupling the brain from the hands.](https://assets.ai.engineer/sites/aiecode2025/sha256/32bdfdf5cc3829fb307a239fa41a8b496b17160c700f211e2ed7a1322c10c974.webp)
+
+Section 03
+
+Decoupling the brain from the hands</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="The agent became three separate interfaces" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The agent became three separate interfaces</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The stateless brain reads and writes a persistent session log and calls on-demand sandboxes and tools, which disappear when the work is done.
+
+[7:51](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=471s) [Diagram connecting a durable session log, a stateless brain, and on-demand sandboxes and tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/7be46166d33a7788b100ac793c0f6adf96d10b27685e58fdaa174d742fb93341.webp)
+
+The agent became three separate interfaces
+
+The session
+An append-only log of every event. Durable, and it outlives everything else.
+
+write and read events ↔
+
+The brain
+Claude plus the agent loop. Stateless — nothing in it needs to survive.
+
+tool calls →
+
+The hands
+Sandboxes and tools. Provisioned on demand, gone when the work is done.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Every component became cattle" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Every component became cattle</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A failed sandbox returns a tool error to Claude, which can retry in a fresh container. A replacement harness reads the session event log to resume work.
+
+[8:21](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=501s) [Two columns describe recovery when a sandbox or harness fails, using the session log to resume work.](https://assets.ai.engineer/sites/aiecode2025/sha256/ab50481f7eeef35d607c08502b73d3cd2b183489b44d1d8c4f9c4d9a64271167.webp)
+
+Every component became cattle
+
+When the sandbox dies
+1. The harness sees it as a failed tool call
+2. The error goes back to Claude, like any other result
+3. Claude retries on a freshly provisioned container
+
+When the harness dies
+1. A new harness wakes up for the session
+2. It reads the event log back from the session
+3. Work resumes from the last event, as if nothing happened
+
+The only thing worth protecting is the session — and it is just a log.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Credentials never enter the sandbox" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Credentials never enter the sandbox</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The sandbox sends tool calls to a proxy, which fetches tokens from a vault and makes external calls on the session’s behalf. The agent and harness never see the tokens.
+
+[9:05](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=545s) [Diagram showing a sandbox calling a proxy that fetches credentials from a vault.](https://assets.ai.engineer/sites/aiecode2025/sha256/1dd1fd97d95e008ccd601a7569debdd2666cff771408f1c5c6e40adabc431e47.webp)
+
+Credentials never enter the sandbox
+
+Sandbox
+Untrusted generated code runs here. No tokens inside — there is nothing to steal.
+
+tool call →
+
+Proxy
+Fetches the right credential and makes the external call on the session's behalf.
+
+fetches token ←
+
+Vault
+Tokens live here, outside the sandbox. Neither the agent nor the harness ever sees them.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="The session outlives the context window" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The session outlives the context window</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An append-only event log preserves the full session while the harness selects or summarizes events for the model’s context. The selected slice can change without discarding the underlying history.
+
+[9:49](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=589s) [An event timeline illustrates reading slices of a preserved session log while context strategy remains flexible.](https://assets.ai.engineer/sites/aiecode2025/sha256/2be35e9bd59a558e5327b6e903616edee65cafcd1681c7fcbc8f8aeac8f8cb52.webp)
+
+The session outlives the context window
+
+first event
+latest event
+
+the brain reads any slice it needs — rewind, reread, resume
+
+Nothing is thrown away
+Compaction and trimming are irreversible guesses about the future. The full log keeps every decision recoverable.
+
+Context strategy stays disposable
+The harness transforms events for the context window however the current model needs — and that can change every release.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="90% reduction in p95 time to first token" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>90% reduction in p95 time to first token</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After decoupling, p95 time to first token fell 90% and the median fell roughly 60%. Inference starts without waiting for a sandbox, which is spawned only when needed.
+
+[10:23](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=623s) [A large minus 90 percent figure accompanies a claim that median time to first token fell by roughly 60 percent after decoupling.](https://assets.ai.engineer/sites/aiecode2025/sha256/f5ee22aa21d93fa05fcaf746dcd51e86b0f803a7fd287e86f3e7c4805aff7029.webp)
+
+−90%
+
+p95 time-to-first-token after decoupling — and the median dropped by roughly 60%. Inference starts immediately; hands are provisioned only when needed.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="One brain can reach many hands" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One brain can reach many hands</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A shared tool interface lets the agent loop call interchangeable hands: a sandbox container, a customer VPC, or an MCP server. The interface takes a name and input and returns a string.
+
+[10:48](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=648s) [A brain connects through a common tool interface to a sandbox container, customer VPC, and MCP server.](https://assets.ai.engineer/sites/aiecode2025/sha256/2f01769fc1f9781f92ffbab454739e4882bbca5122df13a8742fb1e592912b02.webp)
+
+One brain can reach many hands
+
+Brain
+
+Every hand is the same tool interface — a name and input in, a string out
+
+Sandbox container
+Customer VPC
+MCP server</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Design interfaces that outlast assumptions" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Design interfaces that outlast assumptions</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Stable interfaces let the team change its compaction strategy or replace the harness while keeping the architecture in place.
+
+[11:11](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=671s) [Takeaway: harnesses encode assumptions that go stale, so interfaces should outlast them.](https://assets.ai.engineer/sites/aiecode2025/sha256/7516909f46431224538aef8b73ece55cb10bd811384b76fea14ddc01debf6e77.webp)
+
+If you take one thing home
+
+Harnesses encode assumptions, and assumptions go stale. Design interfaces that outlast them.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Workshop API credits" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Workshop API credits</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Scan the QR code and sign in or create a Claude Platform account to get complimentary API credits for the workshop.
+
+[11:41](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=701s) [A QR code invites workshop participants to obtain complimentary API credits.](https://assets.ai.engineer/sites/aiecode2025/sha256/21813b94ea16a490964a48af77b694a76bdf15e95ecf4beae5f67efed87c4b0c.webp)
+
+Get complimentary API credits to build with Claude in this workshop</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Build a joke teller agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Build a joke teller agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The workshop walks through building a simple agent that tells jokes.
+
+[13:49](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=829s) [Workshop section title: Build a joke teller agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/a06c5a17a621d73f2221b9d1d90266c4a99e08e99fed90167792ed2ec481328e.webp)
+
+Section 04 · Workshop
+
+Build a joke teller agent</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Create the environment" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Create the environment</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Create a reusable sandbox configuration with networking settings; each session gets a fresh, isolated container. Choose Anthropic-provisioned cloud or your own infrastructure.
+
+[13:55](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=835s) [Environment creation example alongside cloud and self-hosted options.](https://assets.ai.engineer/sites/aiecode2025/sha256/56544d2f1bf8c3f1802bd9ca2c6b3d34320611072d054de307a2dd9b7dc98fdb.webp)
+
+Step 1 · The hands
+
+Create the environment
+
+The sandbox configuration. Create it once for your agent, reuse the ID across sessions — each session gets its own fresh, isolated container.
+
+env = client.beta.environments.create(
+name=&quot;joke-teller-env&quot;, config={ &quot;type&quot;:
+&quot;cloud&quot;, &quot;networking&quot;: {&quot;type&quot;:
+&quot;unrestricted&quot; }, }, )
+
+cloud
+Anthropic provisions the container
+
+self_hosted
+runs in your own infrastructure</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Create the agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Create the agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent bundles a model, system prompt and tools into a reusable, versioned definition. The Joke Teller example gives it a comedian prompt and an agent toolset, independent of the environment it will run in.
+
+[14:34](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=874s) [Agent creation example with a model, system prompt, and tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/22c2b6c322317ce4cf46793615d16408e5e2769d61f2263ef63c9946871ea6d0.webp)
+
+Step 2 · The brain
+Create the agent
+
+Model, system prompt, and tools — a reusable, versioned definition. It has no idea what environment it will run against.
+
+agent = client.beta.agents.create( name=&quot;Joke teller&quot; , model={&quot;id&quot;: &quot;claude-opus-4-8&quot; },
+system= &quot;You are a comedian. Find a fresh joke on the topic and deliver it well.&quot; ,
+tools=[{&quot;type&quot;: &quot;agent_toolset_20260401&quot; }],
+)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Create the session" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Create the session</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A session binds an agent to an environment using their IDs. It is provisioned idle and does no work until it receives an event.
+
+[15:18](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=918s) [Diagram connecting an agent and environment to a session creation example.](https://assets.ai.engineer/sites/aiecode2025/sha256/14173849e4ed304de2c95e952d7824776ff77304a0127f47cddd7ca5f8955fc6.webp)
+
+Step 3 · Bind them together
+
+Create the session
+
+Agent
+agent.id
+
+Environment
+env.id
+
+→
+
+session = client.beta.sessions.create(
+agent=agent.id, environment_id=env.id,
+title=&quot;Open mic night&quot; , )
+
+The session is provisioned but idle — nothing happens until you send it an event.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="The user and the agent share one event stream" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The user and the agent share one event stream</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The user sends events to a session and receives agent and status events. For a custom tool, Claude emits a tool-use event; the user handles it and sends the result back.
+
+[15:37](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=937s) [Two columns list events sent by the user and received from the agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/e246818378c661344a123cae733255f9eb144ef50d747fe16082748fb3f737f4.webp)
+
+Step 4 · Talk to it
+
+The user and the agent share one event stream
+
+Events you send →
+user.message — “Tell me a joke about distributed systems”
+user.custom_tool_result — Return a result for a custom tool call
+user.tool_confirmation — Approve or deny a permission-gated tool
+user.interrupt — Stop the agent mid-run
+
+POST /v1/sessions/{id}/events
+
+← Events you receive
+agent.message — Claude delivers the punchline
+agent.tool_use — Claude calls a built-in tool
+agent.custom_tool_use — Claude calls one of your tools
+agent.mcp_tool_use — Claude calls an MCP tool
+session.status_idle — Loop paused — carries a stop_reason
+session.error — Something failed
+
+GET /v1/sessions/{id}/stream</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="Claude Managed Agents Features" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Claude Managed Agents Features</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Permission policies pause the agent loop for user confirmation when a tool is set to always_ask. Interrupts force the agent to idle mid-run, while deployments run sessions on a schedule.
+
+[16:35](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=995s) [Ten cards summarize managed-agent features including memory, vaults, webhooks, and deployments.](https://assets.ai.engineer/sites/aiecode2025/sha256/96116686a4afe479fd01a4e340f2615c0665042a7ab17dd755d40427ee817964.webp)
+
+Claude Managed Agents Features
+
+Multiagent — Beta
+callable_agents — agents that spawn and coordinate other agents.
+
+Memory — Beta
+Persistent agent memory mounted into the container.
+
+Outcomes — Beta
+A structured artifact of what the agent produced, separate from events.
+
+Vaults — Beta
+Agent credentials registered once, referenced via vault_ids.
+
+MCP servers — Beta
+Attach remote tool servers via mcp_toolsetentries.
+
+Webhooks — Beta
+Console → Settings → Webhooks. Fires on session.status_idled.
+
+Permission policies — Beta
+always_ask on a tool → loop pauses for user.tool_confirmation.
+
+Interrupt — Beta
+Post user.interrupt mid-run to force the agent to idle.
+
+Console agent builder — Beta
+Iterate on agent configs interactively before dropping to the API.
+
+Deployments — Beta
+Run sessions on a schedule.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="24" data-cap="Managed Agents Quickstart" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Managed Agents Quickstart</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The console’s Quickstart offers a guided tour for building a first agent: describe one in the prompt or start from a template such as Deep researcher or Support agent.
+
+[17:10](https://www.youtube.com/watch?v=Uv0nAf_7tyU&amp;t=1030s) [Claude Console Quickstart showing an agent prompt and a selection of templates.](https://assets.ai.engineer/sites/aiecode2025/sha256/e739aa42380ec35d9f06437dbceb64bdbcfbe46719b0c9c7d7540f2fa89e088a.webp)
+
+Quickstart
+1  2  3  4
+
+What do you want to build?
+Describe your agent or start with a template.
+Describe your agent...
+
+Browse templates
+Search templates
+
+Blank agent config
+A blank starting point with the core toolset.
+
+Deep researcher
+Conducts multi-step web research with source synthesis and citations.
+
+Structured extractor
+Parses unstructured text into a typed JSON schema.
+
+Field monitor
+Scans software blogs for a topic and writes a weekly what-changed brief.
+Recurring
+
+Support agent
+Answers customer questions from your docs and knowledge base, and escalates when needed.
+
+Incident commander
+Triages a Sentry alert, opens a Linear incident ticket, and runs the Slack war room.
+
+Contract tracker
+Extracts clauses, sets deadline reminders, and tracks obligations in Asana when given a Box file ID or link.
+
+Sprint retro facilitator
+Pulls a closed sprint from Linear, synthesizes themes, and writes the retro doc before the meeting.
+docx  Recurring
+
+Support-to-eng escalator
+Reads an Intercom conversation, reproduces the bug, and files a linked Jira issue with repro steps.
+
+Data analyst
+Load, explore, and visualize data; build reports and answer questions from datasets.
+
+Interface text:
+Claude Console
+Dashboard
+API keys
+Build
+Workbench
+Files
+Skills
+Batches
+Managed Agents
+Quickstart
+Agents
+Sessions
+Deployments
+Environments
+Credential vaults
+Memory stores
+Dreams  Preview
+Documentation</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/c91c503d85d8fad7a3c3dd477fa1afa2b6dab9c50603fc6ecba49bcc392e657b.webp" alt="AI Engineer World's Fair title card on a black background." loading="lazy" data-lb="25" data-cap="AI Engineer World's Fair" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer World's Fair</h3>
+        <p>AI Engineer World's Fair title card on a black background.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+World’s Fair
+
+HTTPS://AI.ENGINEER</pre></details>
+        <button class="ts" data-t="1053">▶ 17:33</button>
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">框架里带着对模型的假设</a></li><li><a href="#sec-2">第一个容器变成了宠物</a></li><li><a href="#sec-3">把历史、大脑和双手分开</a></li><li><a href="#sec-4">在沙箱发出请求之后再注入凭据</a></li><li><a href="#sec-5">保持历史完整，更早开始推理</a></li><li><a href="#sec-6">用一个环境和一份智能体定义构建 Joke Teller</a></li><li><a href="#sec-7">用事件流启动工作、处理工具调用并停止</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">把大脑与双手解耦：Claude Managed Agents（第 1 部分，共 4 部分）</h2>
+      <div class="lede"><p>Anthropic 最初的 Managed Agents 架构把会话历史、框架和沙箱放在同一个容器里。把它们拆开之后，故障恢复、凭据处理、上下文管理和首次响应的路径都随之改变。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>框架里带着对模型的假设</h3>
+      <p>A model approaching its context limit can change how it works. In Priyanka Phatak’s opening example, an earlier Claude model developed what Anthropic called “context anxiety”: it tried to wrap up the task quickly as the available context ran out. A harness could compensate with a context reset. A subsequent model no longer needed that workaround. The engineering problem was keeping the surrounding software useful as the model’s limitations changed.</p>
+<p>Phatak leads the Claude Managed Agents engineering team at Anthropic. This first workshop installment moves from the architecture’s evolution to the API concepts behind a simple joke-telling agent; Gabe Cemaj introduces himself as an engineer on the same team, with a more involved financial-agent exercise planned for later in the workshop.</p>
+<p>The starting definition is deliberately small: an agent is a model in a loop with tools. The model chooses an action, calls a tool and continues until the task is done. The <strong>harness</strong> implements the surrounding machinery: running that loop, making tool calls and managing context. Those responsibilities embed judgments about what the model can handle and where software needs to compensate. A workaround that helps one model can become unnecessary with the next.</p>
+<p>The agent also needs somewhere to act. A sandbox gives it a computer on which it can execute generated code, edit files and install dependencies. Claude Code supplies a familiar example of a harness working against local files. In production, generated code may be buggy or otherwise untrusted, so Phatak recommends isolating tasks in separate containers. That limits how much one task’s execution can affect another.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="291">▶ 4:51</button></div>
+      <h3>第一个容器变成了宠物</h3>
+      <p>The first Managed Agents architecture, shipped to early-access customers in December of the preceding year, placed all three responsibilities inside one container: the session log, the harness and sandbox execution. A session was the unit of work, and its history lived beside the process carrying out that work. This made the initial implementation straightforward. There were no service boundaries to design, everything was local, and a file edit could be a system call.</p>
+<p>The cost appeared when the container failed. “We adopted a pet,” Phatak says. In the infrastructure analogy, a pet is an instance whose individual survival matters: when it gets sick, someone must nurse it back. Cattle are replaceable instances. Her database comparison makes the distinction concrete: losing a lone shard can take down the product, while a replica provides another instance to bring into service. The all-in-one agent container had become something the team could not easily discard.</p>
+<p>Three operational problems exposed the coupling:</p>
+<p>- <strong>Ambiguous failures.</strong> A dropped packet and a dead container could look much the same from outside. Debugging required streaming into the container over a WebSocket to investigate what had happened.
+- <strong>Sensitive inspection.</strong> Customer data lived inside those containers, constraining the team’s ability to enter them and debug.
+- <strong>Private-network connections.</strong> Connecting to a customer’s MCP service inside a virtual private cloud meant peering networks or shipping the harness to the customer to run.</p>
+<p>Local execution had removed service-design work at the beginning, but it also tied history, decision-making and execution to the same instance. Early-access feedback pushed the team toward a different division: preserve the work’s history while allowing the processes that think and act to be replaced.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="473">▶ 7:53</button></div>
+      <h3>把历史、大脑和双手分开</h3>
+      <p>What needs to survive when an execution process disappears? The redesigned architecture answers with three separate interfaces. The <strong>session</strong> is an append-only log of everything that has happened. The <strong>brain</strong> is Claude together with the harness or agent loop. The <strong>hands</strong> are sandboxes and tools, including MCP calls, provisioned when needed and removed when the work is done. Separating these parts gives the log a different lifetime from the machinery doing the work.</p>
+<p>A dead sandbox now appears to Claude as a failed tool call. Control returns to the model, which can decide to provision another sandbox or continue without it. Replacement is a possible response to failure, rather than an unconditional retry. If the harness itself dies, a new harness instance reads the session event log and resumes from the last event. The log carries continuity across the loss of the process.</p>
+<p>The distinction between those two recovery paths matters. Sandbox failure becomes a decision within the agent’s work; harness failure requires another harness to recover the recorded history. In Phatak’s formulation, the session log is the part worth protecting because the other components can be brought back. This explains process recovery, though the recording does not specify how sandbox files are restored or how replay avoids repeating external side effects.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="548">▶ 9:08</button></div>
+      <h3>在沙箱发出请求之后再注入凭据</h3>
+      <p>The redesign also moved credentials out of the sandbox. Previously, a token could live in the same environment where generated code ran. A malicious instruction asking Claude to print that token or write it to a file therefore had a valuable target. In the new design, an outbound request that needs authentication passes through a proxy, and the proxy injects the token before calling the external endpoint or MCP service.</p>
+<p>Where does the credential enter the request? The flow below separates the sandbox’s request from the authenticated request sent onward. Claude and the sandbox do not receive the credential, so asking them to reveal it cannot extract a value they never saw. That addresses this credential-disclosure route; it does not establish that every action available through the authenticated service is safe from prompt injection.</p>
+<p>The proxy adds the token outside the sandbox
+The sandbox initiates the call; the proxy supplies the credential on the outbound request to the external service.
+- Sandbox — Sends a request requiring authentication. The credential never enters this environment.
+- Egress proxy — Injects the token before calling the external destination.
+- External endpoint or MCP — Receives the request with the token added by the proxy.
+- Sandbox → Egress proxy (Outbound request without the credential)
+- Egress proxy → External endpoint or MCP (Request with injected token)</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="591">▶ 9:51</button></div>
+      <h3>保持历史完整，更早开始推理</h3>
+      <p>An append-only log also separates stored history from the context supplied to the model. Compaction no longer needs to rewrite or discard the underlying event stream. One strategy can summarize the full history for the next model call; another can select only the last N events. Both operate over the same preserved events. This lets the team change context-management behavior as model capabilities change without changing the record of the session.</p>
+<p>The same separation removes sandbox startup from the path to the first token. How does startup change when Claude can begin before its computer is ready? Inference starts immediately, and Claude provisions a sandbox only when it needs one. Phatak reports about a 90% reduction in time to first token from this architectural change. The recording gives no absolute latencies or workload breakdown, so the figure describes the team’s reported result rather than a latency guarantee.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/92e509b644a4a1d44262faf481ef8dfceebc88749383f7d231d32bc095cb60c2" alt="The slide reports a 90% reduction in p95 time to first token and says inference starts immediately while hands are provisioned only when needed." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide reports a 90% reduction in p95 time to first token and says inference starts immediately while hands are provisioned only when needed.</figcaption></figure>
+<p>One brain can also reach several kinds of hands: a sandbox container, a service inside a customer’s VPC, or an MCP server. These are alternative execution destinations available to the harness, rather than stages that every task must pass through. The architecture can accommodate different tools while leaving the agent loop replaceable.</p>
+<p>The architectural lesson returns to the context-anxiety example: “harnesses encode assumptions, and assumptions can go stale.” Keeping the session, harness and execution interfaces separate lets those assumptions change locally. The team can replace the harness or change compaction while retaining the surrounding architecture.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="703">▶ 11:43</button></div>
+      <h3>用一个环境和一份智能体定义构建 Joke Teller</h3>
+      <p>Before the hands-on portion, an audience question asks which interfaces actually make the design extensible. The answer stays concrete: the append-only session log, an interchangeable harness, and hands that can be sandboxes or other tools. The workshop then turns to Joke Teller, a small example that exposes the core API objects without requiring the later financial-agent exercise.</p>
+<p>The setup has three steps, with different decisions in each:</p>
+<p>1. <strong>Create an environment.</strong> The environments API defines a sandbox template. It specifies installed packages and networking policy: unrestricted access, or restrictions to particular domains or MCPs.
+2. <strong>Create an agent.</strong> Name it Joke Teller, select a model, provide its system prompt and choose its tools. The example prompt is: “You're a comedian. Find a fresh joke on the topic. Deliver it well.” The basic agent tool set includes file-reading and file-writing capabilities.
+3. <strong>Create a session.</strong> Supply an agent ID and an environment ID. Together they identify the agent configuration and execution environment for this unit of work.</p>
+<p>Creating the session does not start the task. A newly provisioned session is idle until an event arrives. The system prompt establishes how Joke Teller should behave, but the request for a particular joke comes later. That distinction separates configuring an agent from asking it to do work.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="939">▶ 15:39</button></div>
+      <h3>用事件流启动工作、处理工具调用并停止</h3>
+      <p>The joke request enters the session as a <code>user.message</code>: “tell me a joke about distributed systems.” The agent’s response then comes back through the event stream. This installment explains that exchange but does not present the resulting joke. The important change is that the idle session now has an input to act on.</p>
+<p>How does application-owned code participate in that exchange? A custom tool lets the application handle execution itself. Claude places a custom tool-use event on the stream; the application listens for it, processes the request and sends a custom tool result back to Claude. The stream therefore carries both conversational input and the request/result exchange needed to connect the model to application behavior.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c23b7c5cb0734d283db50fa622d8dc99b9c349306d719e18a6a8478ce38b2714" alt="The two columns separate events the application sends, including custom-tool results, from agent events it receives, including custom-tool use." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The two columns separate events the application sends, including custom-tool results, from agent events it receives, including custom-tool use.</figcaption></figure>
+<p>Other events expose lifecycle state and control:</p>
+<p>- <strong><code>session.error</code>:</strong> reports an error encountered by the session.
+- <strong>Idle status:</strong> indicates the session is not working; Phatak notes that this typically coincides with not using a sandbox.
+- <strong>Interrupt:</strong> lets the application stop the session’s work when it is no longer wanted.</p>
+<p>The recording ends at the console’s Managed Agents quick start, described as a guided tour for building the first agent. Multi-agent behavior and memory are named as topics for Gabe’s later portion, rather than developed here. By this point, the small example has made the architecture tangible: an environment defines where execution can happen, an agent defines behavior and tools, and a session receives the events that turn those definitions into work.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Harness workarounds depend on model behavior. Separating interfaces lets the harness change when those assumptions become stale.</li><li>The session log preserves continuity while the harness and sandbox remain replaceable. Sandbox failure returns a decision to Claude; harness failure is recovered by reading the log.</li><li>Injecting tokens at an outbound proxy keeps credentials out of the sandbox and away from model-visible requests to print or save them.</li><li>Preserved events support different context strategies, while on-demand sandbox provisioning lets inference begin sooner. Anthropic reports about 90% lower time to first token.</li><li>An environment and agent definition create an idle session; events start its work, carry custom tool exchanges, report state and allow interruption.</li><li><a href="https://ai.engineer/talks/OA-Mc60Rboo-beating-rl-reflection-gepa-optimize-anything" target="_blank" rel="noopener">Beating RL With Reflection: GEPA and Optimize Anything</a> — Explores how execution traces can guide changes to prompts and agent programs, complementing this talk’s focus on making harnesses replaceable.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Thank you so much to everybody for, for joining. Um, I think we're gonna get started given we have a, have a full house. Um, hi, everyone. My name is Priyanka. I'm a member of technical staff at Anthropic. Uh, I lead the engineering team that build Claude Managed Agents, and I'm really excited to be here to talk to all of you, uh, and help you ship your first managed agent. I've been at Anthropic a little bit over two years, and the last 12 months I've been focused on, uh, building, um, agentic infrastructure and hope to</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">share some of our learnings with you.</span></div><div class="tline" data-t="45"><span class="ts">0:45</span><span class="tx">Uh, hello, my name is Gabe Cemaj. I'm a member of the technical staff, uh, building Claude Managed Agents in Priyanka's team. I've been at Anthropic a little bit over a year, and, uh, I've been mostly working on this my entire time.</span></div><div class="tline" data-t="58"><span class="ts">0:58</span><span class="tx">All right. Um, so here is our agenda. We will kick it off with ho- a little bit of a evolution story of how we built and scaled managed agents, some of the pitfalls and the learnings that we had along the way. Then we'll switch to a hands-on part of the workshop. Uh, the first part, uh, we will build, uh, a very simple agent, uh, using Claude Platform's console. You will not be writing any code during that part. We'll just kind of prompt our way to our first agent and</span></div><div class="tline" data-t="88"><span class="ts">1:28</span><span class="tx">test it out. Uh, then I'll hand it over to Gabe to walk you through, like, a hands-on portion. We'll be writing code using Claude Code or your favorite coding agent, um, and then build a more complex financial agent. And then we'll have plenty of time at the end for Q&amp;A. We, we have a two-hour slot. I know they broke it down into four parts, but it's basically one long presentation. Um, hopefully it doesn't take the full two hours. Um, we want this to be pretty interactive, so if you do have questions, raise your hands. We have a couple folks around that can run to you,</span></div><div class="tline" data-t="118"><span class="ts">1:58</span><span class="tx">hand you a mic, uh, with the question, uh, especially as we get into the hands-on, uh, portion. All right. Let's, let's get going. Um, so I'll start with the basics. So w- we'll, we'll start with what, what is an agent or what makes an agent work? Um, so agent is basically, uh, a model in a loop with tools. So you'll see on the left you have the model that's deciding and taking the next action and calling tools in a loop until your task is done. So that's like the very basic</span></div><div class="tline" data-t="148"><span class="ts">2:28</span><span class="tx">what, what an agent is.</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">Excuse me.</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">Yep.</span></div><div class="tline" data-t="153"><span class="ts">2:33</span><span class="tx">Can you actually share a link to the slide deck? There are a lot of people here who cannot really, you know, sit through the whole thing. You can see us go through it. Can you actually share the slide deck or a link to the slide deck?</span></div><div class="tline" data-t="164"><span class="ts">2:44</span><span class="tx">Oh, a link to the slide deck? Um, we can try to...</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">We, we-</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">Yeah.</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">We can, we can share it after.</span></div><div class="tline" data-t="171"><span class="ts">2:51</span><span class="tx">Yeah. We'll, we'll share it after. It'll be hard for us to get it out right now, um, but happy to answer questions, uh, and, and share the slide deck at the end. Are you-- Is it hard for you to see, see the slides from the back? Okay. Sorry about that. Um, all right. Uh, the next thing I wanted to chat about is what a harness is. Harness is typically like a layer that mo- wraps around the model that helps you make these tool calls in a loop to get you the outcome for the task that you're-- the task at hand, and it's making assumptions about what</span></div><div class="tline" data-t="201"><span class="ts">3:21</span><span class="tx">the model cannot do and trying to sort of fill those gaps. So it's running in a loop, making tool calls, managing your context, encapsulating everything that the model cannot do. A good example is our Sonnet four five model had something what we called, uh, context anxiety. So whenever Sonnet four five felt like you were getting to the end of the context limit, it would try to wrap up the task really quickly. So when you're building a harness around Sonnet four five, you would add something like a context reset to</span></div><div class="tline" data-t="231"><span class="ts">3:51</span><span class="tx">get around the limitation of the anxiety. But with the next model, like Opus four five, Opus four five did not have this limitation, and you did not need to do this, like, context reset for Opus four five. So when you're building a harness, you wanna encapsulate all these assum- assumptions for different models and keep up with it with every new model that comes up, which is why building a good harness is really, really important, and that's something we've tried to do with Claude Managed Agents. And then the last bit, uh, you want your agent to have access to a sandbox or a computer,</span></div><div class="tline" data-t="261"><span class="ts">4:21</span><span class="tx">essentially, uh, the, a place where it's gonna run the code it's writing to execute the task. Um, so typically you're giving Claude access to like a sandbox or a container where it's executing the code it's writing. It's able to edit files, install dependencies, et cetera. Claude Code is a really good example of this. It's running-- It's a harness essentially running locally on your computer, has access to your files, and it's executing and updating your files as it goes. Um, it's also writing, uh, code that's untrusted. It might be buggy, so you wanna make sure  when you're</span></div><div class="tline" data-t="291"><span class="ts">4:51</span><span class="tx">deploying production agents, uh, your a-- the code your agents are writing is sandboxed and contained within a container. Um, and then you want, uh, your sandbox to be isolated and the blast radius to be limited. So typically you wanna execute every task in a separate container so you're not mixing up and you're not, um, uh, increasing the blast radius for, for your tasks. Next up, I'll walk you through, um, the first architecture that we actually built managed agents with. This was in December of last year</span></div><div class="tline" data-t="321"><span class="ts">5:21</span><span class="tx">where we shipped our first architecture to our early access customers, got a bunch of feedback, and then actually pivoted to a new architecture. So I'm gonna walk you through some of like the pitfall, pitfalls and like issues that we saw with the first one. So with the first architecture, what we did was we put everything in the container. So we had the session log of everything that's happened within that session. So test session is essentially your, um, unit of work. Um, the harness was also running inside the container, and then the</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">sandbox execution was also happening inside the container. The benefit of that was like, because everything was in the container, there was no service boundaries to design for. Everything was local, um, easy to edit. File edits were essentially just like sys calls.</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">But what happened was we realized we adopted a pet. Um, so if, uh, if you've not heard about the pet and cattle analogy from, like, the old infrastructure days, um, pet is when you essentially have a named and hand-tended entity. When it gets sick, you have to nurture it back to life, otherwise you, you basically cannot afford to lose it. And cattle is more interchangeable, more disposable, so when one fails, you can replace it with another one and move on. So a good example is imagine you had, like, a single</span></div><div class="tline" data-t="397"><span class="ts">6:37</span><span class="tx">database shard. It goes down, your product is down, you have a pet. But imagine you have a master replica set up. Your master goes down, you can bring up a replica. That's a cattle, right? So you have many instances. One goes down, that's not a problem, we can bring it back up. So what we had with our initial setup was es-essentially a pet.</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">Um, so few, few issues with this. Debugging was really hard because everything was running in the container. We didn't know what was causing the issue, so a, a dropped packet, a dead container would show up very similarly, and we had to essentially, like, WebSocket stream into the container to debug. Um, the other issue was investigating meant we had to, uh, essentially investigating was hard because customer data would live on these containers, so we didn't have a way in, essentially, to go in and debug, so that was, like, the other issue we saw in our</span></div><div class="tline" data-t="446"><span class="ts">7:26</span><span class="tx">early access. And then the last one was if a customer wanted us to connect to, let's say, an m-MCP in their VPC, it meant peering networks or shipping them our harness and having them run it. So there were, like, a bunch of challenges with that architecture that, that we weren't able to really have a good solution to overcome. So what we decided that we wanted to essentially decouple the brains from the hands, and I'll dive into what that means.</span></div><div class="tline" data-t="473"><span class="ts">7:53</span><span class="tx">Um, so the agent essentially became three separate interfaces. On the left, you have the session, which is essentially an append-only log of everything that has happened in the session so far. In the middle, you have the brain. That's your harness or the agent loop, along with Claude. Um, and then on the right are the hands, so sandboxes, your MCP tool calls, et cetera. Provisioned on demand, uh, gone when the work is done, and if you need... If you lose a sandbox, you just spin it back up.</span></div><div class="tline" data-t="503"><span class="ts">8:23</span><span class="tx">So every component essentially became a cattle and interchangeable. So when the sandbox died, uh, the harness or Claude could choose to just spin it back up, right? The arrow essentially went back to Claude, and to-- the sandbox to Claude was essentially like any other tool call. So the tool call fails, sandbox fails, it decides what to do, and it might decide to spin it up again or choose to continue to move on. Um, when the harness died, you could bring up a new instance of the harness and continue where you left off by essentially just reading your event log from the session and</span></div><div class="tline" data-t="532"><span class="ts">8:52</span><span class="tx">continue from there. So work resumes from the last event as if nothing went wrong, nothing happened. Um, so the only thing worth protecting here was, like, your session log. Everything else was interchangeable. It could go down, you could bring it back up.</span></div><div class="tline" data-t="548"><span class="ts">9:08</span><span class="tx">The other thing what we did was credentials never entered our sandbox. With our previous setup, your credential would be in your sandbox, so you'd be more susceptible to prompt injection. The change we made was if the sandbox ever needed to call out, um, to, uh, something that needed a token or access control, it would be routed through a proxy that would inject your token before it called the external endpoint or external MCP. That way, the model never sees your credentials or your tokens,</span></div><div class="tline" data-t="578"><span class="ts">9:38</span><span class="tx">which means you can never prompt inject Claude to say, like, &quot;Hey, give me your tokens,&quot; or print out the tokens or write them to a file. You could never do that because Claude actually never sees your, your tokens.</span></div><div class="tline" data-t="591"><span class="ts">9:51</span><span class="tx">The other thing we did was because we had this, like, append-only event log in the session, um, our compaction strategy could stay flexible. So nothing is ever thrown away. We're not compacting and changing your event stream. We're always storing each and every event that happened, and then the con-compaction strategy is the one that's deciding, oh, do I wanna look at my entire event log, uh, summarize and it, put it in the context? Do I wanna only look at, like, the last N events and put those into context? So we, we could have a more flexible context strategy because of this, like,</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">interface design that we chose.</span></div><div class="tline" data-t="625"><span class="ts">10:25</span><span class="tx">And then the other benefit we saw is because we could immediately start our inference calls, we were able to bring down the time to first token by about ninety percent. So the Claude would only spawn the sandbox when it needed, and it would not wait for the container sandbox to spin up for you to get your first token back. So we were able to get, like, a much snappier and faster experience with this, uh, architectural change.</span></div><div class="tline" data-t="650"><span class="ts">10:50</span><span class="tx">Um, and then h-here's sort of, like, the illustration of, like, one brain can reach many hands. So, uh, your agent loop or harness can now call a sandbox container. It could call into a customer's VPC. It could call into an MCP server. So all these, like, hands are essentially interchangeable, and you can call and plug in many of these, and it made our architecture a lot more flexible.</span></div><div class="tline" data-t="673"><span class="ts">11:13</span><span class="tx">Um, so if you take one thing home from this, it's that harnesses encode assumptions, and assumptions can go stale. So we designed interfaces to outlast these assumptions and made the architecture more flexible. So this allowed us to, like I said, change our compaction strategy, change out the harness completely, but the interface and the architecture remains, uh, the same, and we can really have a more pluggable way of operating this.</span></div><div class="tline" data-t="703"><span class="ts">11:43</span><span class="tx">All right, so next, we're gonna get into a little bit of a hands-on portion. Uh, we got you some complimentary API credits to help you build with us today, so please scan the QR code. Either sign in to your Claude Platform account or create a new one, and you should be able to, um, get in there and get those credits so that you can build with me and, and then with Gabe. And I'll, I'll, I'll leave this for, for a second. Hi.</span></div><div class="tline" data-t="733"><span class="ts">12:13</span><span class="tx">Sorry, what?</span></div><div class="tline" data-t="734"><span class="ts">12:14</span><span class="tx">Uh, the last slide.</span></div><div class="tline" data-t="735"><span class="ts">12:15</span><span class="tx">Last slide.</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">Uh, the nine ways that help us, uh, what are examples?</span></div><div class="tline" data-t="745"><span class="ts">12:25</span><span class="tx">It's basically what we talked about here, right? This is the... This is sort of like the three interfaces we designed for, right? So the first one is the-- The, the question was like, what were the interfaces that we designed that ma-make thi- make things outlast, uh, changes. So we have the append-only session log. You have the harness that's, again, interchangeable, and then the hands where you can plug in a sandbox, tool calls, or whatever the model might need access to, and that, that's what kind of makes it more generic and extendable.</span></div><div class="tline" data-t="776"><span class="ts">12:56</span><span class="tx">All right, going back to</span></div><div class="tline" data-t="780"><span class="ts">13:00</span><span class="tx">the credits. Uh, does anyone else need to scan this before we jump in? Okay, still seeing a couple phones. Okay, I'm gonna give everyone about thirty seconds. Thanks for your patience.</span></div><div class="tline" data-t="794"><span class="ts">13:14</span><span class="tx">There are problems with the internet.</span></div><div class="tline" data-t="796"><span class="ts">13:16</span><span class="tx">Oh, there are problems with the internet? Oh, no.</span></div><div class="tline" data-t="806"><span class="ts">13:26</span><span class="tx">Uh, Gabe, do we have a mic? 'Cause I c- I can't hear some of the questions.</span></div><div class="tline" data-t="811"><span class="ts">13:31</span><span class="tx">They're saying if someone could give us the page where the credits should be.</span></div><div class="tline" data-t="818"><span class="ts">13:38</span><span class="tx">Yeah, the, the, the credits should arrive once you, once you sign up in a, in a, in hopefully a minute or two. Um, but yeah, we're, we're getting a mic so that we can hopefully walk around and, uh, get, get some of these questions. But yeah. Uh, I, I'm gonna walk you through building a really simple agent that tells you jokes.</span></div><div class="tline" data-t="837"><span class="ts">13:57</span><span class="tx">Uh, and I'm gonna cover some of our core APIs or concepts first, and then we'll hop over to platform.anthropic.com to build your first agent. Um, so our first step is gonna be creating our, our environments API, which is V1 environments, that helps you create the environment or template for your sandbox. So this is gonna have, uh, your networking setup. So do you want, uh, unrestricted networking, or you want to restrict it to specific domains or MCPs? You can define what packages you want installed on your,</span></div><div class="tline" data-t="867"><span class="ts">14:27</span><span class="tx">uh, container or sandbox. Um, so this is gonna be like the first step we're gonna take to set up our environment. Next, you're gonna create the agent. So agent is essentially, uh, um, your-- you can give your agent a name. So in this case, we have-- we're gonna call it Joke Teller. Um, we're gonna choose which model you wanna use for this agent. So you can use Opus 4A, you can use Haiku, uh, or Sonnet, uh, your, your choice. Uh, and then we're gonna provide the agent with a system prompt. In this</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">case, we're gonna say, &quot;You're a comedian. Find a fresh joke on the topic. Deliver it well.&quot; Uh, and then you can provide this agent with tools. In this case, we're gonna provide it with agent tool set, which is sort of like our basic tool set. This is like your batch tool set: read, write, grab, et cetera. And you, you-- almost all agents will need, need this. Um, so that's gonna be your step two. Step three is gonna be finally creating the session. Um, so session takes an agent ID and an environment ID and creates a session. This is your</span></div><div class="tline" data-t="927"><span class="ts">15:27</span><span class="tx">task, uh, unit of work or your task. Um, and when the session's provisioned, it's idle. No work has been done, right, until you send an event.</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">And then this is sort of what an event stream on your session would look like. Um, you're gonna have events that you send and then events that the agent will come back to you with. On the left side, you'll see you have user.message. You can say, &quot;Oh, tell me a joke about distributed systems,&quot; and then the agent will come back to you with a funny joke. Um, you can use something called a custom tool. Custom tool essentially lets you define a custom tool that you wanna handle how you, uh, how you respond to it, and Claude will essentially put a custom tool use event on your event stream that you can listen to, and then</span></div><div class="tline" data-t="969"><span class="ts">16:09</span><span class="tx">you can process that event and then return the result, um, to Claude as custom tool result. And then there are some other examples in there for what type of events you would see. So you'll see session.error if your session ever ends up in an error or sees an error. Status idle is when your s-session is idle and not working, and this is typically when you're not really have a sandbox that you're using. Um, and then interrupt on the left is when you wanna stop or kill the session and don't wanna do the work anymore. Uh, this is sort of like our full feature list. Maybe if we</span></div><div class="tline" data-t="999"><span class="ts">16:39</span><span class="tx">have time at the end, Gabe can kind of come back to this and dive in. But Gabe will be kind of working with you on his part of the workshop, going deeper into some of, like, these concepts like multi-agent and memory that we also provide.</span></div><div class="tline" data-t="1012"><span class="ts">16:52</span><span class="tx">Oh. All right, before we go to that one, we're gonna hop over now to platform.claude.com. Um, and hopefully, you can use your API credits and s-see those now. If you don't, I have Travis walking around with a mic in case you have questions or you need to just, like, flag him down for, for anything. Um, but if you go to your console, you'll see in this Manage agent section, there is something called as a quick start. This is sort of like our, um, guided tour of how to build your first</span></div><div class="tline" data-t="1042"><span class="ts">17:22</span><span class="tx">agent.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

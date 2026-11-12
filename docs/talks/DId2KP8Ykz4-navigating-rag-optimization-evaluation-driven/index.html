@@ -1,0 +1,1035 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>用评测驱动的指南针来导航 RAG 优化 | AI 工程师中文版</title>
+<meta name="description" content="一个文档问答系统通过十次实验逐步改进：先区分“证据缺失”和“上下文噪声”，再用重排序和混合检索分别解决不同的失败。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>用评测驱动的指南针来导航 RAG 优化</h1>
+    <div class="orig-title">Navigating RAG Optimization with an Evaluation-Driven Compass</div>
+    <div class="meta"><span class="speaker">Atita Arora、Deanna Emery</span> · AI Engineer World's Fair 2024 · 18:14</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=search-and-retrieval">搜索与检索</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/DId2KP8Ykz4-navigating-rag-optimization-evaluation-driven" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="DId2KP8Ykz4"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=DId2KP8Ykz4" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">从最简单的检索流水线开始</div></div>
+      <div class="label row">章节跳转 <span>共 11 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="53"><span class="ts">0:53</span><span>从最简单的检索流水线开始</span></li><li data-t="190"><span class="ts">3:10</span><span>一个错误的答案可能源于上游</span></li><li data-t="298"><span class="ts">4:58</span><span>改进进入上下文的东西</span></li><li data-t="394"><span class="ts">6:34</span><span>用证据来选择改动</span></li><li data-t="475"><span class="ts">7:55</span><span>围绕文档构建一个评测</span></li><li data-t="599"><span class="ts">9:59</span><span>区分证据缺失与证据噪声</span></li><li data-t="661"><span class="ts">11:01</span><span>把文本块大小与检索窗口分开</span></li><li data-t="751"><span class="ts">12:31</span><span>换模型，再检查单个失败案例</span></li><li data-t="819"><span class="ts">13:39</span><span>广泛检索，再重排序</span></li><li data-t="893"><span class="ts">14:53</span><span>找回重排序找不到的证据</span></li><li data-t="978"><span class="ts">16:18</span><span>让实验循环始终与应用挂钩</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 22 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Presenting sponsor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting sponsor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Microsoft is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=5s) [Microsoft presenting sponsor slide.](https://assets.ai.engineer/sites/aiecode2025/sha256/1eea0eb78fa7f6b8cb7d6897d1f0d3f0def0576d5131a4487df21c939aa73487.webp)
+
+PRESENTING SPONSOR
+
+Microsoft</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Innovation and platinum sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Innovation and platinum sponsors</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AWS is the innovation sponsor; MongoDB, Google Cloud, and Neo4j are platinum sponsors.
+
+[0:10](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=10s) [AWS is the innovation sponsor; MongoDB, Google Cloud, and Neo4j are platinum sponsors.](https://assets.ai.engineer/sites/aiecode2025/sha256/5e4db98a32051696455ddda6fd8b233613ba9fc25208f7185cd6606793dd056b.webp)
+
+INNOVATION SPONSOR
+aws
+
+PLATINUM SPONSORS
+MongoDB®
+Google Cloud
+neo4j</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Key discussion points" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Key discussion points</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk examines RAG challenges and improvement techniques, including evaluation-based optimization, before presenting results and conclusions.
+
+[0:41](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=41s) [Agenda covering RAG challenges, improvement techniques, evaluation-based optimization, and results and conclusions.](https://assets.ai.engineer/sites/aiecode2025/sha256/9029dc5ce9f19c82db3919843c66b9a80f955bc2912e73caee4c2a884a3c492e.webp)
+
+Key discussion points :
+
+• Core challenges of RAG
+• Improvement Techniques
+• Evaluation based RAG Optimization
+• Results and Conclusions
+
+Qdrant | QuotientAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Flavours of RAG" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Flavours of RAG</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Naive RAG retrieves document chunks from a vector database. Advanced RAG adds query and result treatment; agentic RAG introduces tools and a self-improvement module, DSPy.
+
+[1:25](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=85s) [Diagrams compare naive, advanced, and agentic self-improving RAG, shown with the presenter and event branding.](https://assets.ai.engineer/sites/aiecode2025/sha256/efe773546de1175f7a1e05a02648424cf64d69b87eb5ceb933c8ff4f0a12cb3e.webp)
+
+Flavours of RAG
+Qdrant | QuotientAI
+
+Simple / Naive RAG
+Document
+split
+Query?
+encoding + indexing
+Qdrant
+vector search engine or vector database
+Doc chunks
+Knowledge Retrieval + Answer Processing
+Large Language Model (LLM)
+
+Advance RAG
+Document
+split
+Query?
+Query Treatment
+- Routing
+- Rewriting
+- Expansion
+encoding + indexing
+Qdrant
+vector search engine or vector database
+Doc chunks
+Results Treatment
+- Rerank
+- Fusion
+- Summary
+Knowledge Retrieval + Answer Processing
+Large Language Model (LLM)
+
+Agentic + Self Improving / RAG
+Document
+split
+Query?
+Agent
+Tool
+Tool
+Tool
+encoding + indexing
+Qdrant
+vector search engine or vector database
+Doc chunks
+Knowledge Retrieval + Answer Processing
+DSPy
+Large Language Model (LLM)
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Flavours of RAG" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Flavours of RAG</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>All three designs use a vector database. Naive RAG retrieves chunks for an LLM; advanced RAG treats queries and results; agentic RAG adds tools and self-improvement with DSPy.
+
+[1:32](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=92s) [Diagrams compare naive, advanced, and agentic self-improving RAG, including query treatment, result treatment, tools, and DSPy.](https://assets.ai.engineer/sites/aiecode2025/sha256/88a1949007644e68ba3bb696abba5282234cf68478af2ed1c80db4320a207710.webp)
+
+Qdrant | QuotientAI
+
+Flavours of RAG
+
+Simple / Naive RAG
+Document
+split
+Query?
+encoding + indexing
+Qdrant
+vector search engine or vector database
+Doc chunks
+Knowledge Retrieval + Answer Processing
+Large Language Model (LLM)
+
+Advance RAG
+Document
+split
+Query?
+Query Treatment
+- Routing
+- Rewriting
+- Expansion
+encoding + indexing
+Qdrant
+vector search engine or vector database
+Doc chunks
+Results Treatment
+- Rerank
+- Fusion
+- Summary
+Knowledge Retrieval + Answer Processing
+Large Language Model (LLM)
+
+Agentic + Self Improving / RAG
+Document
+split
+Query?
+Agent
+Tool
+Tool
+Tool
+encoding + indexing
+Qdrant
+vector search engine or vector database
+Doc chunks
+Knowledge Retrieval + Answer Processing
+DSPy
+Large Language Model (LLM)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Qdrant vector search" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Qdrant vector search</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Qdrant presents its open-source vector database as performance- and scalability-oriented. The slide reports over 10K adopters worldwide, 5M downloads and 18K GitHub stars.
+
+[2:58](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=178s) [Qdrant overview listing performance, scalability, ease of use, resource optimization, open source and embedding support, alongside adoption figures.](https://assets.ai.engineer/sites/aiecode2025/sha256/6ba10f9338db7643bdcf20d21260c1ccdd9d3c397ba4355e55d76da19b7ce0a7.webp)
+
+Qdrant
+
+Enterprise-Ready, Massive-Scale Vector Search Technology for the Next AI Generation
+
+Performance Centric
+Scalability Oriented
+Quick and easy to start
+Resource optimization focussed
+Fully Open Source project
+All embeddings supported OOTB
+
+Most Loved
+open-source vector search database
+
+&gt; 10 K+
+Adopters Worldwide
+
+&gt; 5 M+
+Downloads
+
+&gt; 18 K+
+Github Stars</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Challenges of RAG" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Challenges of RAG</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Documents are split and indexed for retrieval before an LLM generates a response. Missing or unextracted information can lead to incorrect or incomplete answers.
+
+[3:09](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=189s) [RAG workflow diagram labels challenges in data processing, ingestion, retrieval, response generation, query processing and production.](https://assets.ai.engineer/sites/aiecode2025/sha256/d0a6ab601f30dac9591001f1509f688c7f0bce29a58e7598aea618461fa47722.webp)
+
+Qdrant | QuotientAI
+
+Challenges of RAG
+
+Principle challenges with RAG
+
+Data Processing
+- Missing Information
+- Information Extraction
+
+Data Ingestion
+- Determine Document Chunk Parameters
+- Choosing Embedding model
+
+Information Retrieval
+- Missing Relevant Documents
+- Determining Retrieval Window
+- Order of documents
+
+Response Generation
+- Incorrect Response Format
+- Incomplete response
+- Unfaithful response
+
+Document
+split
+encoding + indexing
+Query?
+vector search engine or vector database
+Qdrant
+Doc chunks
+Knowledge Retrieval + Answer Processing
+Large Language Model (LLM)
+
+Query Processing
+- Vulnerability to Ambiguous or Vague queries
+
+Additional Others
+Production Challenges
+- Coherent Responses
+- Scalable performance
+- Fallback Mechanism
+- Security and Compliance
+
+Extended: “Seven Failure Points When Engineering a Retrieval Augmented Generation System” by Barnett et al.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Challenges of RAG: data processing and ingestion" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Challenges of RAG: data processing and ingestion</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Missing or unextracted information can lead to incomplete answers. Ingestion adds two choices: how to chunk documents and which embedding model understands the dataset’s terminology.
+
+[3:43](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=223s) [RAG challenges diagram with sad-face icons beside data processing and ingestion.](https://assets.ai.engineer/sites/aiecode2025/sha256/41e0e29a9731a137ce136f66c6e039cc6b4f0d46b3c96c35238451613ef08894.webp)
+
+Qdrant | QuotientAI
+
+Challenges of RAG
+
+Principle challenges with RAG
+
+Data Processing
+- Missing Information
+- Information Extraction
+
+Data Ingestion
+- Determine Document Chunk Parameters
+- Choosing Embedding model
+
+Document
+split
+encoding + indexing
+Query?
+Qdrant
+vector search engine or vector database
+Doc chunks
+Knowledge Retrieval + Answer Processing
+Large Language Model (LLM)
+
+Query Processing
+- Vulnerability to Ambiguous or Vague queries
+
+Information Retrieval
+- Missing Relevant Documents
+- Determining Retrieval Window
+- Order of documents
+
+Response Generation
+- Incorrect Response Format
+- Incomplete response
+- Unfaithful response
+
+Additional Others
+Production Challenges
+- Coherent Responses
+- Scalable performance
+- Fallback Mechanism
+- Security and Compliance
+
+Extended: “Seven Failure Points When Engineering a Retrieval Augmented Generation System” by Barnett et al.
+
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="RAG improvement techniques: indexing algorithms" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>RAG improvement techniques: indexing algorithms</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Choosing an indexing algorithm can improve information retrieval in RAG. The speaker suggests HNSW, BM25, and graphs as options.
+
+[5:00](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=300s) [Grid of RAG improvement techniques with indexing algorithms outlined in red.](https://assets.ai.engineer/sites/aiecode2025/sha256/e1599ea0ca49c0c5d684c663d0a6a7a15334c434d4174d1383d8bc0f6ed5d39c.webp)
+
+Qdrant | QuotientAI
+
+RAG Improvement techniques
+
+Data Cleaning
+Leverage Metadata
+Indexing Algorithms
+Multi Vector Indexing
+
+Advanced data extraction
+Data Chunking
+Document Reranking
+LLM
+
+Embedding Model
+Retrieval Window
+Prompt Engineering
+Agents
+
+Prompt</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Evaluation is Paramount" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evaluation is Paramount</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Evaluation helps teams measure progress and decide which RAG changes to make. The slide also connects evaluation to trust, go/no-go decisions, improvements, and compliance.
+
+[7:25](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=445s) [Reasons to evaluate include trust, use-case outcomes, avoiding pitfalls, decisions, improvements, and compliance and ethics.](https://assets.ai.engineer/sites/aiecode2025/sha256/2ab3ee6584da4cf905dbbd63e685980bece990b3658affef93b4f6a952fc4e61.webp)
+
+Qdrant | QuotientAI
+
+Evaluation is Paramount !!
+
+Why should you evaluate ?
+
+• Establish Trust (Reputation and Confidence)
+• Correlate outcomes wrt your use case
+• Validation that your application avoids common pitfalls
+• Criterion to make a go / no-go decisions
+• Roadmap for improvements
+• Compliance and Ethics
+
+Image text: EVALUATION</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Domain-specific evaluation for RAG" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Domain-specific evaluation for RAG</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Quotient combines a RAG configuration with an evaluation dataset, scores the generated completions, and feeds the results back into an iteration loop tailored to the use case.
+
+[7:50](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=470s) [Diagram showing a RAG configuration and evaluation dataset feeding metrics and results in an iteration loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/193dff1c82e101933f2489db9aad534962322bb8d2d209cc6b2e34c5eff92a4f.webp)
+
+Domain-specific eval is essential for high-quality RAG apps
+
+RAG quality is inherently use-case-dependent. It depends on the database and its contents.
+
+With Quotient we can evaluate and iterate on LLM products using domain-specific, data-backed experimentation.
+
+Iterate
+
+Configuration
+LLM
+Prompt template
+Question
+Context
+RAG Configuration
+
++
+Eval dataset
+Question | Answer | Context
+
+QuotientAI
+
+Eval dataset
+Question | Answer | Context | Completion
+
+Metrics
+
+Results
+score: 0.7</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Getting started with Qdrant and Quotient" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Getting started with Qdrant and Quotient</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Qdrant queries populate evaluation contexts. Quotient then formats prompts, runs LLMs, and computes metrics on the resulting completions.
+
+[8:58](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=538s) [Workflow linking documents and a vector database to an evaluation dataset, prompt, language model, metrics, and results.](https://assets.ai.engineer/sites/aiecode2025/sha256/a5c155d46e48521601c187cebdebebacb483bf5aa21fdfc239d6e691e57eef93.webp)
+
+Qdrant | QuotientAI
+
+Let’s get started with Qdrant and Quotient
+
+Documents → Vector Database
+
+Eval Dataset
+Question | Answer | Context
+query → Vector Database
+response → Eval Dataset
+
+QuotientAI
+Prompt Template
+Question
+Context
+
+LLM Provider
+together.ai
+OpenAI
+
+Eval Dataset
+Question | Answer | Context | Completion
+
+Metrics
+Results
+Score: 0.7
+
+Interface text:
+AIE
+Microsoft
+smol.ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Demo Walkthrough" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Demo Walkthrough</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The pre-executed notebook sets up Qdrant and Quotient clients for a RAG question-answering demo using Qdrant’s documentation. The slide links to the notebook via a QR code.
+
+[9:22](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=562s) [Python client setup for Qdrant and Quotient, alongside a QR code for the notebook.](https://assets.ai.engineer/sites/aiecode2025/sha256/d0d46f8df339ecb3fd711725054d1de504837a20dbaf46e4bb6c2f0617635bb2.webp)
+
+Demo Walkthrough
+
+# Connect to Qdrant Cloud
+import qdrant_client
+
+client = qdrant_client.QdrantClient(
+    os.environ.get(&quot;QDRANT_URL&quot;),
+    api_key=os.environ.get(&quot;QDRANT_API_KEY&quot;),
+)
+
+# Import QuotientAI client
+# IMPORTANT: set your API key as an environment variable called QUOTIENT_API_KEY
+from quotientai.client import QuotientClient
+
+quotient = QuotientClient()
+
+Python
+
+Find our notebook here:
+Qdrant | QuotientAI
+
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Evaluation Metrics" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evaluation Metrics</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The evaluation prioritizes faithfulness to minimize hallucinations. Context relevance checks for needed information in retrieved documents; chunk relevance measures useful content versus noise.
+
+[9:57](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=597s) [Evaluation metrics for RAG, emphasizing faithfulness and listing relevance and text similarity measures.](https://assets.ai.engineer/sites/aiecode2025/sha256/fd66c2ca16086f0282d8d5352071964ba4a0a3dcffb365fffdb13b4fd8c4af98.webp)
+
+Qdrant | QuotientAI
+
+Evaluation Metrics
+
+• We want to minimize hallucinations in the LLM outputs.
+• For our evaluation, we will be considering the following metrics, with a focus on Faithfulness:
+  ○ Context Relevance
+  ○ Chunk Relevance
+  ○ Faithfulness
+  ○ ROUGE-L
+  ○ BERTScore
+  ○ BERT Sentence Similarity
+
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Changing Chunk Parameters" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Changing Chunk Parameters</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>To test whether more context helps, experiment 2 doubles chunk size from 512 to 1024 and overlap from 64 to 128, keeping the embedding, document count, and language model fixed.
+
+[11:03](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=663s) [Notebook compares baseline RAG settings with an experiment using larger chunks and overlap.](https://assets.ai.engineer/sites/aiecode2025/sha256/ad27226b3d66679caff1a6e3efcc4e9aab5cb6ea9933bad96e51113c06544f88.webp)
+
+8. Optimizing RAG through experimentation
+
+Experiment 1:
+
+We will be starting off with the following specifications:
+• Embeddings: bge-small-en
+• Chunk size: 512
+• Chunk overlap: 64
+• Number of docs: 3
+• Language model: Mistral-7B-Instruct
+
+9 cells hidden
+
+Experiment 2 - Changing the chunk parameters
+
+Keeping all other parameters constant, we changed the chunk size and chunk overlap to see if we can improve performance by providing more context.
+
+This time, our RAG setup looks like:
+• Embeddings: bge-small-en
+• Chunk size: 1024
+• Chunk overlap: 128
+• Number of docs: 3
+• Language model: Mistral-7B-Instruct
+
+Data preprocessing based on configuration above
+
+**for iteration 2 - lets modify chunk configuration**
+
+**We will start with creating seperate collection to store vectors**
+
+chunk_size = 1024
+chunk_overlap = 128
+embedding_model_name = &quot;BAAI/bge-small-en&quot;
+num_docs = 3
+
+COLLECTION_NAME = f&quot;experiment_{chunk_size}_{chunk_overlap}_{embedding_model_name.split('/')[1]}&quot;
+
+add_documents(client,
+              collection_name=COLLECTION_NAME,
+
+Interface text:
+notebook &gt; quotient_qdrant_rag_eval_with_reranker.ipynb &gt; Retrieval-Augmented Generation (RAG) with QuotientAI and Qdrant &gt; Hybrid Search &gt; Experiment 1:
+Code · Markdown · Run All · Restart · Clear All Outputs · Variables · Outline
+workshop-rag-eval-qdrant-quotient (Python 3.10.13)
+quotient_with_reranker* · Live Share · Spaces: 4 · LF · Cell 33 of 106</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Chunk Parameter Results" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Chunk Parameter Results</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Larger chunks and overlap improved context relevance and text-quality scores, but chunk relevance fell and faithfulness dropped from 0.767 to 0.692—the metric being optimized.
+
+[11:30](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=690s) [Bar chart compares six evaluation metrics for the baseline and larger-chunk experiments.](https://assets.ai.engineer/sites/aiecode2025/sha256/4ad72fa7314f10b96b18fd6f71ffbc2446421e4d6c448b0a75cc48f6fd3e2fc3.webp)
+
+Qdrant Documentation Question Answering
+
+Legend:
+Experiment 1: 512, 64, 3, bge-small, Mistral
+Experiment 2: 1024, 128, 3, bge-small, Mistral
+
+Y-axis: Score
+Y-axis ticks: 0.0, 0.2, 0.4, 0.6, 0.8, 1.0
+X-axis: Metric
+Chunk Relevance: 0.469, 0.426
+Context Relevance: 0.721, 0.744
+Faithfulness: 0.767, 0.692
+ROUGE-L: 0.232, 0.257
+BERTScore: 0.622, 0.635
+BERT Sentence Similarity: 0.818, 0.828
+
+Interface text:
+notebook &gt; quotient_qdrant_rag_eval_with_reranker.ipynb &gt; Retrieval-Augmented Generation (RAG) with QuotientAI and Qdrant &gt; Hybrid Search &gt; Experiment 3: Increasing number of documents retrieved
+Code | Markdown | Run All | Restart | Clear All Outputs | Variables | Outline
+workshop-rag-eval-qdrant-quotient (Python 3.10.13)
+[46] Python
+quotient_with_reranker* | Live Share | Spaces: 4 | LF | Cell 53 of 106</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Increasing Retrieved Documents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Increasing Retrieved Documents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>With the same chunk settings, retrieving five documents instead of three raises chunk relevance from 0.469 to 0.495 and faithfulness from 0.767 to 0.789.
+
+[12:15](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=735s) [Notebook shows a five-document retrieval configuration and compares its metrics with the first two experiments.](https://assets.ai.engineer/sites/aiecode2025/sha256/7717c84f128f0cbfdae302cce27fb873fb7953e822dad6af02e1fd6f88291629.webp)
+
+Experiment 3: Increasing number of documents retrieved
+
+This time, we are using the same RAG setup as Experiment 1, but increasing the number of retrieved documents from 3 to 5.
+
+• Embeddings: bge-small-en
+• Chunk size: 512
+• Chunk overlap: 64
+• Number of docs: 5
+• Language model: Mistral-7B-Instruct
+
+4 cells hidden
+
+Result Comparison
+
+Qdrant Documentation Question Answering
+
+Legend:
+Experiment 1: 512, 64, 3, bge-small, Mistral
+Experiment 2: 1024, 128, 3, bge-small, Mistral
+Experiment 3: 512, 64, 5, bge-small, Mistral
+
+Y-axis: Score
+Y-axis ticks: 0.0, 0.2, 0.4, 0.6, 0.8, 1.0
+
+Values by metric, in experiment order:
+Chunk Relevance: 0.469, 0.426, 0.495
+Context Relevance: 0.721, 0.744, 0.756
+Faithfulness: 0.767, 0.692, 0.789
+ROUGE-L: 0.232, 0.257, 0.242
+BERTScore: 0.622, 0.635, 0.628
+BERT Sentence Similarity: 0.818, 0.828, 0.828
+
+Interface text:
+notebook &gt; quotient_qdrant_rag_eval_with_reranker.ipynb &gt; Retrieval-Augmented Generation (RAG) with QuotientAI and Qdrant &gt; Hybrid Search &gt; Result Comparison &gt; Observation
+Code · Markdown · Run All · Restart · Clear All Outputs · Variables · Outline
+workshop-rag-eval-qdrant-quotient (Python 3.10.13)
+[59]
+quotient_with_reranker* · Live Share · LF · Cell 52 of 106</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Changing the Language Model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Changing the Language Model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Replacing Mistral with GPT-3.5 while keeping Experiment 3’s retrieval settings raised four scores and left chunk and context relevance unchanged at the chart’s displayed precision.
+
+[12:29](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=749s) [Notebook shows the fifth experiment using GPT-3.5 and compares its scores with four earlier configurations.](https://assets.ai.engineer/sites/aiecode2025/sha256/096efcd8101bcfa1886ee109f8d28ee85658b2173559513d213330cd6fa66e78.webp)
+
+Experiment 5: Changing the LLM
+
+So far, we've only experimented with the retrieval side of our RAG pipeline. Let's try changing the LLM, keeping the best parameters from Experiment 3:
+
+• Embeddings: bge-small-en
+• Chunk size: 512
+• Chunk overlap: 64
+• Number of docs: 5
+• Language model: GPT-3.5-turbo
+
+7 cells hidden
+
+Result Comparison
+
+Qdrant Documentation Question Answering
+Y-axis: Score
+Y-axis ticks: 0.0, 0.2, 0.4, 0.6, 0.8, 1.0
+
+Legend:
+Experiment 1: 512, 64, 3, bge-small, Mistral
+Experiment 2: 1024, 128, 3, bge-small, Mistral
+Experiment 3: 512, 64, 5, bge-small, Mistral
+Experiment 4: 512, 64, 5, all-MiniLM, Mistral
+Experiment 5: 512, 64, 5, bge-small, GPT-3.5
+
+Values in experiment order:
+Chunk Relevance: 0.469, 0.426, 0.495, 0.463, 0.495
+Context Relevance: 0.721, 0.744, 0.756, 0.661, 0.756
+Faithfulness: 0.767, 0.692, 0.789, 0.729, 0.810
+ROUGE-L: 0.232, 0.257, 0.242, 0.244, 0.292
+BERTScore: 0.622, 0.635, 0.628, 0.628, 0.653
+BERT Sentence Similarity: 0.818, 0.828, 0.828, 0.804, 0.842
+
+Interface text:
+notebook &gt; quotient_qdrant_rag_eval_with_reranker.ipynb &gt; Retrieval-Augmented Generation (RAG) with QuotientAI and Qdrant &gt; Hybrid Search &gt; Experiment 5: Changing the LLM
+Code  Markdown  Run All  Restart  Clear All Outputs  Variables  Outline
+workshop-rag-eval-qdrant-quotient (Python 3.10.13)
+quotient_with_reranker*  Live Share  Spaces: 2  LF  Cell 69 of 106</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Reranker comparison" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reranker comparison</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Against the naive RAG baseline, Cohere raises context relevance from 0.756 to 0.794 and faithfulness from 0.810 to 0.835. It scores highest on both among the three rerankers tested.
+
+[14:11](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=851s) [Bar chart comparing RAG metrics across a baseline and three rerankers.](https://assets.ai.engineer/sites/aiecode2025/sha256/62e7326ec5979234e35e800f07ebb0c272ad7fbb85a9bc215ef0efdd94fd6c96.webp)
+
+Comparing the Reranker effect on the RAG Pipeline
+
+Qdrant Documentation Question Answering
+
+Y-axis: Score
+Y-axis ticks: 0.0, 0.2, 0.4, 0.6, 0.8, 1.0
+X-axis: Metric
+
+Legend:
+Experiment 5: 512, 64, 5, bge-small, GPT-3.5
+Experiment 6: 512, 64, 5, bge-small, GPT-3.5, Mixedbread
+Experiment 7: 512, 64, 5, bge-small, GPT-3.5, Cohere
+Experiment 8: 512, 64, 5, bge-small, GPT-3.5, Jina-Colbert
+
+Scores in experiment order 5, 6, 7, 8:
+Chunk Relevance: 0.495, 0.491, 0.502, 0.481
+Context Relevance: 0.756, 0.786, 0.794, 0.776
+Faithfulness: 0.810, 0.824, 0.835, 0.803
+ROUGE-L: 0.292, 0.288, 0.293, 0.287
+BERTScore: 0.653, 0.650, 0.651, 0.650
+BERT Sentence Similarity: 0.842, 0.849, 0.846, 0.842
+
+Interface text:
+notebook &gt; quotient_qdrant_rag_eval_with_reranker.ipynb &gt; ...
+Code  Markdown  Run All  Restart  Clear All Outputs  Variables  Outline
+workshop-rag-eval-qdrant-quotient (Python 3.10.13)
+quotient_with_reranker*  Live Share  Ln 7, Col 43  Spaces: 4  LF  Cell 92 of 111</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Hybrid search comparison" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Hybrid search comparison</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Hybrid search with Cohere reranking scores highest on five of six metrics. Chunk relevance is the exception: the combined approach scores 0.483, below the other three experiments.
+
+[15:36](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=936s) [Bar chart comparing baseline, reranking, hybrid search, and combined approaches across RAG metrics.](https://assets.ai.engineer/sites/aiecode2025/sha256/1775d2801bd0962d5467b871579ce388caee54615611d19f11eb4697b33a42c9.webp)
+
+Comparing the effect of Hybrid Search on the RAG Pipeline
+
+Qdrant Documentation Question Answering
+
+Y-axis: Score
+Y-axis ticks: 0.0, 0.2, 0.4, 0.6, 0.8, 1.0
+X-axis: Metric
+
+Legend:
+Experiment 5: 512, 64, 5, bge-small, GPT-3.5
+Experiment 7: 512, 64, 5, bge-small, GPT-3.5, Cohere
+Experiment 9: 512, 64, 5, bge-small, GPT-3.5, Hybrid
+Experiment 10: 512, 64, 5, bge-small, GPT-3.5, Cohere + Hybrid
+
+Values in legend order:
+Chunk Relevance: 0.495, 0.502, 0.500, 0.483
+Context Relevance: 0.756, 0.794, 0.781, 0.804
+Faithfulness: 0.810, 0.835, 0.811, 0.849
+ROUGE-L: 0.292, 0.293, 0.302, 0.317
+BERTScore: 0.653, 0.651, 0.659, 0.663
+BERT Sentence Similarity: 0.842, 0.846, 0.849, 0.850
+
+Interface text:
+notebook &gt; quotient_qdrant_rag_eval_with_reranker.ipynb &gt; Experiment 10: Hybrid Search + Reranking &gt; Comparing the effect of Hybrid Search on the RAG Pipeline
+Code | Markdown | Run All | Restart | Clear All Outputs | Variables | Outline
+workshop-rag-eval-qdrant-quotient (Python 3.10.13)
+quotient_with_reranker* | Live Share | Spaces: 7 | LF | Cell 104 of 112</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Experiment conclusions" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Experiment conclusions</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Across ten RAG experiments, faithfulness rose from 0.766502 to 0.849271 without changing the prompt. The speaker describes an iterative process of evaluating metrics, observing patterns, and testing hypotheses.
+
+[16:16](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=976s) [Notebook conclusions comparing initial and final RAG scores and summarizing six experiments.](https://assets.ai.engineer/sites/aiecode2025/sha256/d84016817259be499947195699d3e0e46f740f64c8bfc8549ce2a9b57b4c0037.webp)
+
+Conclusions
+
+The table below illustrates the advancements achieved through 10 experiments. It showcases the score improvements between our initial and final experiment, all attained without altering the prompt. These enhancements predominantly stem from adjustments in the RAG implementation.
+
+Iteration | Chunk Relevance | Context Relevance | Faithfulness | ROUGE-L | BERTScore | BERT Sentence Similarity
+Experiment 1 | 0.469500 | 0.721464 | 0.766502 | 0.232352 | 0.621800 | 0.817773
+Experiment 10 | 0.482720 | 0.804072 | 0.849271 | 0.316757 | 0.662770 | 0.850435
+
+The table below provides an overview of the key experiments conducted, along with their average performance. This includes the top-performing Naive RAG approach (Experiment 5), as well as four advanced RAG implementations, each testing different rerankers and a multivector hybrid search approach.
+
+results = pd.DataFrame([exp5, exp6, exp7, exp8, exp9, exp10], columns=['experiment']+main_metrics)
+results['iteration'] = results.experiment.str.split(':').str[0]
+results[['chunk size', 'chunk overlap', 'num docs', 'embedding model', 'LLM', 'Advanced RAG']] = results.experiment.str.split(':').str[1].str.split(',', expand=True)
+
+display(results[['iteration', &quot;Advanced RAG&quot;, 'chunk size', 'chunk overlap', 'num docs', 'embedding model', 'LLM']+main_metrics])
+
+iteration | Advanced RAG | chunk size | chunk overlap | num docs | embedding model | LLM | Context Relevance | Chunk Relevance | Faithfulness | ROUGE-L | BERT Sentence Similarity | BERTScore
+0 | Experiment 5 | None | 512 | 64 | 5 | bge-small | GPT-3.5 | 0.755696 | 0.495340 | 0.809529 | 0.291575 | 0.841584 | 0.652713
+1 | Experiment 6 | Mixedbread | 512 | 64 | 5 | bge-small | GPT-3.5 | 0.785544 | 0.490597 | 0.824394 | 0.288392 | 0.849143 | 0.649738
+2 | Experiment 7 | Cohere | 512 | 64 | 5 | bge-small | GPT-3.5 | 0.793897 | 0.502324 | 0.834533 | 0.292739 | 0.846161 | 0.650726
+3 | Experiment 8 | Jina-Colbert | 512 | 64 | 5 | bge-small | GPT-3.5 | 0.776272 | 0.480759 | 0.803262 | 0.287293 | 0.841771 | 0.650255
+4 | Experiment 9 | Hybrid | 512 | 64 | 5 | bge-small | GPT-3.5 | 0.780795 | 0.500447 | 0.810670 | 0.301904 | 0.849098 | 0.658590
+5 | Experiment 10 | Cohere + Hybrid | 512 | 64 | 5 | bge-small | GPT-3.5 | 0.804072 | 0.482720 | 0.849271 | 0.316757 | 0.850435 | 0.662770
+
+You can see how starting from zero, you can build an improved RAG system by making evaluation-informed changes throughout your experimentation.
+
+If you're interested, you can request access to Quotient by joining the waitlist on quotientai.co
+
+Interface text:
+notebook &gt; quotient_qdrant_rag_eval_with_reranker.ipynb &gt; Retrieval-Augmented Generation (RAG) with QuotientAI and Qdrant
+Code | Markdown | Run All | Restart | Clear All Outputs | Variables | Outline
+workshop-rag-eval-qdrant-quotient (Python 3.10.13)
+[359] Python
+master* | Live Share</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="To sum up" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>To sum up</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Improve RAG through evaluation-based changes: use domain knowledge, keep the evaluation dataset current, and combine chosen metrics with LLM and human evaluations.
+
+[17:05](https://www.youtube.com/watch?v=DId2KP8Ykz4&amp;t=1025s) [Summary of RAG evaluation practices, with a notebook QR code.](https://assets.ai.engineer/sites/aiecode2025/sha256/06536039d54dc8e75deaafc8abcdefee1958cfe197560e0b33d863311adcc749.webp)
+
+Qdrant | QuotientAI
+
+To sum up
+
+• Domain understanding helps address challenges like document order, terminology, and chain of thought.
+• Avoid over-optimizing your first run; there's no substitute for evaluation-based improvements.
+• Your data is a crucial determinant of the complexity of RAG.
+• Regularly update your evaluation dataset to keep it aligned with the latest challenges in your LLM application.
+• Evaluate with a combination of carefully chosen metrics to effectively diagnose issues.
+• Ensure the scalability of your evaluation process to accommodate future expansions and refinements.
+• LLMs, combined with human evaluations, are among the most effective methods for assessing LLM-based applications.
+
+Find our notebook here:</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">从最简单的检索流水线开始</a></li><li><a href="#sec-2">一个错误的答案可能源于上游</a></li><li><a href="#sec-3">改进进入上下文的东西</a></li><li><a href="#sec-4">用证据来选择改动</a></li><li><a href="#sec-5">围绕文档构建一个评测</a></li><li><a href="#sec-6">区分证据缺失与证据噪声</a></li><li><a href="#sec-7">把文本块大小与检索窗口分开</a></li><li><a href="#sec-8">换模型，再检查单个失败案例</a></li><li><a href="#sec-9">广泛检索，再重排序</a></li><li><a href="#sec-10">找回重排序找不到的证据</a></li><li><a href="#sec-11">让实验循环始终与应用挂钩</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">用评测驱动的指南针来导航 RAG 优化</h2>
+      <div class="lede"><p>一个文档问答系统通过十次实验逐步改进：先区分“证据缺失”和“上下文噪声”，再用重排序和混合检索分别解决不同的失败。</p><p>熟悉嵌入向量、向量检索和语言模型提示词，有助于理解这些实验。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="53">▶ 0:53</button></div>
+      <h3>从最简单的检索流水线开始</h3>
+      <p>Split documents into chunks, embed those chunks, and store their vectors. When a user asks a question, retrieve the relevant chunks and add them to a prompt for a language model. This is the starting point for <strong>retrieval-augmented generation</strong>, or RAG: the model answers with information drawn from an external knowledge source. The implementation is straightforward to describe, but each step introduces a choice that can change the answer.</p>
+<p>More advanced pipelines add query expansion or rewriting before retrieval, then reranking or fusion afterward. Agentic versions can route questions to task-specific agents and incorporate optimization systems such as <a href="https://dspy.ai/" target="_blank" rel="noopener">DSPy</a>. These additions create more opportunities to improve results—and more components whose contribution needs to be measured.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/d2fa09958b396927e346da3b29a2d44381d01ec938558b34a0759e432bb72456" alt="Three pipeline diagrams connect documents, a vector database, retrieval, and a language model, with query and result treatments in advanced RAG and tools in agentic RAG." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Three flavours of RAG: naive, advanced, and agentic.</figcaption></figure>
+<p>The architectures Atita Arora presents share a vector database. For knowledge management, that layer must support relevant retrieval, large document collections, and efficient resource use. The demonstration uses <a href="https://github.com/qdrant/qdrant" target="_blank" rel="noopener">Qdrant</a>, an open-source vector search database written in Rust.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="190">▶ 3:10</button></div>
+      <h3>一个错误的答案可能源于上游</h3>
+      <p>Before changing the model, trace the evidence through the pipeline. Information might be absent from the source collection or lost during extraction. Either gap can produce an incomplete answer even when retrieval and generation behave as intended. During ingestion, chunk boundaries determine which facts remain together, while the embedding model determines how well the system represents the terminology in those chunks.</p>
+<p>Retrieval adds three closely related decisions: which documents are relevant, how many to retrieve, and in what order to present them. Generation can inherit the resulting omissions or distractions, then introduce another failure by straying from the supplied context. A fluent answer therefore does not tell you which stage succeeded.</p>
+<p>The query itself can also be vague or ambiguous. Beyond an individual answer, an application must maintain coherent conversations, handle hundreds or thousands of concurrent users, and meet security and compliance requirements. These are separate concerns from whether one retrieved passage contains the right fact, but they remain part of productionizing RAG.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/aeaa2e586a8357ecbe8e2c0c773fd8b858f518bb99764a8a0680607a19aca16e" alt="RAG pipeline surrounded by challenge boxes for data processing, ingestion, retrieval, response generation, query processing, and production, with sad-face markers beside all six." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Challenges across the RAG pipeline, including production concerns.</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="298">▶ 4:58</button></div>
+      <h3>改进进入上下文的东西</h3>
+      <p>The first interventions follow the path of the data.</p>
+<p>- <strong>Extraction and cleaning:</strong> Recover information that was missed and remove defects before indexing it.
+- <strong>Embedding choice:</strong> Start with a general-purpose model, then test whether a model that understands the domain's terminology improves retrieval.
+- <strong>Metadata:</strong> Attach useful document attributes and filter on them to exclude irrelevant material.
+- <strong>Chunking:</strong> Test smaller chunks or semantic boundaries instead of assuming the initial split is appropriate.</p>
+<p>These changes affect what evidence is available and how precisely it can be retrieved.</p>
+<p>Context size requires its own experiment. <a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noopener">Lost in the Middle</a> motivates examining where useful evidence appears within a long context; simply supplying more text need not make that evidence easier for the model to use. Arora also points to HNSW, BM25, and graph-based retrieval approaches as options to explore. Once candidates have been retrieved, <strong>reranking</strong> can prioritize the documents that deserve space in the final context.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="394">▶ 6:34</button></div>
+      <h3>用证据来选择改动</h3>
+      <p>Generation offers additional levers, including prompt design and chain-of-thought prompting. Retrieval can combine dense vectors for semantic matching with sparse vectors when exact terms matter, over one field or several. Different language models may produce different answers from the same context, while agents can handle task-specific information fetching or access to custom data.</p>
+<p><strong>A menu of techniques is not a sequence of required upgrades.</strong> With so many possible changes, the practical problem is deciding which failure to address next. Evaluation supplies the feedback: establish how the system behaves, make a targeted change, and measure whether it moves the application toward its goal.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="475">▶ 7:55</button></div>
+      <h3>围绕文档构建一个评测</h3>
+      <p>Because a RAG system depends on its underlying documents, Deanna Emery starts with evaluation data tailored to the application and domain. The dataset should contain realistic inputs and expected outputs. Quotient supports running these experiments and can help generate an initial evaluation dataset when one is not already available.</p>
+<p>The evaluation workflow connects retrieval to answer generation:</p>
+<p>1. Submit the evaluation questions to the populated Qdrant database.
+2. Attach the returned contexts to the evaluation examples.
+3. Submit those examples to Quotient, which orchestrates prompt formatting, language-model execution, and metric computation.</p>
+<p>This makes the retrieved context part of the experiment rather than treating the final answer as the only observable result.</p>
+<p>The <a href="https://github.com/qdrant/qdrant-rag-eval" target="_blank" rel="noopener">companion walkthrough</a> uses notebook outputs executed before the presentation. Its application is question answering over Qdrant's documentation, intended to help users find answers quickly. That concrete use case determines what the experiments should optimize.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="599">▶ 9:59</button></div>
+      <h3>区分证据缺失与证据噪声</h3>
+      <p>A documentation assistant should be helpful, but inaccurate instructions can actively misguide a user. Emery therefore makes <strong>faithfulness</strong> the principal optimization metric, with the aim of minimizing hallucinations.</p>
+<p>The metrics answer different questions in this demonstration:</p>
+<p>| Metric | Diagnostic question |
+|---|---|
+| Context relevance | Does the retrieved context contain the information needed to answer? |
+| Chunk relevance | How much retrieved information is useful rather than noise? |
+| Faithfulness | Does the answer remain faithful to the supplied context? |
+| General text quality | How does the generated text perform on the accompanying quality measures? |</p>
+<p>The distinction between the first two is crucial. A context can contain the necessary answer while surrounding it with a large amount of irrelevant material. The experiment needs to detect both conditions. These are the speakers' working metric definitions; no numerical formula is needed to follow the subsequent diagnosis.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="661">▶ 11:01</button></div>
+      <h3>把文本块大小与检索窗口分开</h3>
+      <p>The initial configuration is deliberately simple: an embedding model, a chunking strategy, a retrieval window, and <strong>Mistral Instruct</strong> for generation. The first question is whether the model needs more context. Experiment two increases the chunking parameters to supply larger chunks.</p>
+<p>Emery reports that larger chunks slightly improve text quality and increase context relevance, but substantially reduce faithfulness and chunk relevance. More of the necessary information is now present, yet a smaller portion of the retrieved material is useful. The additional context has not produced a more faithful answer.</p>
+<p>That combination suggests a narrower intervention: restore the smaller chunks, but retrieve more of them. This changes the retrieval window without retaining the larger chunk size. Among the first three experiments, smaller chunks with a larger retrieval window achieve the best relevance and faithfulness scores. The useful lesson is the distinction between <strong>larger chunks</strong> and <strong>more chunks</strong>: both add context, but they change its composition differently.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="751">▶ 12:31</button></div>
+      <h3>换模型，再检查单个失败案例</h3>
+      <p>The next two experiments test a different embedding model and a different generation model. The alternative embedding model does not improve the result in this experiment. In experiment five, switching to <strong>GPT-3.5</strong> while retaining the same RAG configuration improves all reported metrics. This establishes a stronger naive baseline before adding another retrieval stage.</p>
+<p>The aggregate scores still conceal an uneven experience. A large variance in context relevance indicates that some questions retrieve useful evidence much less reliably than others. Emery opens the two examples with the worst hallucination performance and inspects their retrieved documents.</p>
+<p>Those documents appear to overemphasize recurring words such as <code>Qdrant</code>, <code>support</code>, and <code>search</code>. They repeat terms from the questions but contain unrelated information. This is a diagnosis drawn from the retrieved text: matching familiar vocabulary is not sufficient to recover the passage that answers a particular question.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="819">▶ 13:39</button></div>
+      <h3>广泛检索，再重排序</h3>
+      <p>Expanding the retrieval window could improve the chance of finding the missing evidence, but passing every additional document to the generator would also add noise. Reranking separates those decisions: retrieve a broader candidate set, score those candidates again, and send only the top few onward. The candidate window can grow without forcing the final context to grow with it.</p>
+<p>The selection step can be expressed directly in Python. Here, <code>scores</code> contains one relevance score per retrieved candidate, with larger scores indicating greater relevance; scoring happens before this function is called.</p>
+<p>```python
+from collections.abc import Sequence</p>
+<p>def select_context(
+    candidates: Sequence[str],
+    scores: Sequence[float],
+    final_count: int,
+) -&gt; list[str]:
+    if len(candidates) != len(scores):
+        raise ValueError(&quot;Each candidate needs one score&quot;)
+    if final_count &lt; 1:
+        raise ValueError(&quot;final_count must be positive&quot;)</p>
+<p>ranked = sorted(
+        zip(candidates, scores),
+        key=lambda item: item[1],
+        reverse=True,
+    )
+    return [text for text, _ in ranked[:final_count]]
+```</p>
+<p>The separate <code>final_count</code> makes the boundary explicit: retrieval decides which documents are eligible, while reranking decides which eligible documents reach generation.</p>
+<p>The next three experiments compare rerankers from <strong>mixedbread</strong>, <strong>Cohere</strong>, and <strong>Jina ColBERT</strong> against the best naive configuration. Emery reports that reranking generally improves context relevance and faithfulness, with Cohere achieving the best scores on those two metrics in this comparison. The chart also displays chunk relevance and the accompanying text-quality measures: ROUGE-L, BERTScore, and BERT sentence similarity.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f1daca5e8bd446cbba80af87a9cb0453c53459498640c84f65dd1584ea0340b2" alt="Grouped bar chart compares a baseline with Mixedbread, Cohere, and Jina-ColBERT across chunk relevance, context relevance, faithfulness, ROUGE-L, BERTScore, and BERT sentence similarity." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Reranker comparison across six evaluation metrics.</figcaption></figure>
+<p>Returning to the same two difficult examples reveals where that improvement occurred. For the second previously failing example, reranking retrieves documents containing the answer, and context relevance and faithfulness are close to one. Looking at the documents alongside the scores connects the metric movement to a concrete change in available evidence.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="893">▶ 14:53</button></div>
+      <h3>找回重排序找不到的证据</h3>
+      <p>The first difficult example still performs poorly. Even after expanding the candidate window and reranking it, the system has not identified the relevant documents. <strong>Reranking cannot promote evidence that retrieval never supplies.</strong> Qdrant's documentation contains specialized terminology, jargon, and acronyms, making the limitations of a general-purpose embedding model a plausible next explanation.</p>
+<p>Fine-tuning or training an embedding model could address that mismatch, but requires time and money. The next experiment instead changes how candidates are found: <strong>hybrid search</strong> combines dense vectors with sparse vectors that help capture documents sharing the query's terminology. Dense retrieval supplies semantic matches; sparse retrieval adds a route to evidence whose exact technical vocabulary matters.</p>
+<p>Emery tests hybrid retrieval both with and without reranking. Hybrid search with Cohere reranking achieves the best reported performance across all metrics except chunk relevance. That exception preserves an important distinction: the configuration that performs best overall does not necessarily produce the highest proportion of useful retrieved material.</p>
+<p>On both inspected difficult examples, hybrid search with reranking brings context relevance and faithfulness close to one. These are results for those two examples, not the dataset aggregate. The retrieved material now better contains the information needed to answer, supporting the diagnosis that domain-specific terminology was a significant retrieval obstacle.</p>
+    </section>
+<section class="section" id="sec-11">
+      <div class="section-head"><span class="num">11</span>
+      <button class="seek" data-t="978">▶ 16:18</button></div>
+      <h3>让实验循环始终与应用挂钩</h3>
+      <p>Across ten experiments on Qdrant documentation question answering, Emery reports that faithfulness rises from 0.76 to just under 0.85, while the generic question-answering prompt remains unchanged. Retrieval settings, retrieval methods, and the generation model do change. The scores describe this demonstration's evaluation, rather than answer-accuracy percentages.</p>
+<p>The progression is an experimental method: make incremental changes, evaluate a combination of metrics, inspect patterns in the underlying examples, form a hypothesis, and repeat. Aggregate scores identify a direction; individual retrieved documents help explain why the system is failing and what to test next.</p>
+<p>Continued improvement depends on keeping that evidence relevant. Domain understanding helps identify useful interventions, and an up-to-date evaluation dataset keeps the tests aligned with the application. The closing constraint is to avoid over-engineering: add complexity when a carefully chosen combination of metrics and observed failures gives it a purpose.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/77692fe1eebe3b991e0464cfdc4b2c5e195abbe5c3b3fc3d5dd5712604f05a66" alt="Summary slide lists domain understanding, avoiding premature optimization, data complexity, updated evaluation datasets, carefully chosen metrics, scalable evaluation, and combined LLM and human evaluation, alongside a notebook QR code." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Recommendations for continued evaluation and RAG improvement.</figcaption></figure>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/qdrant/qdrant-rag-eval" target="_blank" rel="noopener">Qdrant–Quotient evaluation examples</a> — Companion repository linking the talk's hybrid retrieval and reranking example, alongside other RAG evaluation workshops.</li><li><a href="https://github.com/qdrant/qdrant-rag-eval/tree/master/workshop-rag-eval-qdrant-quotient/notebook" target="_blank" rel="noopener">Evaluation notebook and saved experiments</a> — Notebook and saved experiment files covering chunking, embedding models, generation models, rerankers and hybrid retrieval.</li><li><a href="https://arxiv.org/abs/2307.03172" target="_blank" rel="noopener">Lost in the Middle: How Language Models Use Long Contexts</a> — Experiments showing how the position of relevant evidence affects multi-document question answering and key-value retrieval.</li><li><a href="https://github.com/qdrant/qdrant" target="_blank" rel="noopener">Qdrant</a> — Rust-based vector database with vector search, payload filtering and client libraries.</li><li><a href="https://qdrant.tech/documentation/search/hybrid-queries/" target="_blank" rel="noopener">Hybrid and Multi-Stage Queries in Qdrant</a> — Current instructions for combining dense and sparse searches and composing retrieval stages through Qdrant's Query API.</li><li><a href="https://dspy.ai/" target="_blank" rel="noopener">DSPy documentation</a> — Current guides to composing language-model programs and optimizing them against evaluation metrics.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[on-hold music] Hello, everyone. Welcome to our talk.</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">Uh, my name is Atita, and I work as a solution architect, uh, at Q- uh, Qdrant. And, um-</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">I am-</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">Together with me, I have, uh, Deanna.</span></div><div class="tline" data-t="23"><span class="ts">0:23</span><span class="tx">I'm Deanna Emery, and I'm founding AI researcher at Quotient AI.</span></div><div class="tline" data-t="26"><span class="ts">0:26</span><span class="tx">Cool. So we would be talking about navigating RAG optimization with an evaluation-driven compass. So I think the track is about RAG, so let's, uh, talk and extend what we already know and what we've already seen so far.</span></div><div class="tline" data-t="40"><span class="ts">0:40</span><span class="tx">So in this talk today, we will be discussing some of the key essential topics for anyone interested in building or productionizing the most popular implementation of generative AI, that is RAG, Retrieval-Augmented Generation.</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">Uh, in simple terms, RAG combines the capabilities of, uh, searching and retrieving through the vast amount of information stored in knowledge source, um, usually a vector database. Um, and then we use this information to generate relevant and coherent responses, leveraging the capabilities of a large language model.</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">We will be talking through the known challenges of this approach, and, uh, how can you combat, uh, them by adopting an evaluation-based, uh, optimization techniques to get the desired results.</span></div><div class="tline" data-t="83"><span class="ts">1:23</span><span class="tx">So without further ado, let's get started. So yeah, as, uh, simple as it's, uh, defined, RAG can be implemented in many different ways, as we can see on the slide.</span></div><div class="tline" data-t="94"><span class="ts">1:34</span><span class="tx">Apologies for the busy slide, as I wanted to cover all the aspects of how, um, RAG can be implemented. And, uh, we will be starting with the simplest one, the naive RAG.</span></div><div class="tline" data-t="103"><span class="ts">1:43</span><span class="tx">This, uh, involves three key steps. First, we split the documents, uh, using the specific chunking strategy. Next, we process the document embedding and store them into a vector database.</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">For each user query, we then retrieve the most relevant document chunks based on our retrieval strategy. Finally, we add these retrieved chunks to our prompt to generate an answer using a chosen LLM.</span></div><div class="tline" data-t="128"><span class="ts">2:08</span><span class="tx">Advanced versions involve enhancement to user queries, such as, um, query expansion or rewriting, and, uh, post-retrieval treatments like, um, result re-ranking or fusion. The further advanced version of, uh, RAG includes, uh, query routing, um, to task-based, uh, agents and self-improvement modules like DSPy.</span></div><div class="tline" data-t="151"><span class="ts">2:31</span><span class="tx">However, there's one tool that is common in all these implementations if you notice, no matter if you want to build a naive or agentic RAG, and that is a vector database.</span></div><div class="tline" data-t="160"><span class="ts">2:40</span><span class="tx">One of the most common use cases for building RAG is for knowledge management. There are aspects like retrieval performance, scalability to support large data volume, and resource optimization are paramount.</span></div><div class="tline" data-t="174"><span class="ts">2:54</span><span class="tx">Speaking of vector database, Qdrant is open source, uh, vector search database built on Rust and, uh, is purpose-built to support your generative AI applications built on large scale of data.</span></div><div class="tline" data-t="186"><span class="ts">3:06</span><span class="tx">If you haven't already checked out, uh, please do check out.</span></div><div class="tline" data-t="190"><span class="ts">3:10</span><span class="tx">So coming back to our topic, it is, uh, worth to understand and acknowledge, um, the challenges that come along with all the goodness of RAG. I'm repurposing our naive RAG, uh, architecture to highlight common possible issues on each level.</span></div><div class="tline" data-t="202"><span class="ts">3:22</span><span class="tx">After all, the first step to solving any problem is to recognize there is one. To begin with, during the data processing stage, we could have, um, issues with, uh, information missing from our dataset or information that fails to get extracted from our source of information.</span></div><div class="tline" data-t="218"><span class="ts">3:38</span><span class="tx">This would result in incorrect and incomplete responses. On data ingestion, there is a constant battle to determine the optimum chunking strategy, along with determining a suitable embedding model that basically understands the specificity and jargons, uh, used in your dataset.</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">Information retrieval itself is quite interesting and a very evol-- ever-evolving, uh, field. Having spent seventeen years in, uh, the space myself, I can probably say that, um, relevancy is an unsolved problem.</span></div><div class="tline" data-t="248"><span class="ts">4:08</span><span class="tx">So the challenge with determining relevant documents, retrieval size or retrieval window, if you may call it, and the order of documents is unskippable. Response generation can face challenges such as incorrect and incomplete answers due to all the previously mentioned issues, and the issues of straying from the provided context.</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">To add, our query is also vulnerable to ambiguous or vague, uh, questions. There are certainly other challenges like generating coherent responses, maintaining user conversations, scaling a RAG for hundred or thousands of concurrent users, along with data security and compliance issues.</span></div><div class="tline" data-t="287"><span class="ts">4:47</span><span class="tx">So looks like RAG isn't really a piece of cake after all. Fortunately, as for, like, the challenges, we have plenty of improvement techniques as well for the RAG. Let's look at them next.</span></div><div class="tline" data-t="298"><span class="ts">4:58</span><span class="tx">So we saw challenges zooming into data quality, data that missed to get extracted. After all, the foundation of great responses is, uh, it lies in the richness and, uh, accuracy of its, uh, information or context in case of RAG, which can be controlled through adopting data cleaning and advanced data extraction methodologies.</span></div><div class="tline" data-t="317"><span class="ts">5:17</span><span class="tx">It is not a bad idea to use a general purpose embedding model to begin with, but for added improvements, it would be a good idea to use an embedding model that comprehends the terminologies of your domain.</span></div><div class="tline" data-t="328"><span class="ts">5:28</span><span class="tx">Metadata. It is a very versatile feature that can help you retrieve, um, um, uh, your, um, added, um, understanding of your documents and, uh, improving your retrieval. Plus, leveraging the metadata filtering during the retrieval, it can also help you out with filtering out the irrelevant documents.</span></div><div class="tline" data-t="345"><span class="ts">5:45</span><span class="tx">So it is also probably a good idea to invest your, uh, time into determining and improving your chunking strategy, which we spoke about earlier. Sometimes just by reducing the chunk size or adding semantic chunking can work wonders.</span></div><div class="tline" data-t="357"><span class="ts">5:57</span><span class="tx">We would be seeing that also when Deanna walks us through all the experimentation. So we have been aware of Lost in the Middle problem, and this is where it may be a good idea to determine an apt context size needed for your RAG to generate a helpful response.</span></div><div class="tline" data-t="372"><span class="ts">6:12</span><span class="tx">Also, using suitable indexing algorithms like HNSW, BM25, or even graphs, they can do wonders.</span></div><div class="tline" data-t="380"><span class="ts">6:20</span><span class="tx">Talking about suitable context size also prioritizes the document re-ranking as one of the key improvement parameters to ensure the most relevant documents, uh, that are provided in the context for LLM to generate a helpful response.</span></div><div class="tline" data-t="394"><span class="ts">6:34</span><span class="tx">With LLMs in the picture, we cannot, um, overlook the difference a good prompt or thinking about questions as a chain of thought can make to the progress of-- process of, uh, response generation.</span></div><div class="tline" data-t="406"><span class="ts">6:46</span><span class="tx">Semantic understanding is clearly desired. We know that, uh, text search alone doesn't works. But if the dataset has the requirement for the exact matches, it may be worth exploring dense as well as sparse vectors, and you can do that on one or many fields.</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">Similar to the embedding model, it may be worth switching and experimenting with different LLMs as well to ensure that, uh, the desired response is generated. And lastly, for better handling of task-driven, uh, user queries, such as fetching specific information or using custom data, it is beneficial to address these, uh, challenges using agents, which are well-suited for the</span></div><div class="tline" data-t="441"><span class="ts">7:21</span><span class="tx">job. So with so many different levers to tweak in RAG pipeline, it's hard to know what's going wrong, what to change, where to start. This is why evaluation is very important.</span></div><div class="tline" data-t="453"><span class="ts">7:33</span><span class="tx">Without an evaluation-based guided flow, it is difficult to accurately measure progress and ensure optimal performance. Evaluation also helps you to iteratively refine applications, making informed decisions, and ultimately achieve goals more effectively.</span></div><div class="tline" data-t="468"><span class="ts">7:48</span><span class="tx">So on that topic, I would like to welcome Deanna, who's gonna basically walk us through how we did this, uh, experimentation.</span></div><div class="tline" data-t="475"><span class="ts">7:55</span><span class="tx">Uh, thanks, Atita, for the perfect setup. [laughs] [audience applauding] Um, so this is where Quotient comes in, and I'm going to steal that from you. Thank you. Um, so because the quality of RAG is so dependent on the underlying documents, a thorough evaluation of a RAG system has to be customized to suit that specific domain and dataset.</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">Um, so Quotient's evaluation solution fills this need by enabling developers to measure the effectiveness of their LLM products accurately. Quotient's platform accelerates the experimentation process. With an evaluation dataset that contains realistic examples of inputs and expected outputs for your AI solution, you can quickly experiment and iterate to optimize</span></div><div class="tline" data-t="524"><span class="ts">8:44</span><span class="tx">your RAG solutions. And if you don't have an evaluation dataset, don't worry. Uh, Quotient can help you get started by generating one for you, and you can hear more from us on this at the AI, SIISL, and Waves meetup on Friday.</span></div><div class="tline" data-t="540"><span class="ts">9:00</span><span class="tx">So how does this work in practice? Once you have your Qdrant vector database set up, you can populate your evaluation dataset by submitting queries to return the contexts for the LLM.</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">You can then submit your evaluation dataset to Quotient, which handles the full orchestration, including the prompt formatting, execution of LLMs, and the metric computations.</span></div><div class="tline" data-t="563"><span class="ts">9:23</span><span class="tx">So to see it in action, we've put together a demo walkthrough where we'll show you a workflow for making evaluation-informed changes to optimize your RAG system using Quotient and Qdrant.</span></div><div class="tline" data-t="576"><span class="ts">9:36</span><span class="tx">For the sake of time, we've executed the notebook ahead of time, and we'll be walking you through the code outputs. And if you scare-- scan the QR code here, you can find the notebook on GitHub.</span></div><div class="tline" data-t="586"><span class="ts">9:46</span><span class="tx">In this demo, we are building a RAG solution for question answering on Qdrant's documentation, and this will help enable Qdrant users to get help quickly.</span></div><div class="tline" data-t="599"><span class="ts">9:59</span><span class="tx">So before we can begin evaluation, it's important to take a step back and consider what we're optimizing for. Given this use case, it's generally important to get helpful answers to the questions, but it's perhaps more important that the answers do not contain any inaccurate information that could misguide users.</span></div><div class="tline" data-t="617"><span class="ts">10:17</span><span class="tx">And so in other words, we want to minimize hallucinations. And with that in mind, we will be looking at the following metrics shown here with a focus on faithfulness.</span></div><div class="tline" data-t="627"><span class="ts">10:27</span><span class="tx">Uh, the first two metrics are both focused on measuring the quality of the retrieval side of RAG. Context relevance tells us whether the necessary information to answer the question is in the retrieved documents.</span></div><div class="tline" data-t="639"><span class="ts">10:39</span><span class="tx">Chunk relevance tells us how much of the information retrieved is actually useful for answering the question versus just noise. Faithfulness is our hallucination metric. And, and then because be-- the focus of this talk is going to be optimizing the retrieval side of RAG, we're sticking to some of the more general text quality metrics here.</span></div><div class="tline" data-t="661"><span class="ts">11:01</span><span class="tx">So when we're first getting started, we want to consider a simple naive RAG implementation to help us better optimize the data processing and vector database setup. So we start off by choosing a reasonable embedding model and chunking parameters, retrieval window, and the Mistral Instruct model.</span></div><div class="tline" data-t="681"><span class="ts">11:21</span><span class="tx">And then to see if we require additional context to answer the questions, we set up a second experiment where we increase the chunk parameters.</span></div><div class="tline" data-t="691"><span class="ts">11:31</span><span class="tx">And so here are the results of those first two experiments. You can see that by increasing the chunk size in experiment two, we had some minor improvements in our text quality metrics.</span></div><div class="tline" data-t="702"><span class="ts">11:42</span><span class="tx">That said, we had a considerable drop in our faithfulness, which is the metric we're optimizing for. Of note, you can see that the context relevance increased, meaning that we retrieved more of the necessary information to answer the question.</span></div><div class="tline" data-t="717"><span class="ts">11:57</span><span class="tx">But the chunk relevance dropped considerably, meaning that a smaller portion of the retrieved documents was actually relevant. And so what this implies is that if we simply retrieve more documents but use the smaller chunk size from before, we might get better results.</span></div><div class="tline" data-t="735"><span class="ts">12:15</span><span class="tx">And so we try this out. As expected, the smaller chunk size, uh, with the larger w- retrieval window achieved the highest relevance scores and the best faithfulness score, uh, meaning that we have a lower occurrence of hallucinations.</span></div><div class="tline" data-t="751"><span class="ts">12:31</span><span class="tx">In our next two iterations, we test out a new embedding model as well as a different LLM, switching to GPT-3.5. And while the embedding model experiment in the light gray didn't quite work out, for experiment five in the dark gray, we found that using the same RAG configuration but changing the LLM improved performance across all our</span></div><div class="tline" data-t="771"><span class="ts">12:51</span><span class="tx">metrics. So here we're looking at the aggregated metrics for our top-performing RAG configuration, and the large variance in the context relevance, which is highlighted in red, implies that some of the questions are having a harder time retrieving the right documents.</span></div><div class="tline" data-t="787"><span class="ts">13:07</span><span class="tx">So to better understand what's going on, we have to look into the data. And here we've shown the two worst-performing data points in terms of hallucination. This third column here shows us the retrieved documents, and it's a lot of text, so I'll just summarize.</span></div><div class="tline" data-t="803"><span class="ts">13:23</span><span class="tx">Um, so it seems like we're returning a lot of unrelated documents that are likely over-indexing on specific words in the query like Qdrant, support, and search, and we're returning documents that repeat these terms many times.</span></div><div class="tline" data-t="819"><span class="ts">13:39</span><span class="tx">So to address this issue, one possible solution could be expanding our retrieval window to capture more documents and thereby making it more likely we get the right information. But in doing so, we'd also be adding a lot of noise to our context.</span></div><div class="tline" data-t="833"><span class="ts">13:53</span><span class="tx">So by now, we likely need to expand out of naive RAG and start to add in some more advanced techniques, and this is where re-ranking comes in. So we could try using a different embedding model to re-rank the retrieved documents and then return only the top few, thus weeding out some of the more unrelated ones.</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">So we try this out. We perform three different re-ranking experiments, trying re-rankers from mixedbread, Cohere, and Jina's ColBERT model, and we plot them here against our top naive RAG approach in blue.</span></div><div class="tline" data-t="863"><span class="ts">14:23</span><span class="tx">And you can see that, in general, our context relevances, and with it our faithfulness, have improved with this strategy, with Cohere achieving the best relevance and faithfulness scores.</span></div><div class="tline" data-t="876"><span class="ts">14:36</span><span class="tx">If we return to those same two worst-performing data points from experiment five now and look at how our re-ranking implementation did, you can see that in the second example, we're now retrieving documents that contain the desired answer, and with it, our context relevance and faithfulness are close to one.</span></div><div class="tline" data-t="893"><span class="ts">14:53</span><span class="tx">That said, in the first example, we're still getting poor results, and this suggests that even after expanding our retrieval windows, we're still unable to identify the relevant documents. So if we think about the Qdrant documentation and the text within it, it contains a lot of special terminology, jargon, acronyms, and so it's unsurprising that these generally trained embedding</span></div><div class="tline" data-t="914"><span class="ts">15:14</span><span class="tx">models are going to be limited in performance. So we could try fine-tuning or training our own model to address this issue, but this could be time-consuming and costly. Um, so another option to try is hybrid search, which combines sparse and dense vectors, and these sparse vectors help us capture documents that share similar terminology.</span></div><div class="tline" data-t="937"><span class="ts">15:37</span><span class="tx">So we tried two implementations of this, one where we incorporate hybrid search with a re-ranker and one without. And you can see that, uh, using the Cohere re-ranker with hybrid search gives us the best performance across all metrics except for chunk relevance.</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">So looking at this, uh, hybrid search re-ranking experiment now on these same two data points, you can see that the context relevance and faithfulness scores are both close to one now, a significant improvement over our prior ones.</span></div><div class="tline" data-t="965"><span class="ts">16:05</span><span class="tx">And we're also better to retrieve, better able to retrieve the information necessary to answer these questions. And so this suggests that domain-specific terminology has a big effect on our overall performance.</span></div><div class="tline" data-t="978"><span class="ts">16:18</span><span class="tx">So to summarize, the table here shows what gains in performance we were able to make over just ten experiments. Starting from a faithfulness score of .76, we worked our way up to a score of just under .85, and notably, all of these gains were made without changing from a generic question answering prompt.</span></div><div class="tline" data-t="997"><span class="ts">16:37</span><span class="tx">So there's certainly many more experiments to run, and we have plenty of room for improvement. But you can see how starting from scratch you can improve your RAG system by making incremental changes, evaluating using a combination of metrics that together can help you identify underlying issues, then observing patterns in your data, forming a hypothesis, and repeating the</span></div><div class="tline" data-t="1017"><span class="ts">16:57</span><span class="tx">process.</span></div><div class="tline" data-t="1020"><span class="ts">17:00</span><span class="tx">Thank you, Deanna. So to summarize, um, this talk and the experimentation, in this talk, we covered several key aspects of improving RAG. The baseline takeaway is that, uh, there is no substitute for evaluation-based or data-driven improvements.</span></div><div class="tline" data-t="1037"><span class="ts">17:17</span><span class="tx">We emphasize leveraging domain understanding to achieve significant, uh, wins and, uh, outlined various techniques for enhancement in our experiments. To ensure continuous improvement, it is crucial to keep your evaluation dataset up to date.</span></div><div class="tline" data-t="1051"><span class="ts">17:31</span><span class="tx">Lastly, avoid over-engineering your RAG application without considering a combination of carefully chosen metrics. If this talk piqued your interest and you are interested to get in touch with us, before that, some key references and the QR code.</span></div><div class="tline" data-t="1068"><span class="ts">17:48</span><span class="tx">Please feel free to scan them, get in touch with us. We're going to be around and looking forward to all your questions. [audience applauding] [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

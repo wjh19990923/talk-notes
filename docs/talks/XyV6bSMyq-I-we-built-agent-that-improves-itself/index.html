@@ -1,0 +1,1292 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>我们如何构建了一个能自我改进的智能体 —— Zubin Aysola，Weights &amp; Biases | AI 工程师中文版</title>
+<meta name="description" content="Zubin Aysola 讲解了 Weights &amp; Biases 如何把 ARIA 的生产 trace 变成离线评测任务，把候选变体与已部署的智能体进行比较，并用结果指导下一次改进。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>我们如何构建了一个能自我改进的智能体 —— Zubin Aysola，Weights &amp; Biases</h1>
+    <div class="orig-title">How We Built an Agent That Improves Itself — Zubin Aysola, Weights &amp; Biases</div>
+    <div class="meta"><span class="speaker">Zubin Aysola</span> · AI Engineer World's Fair 2026 · 17:06</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=autoresearch">自动化研究</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/XyV6bSMyq-I-we-built-agent-that-improves-itself" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="XyV6bSMyq-I"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=XyV6bSMyq-I" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">当智能体和它的基准一起变化</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="16"><span class="ts">0:16</span><span>当智能体和它的基准一起变化</span></li><li data-t="174"><span class="ts">2:54</span><span>一次生产对话变成一个实验</span></li><li data-t="313"><span class="ts">5:13</span><span>把已部署的智能体留在研究循环里</span></li><li data-t="484"><span class="ts">8:04</span><span>在运行智能体之前先构建环境</span></li><li data-t="647"><span class="ts">10:47</span><span>测试用户流程，再保留有用的行为</span></li><li data-t="770"><span class="ts">12:50</span><span>演示发现了一个 SDK 错误并生成了一个针对性的候选</span></li><li data-t="882"><span class="ts">14:42</span><span>自动化把改进决策留给人</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 21 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="What Is a Software Harness, Agent, and More?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What Is a Software Harness, Agent, and More?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The diagram places an agent and its environment inside a workspace. The agent combines LLMs with a system prompt, memory, tools, an execution loop, error handling, and context management.
+
+[1:17](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=77s) [Diagram places agent components and an environment within a workspace.](https://assets.ai.engineer/sites/aiecode2025/sha256/f08e8cfd18d8a8a7d050947ac94e3f7d3ab8b1e4cc917b9b0800808f36eaa9ba.webp)
+
+A Brief Interlude on Taxonomy
+What is a Software Harness, Agent, and More?
+
+Workspace
+AGENT
+System Prompt
+Memory System
+Tools - Tool Defs
+LLM(s)
+Execution Loop
+Error Handling
+Context Management
+Environment
+
+4
+
+Interface text:
+Chrome File Edit View History Bookmarks Profiles Tab Window Help
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Benchmarks, Evaluations, and Agents Are Covariant" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Benchmarks, Evaluations, and Agents Are Covariant</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The software harness, dataset and reward affect one another as they change. Aysola says evaluating a changing agent requires measuring performance both offline and in production.
+
+[1:30](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=90s) [Diagram links a software harness, dataset, reward and an unspecified component around the statement that changing one affects the others.](https://assets.ai.engineer/sites/aiecode2025/sha256/e3c24b275a9048800dd9eff4546dabb23c9e3c27e5ee493dcc8144085bb02731.webp)
+
+The Problem with Building Agents
+Benchmarks, Evaluations, and Agents are Covariant
+
+Software Harness
+Dataset
+Reward
+???
+A change to one affects all others
+
+6
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+docs.google.com/presentation/d/[illegible]
+Ask Gemini
+Work
+Thu Jul 2 11:11 AM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Introducing W&amp;B Weave for Agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Introducing W&amp;B Weave for Agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Aysola’s team tracks offline agent runs in Weave and logs production traces in the same format, then brings those traces into its environments to improve performance and resolve errors.
+
+[2:04](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=124s) [Slide introduces observability and continuous improvement for production agents alongside a product screenshot.](https://assets.ai.engineer/sites/aiecode2025/sha256/c57d0af7857d6076079b5801af49f2a641c2ee7ba34156bfd5e22a6bd518eaf1.webp)
+
+GENERALLY AVAILABLE
+
+Introducing W&amp;B Weave for Agents
+
+Observability and continuous improvement for production agents
+
+✓ Production agents learn and improve from real-world experience to achieve and maintain reliable quality
+✓ Full improvement loop from context and harness engineering to model training
+✓ Coding agents like Claude Code can connect to Weave at runtime and run autonomous iteration cycles
+
+Product screenshot:
+Agents
+Agents · Conversations · Spans · Monitors
+copy-editor
+business-proposal
+summarizer
+ideation
+auto-responder
+multi-modal-image-gen
+image-understanding
+Ideation
+Span volume
+Conversation volume
+Token volume
+Errors
+[illegible]
+
+7
+
+Interface text:
+Chrome · File · Edit · View · History · Bookmarks · Profiles · Tab · Window · Help
+Thu Jul 2 11:12 AM
+Ask Gemini · Work</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Introducing CoreWeave ARIA" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Introducing CoreWeave ARIA</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Aysola says ARIA performs offline hill climbing to help build itself. The slide describes an agent that runs experiments, creates visualizations, and analyzes results.
+
+[2:41](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=161s) [Slide describes ARIA as a research and iteration agent, with bullets about improvement loops, workspace actions and experiment insights.](https://assets.ai.engineer/sites/aiecode2025/sha256/f87d44bc79c54a60cec6246cd77c5d325587c182267c251bc2d7142e8a9cedbd.webp)
+
+[illegible] with W&amp;B Weave
+Introducing CoreWeave ARIA, AI Research &amp; Iteration Agent
+
+• Turn on self-improvement loops: ARIA is an always-on research partner, running experiments, analyzing outcomes, and continuously improving your models and agents.
+• Automate complex workspace actions: ARIA creates custom visualizations on the fly to back up its findings, so you don’t need to manually build a new view or chart for every insight surfaced in the data yourself.
+• Gain deeper experiment insights: ARIA analyzes your runs and provides actionable insights, so you reach a decision in minutes instead of digging for hours.
+
+Embedded screenshot:
+Search panels with regex
+Panel Section 2
+val/loss v. Reverse Index
+Y-axis ticks: 9, 8.5, 8, 7.5, 7, 6.5, 6
+X-axis ticks: [illegible]
+Charts 7
+val_bpb
+Showing up to 10 runs
+[illegible]
+
+ARIA
+The 4x-data winner is monotonically improving through step 600, so I’m launching a third wave around that regime: 4x/8x data, longer runs, and mild regularization. This is now exploiting the actual winning curve, not guessing.
+
+apply_patch /workspace/submit_scale_data_12_k8s.py
+Submitting the third 12-run scale-data wave now.
+shell python /workspace/submit_scale_data_12_k8s.py
+Submitted. I’ll wait for the wave to finish and then summarize the best result.
+shell sleep 180; python [illegible]
+
+The third wave improved again: best final is now 8.152 bpb with [illegible]. That’s a ~12.4% reduction from the 9.307 parallel-test best final, and ~30% vs the original 160-step loop-1 baseline scale. The winner is also still at its best at the final step, so I’m launching a smaller frontier wave around 8x/16x data + width384/512 to see if we can break 8.0.
+
+apply_patch /workspace/submit_frontier_8_k8s.py
+Submitting the 8-run frontier wave.
+shell python /workspace/submit_frontier_8_k8s.py
+Submitted. I’ll wait and rank it when complete.
+shell sleep 240; python [illegible]
+Ask ARIA
+
+9
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+Thu Jul 2  11:12 AM
+docs.google.com/presentation/d/[illegible]
+Ask Gemini  Work
+aria-researches-aria Workspace – Weights &amp; Biases
+wandb.ai
+Memory usage: 582 MB</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Evaluations and ARIA activity" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evaluations and ARIA activity</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>To prepare a stage talk track, ARIA reads evaluation and report references, then writes and runs a project-research script. Beside it, the evaluations table shows what Aysola describes as sanitized traces.
+
+[3:38](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=218s) [An evaluations table beside an ARIA chat showing research activity.](https://assets.ai.engineer/sites/aiecode2025/sha256/e839e13d55117ac92bd5b27a0d1ee0e155164ea464286ac85c284fb9f04283c9.webp)
+
+Evaluations
+All evaluations
+All datasets
+Filter
+
+inputs
+outputs [partially obscured]
+Trace | Feedback | Status | model » | self » | displa[partially obscured]
+prod-trace-nanochat-log-qu... | 31c3 | core_wb_agen... | prod-trace-na...
+prod-trace-nanochat-log-qu... | a0d0 | core_wb_agen... | prod-trace-na...
+prod-trace-nanochat-log-qu... | edb0 | core_wb_agen... | prod-trace-na...
+prod-trace-nanochat-log-qu... | ce38 | core_wb_agen... | prod-trace-na...
+smoke-all__core_wb_agent... | 249b | core_wb_agen... | smoke-all-eval...
+smoke-all__core_wb_agent... | c7d5 | core_wb_agen... | smoke-all-eval...
+smoke-all__core_wb_agent... | 964a | core_wb_agen... | smoke-all-eval...
+
+ARIA
+[Beginning clipped] project/artifacts/runs/Weave evals as needed, then give me a stage talk track with links and exact names/scores.
+End with a short “what to click next” checklist for the live demo.
+
+Thinking  Researching evaluation tools
+shell  grep -nE [illegible] skills/wbagent/references/WEAVE.md | head -80 &amp;&amp; grep -nE [illegible] skills/...
+shell  grep -nE [illegible] skills/wbagent/references/REPORTS.md | head -80
+shell  sed -n '3,120p' skills/wbagent/references/WEAVE.md &amp;&amp; sed -n '153,165p' skills/wbagent/refe...
+Thinking  Exploring project details
+apply_patch  /workspace/research_project.py
+shell  python /workspace/research_project.py
+
+Interface text:
+wandb.ai/wandb/aria-researches-aria/weave/evaluations?view=evaluations_default
+wandb &gt; Projects &gt; aria-researches-aria &gt; Evaluations
+wandb-agent-prod Workspace – Weights &amp; Biases
+wandb.ai
+Memory usage: 573 MB
+Workspace
+Runs
+More
+WEAVE
+Agents
+Traces
+Evals
+Playground
+Monitors
+Support
+Shortcuts
+Docs
+New chat
+Today
+yoo!
+aria-researches-aria
+Aria: run the WBAF smoke eval
+aria-researches-aria
+yo we feel comfortable running ari...
+aria-researches-aria
+Yesterday
+suggest a fix for this 019f2016-e160...
+wb-agent-team/wandb-agent-p...
+Quickly give a brief summary of th...
+wb-agent-team/wandb-agent-p...
+this latest eval was too hard make i...
+zubin-autoresearch-prompts
+Hi mom
+sup cutie. we want to setup some ...
+wb-agent-team/wandb-agent-p...
+Last 7 Days
+gimme a report highlighting the cu...
+zubin-dump-new
+I want to simulate the signals prod...
+zubin-dump-new
+find me the most unique conversat...
+wb-agent-team/wandb-agent-p...
+yo this current trace whats up with ...
+wb-agent-team/wandb-agent-p...
+gimme the last autoresearch swee...
+zubin-dump-new
+can you gimme a link to this code ...
+aria-researches-aria
+Ask ARIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Preparing an evaluation request" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Preparing an evaluation request</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Zubin asks ARIA to add a production trace to offline evaluations and run both candidate and production agents on it. The request is still being composed.
+
+[4:14](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=254s) [An evaluation dashboard with a request being composed in the ARIA chat panel.](https://assets.ai.engineer/sites/aiecode2025/sha256/f14a28a78a1874dcc54940a7695849fdaf3eb972a4eb18a4e0ccf26b45e8f007.webp)
+
+How can I help you today?
+
+Help me create a dataset
+Help me create scorers
+Did my latest eval improve and why?
+What should I try next?
+
+hey take this trace log it into our ofline evals and then run the canddiate and production agent on it
+
+Interface text:
+wandb.ai/wandb/aria-researches-aria/weave/evaluations?view=evaluations_default
+wandb &gt; Projects &gt; aria-researches-aria &gt; Evaluations
+Evaluations
+Compare
+All evaluations
+All datasets
+Filter
+inputs
+outpu[illegible]
+Trace
+Feedback
+Status
+model
+self
+displa[illegible]
+prod-trace-nanochat-log-qu... [illegible]
+prod-trace-nanochat-log-qu... [illegible]
+prod-trace-nanochat-log-qu... [illegible]
+prod-trace-nanochat-log-qu... [illegible]
+smoke-all__core_wb_agent... [illegible]
+smoke-all__core_wb_agent... [illegible]
+smoke-all__core_wb_agent... [illegible]
+core_wb_agen...
+prod-trace-na...
+smoke-all-eval...
+
+ARIA
+New chat
+Today
+yoo!
+aria-researches-aria
+Aria: run the WBAF smoke eval
+aria-researches-aria
+yo we feel comfortable running ari...
+aria-researches-aria
+Yesterday
+suggest a fix for this 019f2016-e160...
+wb-agent-team/wandb-agent-p...
+Quickly give a brief summary of th...
+wb-agent-team/wandb-agent-p...
+this latest eval was too hard make i...
+zubin-autoresearch-prompts
+Hi mom
+sup cutie. we want to setup some...
+wb-agent-team/wandb-agent-p...
+Last 7 Days
+gimme a report highlighting the cu...
+zubin-dump-new
+I want to simulate the signals prod...
+zubin-dump-new
+find me the most unique conversat...
+wb-agent-team/wandb-agent-p...
+yo this current trace whats up with ...
+wb-agent-team/wandb-agent-p...
+gimme the last autoresearch swee...
+zubin-dump-new
+can you gimme a link to this code ...
+aria-researches-aria
+
+Project
+MODELS
+Workspace
+Runs
+More
+WEAVE
+Agents
+Traces
+Evals
+Playground
+Monitors
+More
+Support
+Shortcuts
+Docs
+Zubin Aysola
+wandb
+Ask Gemini
+Work</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Running the evaluation request" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Running the evaluation request</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Aysola asks ARIA to add a trace to offline evals and run the candidate and production agents on it. ARIA begins a shell step; the evaluations are expected to appear in Weave as they run.
+
+[4:28](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=268s) [ARIA shows a submitted request to evaluate a trace and a running shell step.](https://assets.ai.engineer/sites/aiecode2025/sha256/db77827db979326e0cb3def3d2f93376a2f451fa45c654f00ea4e2d89e157e44.webp)
+
+ARIA
+
+hey take this trace log it into our ofline evals and then run the canddiate and production agent on it
+
+019f23fe-e638-7120-8014-a663c7e9dd63
+
+shell grep -nE '^#{1,2} ' skills/wbagent/references/WEAVE.md | head -80 &amp;&amp; sed -n '1,220p' skills/w...
+
+Interface text:
+wandb.ai/wandb/aria-researches-aria/weave/evaluations?view=evaluations_default
+wandb &gt; Projects &gt; aria-researches-aria &gt; Evaluations
+Evaluations
+Compare
+All evaluations
+All datasets
+Filter
+inputs
+output
+Trace | Feedback | Status | model &gt;&gt; | self &gt;&gt; | display...
+prod-trace-nanochat-log-qu... | 31c3 | core_wb_agen... | prod-trace-na...
+prod-trace-nanochat-log-qu... | a0d0 | core_wb_agen... | prod-trace-na...
+prod-trace-nanochat-log-qu... | edb0 | core_wb_agen... | prod-trace-na...
+prod-trace-nanochat-log-qu... | ce38 | core_wb_agen... | prod-trace-na...
+smoke-all__core_wb_agent... | 249b | core_wb_agen... | smoke-all-eval...
+smoke-all__core_wb_agent... | c7d5 | core_wb_agen... | smoke-all-eval...
+smoke-all__core_wb_agent... | 964a | core_wb_agen... | smoke-all-eval...
+
+New chat
+Today
+hey take this trace log it into o...
+aria-researches-aria
+yoo!
+aria-researches-aria
+Aria: run the WBAF smoke eval
+aria-researches-aria
+yo we feel comfortable running ari...
+aria-researches-aria
+Yesterday
+suggest a fix for this 019f2016-e160...
+wb-agent-team/wandb-agent-p...
+Quickly give a brief summary of th...
+wb-agent-team/wandb-agent-p...
+this latest eval was too hard make i...
+zubin-autoresearch-prompts
+Hi mom
+sup cutie. we want to setup some ...
+wb-agent-team/wandb-agent-p...
+Last 7 Days
+gimme a report highlighting the cu...
+zubin-dump-new
+I want to simulate the signals prod...
+zubin-dump-new
+find me the most unique conversat...
+wb-agent-team/wandb-agent-p...
+yo this current trace whats up with ...
+wb-agent-team/wandb-agent-p...
+gimme the last autoresearch swee...
+
+aria-researches-aria
+Ask ARIA
+Project
+MODELS
+Workspace
+Runs
+More
+WEAVE
+Agents
+Traces
+Evals
+Playground
+Monitors
+Support
+Shortcuts
+Docs
+Zubin Aysola
+wandb
+Ask Gemini
+Work</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Nightly CI evaluation traces" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Nightly CI evaluation traces</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Aysola uses seven weeks of nightly CI traces to compare agent performance over time. This view filters for the production agent on main; he says CI had broken for a while.
+
+[4:48](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=288s) [A filtered traces table lists nightly evaluation runs, statuses, scores, and latencies.](https://assets.ai.engineer/sites/aiecode2025/sha256/763b7462174ad85c6a96df80d1ca596de84a851bc77c93a8c12faa8918a3b9f1.webp)
+
+Nightly CI
+
+Evaluation.evaluate
+Filter: attributes.runner_type equals &quot;ci&quot;; Name contains &quot;wba-all__core_wb_agent.production&quot;; attributes.repo_branch contains &quot;main&quot;; Past 7w
+
+Table headers: [obscured] | Called | Status | output …true_fraction | Latency | Feedback | inputs model | self | output display_name | eval_name | …true_count | …max
+
+Visible rows, in order. Status and feedback are icons; empty cells are shown as —.
+Trace | Called | Status icon | …true_fraction | Latency | Feedback icons | …true_count | …max
+[obscured] a8aa | 10 hours ago | check | 0.0661 | 23m 53s | two icons | 17 | 25
+[obscured] 3dc1 | 1 day ago | exclamation | 0 | 3m 58s | — | 0 | N/A
+[obscured] 91d5 | 2 days ago | exclamation | 0 | 1m 23s | — | 0 | N/A
+wba-all__core_wb_agent.pr... c907 | 3 days ago | check | 0.0817 | 29m 57s | — | 21 | 30
+wba-all__core_wb_agent.pr... f9c7 | 4 days ago | check | 0.0856 | 30m 31s | — | 22 | 30
+wba-all__core_wb_agent.pr... a443 | 5 days ago | check | 0.07 | 30m 25s | — | 18 | 35
+wba-all__core_wb_agent.pr... f5a2 | 6 days ago | check | 0.0898 | 21m 31s | — | 23 | 35
+wba-all__core_wb_agent.pr... db8f | 1 week ago | check | 0.0859 | 21m 5s | — | 22 | 25
+wba-all__core_wb_agent.pr... 749c | 1 week ago | check | 0.0902 | 19m 19s | — | 23 | 30
+wba-all__core_wb_agent.pr... 291a | 1 week ago | check | 0.0745 | 19m 51s | — | 19 | 30
+wba-all__core_wb_agent.pr... 1714 | 1 week ago | exclamation | 0.1012 | 29m 6s | — | 25 | 30
+wba-all__core_wb_agent.pr... 5d99 | 2 weeks ago | circular arrow | N/A | — | — | N/A | N/A
+wba-all__core_wb_agent.pr... 2e3e | 2 weeks ago | circular arrow | N/A | — | — | N/A | N/A
+wba-all__core_wb_agent.pr... aa72 | 2 weeks ago | exclamation | 0 | 21s | — | 0 | N/A
+wba-all__core_wb_agent.pr... 7c65 | 2 weeks ago | check | 0.0243 | 35m 6s | — | 6 | 25
+wba-all__core_wb_agent.pr... f1b9 | 2 weeks ago | circular arrow | N/A | — | — | N/A | N/A
+wba-all__core_wb_agent.pr... a096 | 2 weeks ago | check | 0 | 6m 57s | — | 0 | N/A
+wba-all__core_wb_agent.pr... d167 | 2 weeks ago | exclamation | 0.0132 | 23m 47s | — | 3 | 12
+wba-all__core_wb_agent.pr... 5803 | 3 weeks ago | exclamation | 0.0044 | 11m 14s | — | 1 | 12
+
+The model and self columns show truncated entries core_wb_agen... and wba-all-evalua... throughout. The display_name and eval_name columns show wba-all__core_wb_... and wba-all-eval, except on the three circular-arrow rows, where both show N/A.
+
+Interface text:
+wandb &gt; Projects &gt; wbagent-experiments &gt; Traces
+Reset view; Save view; Visualize; Columns
+Project; MODELS; WEAVE; Agents; Traces; Evals; Playground; Monitors; More; Support
+WBAF &amp; the Flywheel — AIE World's Fair - W&amp;B Expo
+local or shared file
+Memory usage: 79.4 MB
+Shortcuts; Docs; 1-46 of 46
+Chrome; Ask Gemini; Work; Zubin Aysola; wandb</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Benchmarking the production agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Benchmarking the production agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>WBAF runs the production agent against live W&amp;B and Weave in throwaway sandboxes, scores each turn against ground truth, and turns production misses into tests and fixes.
+
+[5:14](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=314s) [A slide describes testing the production agent in sandboxes and lists benchmark and evaluation counts.](https://assets.ai.engineer/sites/aiecode2025/sha256/632d52de510cdba0926880a8b2e79742f3d84fe3d6fdba1f9b786fae69e84f3f.webp)
+
+HOW WE BUILT IT · WANDB AGENT FACTORY
+
+We benchmark the real agent — byte-for-byte — not a proxy.
+
+WBAF runs the literal production WBAgent against live W&amp;B &amp; Weave, inside throwaway sandboxes, and scores every turn against ground truth. Then it closes the loop: every production miss becomes a test, then a fix.
+
+886 benchmark tasks
+29 eval suites
+10 scorer types
+1:1 prod-identical code
+
+source: WandBAgentFactory/README.md · data/tasks (886 task.yaml) · data/evals (29) · data/scorers (10)
+WBAF &amp; the Flywheel · AIE World's Fair — W&amp;B Expo
+← → or space · F fullscreen
+1 / 10
+
+Interface text:
+Chrome · File · Edit · View · History · Bookmarks · Profiles · Tab · Window · Help
+File /Users/zaysola/wandb/labs/ai-engineer-preso/wbaf-flywheel.html
+Ask Gemini · Work
+aria-researches
+wandb-agent-p...
+wbagent-experi...
+WandBAgentFac...
+AIE World's Fair...
+WBAF &amp; the...</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Research and production use the same code" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Research and production use the same code</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A four-hour sync copies production code into the research harness to prevent drift. Matching files appear in both repositories, and shipping copies the agent repository back to Core without import changes.
+
+[5:54](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=354s) [A slide compares matching agent files in two repositories and describes synchronization and shipping.](https://assets.ai.engineer/sites/aiecode2025/sha256/86dcc5e2c66b66d26677b267594047c261f8bfa547fa513199f73883f16fc24f.webp)
+
+THE CORE TRICK
+Research and production are the same code.
+
+wandb/core — src/agent_repository/
+agent_driver.py
+agents/bases/looping_agent.py
+agents/wba_responses · wba_claude · wba_wbi
+agent_interface_contract/protocols.py
+
+≡ BYTE-IDENTICAL
+
+WandBAgentFactory — wb-agents/src/
+agent_driver.py
+agents/bases/looping_agent.py
+agents/wba_responses · wba_claude · wba_wbi
+agent_interface_contract/protocols.py
+
+NEVER DRIFTS
+A cron re-clones wb-agents/src/ from Core every 4 hours and clobbers it — the harness can't fall out of sync with prod.
+
+SHIPPING = A COPY
+cp -r wb-agents/src/agent_repository → core
+Zero import changes. The thing in the harness is the thing in prod.
+
+source: README.md §“Relationship to Core” (byte-identical) · docs/quickstart.md (4h sync cron, sync_core_wb_agent.py)
+WBAF &amp; the Flywheel · AIE World's Fair — W&amp;B Expo
+2 / 10
+
+Interface text:
+Chrome · File · Edit · View · History · Bookmarks · Profiles · Tab · Window · Help
+File /Users/zaysola/wandb/labs/ai-engineer-preso/wbaf-flywheel.html
+Ask Gemini · Work
+aria-researches
+wandb-agent-p…
+wbagent-experi…
+WandBAgentFac…
+AIE World's Fair
+WBAF &amp; the…
+← → or space · F fullscreen</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Evaluation trace list" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evaluation trace list</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Aysola selects an evaluation trace to inspect its relative scores across metrics. The evaluation panel is still loading in this frame.
+
+[6:31](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=391s) [A list of evaluation traces beside a panel loading evaluation data.](https://assets.ai.engineer/sites/aiecode2025/sha256/47e7001be3aebf52eb637dd3811182f972220efcafb66c1372ec7286e48fdcac.webp)
+
+Nightly CI
+
+Trace | Called | Status
+wba-all__core_wb_agent.pr... | 10 hours ago
+wba-all__core_wb_agent.pr... | 1 day ago
+wba-all__core_wb_agent.pr... | 2 days ago
+wba-all__core_wb_agent.pr... | 3 days ago
+wba-all__core_wb_agent.pr... | 4 days ago
+wba-all__core_wb_agent.pr... | 5 days ago
+wba-all__core_wb_agent.pr... | 6 days ago
+wba-all__core_wb_agent.pr... | 1 week ago
+wba-all__core_wb_agent.pr... | 1 week ago
+wba-all__core_wb_agent.pr... | 1 week ago
+wba-all__core_wb_agent.pr... | 1 week ago
+wba-all__core_wb_agent.pr... | 2 weeks ago
+wba-all__core_wb_agent.pr... | 2 weeks ago
+wba-all__core_wb_agent.pr... | 2 weeks ago
+wba-all__core_wb_agent.pr... | 2 weeks ago
+wba-all__core_wb_agent.pr... | 2 weeks ago
+wba-all__core_wb_agent.pr... | 2 weeks ago
+wba-all__core_wb_agent.pr... | 2 weeks ago
+wba-all__core_wb_agent.pr... | 3 weeks ago
+
+wba-all__core_wb_agent.production
+Evaluation | Call | Feedback | Summary | Use
+Runtime: 23m53s
+Created on: 10 hours ago
+Created by: Zubin Aysola
+wba-all-evaluation:v152
+core_wb_agent.production-runner:v151
+wba-all:v56
+Loading evaluation data
+
+Interface text:
+wandb &gt; Projects &gt; wbagent-experiments &gt; Traces
+Reset view
+Save view
+Evalua...
+Filter
+MODELS
+Workspace
+Runs
+More
+WEAVE
+Agents
+Traces
+Evals
+Playground
+Monitors
+More
+Support
+1-46 of 46
+wandb.ai/wandb/wbagent-experiments/weave/traces?filter=[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="The agent tool-use loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The agent tool-use loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A shared loop prepares context, calls the model, executes tool calls and repeats until there are none. Backends swap into the same loop; CLI agents use their own.
+
+[7:12](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=432s) [A six-step tool-use loop alongside notes on agent backends.](https://assets.ai.engineer/sites/aiecode2025/sha256/86f26685121e5d410bcf80de7315abd8fda53388f926336b846efead3958cefc.webp)
+
+ONE TURN
+
+Every agent runs the same tool-use loop.
+
+PREPARE  list tools from the environment
+COMPACT  trim history (optional)
+INVOKE  call the LLM — stream_invoke()
+PARSE  extract tool calls → ParsedResponse
+tool calls? yes ↓ · no → YIELD
+EXECUTE  parallel Environment.step() per call
+BUILD TURN  append to history, loop back ↑
+
+One base class. Three backends. Prod parity.
+
+The loop lives in LoopingAgent.do_turn_stream(). Subclasses implement only invoke() · parse() · build_turn().
+
+Swap the backend, keep the loop:
+OPENAI  wba_responses · gpt-5.5
+ANTHROPIC  wba_claude
+WBI  wba_wbi · Kimi
+
+CLI agents (Claude Code, Codex) subclass SubprocessAgent instead — the CLI owns its loop.
+
+source: README.md §“The agent loop” · wb-agents/src/.../bases/looping_agent.py::do_turn_stream
+WBAF &amp; the Flywheel · AIE World's Fair — W&amp;B Expo
+4 / 10
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+File  /Users/zaysola/wandb/labs/ai-engineer-preso/wbaf-flywheel.html
+Ask Gemini  Work
+aria-researches
+wandb-agent-p...
+wbagent-exper...
+WandBAgentFa...
+AIE World's Fair
+WBAF &amp; the...</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="The agent environment" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The agent environment</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each turn gets a Modal sandbox with file and shell tools, while the agent queries live W&amp;B and host-side scorers check Weave data. A seeded, ephemeral backend is in progress.
+
+[8:01](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=481s) [A sandbox workspace connected to live production services and ground-truth scoring.](https://assets.ai.engineer/sites/aiecode2025/sha256/5cc95208e19b29ba3adaec1ef8a04c271d0f06177d202f6f9e8a23b706d941ca.webp)
+
+THE ENVIRONMENT
+
+A throwaway box, wired to the real thing.
+
+MODAL SANDBOX · PER TURN
+/workspace/
+├─ skills/wbagent/…
+└─ (agent workspace)
+
+shell()  apply_patch()  read_file()  write_file()
+
+lazy-created on first step() · FS snapshotted on finalize()
+
+WIRED TO LIVE PROD
+Creds forwarded; the agent queries api.wandb.ai + trace.wandb.ai — the same W&amp;B you use.
+
+SCORED ON GROUND TRUTH
+Host-side scorers hit live Weave — e.g. a reference check must match the real trace count within 1%.
+
+Today: live prod. Next (in progress): a fresh, ephemeral W&amp;B/Weave backend seeded from local data per task — full determinism.
+
+source: factory/environment/modal.py (Modal.Sandbox, WANDB_BASE_URL default) · factory/scorers/reference.py (calls_query_stats, 1% tol) · EPHEMERAL_WANDB_PLAN.md (roadmap)
+WBAF &amp; the Flywheel · AIE World's Fair — W&amp;B Expo
+5 / 10
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+/Users/zaysola/wandb/labs/ai-engineer-preso/wbaf-flywheel.html
+Ask Gemini  Work
+aria-researches
+wandb-agent-p[illegible]
+wbagent-exper[illegible]
+WandBAgentFac[illegible]
+AIE World's Fair
+WBAF &amp; the[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Execution phases and lanes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Execution phases and lanes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each record moves from configuration through setup, agent execution, scoring, and teardown. Separate run and score lanes allow up to 60 and 30 in flight, so a slow judge does not block the next agent run.
+
+[8:42](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=522s) [Six execution phases above separate run and scoring lanes.](https://assets.ai.engineer/sites/aiecode2025/sha256/a563cbb9700f69dcd077301011ba95e65f4097973af8b1082a44c2488937ef0b.webp)
+
+THE EXECUTION ENGINE
+
+Six phases per record. Two independent lanes.
+
+HYDRATE
+load static config
+→ SETUP
+acquire / seed the W&amp;B world
+→ REHYDRATE
+inject URLs into the prompt
+→ RUN
+agent in the sandbox
+→ SCORE
+host-side scorers
+→ TEARDOWN
+release · always runs
+
+RUN LANE
+up to 60 in flight · prediction_semaphore
+
+SCORE lane
+up to 30 in flight · scorer_semaphore
+
+Independent lanes — a slow LLM judge never blocks the next agent run, and teardown is guaranteed even on crash. SETUP is the seam the ephemeral, seeded W&amp;B world will hang off.
+
+source: factory/eval_loop/imperative.py (SETUP→RUN→SCORE→TEARDOWN · semaphores 60/30) · EPHEMERAL_WANDB_PLAN.md (phase model)
+WBAF &amp; the Flywheel · AIE World's Fair — W&amp;B Expo
+6 / 10
+
+Interface text:
+Chrome
+File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+/Users/zaysola/wandb/labs/ai-engineer-preso/wbaf-flywheel.html
+Ask Gemini  Work
+aria-researches
+wandb-agent-[illegible]
+wbagent-experi[illegible]
+WandBAgentFa[illegible]
+AIE World's Fair
+WBAF &amp; the [illegible]
+← → or space · F fullscreen</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Evaluation at scale" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evaluation at scale</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Evaluation expands tasks into trials, runs agents in parallel sandboxes, then scores and aggregates results into a Weave eval. The slide lists 886 tasks across 29 eval suites.
+
+[10:45](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=645s) [An evaluation pipeline from task specification through parallel runs, scoring and aggregation, with scale metrics.](https://assets.ai.engineer/sites/aiecode2025/sha256/bbc7702f3f8fd1096f85f32acd141519cf0d781cbcd398ce3af0efd2c445a108.webp)
+
+AT SCALE
+Eval = tasks × trials, fanned out and judged.
+
+eval spec
+scenarios + tasks
+→ rows × trials
+dataset build
+→ ≈60 parallel
+Modal sandboxes
+run the agent
+→ scorers
+rubric · reference
+regex · code · ...
+→ aggregate
+task→scenario→eval
+→ Weave
+one eval URL
+
+886
+tasks (L0–L3)
+
+29
+eval suites
+
+10
+scorers
+
+60 / 30
+run / score parallelism
+
+source: README.md §“The eval pipeline” · factory/eval_loop/imperative.py (semaphores 60/30) · MultiTurnAgentRunner (@weave.op)
+WBAF &amp; the Flywheel · AIE World's Fair — W&amp;B Expo
+7 / 10
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+File  /Users/zaysola/wandb/labs/ai-engineer-preso/wbaf-flywheel.html
+Ask Gemini  Work
+Thu Jul 2 11:20 AM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Evaluation at scale" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evaluation at scale</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The eval runs tasks across repeated trials in parallel sandboxes, scores and aggregates the results, and collects them in Weave. Its 886 tasks include simulated multi-turn interactions.
+
+[11:31](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=691s) [An evaluation pipeline fans tasks and trials out to parallel agent runs, scoring, aggregation, and Weave.](https://assets.ai.engineer/sites/aiecode2025/sha256/90f7b7028f5861a433a7fb34b16149c507898f67f757d3fd060cd7cbf51af63b.webp)
+
+AT SCALE
+
+Eval = tasks × trials, fanned out
+and judged.
+
+eval spec
+scenarios + tasks
+→
+rows × trials
+dataset build
+→
+≈60 parallel
+Modal sandboxes
+run the agent
+→
+scorers
+rubric · reference
+regex · code · ...
+→
+aggregate
+task→scenario→eval
+→
+Weave
+one eval URL
+
+886
+tasks (L0–L3)
+
+29
+eval suites
+
+10
+scorers
+
+60 / 30
+run / score parallelism
+
+source: README.md §&quot;The eval pipeline&quot; · factory/eval_loop/imperative.py (semaphores 60/30) · MultiTurnAgentRunner (@weave.op)
+WBAF &amp; the Flywheel · AIE World's Fair — W&amp;B Expo
+7 / 10
+← → or space · F fullscreen
+
+Interface text:
+Chrome File Edit View History Bookmarks Profiles Tab Window Help
+File /Users/zaysola/wandb/labs/ai-engineer-preso/wbaf-flywheel.html
+Ask Gemini
+Work
+aria-researches
+wandb-agent-p[illegible]
+wbagent-experi[illegible]
+WandBAgentFac[illegible]
+AIE World's Fair
+WBAF &amp; the [illegible]
+Thu Jul 2 11:21 AM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Reading failures" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reading failures</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>BehaviorTrace analyzes production and offline trajectories. Issue detectors and clustering group shared failures before an LLM drafts a coverage-checked task.
+
+[11:55](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=715s) [A trajectory moves through BehaviorTrace, issue detection, clustering, and task drafting.](https://assets.ai.engineer/sites/aiecode2025/sha256/f591b32036267e87e5a10e07f896684dbd48c90f2ba47f21a5e964e4c4a9d172.webp)
+
+HOW WE READ FAILURES
+
+Every trajectory becomes a diagnosable object.
+
+Trajectory
+Every turn, from Weave
+→
+BehaviorTrace
+symbolic · features · vector views
+→
+Issue detectors
+deterministic taxonomy
+→
+Cluster
+by shared failure
+→
+Draft a task
+LLM · coverage-checked
+
+A wall of logs becomes a structured, queryable failure — and that structured failure is exactly what the flywheel consumes next.
+
+source: factory/behaviortrace/core.py (symbolic + interpretable + vector) · docs/behaviortrace-framework.md (issue taxonomy) · eval_proposal.py::build_eval_proposals
+WBAF &amp; the Flywheel · AIE World's Fair — W&amp;B Expo
+8 / 10
+
+Interface text:
+Chrome File Edit View History Bookmarks Profiles Tab Window Help
+File /Users/zaysola/wandb/labs/ai-engineer-preso/wbaf-flywheel.html
+Ask Gemini · Work
+aria-researches
+wandb-agent-p[illegible]
+wbagent-experi[illegible]
+WandBAgentFac[illegible]
+AIE World's Fair
+WBAF &amp; the [illegible]
+← → or space · F fullscreen
+Thu Jul 2 11:22 AM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="The production feedback loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The production feedback loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A production miss becomes a task for WBAgent: the team diagnoses it, iterates on a candidate, benchmarks it against a baseline, and ships a fix. Steps 1–2 are automated; steps 3–5 involve a human today.
+
+[12:17](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=737s) [A five-step loop turns a production miss into diagnosis, iteration, benchmarking, and a production change.](https://assets.ai.engineer/sites/aiecode2025/sha256/9af2c551482739712cc2e25a51ada9a3efd6a39fb4855630081547fc049eea67.webp)
+
+THE FLYWHEEL
+
+Every production miss becomes a test — then a fix.
+
+01 Production miss
+a real failure, seen in Weave
+
+02 Diagnose &amp; propose
+BehaviorTrace clusters + drafts a task
+
+03 Iterate the candidate
+skill · prompt · config
+
+04 Benchmark vs baseline
+regression gate, in the sandboxes
+
+05 PR into wandb/core
+→ ships to production
+
+WBAgent
+closes its own loop
+
+steps 1–2 automated (BehaviorTrace + LLM) · steps 3–5 human-in-the-loop today · fully autonomous = RAVO (research north star)
+
+source: factory/behaviortrace + [illegible]
+
+Interface text:
+File /Users/zaysola/wandb/labs/ai-engineer-preso/wbaf-flywheel.html
+WBAF &amp; the Flywheel · AIE World's Fair — W&amp;B Expo
+9 / 10</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Candidate evaluation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Candidate evaluation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The candidate evaluation shows one example: it passed, with an average score of 0.996. The task asks the agent to explain what happened in a nanochat run using its logs.
+
+[13:16](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=796s) [Evaluation view showing a 0.996 average score and 100% passed.](https://assets.ai.engineer/sites/aiecode2025/sha256/1ceea16aa972e5965786dbed7c11bdae0e54694fcb5c0c545978e43e8a1f05e3.webp)
+
+prod-trace-nanochat-log-query__core_wb_agent.candidate
+
+Evaluation
+Runtime: 1m52s
+Created on: 1 hour ago
+Created by: Zubin Aysola
+prod-trace-nanochat-log-query-evaluation:v1
+core_wb_agent.candidate-runner:v0
+prod-trace-nanochat-log-query:v0
+
+Scorers
+output
+succeeded 100.0%
+scorer
+passed 100.0%
+score 0.996 avg
+row_summary
+model_latency 97.68 avg
+
+Select a scorer from the sidebar to view its distribution and filter examples
+
+1 examples
+#1
+name
+prod-trace/nanochat-log-query
+instruction
+You are on the W&amp;B Logs tab for run `uoui38bv` in project `wandb/nanochat`. Query this log and explain what happened. Page context: - URL: https://wandb.ai/wan...
+output: trajectory
+[{&quot;role&quot;:&quot;user&quot;,&quot;content&quot;:&quot;You are on the W&amp;B Logs tab for run `uoui38bv` in project `wandb/nanochat`.\nQuery this log and explain what happened.\n\nPage conte...
+
+Interface text:
+wandb &gt; Projects &gt; aria-researches-aria &gt; Evaluations
+Evaluations
+Reset view
+Save view
+Compare
+All evaluations
+Evaluation
+Call
+Feedback
+Summary
+Use
+Trace
+Feedback
+Status
+View traces
+View results
+Most failing first
+Project
+Workspace
+Runs
+More
+Agents
+Traces
+Evals
+Playground
+Monitors
+Support
+1–7 of 7</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Trace-to-evaluation report" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Trace-to-evaluation report</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo turns a production support trace into a regression task. Both agents pass, with the candidate scoring 0.9960 versus production’s 0.9933; the report recommends using supported Weave primitives to replace the invalid logging call.
+
+[13:25](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=805s) [Report introducing the demo and comparing production and candidate scores.](https://assets.ai.engineer/sites/aiecode2025/sha256/ce98455d54ad9461a763b2ab6633f981a03f341b726a7d6174af322047501c33.webp)
+
+Last updated: July 2, 2026
+
+ARIA researches ARIA: trace → eval → hillclimb
+
+🔥 The live demo in one sentence
+
+We mine a real production WB Agent trace, turn it into a WBAF regression task, run production vs candidate, and use the resulting Weave Evaluation to choose the next agent hillclimb.
+
+Verdict | Production | Candidate | Delta
+Score | 0.9933 | 0.9960 | +0.0027
+Passed | True | True | —
+Must-pass OK | True | True | —
+
+Punchline: candidate narrowly wins, both pass, and the remaining improvement is crisp: explicitly recommend supported Weave primitives when replacing invalid weave.log(...).
+
+💡 Demo beat: this is not a toy benchmark — it starts from a real production support trace and becomes a reusable regression eval.
+
+1. The production trace we turned into a task
+
+• Source trace: https://wandb.ai/wb-agent-team/wandb-agent-prod/weave/agents/conversations/019f2387-5343-7860-afa7-1b87b46d7ff0?filters[custom_attrs_string:wb_agent.wandb_organization]=wandb
+• User problem: diagnose a failed wandb/nanochat run from Logs-tab data.
+• Run: wandb/nanochat/uoui38bv
+• Root cause: AttributeError: module 'weave' has no attribute 'log'
+• Failure site: /workspace/nanochat/core_eval.py:200, inside
+
+Interface text:
+Chrome; File; Edit; View; History; Bookmarks; Profiles; Tab; Window; Help
+wandb.ai/wandb/aria-researches-aria/reports/ARIA-researches-ARIA-—-trace-to-eval-demo--[illegible]
+Ask Gemini; Work
+wandb › Projects › aria-researches-aria › Reports › ARIA researches ARIA — tr...
+Zubin Aysola; wandb
+aria-researches; ARIA researc...; wandb-agent-p...; wbagent-experi...; WandBAgentFac...; AIE World's Fair...; WBAF &amp; the Fly...</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Next improvement target" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Next improvement target</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The proposed hillclimb asks the candidate to name supported replacements for invalid weave.log(...) calls. Both agents locate the exception; recommendation specificity is the only non-perfect rubric item.
+
+[13:52](https://www.youtube.com/watch?v=XyV6bSMyq-I&amp;t=832s) [A report recommends naming supported Weave alternatives and explains why the change is a small improvement.](https://assets.ai.engineer/sites/aiecode2025/sha256/1db76c74fa04f979c9214e0bdfa3e81878758642e3b01e9894daeaa1bc5c32c4.webp)
+
+5. Hillclimb target
+
+The next candidate patch is small:
+
+When diagnosing invalid weave.log(...), explicitly name supported Weave alternatives: weave.attributes(...), weave.get_current_call(), or weave.log_call(...), depending on the user's intent.
+
+Why this is a good hillclimb:
+- all must-pass behaviors already work;
+- both agents correctly query logs and locate the exception;
+- the only non-perfect rubric item is recommendation specificity;
+- the candidate already edges production, so this is a safe polish patch.
+
+Links:
+- Weave Evaluations: https://wandb.ai/wandb/aria-researches-aria/weave/evaluations
+- Report asset run: https://wandb.ai/wandb/aria-researches-aria/runs/[illegible]
+- Persistent artifact: wandb/aria-researches-aria/wbaf-rapid-refresher:latest
+
+6. Meta task: ARIA researches this demo live
+
+This turns the demo into a self-referential eval: the agent is dropped into wandb/aria-researches-aria and must rediscover the demo package from live W&amp;B / Weave data.
+
+Persisted paths in wandb/aria-researches-aria/wbaf-rapid-refresher:latest:
+
+Interface text:
+Chrome
+wandb &gt; Projects &gt; aria-researches-aria &gt; Reports &gt; ARIA researches ARIA — tr...
+Ask Gemini
+Work
+Zubin Aysola
+wandb
+1-1 of 1</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">当智能体和它的基准一起变化</a></li><li><a href="#sec-2">一次生产对话变成一个实验</a></li><li><a href="#sec-3">把已部署的智能体留在研究循环里</a></li><li><a href="#sec-4">在运行智能体之前先构建环境</a></li><li><a href="#sec-5">测试用户流程，再保留有用的行为</a></li><li><a href="#sec-6">演示发现了一个 SDK 错误并生成了一个针对性的候选</a></li><li><a href="#sec-7">自动化把改进决策留给人</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">我们如何构建了一个能自我改进的智能体</h2>
+      <div class="lede"><p>Zubin Aysola 讲解了 Weights &amp; Biases 如何把 ARIA 的生产 trace 变成离线评测任务，把候选变体与已部署的智能体进行比较，并用结果指导下一次改进。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="16">▶ 0:16</button></div>
+      <h3>当智能体和它的基准一起变化</h3>
+      <p>An agent harness changes what a model can accomplish: the tools it receives, the context it sees, and the way its work is packaged all affect performance. At Weights &amp; Biases, Zubin Aysola’s team builds <strong>ARIA</strong> to do research inside the platform. Improving that agent creates a measurement problem almost immediately. Benchmarks, evaluations, and agent configurations all change together. A higher score can reflect a better agent, a different test, or a different way of judging the result.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/a069bf0457ec5ae56c9fbd44776ce8866abcc1d9543a51d0d571febc4d60e597" alt="Source frame: When the agent and its benchmark change together" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Source frame: When the agent and its benchmark change together</figcaption></figure>
+<p>The useful comparison spans two environments: the deployed agent handling real requests and the offline agent working through simulations. Those simulations need to reproduce enough of production to make improvements meaningful outside the benchmark. This is the familiar simulation-to-real-world problem applied to software agents: success in a constructed environment matters only insofar as it carries into actual use.</p>
+<p><a href="https://wandb.ai/site/weave" target="_blank" rel="noopener">W&amp;B Weave</a> connects the two sides through tracing. Offline runs record ARIA’s behavior in simulated environments; production runs log the same kinds of information in the same format. That shared representation lets a production conversation become material for an offline experiment. Once ARIA can inspect traces and run those experiments itself, it can participate in the research loop used to improve its own behavior.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="174">▶ 2:54</button></div>
+      <h3>一次生产对话变成一个实验</h3>
+      <p>The live demonstration begins with a project for ARIA researching itself. ARIA receives a codebase stored as a Weights &amp; Biases artifact and a request to work against the offline evaluation framework. Its job is to inspect production traces, add tasks, run experiments, and try a new variant. The evaluations take time, so the research continues while the presentation moves on.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/1a0280f921c5333889c86aa83dddfab7cb10795568e90c01db9d6c2456b102ad" alt="Source frame: A production conversation becomes an experiment" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Source frame: A production conversation becomes an experiment</figcaption></figure>
+<p>A second conversation gives the loop a concrete input: take a trace already logged in Weave, put it into the offline evaluations, and run both the candidate and production agents on it. The original interaction now serves two purposes. It records what happened in production, and it supplies a task on which competing versions can be compared. As the evaluations run, their traces appear in Weave too.</p>
+<p>This is also the team’s recurring workflow: inspect production traces, evaluate changes in the offline sandbox, and work together to deploy new agent versions. Nightly CI evaluates the production configuration alongside candidate variants, providing a history of relative performance. That infrastructure needs attention of its own; Aysola notes that CI had broken and ARIA had helped fix it the previous night.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="313">▶ 5:13</button></div>
+      <h3>把已部署的智能体留在研究循环里</h3>
+      <p>The team mostly improves prompts and skills rather than training the agent with reinforcement learning. Strong underlying models already perform useful platform tasks. The research discipline still borrows from simulation-based learning: define environments carefully, run the agent through them, inspect its trajectory, and adjust behavior against measured results.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/76e8f3daa1f8a70840a4d1bc477ebfead807aee7c264acd36745a39266f43441" alt="Source frame: Keep the deployed agent inside the research loop" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Source frame: Keep the deployed agent inside the research loop</figcaption></figure>
+<p>The baseline is a byte-for-byte identical agent in production and simulation. Research and production use the same code, with a synchronization job every four hours intended to prevent the research environment from drifting away as people create new variants and skills. This removes one avoidable source of confusion: an offline improvement should be tested against the agent actually being deployed.</p>
+<p>Evaluation commands produce scored trajectories: records of the agent’s rollout over time, accompanied by performance metrics. These give the team something more useful than a final answer alone. A person can inspect a rollout, or ARIA can review its own or another rollout, identify what went well or badly, and propose prompting changes that encourage the desired behavior.</p>
+<p>The harness makes experimentation cheap to express. A model-agnostic software stack handles context preparation, compaction, and UI payload assembly. YAML defines different agent configurations, allowing multiple variants to run in parallel. An intuition about a better prompt or model becomes a candidate that can be compared with alternatives. The preference is straightforward: make it easy to run more experiments.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="484">▶ 8:04</button></div>
+      <h3>在运行智能体之前先构建环境</h3>
+      <p>ARIA’s sandbox gives it broad room to execute work. While preparing the presentation, Aysola asked it to create an environment for parallel executions of its own research loop—a capability he had not been certain it could perform. The attraction is that a general execution environment can support useful behavior that was not individually designed into a narrow tool interface.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/13f0f35da854b7fd7079f54ab8c3aa85a5b249316b4282ce6dc98cb432d62afc" alt="Source frame: Build the environment before running the agent" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Source frame: Build the environment before running the agent</figcaption></figure>
+<p>A general sandbox still needs a repeatable evaluation setup. The pipeline begins with YAML, loads the live data required by the task, and constructs the environment. That setup can be expensive: tasks may involve full machine-learning training logs, substantial production data, or simulated GPU executions for research work. Parallelizing preparation can therefore matter before the agent even starts.</p>
+<p>Why load configuration twice? Some runtime configuration cannot be encoded in the initial YAML specification. After creating the environment, the pipeline puts that runtime data back into the configuration, then runs the production-identical agent and scores the result. The diagram makes this dependency visible: execution waits for both the declared task and the environment’s runtime configuration.</p>
+<p>Scoring has two distinct jobs:</p>
+<p>- <strong>Task completion:</strong> A pass/fail judgment asks whether the agent satisfied the task.
+- <strong>Relative behavior:</strong> A comparison asks which variant behaves better. For example, one variant may ask the user questions while another proceeds without asking; relative scoring helps compare those interaction styles.</p>
+<p>The team also examines how evaluations drift from production. Identical agent code helps, but the environments and judgments still need scrutiny.</p>
+<p>Finally, each run tears down its environment. Cleanup makes repeated parallel experiments possible without clobbering teammates’ work. The full unit of evaluation includes preparation and teardown, as well as the agent call and score.</p>
+<p>From declared task to scored execution
+Environment preparation supplies runtime configuration that the initial YAML cannot contain. Scoring and teardown follow the agent rollout.
+- YAML configuration — Declare the evaluation configuration.
+- Hydrate and prepare — Load required live data and create the environment.
+- Add runtime configuration — Put data unavailable in the initial YAML back into the configuration.
+- Run the agent — Execute the same agent version used in production.
+- Score the rollout — Measure task completion and compare variant behavior.
+- Tear down — Allow fresh runs without interfering with teammates.
+- YAML configuration → Hydrate and prepare (Load task data)
+- Hydrate and prepare → Add runtime configuration (Resolve runtime configuration)
+- Add runtime configuration → Run the agent (Complete configuration)
+- Run the agent → Score the rollout (Evaluate results)
+- Score the rollout → Tear down (Finish the run)</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="647">▶ 10:47</button></div>
+      <h3>测试用户流程，再保留有用的行为</h3>
+      <p>An evaluation task describes a starting environment, user configuration, and desired ending condition. That makes the task a user flow with an outcome, rather than a prompt considered in isolation. Two concrete forms appear in the walkthrough:</p>
+<p>- <strong>Single-request tasks:</strong> A text instruction asks ARIA to perform work, such as the research request being converted from the live production trace.
+- <strong>Simulated conversations:</strong> A language model takes a user persona and asks questions in a specified order, creating multi-turn interactions with ARIA.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/1b47b766abb241960c80f91a6682f27f338dca864251f04d42b35df2dab41fca" alt="Source frame: Test user flows, then preserve useful behavior" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Source frame: Test user flows, then preserve useful behavior</figcaption></figure>
+<p>The team has 886 tasks, categorized by levels and exposed to the product team for review. Product judgment helps determine whether those tasks represent behavior worth measuring. Repeated runs then produce trajectories that can be examined across production and offline environments. Aysola sees conceptual guidance as an existing strength and project error analysis as an area to improve, so the suite includes difficult tasks that push those capabilities.</p>
+<p>Failures supply new tasks, but successful production behavior does too. A good interaction is something to preserve and reinforce while changing the agent elsewhere. The evaluation flywheel therefore draws from both kinds of experience: capture behavior, turn it into a task, and use the task to guide the next variant.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="770">▶ 12:50</button></div>
+      <h3>演示发现了一个 SDK 错误并生成了一个针对性的候选</h3>
+      <p>Returning to the demo reveals the observable change: the production trace has become a new task, and ARIA has run and scored it. The research agent also generates a report linking its work. A conversation that previously existed as production history now has an offline evaluation counterpart, including a run of the production variant.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/04f42eb751f96d68d4c8977ab773babdb661f2380b8a6ac7cf72f45f7ace6691" alt="Source frame: The demo finds an SDK error and creates a targeted candidate" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Source frame: The demo finds an SDK error and creates a targeted candidate</figcaption></figure>
+<p>The regression task exposes a specific problem: improper use of the SDK call <code>weave.log</code> in the sandbox. ARIA reproduces the source trace, identifies a target for improvement, and runs agent variants against it. The closing inspection describes the candidate as a small prompt added to the system prompt or a skill to address that SDK error. The demonstrated change is therefore a targeted instruction change; the walkthrough does not establish a source-code patch or quantify a candidate-versus-production gain.</p>
+<p>How does that error become something the agent can improve? The diagram follows the same interaction from a recorded failure to a repeatable task and competing executions. The important relationship is the shared test: the proposed instruction change is evaluated against the production variant on the regression task derived from the original trace.</p>
+<p>This changes the day-to-day research workflow. Instead of repeatedly writing offline benchmarks by hand, Aysola moves between incoming production traces and the team’s offline evaluations, asking what changed in a skill or variant and inspecting the resulting runs. ARIA handles more of the task construction and execution; the researcher keeps choosing which behavior deserves attention.</p>
+<p>One SDK error, two agent variants
+The production trace supplies a regression task. The current agent and a candidate with a targeted instruction change are tested against that task.
+- Production trace — Recorded interaction exposes improper weave.log usage in the sandbox.
+- Regression task — ARIA converts the trace into an offline task and reproduces it.
+- Production variant — Run the current agent on the task.
+- Candidate variant — Add a targeted prompt to the system prompt or a skill for the SDK error.
+- Scored runs and report — Inspect executions and compare production with the candidate.
+- Production trace → Regression task (Convert and reproduce)
+- Regression task → Production variant (Benchmark current behavior)
+- Regression task → Candidate variant (Test targeted change)
+- Production variant → Scored runs and report (Production result)
+- Candidate variant → Scored runs and report (Candidate result)</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="882">▶ 14:42</button></div>
+      <h3>自动化把改进决策留给人</h3>
+      <p>“Auto mode” is tempting: let the agent write the implementation, run the evaluations, and do everything it can. Aysola describes relying on Claude to write his code, but the convenience does not remove the need to think through improvements. Automating execution frees time for the harder questions: what should become better, which behavior matters, and how should the system be constrained?</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/6fbe76e532aeaae6c53f94980a42a1a65882b49db0573ab425d68f84fcae6e21" alt="Source frame: Automation leaves the improvement decision with people" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Source frame: Automation leaves the improvement decision with people</figcaption></figure>
+<p>The same research capabilities extend to machine-learning work; Aysola mentions other demonstrations of ARIA training models on H200 GPUs. For this example, though, the practical gain is keeping production observation, offline experiments, and ongoing agent research together. ARIA runs evaluations on the researcher’s behalf while the researcher considers which guardrails will make the system more useful.</p>
+<p>The final inspection returns to the actual execution: prediction and scoring work, tool calls, and the candidate’s small prompt change for the SDK error. That is the concrete meaning of an agent improving itself here. Production supplies an interaction to reproduce; simulation makes it testable; the agent proposes and evaluates a change. People still shape the improvement pattern that this machinery follows.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Use the deployed agent as the offline baseline, and keep research code synchronized with production so experiments measure relevant behavior.</li><li>Score both task completion and relative behavior: passing a task and choosing a better interaction style answer different questions.</li><li>Turn successful production interactions into tasks alongside failures, so future changes can reinforce behavior worth keeping.</li><li>ARIA’s demonstrated self-improvement loop reproduces a production SDK error, creates a regression task, and tests a targeted prompt or skill change.</li><li>Automating task construction and evaluation leaves people responsible for deciding what improvement means and which guardrails help.</li></ul></section>
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://wandb.ai/site/weave" target="_blank" rel="noopener">W&amp;B Weave</a> — The tracing platform used in the walkthrough to connect production interactions with offline agent rollouts and evaluation results.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="16"><span class="ts">0:16</span><span class="tx">Okay. Hello. Thank you for showing up.</span></div><div class="tline" data-t="19"><span class="ts">0:19</span><span class="tx">Uh my name is Zuben Isola. Uh I work at</span></div><div class="tline" data-t="22"><span class="ts">0:22</span><span class="tx">Weights and Biases. I'm building the</span></div><div class="tline" data-t="24"><span class="ts">0:24</span><span class="tx">Arya agent which is something that we</span></div><div class="tline" data-t="25"><span class="ts">0:25</span><span class="tx">released to general availability on</span></div><div class="tline" data-t="28"><span class="ts">0:28</span><span class="tx">Monday. You might have seen Tim's talk</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">uh one of the pe my peers at Weights and</span></div><div class="tline" data-t="31"><span class="ts">0:31</span><span class="tx">Biases who I work with uh on the main</span></div><div class="tline" data-t="33"><span class="ts">0:33</span><span class="tx">stage yesterday. So I'm going to give</span></div><div class="tline" data-t="35"><span class="ts">0:35</span><span class="tx">you a little bit of a deep dive into how</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">we evaluate and build the Arya agent uh</span></div><div class="tline" data-t="39"><span class="ts">0:39</span><span class="tx">and in particular uh the evaluation</span></div><div class="tline" data-t="41"><span class="ts">0:41</span><span class="tx">framework that we use and how we use</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">Arya to sort of self-reinforce itself in</span></div><div class="tline" data-t="44"><span class="ts">0:44</span><span class="tx">the loop of doing research for itself uh</span></div><div class="tline" data-t="47"><span class="ts">0:47</span><span class="tx">and talk about some weights and biases</span></div><div class="tline" data-t="49"><span class="ts">0:49</span><span class="tx">things. So yeah, this is a rip from some</span></div><div class="tline" data-t="51"><span class="ts">0:51</span><span class="tx">of the slides that I presented at</span></div><div class="tline" data-t="52"><span class="ts">0:52</span><span class="tx">Nurups, but uh I think there's some</span></div><div class="tline" data-t="54"><span class="ts">0:54</span><span class="tx">interesting things about like using uh</span></div><div class="tline" data-t="56"><span class="ts">0:56</span><span class="tx">agentic harnesses. I I imagine most</span></div><div class="tline" data-t="58"><span class="ts">0:58</span><span class="tx">people in the audience or at this</span></div><div class="tline" data-t="59"><span class="ts">0:59</span><span class="tx">conference are all excited to build</span></div><div class="tline" data-t="61"><span class="ts">1:01</span><span class="tx">agent harnesses or maybe use cloud code</span></div><div class="tline" data-t="63"><span class="ts">1:03</span><span class="tx">with skills in a variety of different</span></div><div class="tline" data-t="64"><span class="ts">1:04</span><span class="tx">packages, but there's, you know, pretty</span></div><div class="tline" data-t="66"><span class="ts">1:06</span><span class="tx">strong differences in the way that you</span></div><div class="tline" data-t="67"><span class="ts">1:07</span><span class="tx">package these AI agents if you use them</span></div><div class="tline" data-t="69"><span class="ts">1:09</span><span class="tx">with different tool calls, etc. on a</span></div><div class="tline" data-t="71"><span class="ts">1:11</span><span class="tx">variety of different benchmarks. And so</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">inspired by that, we're doing some work</span></div><div class="tline" data-t="74"><span class="ts">1:14</span><span class="tx">at Weights and Biases to build our own</span></div><div class="tline" data-t="75"><span class="ts">1:15</span><span class="tx">agent harness to do research for you in</span></div><div class="tline" data-t="77"><span class="ts">1:17</span><span class="tx">the weights and biases platform. Um, you</span></div><div class="tline" data-t="79"><span class="ts">1:19</span><span class="tx">know, and then there's probably some</span></div><div class="tline" data-t="80"><span class="ts">1:20</span><span class="tx">other things that I don't need to</span></div><div class="tline" data-t="81"><span class="ts">1:21</span><span class="tx">convince people of as to like why we</span></div><div class="tline" data-t="83"><span class="ts">1:23</span><span class="tx">want software agents and why a software</span></div><div class="tline" data-t="85"><span class="ts">1:25</span><span class="tx">harness as opposed to like just letting</span></div><div class="tline" data-t="86"><span class="ts">1:26</span><span class="tx">the, you know, LM run free and call</span></div><div class="tline" data-t="88"><span class="ts">1:28</span><span class="tx">tools or whatever else. Uh, but that's</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">not for here. Uh, but one big problem</span></div><div class="tline" data-t="92"><span class="ts">1:32</span><span class="tx">presents itself, which is basically the</span></div><div class="tline" data-t="94"><span class="ts">1:34</span><span class="tx">thing that I go to bed thinking about</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">every day, which is, you know,</span></div><div class="tline" data-t="98"><span class="ts">1:38</span><span class="tx">benchmarks, evaluations, the agents, and</span></div><div class="tline" data-t="100"><span class="ts">1:40</span><span class="tx">how you configure them are all</span></div><div class="tline" data-t="101"><span class="ts">1:41</span><span class="tx">covariant. And so like if you're trying</span></div><div class="tline" data-t="103"><span class="ts">1:43</span><span class="tx">to apply principled evaluations to any</span></div><div class="tline" data-t="105"><span class="ts">1:45</span><span class="tx">sort of system that dynamically changes,</span></div><div class="tline" data-t="107"><span class="ts">1:47</span><span class="tx">you need to have good measurement to see</span></div><div class="tline" data-t="109"><span class="ts">1:49</span><span class="tx">how the system actually performs. And</span></div><div class="tline" data-t="111"><span class="ts">1:51</span><span class="tx">you really want to see how the system</span></div><div class="tline" data-t="112"><span class="ts">1:52</span><span class="tx">performs in both your production</span></div><div class="tline" data-t="113"><span class="ts">1:53</span><span class="tx">environment and your offline</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">environment. Uh you know if you're RLP</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">build from a long time ago, you might</span></div><div class="tline" data-t="119"><span class="ts">1:59</span><span class="tx">think about like the sim tore gap uh</span></div><div class="tline" data-t="121"><span class="ts">2:01</span><span class="tx">which is like basically how do we</span></div><div class="tline" data-t="122"><span class="ts">2:02</span><span class="tx">translate simulation environments into</span></div><div class="tline" data-t="123"><span class="ts">2:03</span><span class="tx">the real world environments etc. Uh and</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">so there's sort of two things that I'll</span></div><div class="tline" data-t="127"><span class="ts">2:07</span><span class="tx">talk about uh and then give a live demo</span></div><div class="tline" data-t="129"><span class="ts">2:09</span><span class="tx">of which is weights and biases weave for</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">agents which is basically in my opinion</span></div><div class="tline" data-t="133"><span class="ts">2:13</span><span class="tx">at least the best observability platform</span></div><div class="tline" data-t="135"><span class="ts">2:15</span><span class="tx">for both production and offline tracing</span></div><div class="tline" data-t="137"><span class="ts">2:17</span><span class="tx">of agents. So I use it predominantly</span></div><div class="tline" data-t="140"><span class="ts">2:20</span><span class="tx">from the offline side where I build</span></div><div class="tline" data-t="142"><span class="ts">2:22</span><span class="tx">simulation environments run the Arya</span></div><div class="tline" data-t="143"><span class="ts">2:23</span><span class="tx">agent over them and then track them in</span></div><div class="tline" data-t="145"><span class="ts">2:25</span><span class="tx">weave and my entire team does that as</span></div><div class="tline" data-t="147"><span class="ts">2:27</span><span class="tx">well. So I can see all of our</span></div><div class="tline" data-t="148"><span class="ts">2:28</span><span class="tx">performance in offline metrics. And then</span></div><div class="tline" data-t="150"><span class="ts">2:30</span><span class="tx">the other half of my team works on the</span></div><div class="tline" data-t="151"><span class="ts">2:31</span><span class="tx">production side of things, deploying the</span></div><div class="tline" data-t="153"><span class="ts">2:33</span><span class="tx">agent, logging the same things in the</span></div><div class="tline" data-t="154"><span class="ts">2:34</span><span class="tx">exact same format so that I can rip</span></div><div class="tline" data-t="156"><span class="ts">2:36</span><span class="tx">those production traces into our</span></div><div class="tline" data-t="158"><span class="ts">2:38</span><span class="tx">environments and then hill climb on them</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">or resolve our errors. And it's a pretty</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">nice flywheel. And then obviously the</span></div><div class="tline" data-t="163"><span class="ts">2:43</span><span class="tx">other thing that I'm here to talk about</span></div><div class="tline" data-t="164"><span class="ts">2:44</span><span class="tx">is Arya, the weights and devices agent</span></div><div class="tline" data-t="165"><span class="ts">2:45</span><span class="tx">itself, which is basically the thing</span></div><div class="tline" data-t="167"><span class="ts">2:47</span><span class="tx">that we use to now build itself because</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">it's sophisticated enough that it can</span></div><div class="tline" data-t="170"><span class="ts">2:50</span><span class="tx">actually do that offline hill climbing</span></div><div class="tline" data-t="172"><span class="ts">2:52</span><span class="tx">uh by itself. So I'm going to just jump</span></div><div class="tline" data-t="174"><span class="ts">2:54</span><span class="tx">into a super quick live demo and then</span></div><div class="tline" data-t="175"><span class="ts">2:55</span><span class="tx">we'll talk through some other slides uh</span></div><div class="tline" data-t="177"><span class="ts">2:57</span><span class="tx">about how we built the offline</span></div><div class="tline" data-t="178"><span class="ts">2:58</span><span class="tx">evaluation framework. So if you hop into</span></div><div class="tline" data-t="180"><span class="ts">3:00</span><span class="tx">the weights and biases platform, this is</span></div><div class="tline" data-t="182"><span class="ts">3:02</span><span class="tx">a demo project that I called Arya</span></div><div class="tline" data-t="184"><span class="ts">3:04</span><span class="tx">researches Arya here. Uh and I'm just</span></div><div class="tline" data-t="186"><span class="ts">3:06</span><span class="tx">going to chat to Arya and ask it to</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">basically do auto research for itself.</span></div><div class="tline" data-t="190"><span class="ts">3:10</span><span class="tx">And so this is a relatively long prompt</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">that I had it generate in actually one</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">of these other sessions. Um but if we</span></div><div class="tline" data-t="195"><span class="ts">3:15</span><span class="tx">look at it, what it's going to do is</span></div><div class="tline" data-t="196"><span class="ts">3:16</span><span class="tx">it's going to take my codebase that is</span></div><div class="tline" data-t="198"><span class="ts">3:18</span><span class="tx">logged as a weights and biases artifact</span></div><div class="tline" data-t="199"><span class="ts">3:19</span><span class="tx">uh which we can see over here. It's</span></div><div class="tline" data-t="202"><span class="ts">3:22</span><span class="tx">going to launch training jobs uh against</span></div><div class="tline" data-t="204"><span class="ts">3:24</span><span class="tx">this codebase which is our offline</span></div><div class="tline" data-t="205"><span class="ts">3:25</span><span class="tx">evaluation framework. It's going to</span></div><div class="tline" data-t="207"><span class="ts">3:27</span><span class="tx">review production traces that we have,</span></div><div class="tline" data-t="209"><span class="ts">3:29</span><span class="tx">add new tasks to hill climb against uh</span></div><div class="tline" data-t="211"><span class="ts">3:31</span><span class="tx">and do stuff like that. And so, you</span></div><div class="tline" data-t="213"><span class="ts">3:33</span><span class="tx">know, this thing's going to cook for a</span></div><div class="tline" data-t="214"><span class="ts">3:34</span><span class="tx">little bit. The evaluations take a</span></div><div class="tline" data-t="215"><span class="ts">3:35</span><span class="tx">little bit of time to run. And so, we'll</span></div><div class="tline" data-t="217"><span class="ts">3:37</span><span class="tx">see Arya uh basically try to write a new</span></div><div class="tline" data-t="219"><span class="ts">3:39</span><span class="tx">variant for itself. The other side of</span></div><div class="tline" data-t="221"><span class="ts">3:41</span><span class="tx">this equation, right, is the production</span></div><div class="tline" data-t="223"><span class="ts">3:43</span><span class="tx">side of things. And so, this is a</span></div><div class="tline" data-t="225"><span class="ts">3:45</span><span class="tx">sanitized view of internal customer</span></div><div class="tline" data-t="227"><span class="ts">3:47</span><span class="tx">traces or internal traces on Arya. So</span></div><div class="tline" data-t="229"><span class="ts">3:49</span><span class="tx">we'll actually see very quickly uh that</span></div><div class="tline" data-t="231"><span class="ts">3:51</span><span class="tx">Arya will actually pop up here the exact</span></div><div class="tline" data-t="233"><span class="ts">3:53</span><span class="tx">conversation that we're running um right</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">here. But in this trace I'm going to use</span></div><div class="tline" data-t="238"><span class="ts">3:58</span><span class="tx">this as an opportunity to take one of</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">these production traces that are logged</span></div><div class="tline" data-t="241"><span class="ts">4:01</span><span class="tx">in weave and put them into my offline</span></div><div class="tline" data-t="243"><span class="ts">4:03</span><span class="tx">evaluation framework so that I can hill</span></div><div class="tline" data-t="245"><span class="ts">4:05</span><span class="tx">climb on them. And so I'm just going to</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">do that live. We'll ask you know for a</span></div><div class="tline" data-t="247"><span class="ts">4:07</span><span class="tx">relatively simple task. Um this is going</span></div><div class="tline" data-t="249"><span class="ts">4:09</span><span class="tx">to be a little interesting because it's</span></div><div class="tline" data-t="250"><span class="ts">4:10</span><span class="tx">going to be slightly self-referential</span></div><div class="tline" data-t="252"><span class="ts">4:12</span><span class="tx">but I'll go here. I'll pop up in a new</span></div><div class="tline" data-t="255"><span class="ts">4:15</span><span class="tx">Arya tab and I'll just ask it hey take</span></div><div class="tline" data-t="257"><span class="ts">4:17</span><span class="tx">this trace log it into our offline evals</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">I don't think spelling matters too much</span></div><div class="tline" data-t="263"><span class="ts">4:23</span><span class="tx">and then run the candidate and</span></div><div class="tline" data-t="266"><span class="ts">4:26</span><span class="tx">production agent on it</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">and we'll have it cook for that as well</span></div><div class="tline" data-t="271"><span class="ts">4:31</span><span class="tx">and we'll see those evaluations get</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">logged into weave as they're running um</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">so that's basically the tight version of</span></div><div class="tline" data-t="276"><span class="ts">4:36</span><span class="tx">what I do basically every day which is</span></div><div class="tline" data-t="278"><span class="ts">4:38</span><span class="tx">look at production traces in our weights</span></div><div class="tline" data-t="279"><span class="ts">4:39</span><span class="tx">and biases weave platform run</span></div><div class="tline" data-t="281"><span class="ts">4:41</span><span class="tx">evaluations in our codebase which is our</span></div><div class="tline" data-t="283"><span class="ts">4:43</span><span class="tx">offline client evaluation sandbox uh and</span></div><div class="tline" data-t="285"><span class="ts">4:45</span><span class="tx">then deploy new versions of the agent uh</span></div><div class="tline" data-t="287"><span class="ts">4:47</span><span class="tx">and work with my team to do that. And if</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">we look at our production project, this</span></div><div class="tline" data-t="291"><span class="ts">4:51</span><span class="tx">is, you know, a bunch of traces that we</span></div><div class="tline" data-t="292"><span class="ts">4:52</span><span class="tx">have over the last seven weeks of our</span></div><div class="tline" data-t="293"><span class="ts">4:53</span><span class="tx">nightly uh like CI jobs that run where</span></div><div class="tline" data-t="295"><span class="ts">4:55</span><span class="tx">we evaluate the agent in its production</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">format and other candidate variants that</span></div><div class="tline" data-t="298"><span class="ts">4:58</span><span class="tx">we cut. And so we can see our relative</span></div><div class="tline" data-t="300"><span class="ts">5:00</span><span class="tx">performance over time. Uh like you know,</span></div><div class="tline" data-t="302"><span class="ts">5:02</span><span class="tx">for a while the CI broke, we had Arya</span></div><div class="tline" data-t="304"><span class="ts">5:04</span><span class="tx">have to fix itself last night, but you</span></div><div class="tline" data-t="305"><span class="ts">5:05</span><span class="tx">know, we're getting about like 66%</span></div><div class="tline" data-t="307"><span class="ts">5:07</span><span class="tx">performance on some of the tasks, etc.</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">And so we have a variety of tasks um</span></div><div class="tline" data-t="311"><span class="ts">5:11</span><span class="tx">that we train the agent to do. And so</span></div><div class="tline" data-t="313"><span class="ts">5:13</span><span class="tx">now I'm just going to jump into a</span></div><div class="tline" data-t="314"><span class="ts">5:14</span><span class="tx">material version of the presentation to</span></div><div class="tline" data-t="316"><span class="ts">5:16</span><span class="tx">go a little bit deeper into the theory</span></div><div class="tline" data-t="318"><span class="ts">5:18</span><span class="tx">behind building a simulation environment</span></div><div class="tline" data-t="319"><span class="ts">5:19</span><span class="tx">for offline hill climbing for basically</span></div><div class="tline" data-t="321"><span class="ts">5:21</span><span class="tx">building a software agent where</span></div><div class="tline" data-t="323"><span class="ts">5:23</span><span class="tx">traditionally you might expect that you</span></div><div class="tline" data-t="324"><span class="ts">5:24</span><span class="tx">are really robust if you're doing</span></div><div class="tline" data-t="326"><span class="ts">5:26</span><span class="tx">reinforcement learning but I mostly</span></div><div class="tline" data-t="328"><span class="ts">5:28</span><span class="tx">prompt engineer these days because the</span></div><div class="tline" data-t="329"><span class="ts">5:29</span><span class="tx">sophisticated models are relatively good</span></div><div class="tline" data-t="331"><span class="ts">5:31</span><span class="tx">at performing tasks at weights and</span></div><div class="tline" data-t="332"><span class="ts">5:32</span><span class="tx">biases and so we're really working on</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">building skills for the software agent</span></div><div class="tline" data-t="335"><span class="ts">5:35</span><span class="tx">more than doing reinforcement learning.</span></div><div class="tline" data-t="337"><span class="ts">5:37</span><span class="tx">But I think applying the same</span></div><div class="tline" data-t="338"><span class="ts">5:38</span><span class="tx">methodology to how you build the agent.</span></div><div class="tline" data-t="340"><span class="ts">5:40</span><span class="tx">So the same robustness of how you</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">simulate environments uh is really</span></div><div class="tline" data-t="343"><span class="ts">5:43</span><span class="tx">helpful for our work. So we benchmark a</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">bite-wise identical version of the agent</span></div><div class="tline" data-t="348"><span class="ts">5:48</span><span class="tx">in our production environment and our</span></div><div class="tline" data-t="349"><span class="ts">5:49</span><span class="tx">simulated environment. There's a lot of</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">text on these slides that I and Claude</span></div><div class="tline" data-t="352"><span class="ts">5:52</span><span class="tx">sort of slop out. Uh but you know we'll</span></div><div class="tline" data-t="354"><span class="ts">5:54</span><span class="tx">just go for the graphics. Um so I think</span></div><div class="tline" data-t="356"><span class="ts">5:56</span><span class="tx">the exciting part here is that both</span></div><div class="tline" data-t="358"><span class="ts">5:58</span><span class="tx">using the logging framework from weave</span></div><div class="tline" data-t="359"><span class="ts">5:59</span><span class="tx">as well as just in the way that we've</span></div><div class="tline" data-t="361"><span class="ts">6:01</span><span class="tx">designed the system our research and</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">production code are exactly the same.</span></div><div class="tline" data-t="363"><span class="ts">6:03</span><span class="tx">And in fact, there's like a 4-hour sync</span></div><div class="tline" data-t="365"><span class="ts">6:05</span><span class="tx">job that happens between production to</span></div><div class="tline" data-t="367"><span class="ts">6:07</span><span class="tx">our research environment so that we</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">don't get any drift when you, you know,</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">researchers are cutting new variants of</span></div><div class="tline" data-t="371"><span class="ts">6:11</span><span class="tx">the agent, new skills, etc., and doing</span></div><div class="tline" data-t="372"><span class="ts">6:12</span><span class="tx">their hill climbing. And so, we have</span></div><div class="tline" data-t="374"><span class="ts">6:14</span><span class="tx">this nice little tight loop that</span></div><div class="tline" data-t="375"><span class="ts">6:15</span><span class="tx">basically mirror each other on two sides</span></div><div class="tline" data-t="376"><span class="ts">6:16</span><span class="tx">of the stack from our deployment layer</span></div><div class="tline" data-t="378"><span class="ts">6:18</span><span class="tx">and our offline benchmarking layer. Uh,</span></div><div class="tline" data-t="381"><span class="ts">6:21</span><span class="tx">and then, you know, we expose internally</span></div><div class="tline" data-t="383"><span class="ts">6:23</span><span class="tx">as a team a bunch of run eval commands</span></div><div class="tline" data-t="385"><span class="ts">6:25</span><span class="tx">to generate score trajectories. And so</span></div><div class="tline" data-t="387"><span class="ts">6:27</span><span class="tx">that's what we were talking about with</span></div><div class="tline" data-t="389"><span class="ts">6:29</span><span class="tx">this like large project where we have a</span></div><div class="tline" data-t="390"><span class="ts">6:30</span><span class="tx">bunch of trajectory examples where if I</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">click into one of these, you know, we</span></div><div class="tline" data-t="393"><span class="ts">6:33</span><span class="tx">can see like our relative scores of a</span></div><div class="tline" data-t="395"><span class="ts">6:35</span><span class="tx">variety of different metrics when it</span></div><div class="tline" data-t="396"><span class="ts">6:36</span><span class="tx">loads. Um, but essentially what we get</span></div><div class="tline" data-t="399"><span class="ts">6:39</span><span class="tx">is these super robust traces of the</span></div><div class="tline" data-t="401"><span class="ts">6:41</span><span class="tx">agent rolling out over time. And there's</span></div><div class="tline" data-t="403"><span class="ts">6:43</span><span class="tx">a lot of signal to reap from this. And I</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">think the thesis behind this is generate</span></div><div class="tline" data-t="406"><span class="ts">6:46</span><span class="tx">a ton of traces and then decide</span></div><div class="tline" data-t="408"><span class="ts">6:48</span><span class="tx">what you're going to do with said</span></div><div class="tline" data-t="409"><span class="ts">6:49</span><span class="tx">ton of traces as you try to figure out</span></div><div class="tline" data-t="411"><span class="ts">6:51</span><span class="tx">how the agent performs. you're measuring</span></div><div class="tline" data-t="413"><span class="ts">6:53</span><span class="tx">emergent properties and then trying to</span></div><div class="tline" data-t="415"><span class="ts">6:55</span><span class="tx">align the agent in particular</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">directions. And so the two ways that</span></div><div class="tline" data-t="418"><span class="ts">6:58</span><span class="tx">that happens is I look manually at the</span></div><div class="tline" data-t="420"><span class="ts">7:00</span><span class="tx">tasks or like we would do in that first</span></div><div class="tline" data-t="422"><span class="ts">7:02</span><span class="tx">example, I would ask Arya to review the</span></div><div class="tline" data-t="424"><span class="ts">7:04</span><span class="tx">roll out that it generated for itself or</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">review some other rollout and decide</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">what went wrong or what went well and</span></div><div class="tline" data-t="429"><span class="ts">7:09</span><span class="tx">try to reinforce that behavior through</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">prompting or anything else. Uh and then</span></div><div class="tline" data-t="434"><span class="ts">7:14</span><span class="tx">you know the actual method behind the</span></div><div class="tline" data-t="436"><span class="ts">7:16</span><span class="tx">agent is relatively simple. We want to</span></div><div class="tline" data-t="438"><span class="ts">7:18</span><span class="tx">test on a variety of the different</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">models both models offered through</span></div><div class="tline" data-t="441"><span class="ts">7:21</span><span class="tx">corewave inference models offered</span></div><div class="tline" data-t="443"><span class="ts">7:23</span><span class="tx">through you know the foundation model</span></div><div class="tline" data-t="444"><span class="ts">7:24</span><span class="tx">players etc. And so we define you know a</span></div><div class="tline" data-t="446"><span class="ts">7:26</span><span class="tx">relatively agnostic software stack for</span></div><div class="tline" data-t="448"><span class="ts">7:28</span><span class="tx">how we treat compaction and how we</span></div><div class="tline" data-t="450"><span class="ts">7:30</span><span class="tx">prepare context and how we assemble UI</span></div><div class="tline" data-t="452"><span class="ts">7:32</span><span class="tx">payloads etc. And the again mental</span></div><div class="tline" data-t="454"><span class="ts">7:34</span><span class="tx">pattern behind this is to really try to</span></div><div class="tline" data-t="456"><span class="ts">7:36</span><span class="tx">make it very very simple to have lots of</span></div><div class="tline" data-t="459"><span class="ts">7:39</span><span class="tx">mutations of the exact same</span></div><div class="tline" data-t="460"><span class="ts">7:40</span><span class="tx">configuration. You want to basically</span></div><div class="tline" data-t="462"><span class="ts">7:42</span><span class="tx">YAML define different configurations of</span></div><div class="tline" data-t="463"><span class="ts">7:43</span><span class="tx">the agent to sort of get multiple</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">parallel uh variants and then test them</span></div><div class="tline" data-t="467"><span class="ts">7:47</span><span class="tx">all and see what happens because</span></div><div class="tline" data-t="469"><span class="ts">7:49</span><span class="tx">ultimately you can have insight into how</span></div><div class="tline" data-t="471"><span class="ts">7:51</span><span class="tx">to make the problem better. But if we</span></div><div class="tline" data-t="472"><span class="ts">7:52</span><span class="tx">take an adage from old reinforcement</span></div><div class="tline" data-t="474"><span class="ts">7:54</span><span class="tx">learning training or just simple model</span></div><div class="tline" data-t="475"><span class="ts">7:55</span><span class="tx">training, it's just better to run more</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">experiments than fewer. And so that's</span></div><div class="tline" data-t="480"><span class="ts">8:00</span><span class="tx">the thesis behind the agent harness</span></div><div class="tline" data-t="481"><span class="ts">8:01</span><span class="tx">itself too. And so then you know we talk</span></div><div class="tline" data-t="484"><span class="ts">8:04</span><span class="tx">about like the sandbox stack behind the</span></div><div class="tline" data-t="486"><span class="ts">8:06</span><span class="tx">agent. And I think that you know there's</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">a lot of mentions of code mode here at</span></div><div class="tline" data-t="490"><span class="ts">8:10</span><span class="tx">this conference and other things like</span></div><div class="tline" data-t="491"><span class="ts">8:11</span><span class="tx">that. And one thing that we really want</span></div><div class="tline" data-t="492"><span class="ts">8:12</span><span class="tx">to see happen because we want to build</span></div><div class="tline" data-t="493"><span class="ts">8:13</span><span class="tx">the best product for our customers is to</span></div><div class="tline" data-t="495"><span class="ts">8:15</span><span class="tx">just have a sandbox environment that</span></div><div class="tline" data-t="497"><span class="ts">8:17</span><span class="tx">they can do anything they wanted. So for</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">example prior to yesterday I wasn't</span></div><div class="tline" data-t="502"><span class="ts">8:22</span><span class="tx">entirely certain that Arya was going to</span></div><div class="tline" data-t="503"><span class="ts">8:23</span><span class="tx">be able to do a bunch of parallel</span></div><div class="tline" data-t="505"><span class="ts">8:25</span><span class="tx">executions of itself. And so I asked it</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">both while I was writing this</span></div><div class="tline" data-t="508"><span class="ts">8:28</span><span class="tx">presentation and preparing for this to</span></div><div class="tline" data-t="510"><span class="ts">8:30</span><span class="tx">just create the sandbox environment uh</span></div><div class="tline" data-t="512"><span class="ts">8:32</span><span class="tx">for itself to run a bunch of parallel</span></div><div class="tline" data-t="514"><span class="ts">8:34</span><span class="tx">executions of its own research loop.</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">Right. Uh, and so like having that</span></div><div class="tline" data-t="518"><span class="ts">8:38</span><span class="tx">unconstrained environment is really</span></div><div class="tline" data-t="519"><span class="ts">8:39</span><span class="tx">useful for getting the agent to do</span></div><div class="tline" data-t="521"><span class="ts">8:41</span><span class="tx">emergent things.</span></div><div class="tline" data-t="524"><span class="ts">8:44</span><span class="tx">And so, you know, I I'm not really sure</span></div><div class="tline" data-t="526"><span class="ts">8:46</span><span class="tx">what the six phrases per record uh</span></div><div class="tline" data-t="527"><span class="ts">8:47</span><span class="tx">means, but I think from a theory</span></div><div class="tline" data-t="530"><span class="ts">8:50</span><span class="tx">standpoint, we want to build then a good</span></div><div class="tline" data-t="533"><span class="ts">8:53</span><span class="tx">pattern for generating these simulation</span></div><div class="tline" data-t="534"><span class="ts">8:54</span><span class="tx">environments. And so we have a</span></div><div class="tline" data-t="536"><span class="ts">8:56</span><span class="tx">relatively agnostic DAG that you might</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">think about in a traditional machine</span></div><div class="tline" data-t="539"><span class="ts">8:59</span><span class="tx">learning context, which is like we take</span></div><div class="tline" data-t="540"><span class="ts">9:00</span><span class="tx">a configuration, which are these YAML</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">files. We hydrate them. So we load the</span></div><div class="tline" data-t="544"><span class="ts">9:04</span><span class="tx">live data that we need to. We set up an</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">environment and the environments and</span></div><div class="tline" data-t="547"><span class="ts">9:07</span><span class="tx">weights and biases are relatively</span></div><div class="tline" data-t="549"><span class="ts">9:09</span><span class="tx">expensive because we have lots of</span></div><div class="tline" data-t="550"><span class="ts">9:10</span><span class="tx">production data that we might want to</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">test against or other things like that.</span></div><div class="tline" data-t="553"><span class="ts">9:13</span><span class="tx">These are full machine learning training</span></div><div class="tline" data-t="554"><span class="ts">9:14</span><span class="tx">logs. We might have to simulate uh GPU</span></div><div class="tline" data-t="556"><span class="ts">9:16</span><span class="tx">executions if you're doing auto research</span></div><div class="tline" data-t="558"><span class="ts">9:18</span><span class="tx">etc. That's a relatively intensive</span></div><div class="tline" data-t="560"><span class="ts">9:20</span><span class="tx">process and so you might want to</span></div><div class="tline" data-t="561"><span class="ts">9:21</span><span class="tx">parallelize that. Then you would</span></div><div class="tline" data-t="562"><span class="ts">9:22</span><span class="tx">rehydrate because oftentimes there's</span></div><div class="tline" data-t="564"><span class="ts">9:24</span><span class="tx">runtime configurations that you can't</span></div><div class="tline" data-t="565"><span class="ts">9:25</span><span class="tx">encode in a YAML specification and so</span></div><div class="tline" data-t="568"><span class="ts">9:28</span><span class="tx">you hot patch that data back into the</span></div><div class="tline" data-t="570"><span class="ts">9:30</span><span class="tx">config config. Uh and then you run the</span></div><div class="tline" data-t="572"><span class="ts">9:32</span><span class="tx">agent and running the agent is trivial.</span></div><div class="tline" data-t="573"><span class="ts">9:33</span><span class="tx">You run it, as I mentioned at the</span></div><div class="tline" data-t="575"><span class="ts">9:35</span><span class="tx">beginning, in the bite-wise identical</span></div><div class="tline" data-t="576"><span class="ts">9:36</span><span class="tx">version that you have in production, and</span></div><div class="tline" data-t="578"><span class="ts">9:38</span><span class="tx">then you score it. And scoring is where</span></div><div class="tline" data-t="580"><span class="ts">9:40</span><span class="tx">I spend a lot of my time, which is</span></div><div class="tline" data-t="581"><span class="ts">9:41</span><span class="tx">basically trying to think about the</span></div><div class="tline" data-t="582"><span class="ts">9:42</span><span class="tx">robustness of how you measure results.</span></div><div class="tline" data-t="584"><span class="ts">9:44</span><span class="tx">Uh, and I imagine most people here are</span></div><div class="tline" data-t="586"><span class="ts">9:46</span><span class="tx">pretty good at thinking about things</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">like that. And I think it's really worth</span></div><div class="tline" data-t="589"><span class="ts">9:49</span><span class="tx">spending the time once you have a</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">configuration of how to run evaluations,</span></div><div class="tline" data-t="592"><span class="ts">9:52</span><span class="tx">thinking about the robustness of our</span></div><div class="tline" data-t="593"><span class="ts">9:53</span><span class="tx">emails. uh a Slack message that I</span></div><div class="tline" data-t="595"><span class="ts">9:55</span><span class="tx">probably can't show live on the screen</span></div><div class="tline" data-t="597"><span class="ts">9:57</span><span class="tx">that I got from one of my teammates</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">today made me very happy where he</span></div><div class="tline" data-t="599"><span class="ts">9:59</span><span class="tx">basically just spent all of yesterday</span></div><div class="tline" data-t="600"><span class="ts">10:00</span><span class="tx">thinking about the health of our</span></div><div class="tline" data-t="602"><span class="ts">10:02</span><span class="tx">evaluations and the drift between our</span></div><div class="tline" data-t="604"><span class="ts">10:04</span><span class="tx">evaluations and production. Uh and I</span></div><div class="tline" data-t="605"><span class="ts">10:05</span><span class="tx">think that kind of mental model of like</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">you know why are things working well why</span></div><div class="tline" data-t="608"><span class="ts">10:08</span><span class="tx">are things not working well? What are</span></div><div class="tline" data-t="610"><span class="ts">10:10</span><span class="tx">the gaps that we see in these two</span></div><div class="tline" data-t="611"><span class="ts">10:11</span><span class="tx">patterns is really useful. Um in our</span></div><div class="tline" data-t="613"><span class="ts">10:13</span><span class="tx">case weights and biases Arya scores</span></div><div class="tline" data-t="615"><span class="ts">10:15</span><span class="tx">itself in two patterns which is</span></div><div class="tline" data-t="616"><span class="ts">10:16</span><span class="tx">normatively which gives us basically did</span></div><div class="tline" data-t="618"><span class="ts">10:18</span><span class="tx">we pass a task or not and then</span></div><div class="tline" data-t="620"><span class="ts">10:20</span><span class="tx">relativistically where we can set styles</span></div><div class="tline" data-t="622"><span class="ts">10:22</span><span class="tx">based on one variant where it asks</span></div><div class="tline" data-t="624"><span class="ts">10:24</span><span class="tx">questions to the user and one variant</span></div><div class="tline" data-t="625"><span class="ts">10:25</span><span class="tx">where it doesn't ask questions to the</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">user and we can sort of see which one</span></div><div class="tline" data-t="628"><span class="ts">10:28</span><span class="tx">behaves better uh with a relative</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">scoring. So a pretty traditional</span></div><div class="tline" data-t="631"><span class="ts">10:31</span><span class="tx">formulation from a reinforcement</span></div><div class="tline" data-t="633"><span class="ts">10:33</span><span class="tx">learning standpoint. And then of course</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">if you're running this in parallel you</span></div><div class="tline" data-t="636"><span class="ts">10:36</span><span class="tx">got to tear it down because you want to</span></div><div class="tline" data-t="637"><span class="ts">10:37</span><span class="tx">start it again and you don't want to</span></div><div class="tline" data-t="638"><span class="ts">10:38</span><span class="tx">clobber your teammates's work etc. Uh</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">and so we'll see what happens in this</span></div><div class="tline" data-t="642"><span class="ts">10:42</span><span class="tx">project because a bunch of my teammates</span></div><div class="tline" data-t="643"><span class="ts">10:43</span><span class="tx">are running eval right now and so we'll</span></div><div class="tline" data-t="644"><span class="ts">10:44</span><span class="tx">see how Arya performs.</span></div><div class="tline" data-t="647"><span class="ts">10:47</span><span class="tx">Uh and then you know more traditionally</span></div><div class="tline" data-t="649"><span class="ts">10:49</span><span class="tx">on tasks I think the eval tasks are just</span></div><div class="tline" data-t="651"><span class="ts">10:51</span><span class="tx">YAML specifications that we define as a</span></div><div class="tline" data-t="653"><span class="ts">10:53</span><span class="tx">starting condition of an environment</span></div><div class="tline" data-t="655"><span class="ts">10:55</span><span class="tx">with a bunch of user configurations as</span></div><div class="tline" data-t="657"><span class="ts">10:57</span><span class="tx">well as then an ending condition that we</span></div><div class="tline" data-t="658"><span class="ts">10:58</span><span class="tx">sort of want to get to. Uh in our case</span></div><div class="tline" data-t="660"><span class="ts">11:00</span><span class="tx">tasks are flows from users. So we</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">simulate them in three ways. Uh we do</span></div><div class="tline" data-t="664"><span class="ts">11:04</span><span class="tx">just simple text which is like hey</span></div><div class="tline" data-t="666"><span class="ts">11:06</span><span class="tx">here's an instruction to Arya. You might</span></div><div class="tline" data-t="668"><span class="ts">11:08</span><span class="tx">imagine that the task that it generates</span></div><div class="tline" data-t="669"><span class="ts">11:09</span><span class="tx">in this chat over here um where it's</span></div><div class="tline" data-t="672"><span class="ts">11:12</span><span class="tx">logging a specific trace from production</span></div><div class="tline" data-t="674"><span class="ts">11:14</span><span class="tx">uh into our local framework actually</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">looks like you know just a simple</span></div><div class="tline" data-t="679"><span class="ts">11:19</span><span class="tx">question that I asked it basically which</span></div><div class="tline" data-t="680"><span class="ts">11:20</span><span class="tx">was that question of Arya doing auto</span></div><div class="tline" data-t="681"><span class="ts">11:21</span><span class="tx">research itself um we can just ask it to</span></div><div class="tline" data-t="684"><span class="ts">11:24</span><span class="tx">continue</span></div><div class="tline" data-t="686"><span class="ts">11:26</span><span class="tx">um as it does that and that task is just</span></div><div class="tline" data-t="689"><span class="ts">11:29</span><span class="tx">a single question to it there's other</span></div><div class="tline" data-t="691"><span class="ts">11:31</span><span class="tx">variants of the tasks that exist as well</span></div><div class="tline" data-t="693"><span class="ts">11:33</span><span class="tx">where we simulate a language model that</span></div><div class="tline" data-t="695"><span class="ts">11:35</span><span class="tx">has a persona from a user and we ask it,</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">hey, pretend to be this user, ask</span></div><div class="tline" data-t="699"><span class="ts">11:39</span><span class="tx">certain questions in a particular order</span></div><div class="tline" data-t="700"><span class="ts">11:40</span><span class="tx">so that we can simulate multi-turn</span></div><div class="tline" data-t="702"><span class="ts">11:42</span><span class="tx">environments and interactions with our</span></div><div class="tline" data-t="703"><span class="ts">11:43</span><span class="tx">agent. Uh, and then you just run a bunch</span></div><div class="tline" data-t="705"><span class="ts">11:45</span><span class="tx">of these. So, we have 886 tasks. We</span></div><div class="tline" data-t="707"><span class="ts">11:47</span><span class="tx">categorize them by levels. We expose</span></div><div class="tline" data-t="708"><span class="ts">11:48</span><span class="tx">them to our product team so that they</span></div><div class="tline" data-t="709"><span class="ts">11:49</span><span class="tx">can decide whether or not the tasks are</span></div><div class="tline" data-t="711"><span class="ts">11:51</span><span class="tx">good enough or they reflect things that</span></div><div class="tline" data-t="712"><span class="ts">11:52</span><span class="tx">we care about from our benchmarks, etc.</span></div><div class="tline" data-t="714"><span class="ts">11:54</span><span class="tx">And then we just run them a bunch of</span></div><div class="tline" data-t="715"><span class="ts">11:55</span><span class="tx">times.</span></div><div class="tline" data-t="717"><span class="ts">11:57</span><span class="tx">Yeah. And then, you know, the ultimate</span></div><div class="tline" data-t="719"><span class="ts">11:59</span><span class="tx">thing here is that the trajectory is</span></div><div class="tline" data-t="720"><span class="ts">12:00</span><span class="tx">like the meat and the data that I live</span></div><div class="tline" data-t="722"><span class="ts">12:02</span><span class="tx">behind. And so I look at our production</span></div><div class="tline" data-t="724"><span class="ts">12:04</span><span class="tx">traces that exist in our traffic and our</span></div><div class="tline" data-t="725"><span class="ts">12:05</span><span class="tx">offline traces that exist. And I really</span></div><div class="tline" data-t="727"><span class="ts">12:07</span><span class="tx">try to exploit the behavior patterns</span></div><div class="tline" data-t="729"><span class="ts">12:09</span><span class="tx">from both of those. And so we build</span></div><div class="tline" data-t="731"><span class="ts">12:11</span><span class="tx">tooling ourselves to understand our</span></div><div class="tline" data-t="733"><span class="ts">12:13</span><span class="tx">traces. Uh we have like this behavior</span></div><div class="tline" data-t="734"><span class="ts">12:14</span><span class="tx">trace project etc that we run in both</span></div><div class="tline" data-t="736"><span class="ts">12:16</span><span class="tx">prod and offline.</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">And yeah that's the eval flywheel. So</span></div><div class="tline" data-t="741"><span class="ts">12:21</span><span class="tx">you know fundamentally every production</span></div><div class="tline" data-t="743"><span class="ts">12:23</span><span class="tx">miss or every production goodness as</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">well because I think it's useful to hill</span></div><div class="tline" data-t="746"><span class="ts">12:26</span><span class="tx">climb in a positive direction uh becomes</span></div><div class="tline" data-t="747"><span class="ts">12:27</span><span class="tx">a task for our agent framework. And so</span></div><div class="tline" data-t="749"><span class="ts">12:29</span><span class="tx">we use that to sort of define the agent</span></div><div class="tline" data-t="751"><span class="ts">12:31</span><span class="tx">and make it better.</span></div><div class="tline" data-t="753"><span class="ts">12:33</span><span class="tx">And these are, you know, our real scores</span></div><div class="tline" data-t="755"><span class="ts">12:35</span><span class="tx">straight from weave. So we have a bunch</span></div><div class="tline" data-t="757"><span class="ts">12:37</span><span class="tx">of different categories that we measure</span></div><div class="tline" data-t="758"><span class="ts">12:38</span><span class="tx">ourselves on. I think the agent is</span></div><div class="tline" data-t="760"><span class="ts">12:40</span><span class="tx">really good at conceptually guiding you.</span></div><div class="tline" data-t="761"><span class="ts">12:41</span><span class="tx">We want to make it better at doing some</span></div><div class="tline" data-t="763"><span class="ts">12:43</span><span class="tx">error analysis for projects. You know,</span></div><div class="tline" data-t="764"><span class="ts">12:44</span><span class="tx">we try to make these as difficult as</span></div><div class="tline" data-t="766"><span class="ts">12:46</span><span class="tx">possible for the agent to really test</span></div><div class="tline" data-t="767"><span class="ts">12:47</span><span class="tx">the metal of how this thing performs.</span></div><div class="tline" data-t="770"><span class="ts">12:50</span><span class="tx">And so I'll hop back to Arya now.</span></div><div class="tline" data-t="772"><span class="ts">12:52</span><span class="tx">There's sort of five minutes left um</span></div><div class="tline" data-t="773"><span class="ts">12:53</span><span class="tx">with sort of a demo of what it's</span></div><div class="tline" data-t="775"><span class="ts">12:55</span><span class="tx">actually doing. So right now it's going</span></div><div class="tline" data-t="776"><span class="ts">12:56</span><span class="tx">to run a bunch of code as it's trying to</span></div><div class="tline" data-t="778"><span class="ts">12:58</span><span class="tx">rip this production trace and log it</span></div><div class="tline" data-t="779"><span class="ts">12:59</span><span class="tx">into the framework. If I hop into this</span></div><div class="tline" data-t="782"><span class="ts">13:02</span><span class="tx">uh live demo that I just triggered with</span></div><div class="tline" data-t="783"><span class="ts">13:03</span><span class="tx">that nice long prompt, you know, Arya is</span></div><div class="tline" data-t="785"><span class="ts">13:05</span><span class="tx">going to tell me the research runs that</span></div><div class="tline" data-t="786"><span class="ts">13:06</span><span class="tx">it did. So we can click through some of</span></div><div class="tline" data-t="788"><span class="ts">13:08</span><span class="tx">these links. Uh I asked it to write a</span></div><div class="tline" data-t="790"><span class="ts">13:10</span><span class="tx">report using weights and biases reports</span></div><div class="tline" data-t="791"><span class="ts">13:11</span><span class="tx">from the uh run that it just had. If we</span></div><div class="tline" data-t="794"><span class="ts">13:14</span><span class="tx">scrub this, we can see that this is the</span></div><div class="tline" data-t="795"><span class="ts">13:15</span><span class="tx">most recent production trace that it</span></div><div class="tline" data-t="797"><span class="ts">13:17</span><span class="tx">just logged. It wrote itself a new task,</span></div><div class="tline" data-t="799"><span class="ts">13:19</span><span class="tx">ran it, and then scored it. And so this</span></div><div class="tline" data-t="801"><span class="ts">13:21</span><span class="tx">is like the production variant getting</span></div><div class="tline" data-t="802"><span class="ts">13:22</span><span class="tx">benchmarked on our specific task. If we</span></div><div class="tline" data-t="804"><span class="ts">13:24</span><span class="tx">look at the report that it generated,</span></div><div class="tline" data-t="805"><span class="ts">13:25</span><span class="tx">this is the demo that I asked it to do.</span></div><div class="tline" data-t="807"><span class="ts">13:27</span><span class="tx">Um, so you know, it ran a real womb</span></div><div class="tline" data-t="810"><span class="ts">13:30</span><span class="tx">agent trace, turned it into a WBF</span></div><div class="tline" data-t="812"><span class="ts">13:32</span><span class="tx">regression task. WBAF is the factory</span></div><div class="tline" data-t="814"><span class="ts">13:34</span><span class="tx">that I build, which is the weights and</span></div><div class="tline" data-t="816"><span class="ts">13:36</span><span class="tx">biases agent factory. That's the</span></div><div class="tline" data-t="817"><span class="ts">13:37</span><span class="tx">principle behind our offline</span></div><div class="tline" data-t="818"><span class="ts">13:38</span><span class="tx">benchmarking. It identified that the</span></div><div class="tline" data-t="820"><span class="ts">13:40</span><span class="tx">problem was that we weren't calling</span></div><div class="tline" data-t="821"><span class="ts">13:41</span><span class="tx">weave.log, one of our SDK calls properly</span></div><div class="tline" data-t="823"><span class="ts">13:43</span><span class="tx">in the sandbox. It replicates the source</span></div><div class="tline" data-t="825"><span class="ts">13:45</span><span class="tx">trace, which we can click into here, uh,</span></div><div class="tline" data-t="827"><span class="ts">13:47</span><span class="tx">and then runs a bunch of variants of the</span></div><div class="tline" data-t="829"><span class="ts">13:49</span><span class="tx">agent to see how it makes itself better.</span></div><div class="tline" data-t="830"><span class="ts">13:50</span><span class="tx">And so, you know, it added a hill climb</span></div><div class="tline" data-t="832"><span class="ts">13:52</span><span class="tx">target uh which was basically like</span></div><div class="tline" data-t="834"><span class="ts">13:54</span><span class="tx">here's what to do to fix it. Ran the</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">trace and then we can see if it gives us</span></div><div class="tline" data-t="838"><span class="ts">13:58</span><span class="tx">a little explanation of exactly what</span></div><div class="tline" data-t="839"><span class="ts">13:59</span><span class="tx">happened at the end. Uh how did the prod</span></div><div class="tline" data-t="843"><span class="ts">14:03</span><span class="tx">versus candidate variant perform</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">and you know this is now what I live in.</span></div><div class="tline" data-t="849"><span class="ts">14:09</span><span class="tx">And so I think the flywheel here is</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">exceptionally compelling for me where</span></div><div class="tline" data-t="853"><span class="ts">14:13</span><span class="tx">instead of going back to my cloud code</span></div><div class="tline" data-t="854"><span class="ts">14:14</span><span class="tx">and writing offline benchmarks and</span></div><div class="tline" data-t="856"><span class="ts">14:16</span><span class="tx">trying to think about what I want the</span></div><div class="tline" data-t="857"><span class="ts">14:17</span><span class="tx">agent to do, I'm just going to live in</span></div><div class="tline" data-t="858"><span class="ts">14:18</span><span class="tx">this platform instead and hop between my</span></div><div class="tline" data-t="861"><span class="ts">14:21</span><span class="tx">production tracing project where I'm</span></div><div class="tline" data-t="862"><span class="ts">14:22</span><span class="tx">looking at traces roll in as they come</span></div><div class="tline" data-t="864"><span class="ts">14:24</span><span class="tx">through over time where AR is, you know,</span></div><div class="tline" data-t="866"><span class="ts">14:26</span><span class="tx">building itself and then hop back into</span></div><div class="tline" data-t="867"><span class="ts">14:27</span><span class="tx">my offline evaluation project to sort of</span></div><div class="tline" data-t="869"><span class="ts">14:29</span><span class="tx">see what my team is doing, what I'm</span></div><div class="tline" data-t="871"><span class="ts">14:31</span><span class="tx">doing, and what changes I want to make.</span></div><div class="tline" data-t="872"><span class="ts">14:32</span><span class="tx">what change did we make to the prod</span></div><div class="tline" data-t="875"><span class="ts">14:35</span><span class="tx">skill or to the agent variant</span></div><div class="tline" data-t="879"><span class="ts">14:39</span><span class="tx">etc. And you know to sort of like watch</span></div><div class="tline" data-t="882"><span class="ts">14:42</span><span class="tx">this thing roll out. I think a big</span></div><div class="tline" data-t="884"><span class="ts">14:44</span><span class="tx">challenge that we have is it's really</span></div><div class="tline" data-t="885"><span class="ts">14:45</span><span class="tx">easy to go like auto mode for some of</span></div><div class="tline" data-t="887"><span class="ts">14:47</span><span class="tx">these tasks where you want to just see</span></div><div class="tline" data-t="888"><span class="ts">14:48</span><span class="tx">the agent do everything. And I haven't</span></div><div class="tline" data-t="890"><span class="ts">14:50</span><span class="tx">written a line of code in maybe eight</span></div><div class="tline" data-t="891"><span class="ts">14:51</span><span class="tx">months because I just tell Claude to</span></div><div class="tline" data-t="893"><span class="ts">14:53</span><span class="tx">write all my code for me. And that's a</span></div><div class="tline" data-t="894"><span class="ts">14:54</span><span class="tx">really nice pattern, but it doesn't</span></div><div class="tline" data-t="896"><span class="ts">14:56</span><span class="tx">absolve yourself of the thought behind</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">how we want to make improvements. And I</span></div><div class="tline" data-t="899"><span class="ts">14:59</span><span class="tx">think using these tools to improve</span></div><div class="tline" data-t="901"><span class="ts">15:01</span><span class="tx">themselves is very valuable because you</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">get to spend more of your time in the</span></div><div class="tline" data-t="904"><span class="ts">15:04</span><span class="tx">gray of actually trying to think how we</span></div><div class="tline" data-t="906"><span class="ts">15:06</span><span class="tx">make this system better, right? And so</span></div><div class="tline" data-t="908"><span class="ts">15:08</span><span class="tx">if you're building an agent, I implore</span></div><div class="tline" data-t="909"><span class="ts">15:09</span><span class="tx">you to use weights and biases to both</span></div><div class="tline" data-t="910"><span class="ts">15:10</span><span class="tx">track that agent etc. Uh we have a</span></div><div class="tline" data-t="912"><span class="ts">15:12</span><span class="tx">really excellent model tracking platform</span></div><div class="tline" data-t="914"><span class="ts">15:14</span><span class="tx">as well. So some of the other demos that</span></div><div class="tline" data-t="916"><span class="ts">15:16</span><span class="tx">we've shown here are Arya training</span></div><div class="tline" data-t="917"><span class="ts">15:17</span><span class="tx">machine learning models on H200's</span></div><div class="tline" data-t="919"><span class="ts">15:19</span><span class="tx">running on core infrastructure and doing</span></div><div class="tline" data-t="921"><span class="ts">15:21</span><span class="tx">auto research for Karpathy's nano chat</span></div><div class="tline" data-t="923"><span class="ts">15:23</span><span class="tx">etc or full-scale production projects.</span></div><div class="tline" data-t="925"><span class="ts">15:25</span><span class="tx">But I think the exciting thing in this</span></div><div class="tline" data-t="926"><span class="ts">15:26</span><span class="tx">case for me is that I don't need to</span></div><div class="tline" data-t="928"><span class="ts">15:28</span><span class="tx">leave this platform in order to do my</span></div><div class="tline" data-t="930"><span class="ts">15:30</span><span class="tx">job now right. I have full observability</span></div><div class="tline" data-t="931"><span class="ts">15:31</span><span class="tx">from a production standpoint. I have</span></div><div class="tline" data-t="933"><span class="ts">15:33</span><span class="tx">full observability from an offline</span></div><div class="tline" data-t="934"><span class="ts">15:34</span><span class="tx">standpoint. And if we look at, you know,</span></div><div class="tline" data-t="935"><span class="ts">15:35</span><span class="tx">the things that Arya is saying, it's</span></div><div class="tline" data-t="937"><span class="ts">15:37</span><span class="tx">running lots of evaluations on my behalf</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">to improve itself. And that auto mode</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">that I just mentioned is really exciting</span></div><div class="tline" data-t="944"><span class="ts">15:44</span><span class="tx">because now I get to spend all of my</span></div><div class="tline" data-t="945"><span class="ts">15:45</span><span class="tx">time thinking about how I can make this</span></div><div class="tline" data-t="946"><span class="ts">15:46</span><span class="tx">system reinforce itself better. The</span></div><div class="tline" data-t="948"><span class="ts">15:48</span><span class="tx">tight little guard rails that I can put</span></div><div class="tline" data-t="949"><span class="ts">15:49</span><span class="tx">around it to make it a more useful tool</span></div><div class="tline" data-t="951"><span class="ts">15:51</span><span class="tx">for all of you and then inherently for</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">me. Um, but yeah, that's a that's a</span></div><div class="tline" data-t="956"><span class="ts">15:56</span><span class="tx">quick demo. We can we can look at the</span></div><div class="tline" data-t="958"><span class="ts">15:58</span><span class="tx">production call trace that we have here</span></div><div class="tline" data-t="959"><span class="ts">15:59</span><span class="tx">from Arya. This is the evaluation that</span></div><div class="tline" data-t="961"><span class="ts">16:01</span><span class="tx">it just ran. So if we look into like the</span></div><div class="tline" data-t="963"><span class="ts">16:03</span><span class="tx">actual trace, we'll see that, you know,</span></div><div class="tline" data-t="964"><span class="ts">16:04</span><span class="tx">AR did a bunch of work. It ran this</span></div><div class="tline" data-t="966"><span class="ts">16:06</span><span class="tx">predict and score column. We have a</span></div><div class="tline" data-t="967"><span class="ts">16:07</span><span class="tx">bunch of tool calls that ran. Uh and you</span></div><div class="tline" data-t="969"><span class="ts">16:09</span><span class="tx">know, if we hop back into the chat,</span></div><div class="tline" data-t="970"><span class="ts">16:10</span><span class="tx">we'll see the actual variant that it</span></div><div class="tline" data-t="971"><span class="ts">16:11</span><span class="tx">ran. Um it looks like the candidate</span></div><div class="tline" data-t="973"><span class="ts">16:13</span><span class="tx">variant just had a tight little prompt</span></div><div class="tline" data-t="975"><span class="ts">16:15</span><span class="tx">that we injected into the system prompt</span></div><div class="tline" data-t="976"><span class="ts">16:16</span><span class="tx">or in one of the skills to sort of solve</span></div><div class="tline" data-t="978"><span class="ts">16:18</span><span class="tx">that exact SDK error uh and mitigate it.</span></div><div class="tline" data-t="981"><span class="ts">16:21</span><span class="tx">And that kind of replication from</span></div><div class="tline" data-t="982"><span class="ts">16:22</span><span class="tx">production to simulation to agent then</span></div><div class="tline" data-t="985"><span class="ts">16:25</span><span class="tx">defining the improvement pattern is the</span></div><div class="tline" data-t="987"><span class="ts">16:27</span><span class="tx">thing that I really would like to leave</span></div><div class="tline" data-t="988"><span class="ts">16:28</span><span class="tx">everybody with.</span></div><div class="tline" data-t="990"><span class="ts">16:30</span><span class="tx">So that's coreweave Arya. Uh welcome to</span></div><div class="tline" data-t="993"><span class="ts">16:33</span><span class="tx">weights and biases. I hope that was an</span></div><div class="tline" data-t="995"><span class="ts">16:35</span><span class="tx">interesting talk in sort of how we</span></div><div class="tline" data-t="996"><span class="ts">16:36</span><span class="tx">decide to build uh our offline</span></div><div class="tline" data-t="998"><span class="ts">16:38</span><span class="tx">evaluation metrics, how we reap data</span></div><div class="tline" data-t="999"><span class="ts">16:39</span><span class="tx">from production and the flywheel of</span></div><div class="tline" data-t="1001"><span class="ts">16:41</span><span class="tx">trying to build these agents and the</span></div><div class="tline" data-t="1002"><span class="ts">16:42</span><span class="tx">things that I think about on a</span></div><div class="tline" data-t="1004"><span class="ts">16:44</span><span class="tx">day-to-day basis. Uh and yeah, let's get</span></div><div class="tline" data-t="1006"><span class="ts">16:46</span><span class="tx">started. Thank you all so much.</span></div><div class="tline" data-t="1024"><span class="ts">17:04</span><span class="tx">&gt;&gt; [music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

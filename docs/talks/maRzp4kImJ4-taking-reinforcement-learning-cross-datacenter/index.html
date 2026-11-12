@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>让强化学习跨数据中心运行 | AI 工程师中文版</title>
+<meta name="description" content="把训练留在高速网络上，把 rollout 引擎移到有空闲的 GPU 上，再通过稀疏补丁和明确的版本契约，同步精确的服务端权重。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>让强化学习跨数据中心运行</h1>
+    <div class="orig-title">Taking Reinforcement Learning Cross Datacenter</div>
+    <div class="meta"><span class="speaker">Nan Jiang</span> · AI Engineer World's Fair 2026 · 19:50</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=fine-tuning">微调</a><a class="tag" href="../../index.html#topic=continual-learning">持续学习</a><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a><a class="tag" href="../../index.html#topic=post-training">后训练</a><a class="tag" href="../../index.html#topic=pretraining-and-midtraining">预训练与中期训练</a><a class="tag" href="../../index.html#topic=quantization">量化</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/maRzp4kImJ4-taking-reinforcement-learning-cross-datacenter" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="maRzp4kImJ4"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=maRzp4kImJ4" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">当训练集群限制了 rollout 容量</div></div>
+      <div class="label row">章节跳转 <span>共 11 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="28"><span class="ts">0:28</span><span>当训练集群限制了 rollout 容量</span></li><li data-t="205"><span class="ts">3:25</span><span>移动服务孤岛，让反向传播留在本地</span></li><li data-t="301"><span class="ts">5:01</span><span>完整检查点是错误的同步单位</span></li><li data-t="430"><span class="ts">7:10</span><span>小步的 Adam 更新遇上有限的精度</span></li><li data-t="641"><span class="ts">10:41</span><span>构造一个无损补丁</span></li><li data-t="723"><span class="ts">12:03</span><span>稀疏度测量统计的是什么</span></li><li data-t="786"><span class="ts">13:06</span><span>更低的服务精度带来共享缩放的约束</span></li><li data-t="906"><span class="ts">15:06</span><span>发布不可变的版本，让过时程度显式化</span></li><li data-t="1001"><span class="ts">16:41</span><span>一个边车根据已提交的版本拦截请求</span></li><li data-t="1034"><span class="ts">17:14</span><span>从更小的传输量到一支弹性的 rollout 集群</span></li><li data-t="1124"><span class="ts">18:44</span><span>基于 Adam 的设计之外仍然悬而未决的问题</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 26 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="RL across the globe" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>RL across the globe</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Nan Jiang explores whether RL post-training can use scattered, autoscaled GPU capacity instead of relying on one cluster.
+
+[0:12](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=12s) [Title slide introducing RL post-training across scattered, autoscaled GPU capacity.](https://assets.ai.engineer/sites/aiecode2025/sha256/2c3a50b95c892e2f8de382ad14b99ed8c860a373b597df88b0fb75bbe11dee68.webp)
+
+Modal
+
+AI ENGINEER WORLD'S FAIR 2026
+RL across the globe
+RL post-training across scattered, autoscaled GPU capacity.
+
+Presented by Nan Jiang · Modal
+
+1 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="The RL loop in one cluster" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The RL loop in one cluster</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The trainer sends new weights to the sampler, which interacts with the RL environment and returns trajectories and reward. RDMA makes weight sync fast, but ties rollout capacity to the trainer cluster.
+
+[1:12](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=72s) [A trainer exchanges weights and trajectories with a sampler, which interacts with an RL environment.](https://assets.ai.engineer/sites/aiecode2025/sha256/aad50d9099f15cb3a8bac11e2c39fcee2c1c8349c459e10e4eb2d857234d98d6.webp)
+
+THE RL LOOP
+By default, the whole loop lives in one cluster
+
+one cluster · one region · RDMA
+
+Trainer
+weight update
+full-param
+LoRA
+
+new weights
+trajectories + reward
+
+Sampler
+rollout worker · policy
+
+action / generation
+reward / feedback
+
+RL Env
+tasks · rewards
+
+RL across the globe
+2 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="One cluster and distributed compute" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One cluster and distributed compute</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A tightly connected cluster suits the trainer, but usable compute is scattered across providers and regions, with different prices and availability. The default RL loop must fit into the harder-to-find cluster.
+
+[2:04](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=124s) [A GPU cluster is contrasted with capacity distributed across providers, regions and GPU types.](https://assets.ai.engineer/sites/aiecode2025/sha256/52c456fa16f1890e9875980e14fa1e01b99ce746653fabb7a8c18d0228c8a0b4.webp)
+
+THE SETUP
+One cluster is powerful. Compute is everywhere else.
+
+THE CATHEDRAL
+one cluster
+
+one cluster · one region · RDMA
+
+Many GPUs, one fast interconnect - but you get exactly one.
+
+THE SPRAWL
+everywhere else
+
+provider: A B C D
+H100 H200 B200 GB300
+same provider · 2 regions
+cheaper                         pricier →
+
+Same chip, different region - different price and availability.
+
+RL across the globe
+3 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="The hard part is getting all four" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The hard part is getting all four</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>RL needs enough GPUs in one region, fast fabric, and immediate availability at the same time. RDMA capacity is provisioned, so the trainer cluster cannot be assumed to grow midway through a run.
+
+[2:41](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=161s) [RL requires enough GPUs in the same region, a fast fabric and immediate availability.](https://assets.ai.engineer/sites/aiecode2025/sha256/444541f5664f92517222026ffd57361b656c014a908b428623f745ede7c57e8b.webp)
+
+THE CATCH
+The hard part is getting all four
+
+Enough GPUs
+Same region
+Fast fabric
+Available now
+
+RL wants all four at once.
+Any one is easy. All four together are scarce.
+RDMA capacity is provisioned, not elastic.
+
+RL across the globe
+4 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Rollout is the movable half" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Rollout is the movable half</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Backprop stays in the cluster, while rollout serving islands can run across regions and clouds. Each island receives a policy version and returns trajectories and metadata; local parallelism can still happen within an island.
+
+[3:23](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=203s) [Rollout is parallel, can run across regions and clouds, and needs fresh weights from the trainer.](https://assets.ai.engineer/sites/aiecode2025/sha256/6f352b81e1b27ba58849a4748f2eb93e0e5167d4c67e965bb44d3b4caa20827a.webp)
+
+THE KEY IDEA
+Rollout is the movable half
+
+Training is tightly coupled - all-reduce every step, one fast fabric. Rollout is the opposite.
+
+01 Parallel by construction — independent trajectories - no cross-worker sync
+02 Runs anywhere — no all-reduce, no trainer co-location - any region, any cloud
+03 Only needs fresh weights — the single link back to the trainer
+
+Backprop stays in the cluster. Rollout can leave.
+
+RL across the globe
+5 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Trainer stays, rollout fans out" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Trainer stays, rollout fans out</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The trainer stays in one RDMA cluster and sends weight updates to rollout workers across clouds and regions. Trajectories and rewards return to the trainer.
+
+[4:27](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=267s) [A trainer in one cluster sends weight updates to rollout workers across providers and regions; trajectories and rewards return to the trainer.](https://assets.ai.engineer/sites/aiecode2025/sha256/b6002db04e8c7b9ff414f0fd465eaa25597e60819210bd2fbea358ad9e83ef05.webp)
+
+DISAGGREGATE
+Trainer stays. Rollout fans out.
+
+rollout-weight updates
+
+one cluster · RDMA
+Trainer
+gradient updates
+
+rollout
+aws · us-east
+
+rollout
+gcp · eu-central
+
+rollout
+azure · ap-se
+
+rollout
+nebius · eu
+
+trajectories + reward → back to trainer · cheap
+
+RL across the globe
+6 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Weight sync is the remaining link" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Weight sync is the remaining link</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Shipping a full checkpoint for each fresh weight version can take minutes to hours, leaving rollout engines waiting. The transferred data must reconstruct the same served version bit-for-bit.
+
+[5:14](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=314s) [A trainer sends a full checkpoint to rollout engines, which wait for weights.](https://assets.ai.engineer/sites/aiecode2025/sha256/50499e88a5e683dfb51b394c96864424930746c085bf401f7d4ca55359c23d6c.webp)
+
+THE REMAINING LINK
+Weight sync is the remaining link
+
+Rollout needs fresh weight versions. Naively, that means shipping a full checkpoint.
+
+one cluster · RDMA
+Trainer
+weight update
+
+full checkpoint
+minutes → hours, every step
+
+rollout engine
+aws · us-east
+rollout engine
+gcp · eu-central
+rollout engine
+azure · ap-se
+
+idle - waiting for weights
+
+… and whatever crosses it must reconstruct the same served version, bit-for-bit.
+
+RL across the globe
+7 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="What if only less than 1% of rollout-visible weights change?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What if only less than 1% of rollout-visible weights change?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The proposal is to send only changed served weights if fewer than 1% change between versions, then reconstruct the same served version bitwise. The slide compares that delta with a 500 GB checkpoint.
+
+[6:07](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=367s) [A small green delta is compared with a 500 GB full checkpoint; the slide proposes bitwise reconstruction.](https://assets.ai.engineer/sites/aiecode2025/sha256/22d0063352bf5cd40dd5c67599703ba2af5778e4250ef514e16d72e404eb4a93.webp)
+
+THE BET
+
+What if only &lt;1% of rollout-visible weights change?
+
+Ship the changed served view, not the checkpoint. Reconstruct the same version bitwise.
+
+the delta · &lt;1% rollout-visible
+500 GB · full checkpoint
+
+RL across the globe
+8 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Why the update is sparse" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why the update is sparse</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The next section examines how small Adam steps and finite precision make updates sparse.
+
+[7:08](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=428s) [Section slide introducing small Adam steps and finite precision.](https://assets.ai.engineer/sites/aiecode2025/sha256/6c0f309aa5fa77d6feb21bd2b022d78635935eec09ab9985bde75bfaaf31562a.webp)
+
+Why the update is sparse
+
+Small Adam steps meet finite precision.
+
+RL across the globe
+9 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="The BF16 view has a floor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The BF16 view has a floor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At θ = 1.0, a +0.0009 nudge stays below the +0.0039 rounding boundary, so the BF16 view rounds back. Small FP32 updates can accumulate until they cross the boundary.
+
+[7:17](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=437s) [Formulas and a number line illustrate BF16 spacing, a rounding boundary, and a small update that rounds back.](https://assets.ai.engineer/sites/aiecode2025/sha256/5d9b273f3ffe403097ecccdf05c4e0ef07a818b835a02a995244940ca3dd1339.webp)
+
+THE FLOOR
+The BF16 view has a floor
+
+The next forward pass reads the BF16 view of the weights - finite resolution. Around a magnitude |θ|, the nearest representable value is a fixed step away.
+
+ULP · spacing between BF16 values
+ULP(|θ|) ≈ |θ|/128
+
+the floor · nearest rounding boundary
+τ(|θ|) ≈ |θ|/256
+
+Below the boundary, the BF16-visible value is unchanged this step - tiny FP32 updates can still accumulate and cross it later.
+
+θ = 1.0 · inside one BF16 cell
+boundary +0.0039
++0.0009 nudge → stays in the cell, rounds back
+1.0000
+1.0078 · next cell
+
+RL across the globe
+10 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Adam makes small steps" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Adam makes small steps</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Adam divides gradients by running statistics, making the typical per-weight update roughly the size of the learning rate. A conservative bound puts the step at no more than B times that rate.
+
+[8:20](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=500s) [Adam update equations show typical learning-rate-sized steps and a conservative bound.](https://assets.ai.engineer/sites/aiecode2025/sha256/35d3210112bb8c25fa226bb83046e6950db6b2dce6de0f23f9f5a59b8819b327.webp)
+
+THE PUSH
+Adam makes small steps
+Bound · PULSE, arXiv:2602.03839
+
+Δθᵢ = −η m̂ᵢ / (√v̂ᵢ + ε)
+Adam / AdamW - the case PULSE explains
+Δθᵢ per-parameter update · η learning rate · the fraction m̂ᵢ/(√v̂ᵢ + ε) is Adam's per-weight normalized direction, order 1. AdamW decay term omitted.
+
+typical
+|Δθ| ≈ η
+
+conservative
+|Δθ| ≤ B η
+B = √((1 − β₁)/(1 − β₂))
+β₂=0.95 → B=1.4
+β₂=0.999 → B=10
+
+Dense gradients. Learning-rate-sized updates.
+
+RL across the globe
+11 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="A weight is visible only if the push clears the floor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A weight is visible only if the push clears the floor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At θ = 1, an RL Adam step of approximately 0.000003 falls below the ≈0.0039 BF16 boundary, so the served value rounds back to 1.0. The master weight is not necessarily frozen forever.
+
+[9:09](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=549s) [The slide compares an Adam step with a BF16 rounding boundary and gives an example that rounds back to 1.0.](https://assets.ai.engineer/sites/aiecode2025/sha256/cc9ebc0a387b68dec000df25cdb957f2380a25007bbda7200d132c2f7c0e7784.webp)
+
+THE KEY IDEA
+A weight is visible only if the push clears the floor
+
+push = η (Adam step)
+floor = τ(|θ|) ≈ |θ|/256
+visible ⟺ |Δθ| ≥ τ
+
+η learning rate · τ nearest BF16 rounding step · Δθ the push
+
+θ = 1.0
+bf16 boundary ≈ 0.0039
+RL Adam step ≈ 0.000003
+→ rounds back to 1.0 · absorbed
+
+RL across the globe
+12 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Adam absorption, visualized" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Adam absorption, visualized</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The BF16 boundary rises with weight magnitude while the Adam push stays roughly level. Updates below the boundary remain invisible in served weights; about 99% of weights are absorbed this step.
+
+[9:54](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=594s) [Graph compares the BF16 visibility boundary with the Adam update and marks most weights as absorbed.](https://assets.ai.engineer/sites/aiecode2025/sha256/0573eb45037661f2a5866534c5f14736830c725a72ddf25bd8e20f6f7abaa466.webp)
+
+THE CENTERPIECE
+Adam absorption, visualized
+
+x = weight magnitude |θ| · y = update magnitude
+both log scale
+
+BF16 boundary ≈ |θ| / 256
+push = Adam step ≈ η (up to Bη)
+can move
+Absorbed this step
+~99% of weights
+
+Y-axis: update magnitude →
+X-axis: weight magnitude |θ| →
+
+RL across the globe
+13 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="The patch is the changed rollout weight" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The patch is the changed rollout weight</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The patch compares consecutive rollout views and ships changed positions, replacement bits, and metadata. New values or XOR bits can reconstruct the served version bitwise.
+
+[10:39](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=639s) [A formula and grid show changed rollout weights encoded as indices and replacement bits.](https://assets.ai.engineer/sites/aiecode2025/sha256/245ac6eaa198abc422d13c806d72630715bcaf16402d75d13677e25ef0822dc3.webp)
+
+THE OBJECT WE SHIP
+The patch is the changed rollout weight
+
+Ωₜ = { i : qₜ[i] ≠ qₜ₋₁[i] },    qₜ = quantize_D(θₜ)
+
+qₜ = the weights cast to the rollout dtype D · Ωₜ = the positions that changed · we diff the rollout view, not the FP32 optimizer state
+
+rollout vₜ₋₁
+rollout vₜ
+
+patch
+indices: 2, 5, 9, 13
++ new bits for those
++ metadata
+
+ENCODING CHOICE  store new values · or store XOR bits qₜ ⊕ qₜ₋₁
+both reconstruct the served version bitwise
+
+RL across the globe
+14 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Two update shapes, one protocol" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Two update shapes, one protocol</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Full-parameter training ships a sparse rollout-view patch, small by absorption. LoRA ships adapter weights or a delta while the base stays frozen; the adapter is small by construction.
+
+[11:29](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=689s) [Full-parameter patches are small by absorption; LoRA updates are small by construction.](https://assets.ai.engineer/sites/aiecode2025/sha256/91b2f8a7accda86bb81b06a0c918a1adccb9b9accd6aa628b3521182314133bd.webp)
+
+THE UPDATE OBJECT
+Two update shapes, one protocol
+
+Full-parameter
+sparse rollout-view patch - indices + new values
+small by absorption
+the whole push-vs-floor argument
+
+LoRA
+adapter weights / adapter delta - base frozen
+small by construction
+no precision argument needed
+
+Same protocol object. Different reason it is small.
+
+RL across the globe
+15 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="PULSE measured the same view we ship" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>PULSE measured the same view we ship</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Around 99% of BF16 weights remain bit-identical per step across the models shown; over 98.5% remain unchanged even at S=32. A lossless patch sends changed indices and replacement values.
+
+[12:01](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=721s) [Measurement steps, model-family bars and a staleness chart show high proportions of unchanged BF16 weights.](https://assets.ai.engineer/sites/aiecode2025/sha256/b14a8e22207352c04b7d03855c1df3c648f9becd42ee5edbb04e8d9be393be1e.webp)
+
+MEASURED · PULSE
+PULSE measured the same view we ship
+The metric we ship, measured directly - cast to the rollout BF16 dtype, compare bitwise, count what didn't change.
+
+HOW IT'S MEASURED
+1 cast to BF16
+2 compare bitwise
+3 count unchanged
+
+HOLDS ACROSS MODEL FAMILIES
+Qwen 0.5B  99.3
+Qwen 1.5B  99.4
+Qwen 7B  99.1
+Llama 3B  99.1
+Gemma 4B  98.9
+bit-identical per step
+
+SURVIVES STALENESS
+Y-axis ticks: 99.4, 98.5
+sync interval →: S=1, S=32
+&gt;98.5% even at S=32 · &gt;97.5% across k-step gaps
+
+Lossless patch: changed indices + replacement values.
+PULSE · arXiv:2602.03839
+RL across the globe
+16 / 31
+
+Interface text:
+claude.ai
+Slide thumbnails: 1–19</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Gradients are dense. The update is sparse." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Gradients are dense. The update is sparse.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>About 99% of gradients are nonzero, and the FP32 master update is small but dense. Only about 1% of rollout weights visibly change, producing a similarly sparse network delta.
+
+[12:42](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=762s) [Bars compare dense gradients and FP32 updates with approximately one percent visible rollout changes and network delta.](https://assets.ai.engineer/sites/aiecode2025/sha256/fbbb9fae0025428f9d6a97dd01fbfbc438b22a6baa820010b7542d1606a1bbf0.webp)
+
+THE MECHANISM, PRECISELY
+Gradients are dense. The update is sparse.
+
+Source · PULSE, arXiv:2602.03839
+
+gradient: ~99% nonzero
+FP32 master update: small, but dense
+rollout-weight change: ~1% visible
+network delta: ~1% - shipped
+
+RL across the globe
+17 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Project first. Diff second." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Project first. Diff second.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For fixed-scale floats, coarser precision raises the visibility floor: FP4 has the highest threshold, FP8 falls in between, and BF16 has the lowest. Fewer weight changes survive projection into a coarser served format.
+
+[13:04](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=784s) [Graph compares FP4, FP8 and BF16 visibility boundaries against an update band.](https://assets.ai.engineer/sites/aiecode2025/sha256/c8124bb69dfdf77d3043f37d8415c3a9caa2ac4d7fd3a89b2478b89a6444585b.webp)
+
+ROLLOUT PRECISION
+Project first. Diff second.
+Project into the served format, then diff - coarser mantissa raises the floor, so fewer weights move.
+
+Y-axis: update magnitude →
+X-axis: weight magnitude |θ| →
+Bη
+fp4 · |θ|/4
+fp8 · |θ|/16
+bf16 · |θ|/256
+coarser → more frozen
+
+Fixed-scale intuition. Real payload depends on the target format.
+RL across the globe
+18 / 31
+
+Interface text: claude.ai; slide thumbnails 1–19</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Shared scales couple the diff" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Shared scales couple the diff</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Int4 weights share a quantization step, while NVFP4 uses hierarchical scales: unchanged codes can decode differently when a scale changes. Both changed codes and changed scales contribute to wire size.
+
+[13:40](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=820s) [Comparison of plain floats, int4 groups, and NVFP4 shared scales.](https://assets.ai.engineer/sites/aiecode2025/sha256/1e42cd5747e12c216b00b381382f1e970be5b7b2fbda0845e44a98aa0d5a4366.webp)
+
+BLOCK-SCALED FORMATS
+Shared scales couple the diff
+Plain floats have per-value floors. Group-scaled formats share scales.
+
+Plain float · Per-element floor
+BF16 / FP8 - each value has its own τ
+before
+after
+one value crosses its floor → only that code changes
+
+int4 group · One shared step
+qᵢ = round(wᵢ / s_g)
+before  s_g 0.10
+after   s_g 0.10
+codes re-round against the shared step; step moves only if group amax does
+
+NVFP4 · Hierarchical scales
+x = x_e2m1 · s_block · s_global
+before  s_blk 0.10
+after   s_blk 0.11
+same codes · new scale → decodes differently
+
+Wire size = changed codes + changed scales. Shared scales couple the diff.
+
+RL across the globe
+19 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Observed in one FP8 run: density settles low" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Observed in one FP8 run: density settles low</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In one GLM 4.7 Air FP8 run, changed-weight density falls from about 0.15% early to about 0.05% per step. The slide cautions that this is not a universal monotonic law.
+
+[14:14](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=854s) [A chart shows changed-weight density falling from about 0.15% early to about 0.05% in one FP8 run.](https://assets.ai.engineer/sites/aiecode2025/sha256/75001519cb9483510b3862715ef11fea8926e66fda4ecb2c1048a68f4a9fa3b8.webp)
+
+OVER TRAINING
+Observed in one FP8 run: density settles low
+
+INTERNAL MEASUREMENT
+GLM 4.7 Air · FP8 · changed-weight density per step
+
+~0.15% early
+~0.05% settled
+Y-axis ticks: 0.15%, 0.10%, 0.05%
+X-axis ticks: 1, 20, 40, 60, 80, 100
+X-axis label: step
+
+The early, high-LR phase is the densest - in this run the delta keeps thinning; not a universal monotonic law.
+
+RL across the globe
+20 / 31
+
+Interface text: claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="The pattern is showing up elsewhere" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The pattern is showing up elsewhere</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>PULSE and SparseRL-Sync report ~99% BF16 sparsity and 99%+ element sparsity, respectively, with large reductions in synchronization or communication. Other projects illustrate related rollout practices.
+
+[14:41](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=881s) [A table summarizes related research and projects reporting sparse synchronization or related rollout practices.](https://assets.ai.engineer/sites/aiecode2025/sha256/b00e4b576351203ba2744be94bf2c06965dcfa2d00b89dd187813c0d000d15e4.webp)
+
+NOT ONE PAPER
+The pattern is showing up elsewhere
+
+SOURCE | WHAT THEY’RE SEEING
+PULSE | The absorption mechanism + a lossless sparse patch - ~99% BF16 sparsity, &gt;100× less sync.
+SparseRL-Sync | Separate team, same result - 99%+ element sparsity, ~100× less comms, at MoE / TB scale.
+Cursor Composer 2 · MAI-Thinking-1 | Per-step S3 delta chain across US / EU rollout · public AdamW RL recipe (β₁=β₂=0.95) - the optimizer the argument relies on.
+slime · miles | BF16 training → FP8 rollout · miles adds NVFP4 rollout - the block-scaled regime we handle.
+
+Independent teams are landing on the same idea.
+
+Sources · PULSE (2602.03839) · SparseRL-Sync · Cursor · slime · miles · MAI-Thinking-1
+RL across the globe
+21 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="The disaggregated rollout protocol" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The disaggregated rollout protocol</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The trainer publishes immutable weight versions to a bulletin board, which rollout engines across regions and providers pull. Requests specify accepted versions; responses return the served version, tokens and metadata.
+
+[15:14](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=914s) [A trainer publishes versions to a bulletin board, which rollout engines pull and apply; responses return to the trainer.](https://assets.ai.engineer/sites/aiecode2025/sha256/79502156dc24643a4e31ea07de5ebedd1186cf1d54e8c25bad4ef586da15ae60.webp)
+
+THE PROTOCOL
+The disaggregated rollout protocol
+
+one cluster · RDMA
+Trainer
+publishes versions
+
+bulletin board
+latest → version 42
+version 40/ anchor
+version 41/transition
+version 42/transition
+
+versions out - pull + apply
+
+rollout engine
+aws · us-east · sidecar
+
+rollout engine
+gcp · eu-central · sidecar
+
+rollout engine
+azure · ap-se · sidecar
+
+rollout engine
+nebius · eu · sidecar
+
+response → trainer · cheap
+
+REQUEST →
+accepted_versions = 42
+
+← RESPONSE · RETURNED TO THE TRAINER, SAME AS IN-CLUSTER
+served_version = 42
+tokens
+logprobs
+routing metadata. router-replay
+tool traces
+
+RL across the globe
+23 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="Write a version. Materialize it locally." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Write a version. Materialize it locally.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After an optimizer step, the trainer publishes an immutable version. Engines pull and materialize it locally, choosing a compatible backend and parallelism while preserving the served version.
+
+[15:58](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=958s) [A trainer writes an immutable version to a bulletin board for compatible engines to materialize locally.](https://assets.ai.engineer/sites/aiecode2025/sha256/75acae688f16adddac774b649a485737bd0ad4c40fe81d763fbf9022ee324558.webp)
+
+PUBLISH → APPLY
+Write a version. Materialize it locally.
+
+Trainer
+optimizer step
+export changed weights
+diff vs previous version
+
+write version 42 →
+
+bulletin board
+latest → version 42
+version 40/ anchor
+version 41/ transition
+version 42/ transition · manifest
+
+pull + apply →
+
+HF / safetensors checkpoint
+version 42 · tensor names · shapes · dtype
+
+Any compatible backend
+SGLang · vLLM
+
+Any parallelism
+TP · PP · EP
+
+Declared serving contract
+dtype · quant layout
+
+Any compatible GPU
+H100 · B200 · GB300
+
+Immutable versions · transition = new-value or XOR bits, no float accumulation. The artifact defines the version - engines choose how to materialize it, not a different served version.
+
+RL across the globe
+24 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="The sidecar makes engines version-aware" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The sidecar makes engines version-aware</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The sidecar checks an engine’s committed version before serving a request. It proxies an acceptable version, applies missing transitions if it can catch up, or returns NotReady so the request can retry elsewhere.
+
+[16:38](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=998s) [A sidecar proxies requests at an acceptable committed version, catches up when possible, or returns NotReady.](https://assets.ai.engineer/sites/aiecode2025/sha256/02665e87b864b51078e4f092c927ad94080d021a7da1a55d6bd8a6112d547c85.webp)
+
+THE SIDECAR
+The sidecar makes engines version-aware
+
+bulletin board
+latest                         version 42
+version 40                     anchor
+version 41                     transition
+version 42                     transition
+
+request asks for version 42 → sidecar checks committed version
+already acceptable → proxy, serve now
+behind, catch-up possible → apply transitions, commit version 42, then proxy
+not ready → return NotReady, retry elsewhere
+
+Engines only serve committed versions - no request runs on half-applied weights.
+accepted_versions = 42 → served_version = 42 - staleness is request-level policy
+
+RL across the globe
+25 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="24" data-cap="The link is thin enough to leave the cluster" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The link is thin enough to leave the cluster</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Cross-region transition broadcasts cut the transfer from 500 GB to 500 MB and take ~seconds, versus minutes–hours for a full checkpoint. Serving continues on an accepted version while the next catches up.
+
+[17:12](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=1032s) [Latency comparison showing cross-region transition broadcasts taking seconds and reducing transfer size from 500 GB to 500 MB.](https://assets.ai.engineer/sites/aiecode2025/sha256/267af5551a85782823142b01cf2793222aa996a93c4f4aa6ad842970cad9bc25.webp)
+
+LATENCY
+The link is thin enough to leave the cluster
+
+in-cluster · RDMA: ~seconds
+full checkpoint · cross-region: minutes–hours
+transition broadcast · cross-region: ~seconds
+
+500 GB → 500 MB
+~1000× less on the wire · Kimi K2.7 NVFP4 ·
+&lt;1% conservative, ~0.1% this run
+
+Serve version 42 → local weights are that version, bit-for-bit - same policy for the same committed version. Serving continues on an accepted version while the next catches up.
+
+RL across the globe
+26 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="25" data-cap="stitch: versioned rollout serving" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>stitch: versioned rollout serving</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Modal’s stitch connects trainer-published weight versions to rollout engines that sync weights and serve the requested version. The contract includes transitions, anchors and a prepare-to-commit step.
+
+[17:39](https://www.youtube.com/watch?v=maRzp4kImJ4&amp;t=1059s) [Diagram of a version contract between a trainer and rollout engines, including transitions, anchors and commit steps.](https://assets.ai.engineer/sites/aiecode2025/sha256/d634fa2c5b076785ad9a3215112223f9f2c2c28d6706a69ca801b96865c24166.webp)
+
+MODAL · CONCRETE IMPLEMENTATION
+stitch: versioned rollout serving
+One concrete implementation of the protocol.
+
+Trainer
+publishes versions
+ships base checkpoint · transitions · anchors · LoRA
+
+THE CONTRACT
+weight_version → served_version
+transition · anchor
+prepare → commit
+WeightVersionNotReady
+
+Rollout engines
+serve the exact version
+backend owns loading · sharding · GPU · vLLM / SGLang
+
+Framework-agnostic · workload-opinionated: async-first, agentic-first, elastic rollout.
+
+RL across the globe
+27 / 31
+
+Interface text:
+claude.ai</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">当训练集群限制了 rollout 容量</a></li><li><a href="#sec-2">移动服务孤岛，让反向传播留在本地</a></li><li><a href="#sec-3">完整检查点是错误的同步单位</a></li><li><a href="#sec-4">小步的 Adam 更新遇上有限的精度</a></li><li><a href="#sec-5">构造一个无损补丁</a></li><li><a href="#sec-6">稀疏度测量统计的是什么</a></li><li><a href="#sec-7">更低的服务精度带来共享缩放的约束</a></li><li><a href="#sec-8">发布不可变的版本，让过时程度显式化</a></li><li><a href="#sec-9">一个边车根据已提交的版本拦截请求</a></li><li><a href="#sec-10">从更小的传输量到一支弹性的 rollout 集群</a></li><li><a href="#sec-11">基于 Adam 的设计之外仍然悬而未决的问题</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">让强化学习跨数据中心运行</h2>
+      <div class="lede"><p>把训练留在高速网络上，把 rollout 引擎移到有空闲的 GPU 上，再通过稀疏补丁和明确的版本契约，同步精确的服务端权重。</p><p>熟悉神经网络训练、推理和浮点精度会有帮助。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="28">▶ 0:28</button></div>
+      <h3>当训练集群限制了 rollout 容量</h3>
+      <p>Where are the GPUs, and can an RL run get them now? At scale, post-training adds a physical capacity problem to the familiar questions about algorithms, environments, and tool calls. The available machines may not share a region or a fast interconnect. Some of the work normally confined to one cluster might instead run on scattered, autoscaled capacity—provided the RL loop can be separated enough to use it.</p>
+<p>The standard loop starts with a trainer updating the policy. Rollout workers, also called samplers, use that policy to generate trajectories; environments return observations and rewards, and the trajectories go back to the trainer for subsequent updates. The critical connection is <strong>weight synchronization</strong>. With the trainer and samplers in the same cluster, RDMA—remote direct memory access—makes that synchronization fast. But it also couples rollout capacity to the training cluster: when sampling needs more workers, the cluster may have no more nodes available.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/24e12cfbe63155b515bdaf3cd834b99a681ce5a1cb2f16400de11aeebf1c197c" alt="Diagram connecting Trainer, Sampler, and RL Env, with arrows for new weights, trajectories, actions, and rewards." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The default RL loop places the trainer and sampler in one cluster.</figcaption></figure>
+<p>Nan Jiang calls the two available compute shapes the <em>cathedral</em> and the <em>sprawl</em>.</p>
+<p>| Compute shape | What it provides | What it cannot promise |
+|---|---|---|
+| Cathedral | Many GPUs in one region, joined by a fast interconnect | Elastic access to additional nodes |
+| Sprawl | Capacity across providers and regions, with different prices and availability | One coherent RDMA fabric |</p>
+<p>The mismatch is that usable compute is distributed, while the default RL loop asks for one tightly coupled cluster.</p>
+<p>That cluster must satisfy four requirements together: enough GPUs, the same region, fast fabric, and immediate availability. Each requirement is manageable in isolation; their intersection is restrictive. Inference capacity can be elastic without belonging to an expandable RDMA cluster. Keeping the whole RL loop inside the training cluster makes rollout inherit the hardest capacity constraint, even if rollout does not need the same communication pattern.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="205">▶ 3:25</button></div>
+      <h3>移动服务孤岛，让反向传播留在本地</h3>
+      <p>Training is a tightly coupled job. Its steps involve collectives, all-reduce, and communication between model-parallel workers, so it belongs on fast fabric. Rollout is a fleet of serving jobs: workers generate trajectories, call environments or tools, and send data back. There is no global all-reduce across those rollout jobs. <strong>Backpropagation stays in the cluster; the rollout fleet can leave.</strong></p>
+<p>The movable unit is a <strong>rollout serving island</strong>: one coherent endpoint, or a local group of endpoints, serving one policy version. An island can retain the local parallelism a large model needs, including prefill/decode disaggregation and other serving constraints. Its external dependency is much lighter: a policy version comes in; trajectories and metadata go out. The resulting architecture keeps the trainer’s collectives inside the RDMA cluster while rollout islands fan out across available capacity, without adding a global collective between them.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="301">▶ 5:01</button></div>
+      <h3>完整检查点是错误的同步单位</h3>
+      <p>Separating rollout from training leaves one expensive link: publishing new weights. The naive approach moves a full checkpoint through storage and over the network whenever rollout needs another policy version. Jiang uses a roughly 500 GB checkpoint at <strong>Kimi</strong> scale in <a href="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/" target="_blank" rel="noopener">NVFP4</a> as his size illustration. He describes full weight synchronization at that scale as taking minutes to hours, depending on the setup. Even asynchronous RL benefits from fresh weights arriving within seconds, so moving rollout elsewhere is useful only if the synchronization object becomes much smaller.</p>
+<p>The proposed shortcut starts with a hypothesis: fewer than 1% of rollout-visible weights change between versions. <em>Rollout-visible</em> means the representation the serving engine actually consumes, such as FP8 or NVFP4—not FP32 master weights or Adam’s optimizer moments. Transfer the changes to that served representation, while requiring <strong>bitwise reconstruction</strong> of the version a full checkpoint would have produced. With sufficient sparsity, the proposed transfer shrinks from hundreds of gigabytes to hundreds of megabytes. The next question is why a broadly trained model would have so few visible changes.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="430">▶ 7:10</button></div>
+      <h3>小步的 Adam 更新遇上有限的精度</h3>
+      <p>The first ingredient is finite precision. An optimizer can maintain high-precision master weights while the forward pass reads a BF16 view. That view has discrete representable values. For a weight magnitude Θ, Jiang uses the following approximate spacing and rounding scale:</p>
+<p>``<code>math
+\mathrm{ULP}_{\mathrm{BF16}}(\Theta) \approx \frac{\Theta}{128},
+\qquad
+\text{half-ULP scale} \approx \frac{\Theta}{256}.
+</code>``</p>
+<p>ULP means <em>unit in the last place</em>: the spacing between adjacent representable values. Around a weight value of one, the illustrated BF16 spacing is about 0.0078, with a half-ULP scale of about 0.0039. An update that leaves the master weight inside the same rounding bin produces no change in the BF16 view.</p>
+<p><strong>Precision qualification:</strong> Half an ULP is a rounding scale, not every master weight’s distance to its nearest boundary. A master weight <a href="https://huggingface.co/blog/delta-weight-sync" target="_blank" rel="noopener">already near a rounding boundary</a> can cross it with a smaller update.</p>
+<p>The second ingredient is Adam’s update magnitude. Ignoring weight decay, an Adam or AdamW update is the learning rate multiplied by a normalized direction. Raw gradients can be dense and vary widely in magnitude, but Adam normalizes them using running gradient statistics. The <a href="https://arxiv.org/abs/2602.03839" target="_blank" rel="noopener">PULSE study</a> bounds the per-parameter step by a constant <code>b</code> times the learning rate under its assumptions:</p>
+<p>``<code>math
+\Delta\theta_i = -\eta u_i,
+\qquad
+|\Delta\theta_i| \le b\eta.
+</code>``</p>
+<p>Here, η is the learning rate and <code>uᵢ</code> is the normalized direction. The useful point is the controlled scale of the update: at the RL post-training learning rates under discussion, the per-weight push is tiny.</p>
+<p>Combining the two ingredients gives Jiang’s <em>push versus floor</em> picture. A served value changes only when the optimizer’s push crosses a rounding boundary. In the illustrative comparison, an Adam step of 3e-6 is more than a thousand times smaller than the approximately 0.0039 half-ULP scale around one. That disparity explains why many updates can be absorbed by rounding; it does not, by itself, prove that a particular cast stays unchanged. The master weights still change, and accumulated updates can eventually become visible.</p>
+<p>The chart expresses the mechanism with weight magnitude on the horizontal axis and update magnitude on the vertical axis. A red line represents the approximate BF16 visibility scale, increasing with weight magnitude. A green band represents the Adam push and its conservative bound. Where the red line lies above the green band, small master-weight changes are often invisible in the served view. Small-magnitude weights have finer spacing and can change more readily; larger weights more readily absorb the same small push. This is <strong>Adam absorption</strong>, the mechanism behind a sparse served-weight update.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="641">▶ 10:41</button></div>
+      <h3>构造一个无损补丁</h3>
+      <p>The synchronization object is a difference between served versions, not a difference between optimizer states. Constructing it follows a specific order:</p>
+<p>1. <strong>Project into the serving representation.</strong> Cast or otherwise convert the weights into the dtype the rollout engine consumes.
+2. <strong>Compare versions.</strong> Compare the served representations of <code>t−1</code> and <code>t</code> bitwise.
+3. <strong>Encode the changes.</strong> Record changed positions, replacement bits, and the metadata needed to apply the patch.
+4. <strong>Reconstruct the version.</strong> Apply selective overwrites, or an equivalent lossless encoding such as XOR, to recover the target served bits.</p>
+<p>This is not repeated floating-point addition of numerical deltas. Replacement and XOR encodings avoid additive reconstruction drift: correctly applying the patch recovers exactly the served version that full synchronization would have delivered.</p>
+<p>That small transfer has a different explanation from LoRA’s small transfer.</p>
+<p>| Training approach | What the optimizer changes | Why synchronization can be small |
+|---|---|---|
+| Full-parameter RL | The model’s parameters broadly | Absorption can leave most served weight bits unchanged |
+| LoRA | Small adapters while the base model stays frozen | The trainable object is small by construction |</p>
+<p>Full-parameter RL needs the precision argument to explain its sparse served-view patch. LoRA does not: its small adapter already limits the synchronization object.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="723">▶ 12:03</button></div>
+      <h3>稀疏度测量统计的是什么</h3>
+      <p>The measurement is deliberately about weight bits, not gradients or optimizer state. Cast the weights to BF16, compare consecutive versions bitwise, and count the entries that did not change. Jiang reports that roughly 99% of BF16 weights were bit-identical per step across the model families examined in the cited study. He also reports that differences remain sparse when rollout lags behind the trainer. These are observations from the evaluated runs, not a universal sparsity guarantee. In either case, changed indices plus replacement values reconstruct the selected target version exactly.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/d984939eb61d511ad7ffb45ebd0c7081063b3767ef3eaa79864a664b072883a6" alt="Slide showing a three-step measurement procedure, green bars across model families, a staleness line chart, and a lossless-patch note." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>PULSE measures unchanged weights by casting to BF16 and comparing bitwise.</figcaption></figure>
+<p><strong>Sparse served-weight changes do not imply sparse gradients.</strong> Jiang reports that about 99% of parameters had nonzero gradients in the cited study. The FP32 master-weight updates were also dense, but small. The apparent contrast disappears once the representations are separated: many parameters receive updates, while only a small fraction cross a boundary in the rollout engine’s lower-precision view. Nothing in the patch construction requires pruning those gradients.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="786">▶ 13:06</button></div>
+      <h3>更低的服务精度带来共享缩放的约束</h3>
+      <p>Rollout engines may serve in FP8 or NVFP4 even when training uses BF16; serving precision and training precision are separate choices. Quantization-aware training is another possibility, but it is not required for that distinction. For a floating-point format with fixed scales and <code>m</code> mantissa bits, the illustrated visibility scale becomes:</p>
+<p>``<code>math
+\text{visibility scale} \approx \frac{\Theta}{2^{m+1}}.
+</code>``</p>
+<p>Fewer mantissa bits mean coarser spacing. In this simplified picture, FP8 has a higher visibility threshold than BF16, and FP4 has a higher threshold still, so fewer small updates may alter the served representation.</p>
+<p>Shared-scale formats require more care. With independent rounding, one value crossing a boundary can change one encoded value. INT4 instead quantizes weights relative to a shared group scale, and NVFP4 uses hierarchical scales with its own encoding rules. <strong>The exact patch must preserve the relevant scale bits as well as the encoded weight values.</strong> Counting unchanged element codes alone does not establish that the complete served checkpoint is equally sparse.</p>
+<p>Jiang then reports an internal run serving <strong>GLM-4.7-Air</strong> in FP8:</p>
+<p>| Point in the internal run | Reported changed weights | Stated condition |
+|---|---:|---|
+| First step | Approximately 0.15% | Learning rate described as high |
+| Later steps | Approximately 0.5% per step | Adam behavior described as stabilizing |</p>
+<p>These figures describe one internal run, not a guarantee across models or training schedules. Jiang also points to related RL synchronization research and cites Cursor, <strong>Composer-2</strong>, and MAI when discussing Adam’s use in post-training. With small, exact served-version updates as the working premise, the next problem is making remote rollout engines participate reliably.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="906">▶ 15:06</button></div>
+      <h3>发布不可变的版本，让过时程度显式化</h3>
+      <p>The deployment architecture leaves the trainer in its RDMA cluster and places rollout engines outside it, potentially across regions and providers. After an update, the trainer publishes an <strong>immutable rollout weight version</strong> to a shared bulletin board. The request path carries a version contract: a request identifies the desired policy version and which versions it will accept. The response reports the version actually used, alongside generated tokens, log probabilities, router replay information, and other rollout metadata. Version identity becomes part of the interaction rather than an assumption about colocated processes.</p>
+<p>After each optimizer step, the trainer publishes the version; engines pull it and materialize it locally in a checkpoint layout they can serve. An engine can choose how to load and shard that version, but it cannot substitute different served weights. Jiang describes a Hugging Face-style <code>safetensors</code> layout for compatible engines such as vLLM. Compatibility still depends on the attention and mixture-of-experts backends, parallelism, serving dtype, and GPUs. A common file format does not remove those execution constraints.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1001">▶ 16:41</button></div>
+      <h3>一个边车根据已提交的版本拦截请求</h3>
+      <p>A <strong>sidecar</strong> makes an ordinary rollout engine aware of the version contract. It handles three cases:</p>
+<p>- <strong>An acceptable version is already committed:</strong> Proxy the request to the engine.
+- <strong>The engine is behind but can catch up:</strong> Apply the missing transactions so it can serve an acceptable version.
+- <strong>The required version cannot be reached:</strong> Return <code>not ready</code> rather than serving an unacceptable version.</p>
+<p>This gate lets additional compatible GPU capacity join the rollout fleet without assuming that every engine is current at every moment. Each engine must either satisfy the request’s version requirements or decline it.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1034">▶ 17:14</button></div>
+      <h3>从更小的传输量到一支弹性的 rollout 集群</h3>
+      <p>In-cluster synchronization is fast because RDMA provides the appropriate fabric. Moving full checkpoints across regions replaces that advantage with a large network transfer. Sparse patches change the amount of data that must cross the link. Jiang illustrates reducing a transfer from roughly 500 GB to 500 MB, with latency falling into seconds. This is a size-and-latency illustration, not a benchmark for a specified network or region pair. The actual payload also includes indices, replacement bits, scales where applicable, and metadata; fewer than 1% changed weights alone does not establish the illustrated byte count.</p>
+<p>Modal’s <strong>Stitch</strong> is the concrete implementation Jiang describes for this protocol. On the trainer side, it publishes what defines a rollout weight version through the bulletin-board contract. On the rollout side, engines pull weights and synchronize across regions and providers. Jiang describes Stitch as agnostic to the trainer framework, serving engine, and transport, with an emphasis on asynchronous RL and agentic workloads.</p>
+<p>Each rollout engine synchronizes its own weights, serves accepted versions, and returns rollout metadata. That gives the fleet a unit of independent growth: another compatible serving island can join without expanding the training cluster itself. Scattered inference capacity can become RL rollout capacity, while the trainer retains the tightly connected infrastructure its computation needs.</p>
+    </section>
+<section class="section" id="sec-11">
+      <div class="section-head"><span class="num">11</span>
+      <button class="seek" data-t="1124">▶ 18:44</button></div>
+      <h3>基于 Adam 的设计之外仍然悬而未决的问题</h3>
+      <p>The architecture leaves three distinct research questions unresolved:</p>
+<p>- <strong>Other optimizers:</strong> Does served-weight sparsity persist under Muon? Jiang cites Moonshot and <strong>DeepSeek-V4</strong> when discussing Muon adoption in post-training, but the preceding absorption argument specifically concerns Adam. It does not automatically establish the same behavior for another optimizer.
+- <strong>Fully asynchronous RL at scale:</strong> Access to global compute expands the possible rollout fleet. How far fully asynchronous RL can scale with that capacity remains an open question; distributing the workers does not itself answer it.
+- <strong>Training beyond RL:</strong> Could the same synchronization pattern help pre-training, mid-training, or supervised fine-tuning? Those extensions are proposed directions, not results established by this design.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://arxiv.org/html/2602.03839v1" target="_blank" rel="noopener">PULSE: original sparse synchronization study</a> — The February 2026 study explains measured served-weight sparsity and lossless replacement patches.</li><li><a href="https://huggingface.co/blog/delta-weight-sync" target="_blank" rel="noopener">Delta weight synchronization in TRL</a> — Implementation walkthrough using Hub storage and vLLM. Experimental branch instructions provide an actionable example, but were not executed or checked against current releases.</li><li><a href="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/" target="_blank" rel="noopener">NVIDIA's explanation of NVFP4</a> — Explains the shared scales and storage overhead that qualify the talk's lower-precision rounding argument.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] All right. Cool. Hi, everyone. Uh, hope you all have a good time at the conference.</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">Uh, I'm Nan from Modal. Uh, at Modal, we spend a lot of time thinking about GPU capacity, like where it exists, how do we make it elastic, and what kind of workload can we actually use it.</span></div><div class="tline" data-t="28"><span class="ts">0:28</span><span class="tx">Today, I want to talk about one place where everything became, like, gets really interesting, the RL post-training. A lot of our discussion right now is about algorithm and the environments.</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">Sandbox, PPO, GRPO, like tool call, maybe low-precision training, maybe deterministic kernels. Um, but when you run those experiments at a scale, the problem became more physical. Where are the GPUs?</span></div><div class="tline" data-t="50"><span class="ts">0:50</span><span class="tx">Are they in the same region? Uh, do they have fast fabric? Uh, can we get them right now? Maybe the default shape of RL compute is too restrictive. Maybe some of the work we usually force in one cluster, uh, like can actually run on scattered auto-scaled capacity.</span></div><div class="tline" data-t="66"><span class="ts">1:06</span><span class="tx">So can we do RL across the globe? So this is my talk about, mainly about. So to make this more concrete, let's start with the RL loop itself. So in the standard, uh, RL post-training loop, we can see there's one trainer, and the trainer updates the policy.</span></div><div class="tline" data-t="81"><span class="ts">1:21</span><span class="tx">Rollout worker, or maybe people call sampler, use those policy to generate tra- tra- trajectories. The environment will be returning the reward and observations. Those trajectory will go back to trainer for the next updates.</span></div><div class="tline" data-t="94"><span class="ts">1:34</span><span class="tx">The important arrow here is the weight sync. In the default setup, trainer and the rollout will be living in the same cluster, and the, the weight sync will be super fast with RDMA.</span></div><div class="tline" data-t="104"><span class="ts">1:44</span><span class="tx">But that also coupled the rollout fleet to the, to the trainer cluster. If the rollout needs to more ca- to have more capacity, maybe no, no more nodes during runs, um, you are normally limited by the fixed size during your trainer, maybe your trainer cluster.</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">So the ne- next question is, what kind of compute shape did we actually force everything into?</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">On the left side is the cathedral. Uh, one region, one fast interconnect. Uh, many GPUs wired to- together. This is the right shape for the trainer. On the right is the sprawl.</span></div><div class="tline" data-t="137"><span class="ts">2:17</span><span class="tx">This is where a lot of like usable, useful, usable compute actually lives. Different providers, different regions, different price, and different availabilities. There's still a lot of capacity out there, but it's not one perfect RDMA island.</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">This is the mismatch. Available compute is distributed, but the default RL loop asks one tightly coupled cluster, and that cluster is exactly the hard part to get.</span></div><div class="tline" data-t="163"><span class="ts">2:43</span><span class="tx">RL wants all four of these at the same time, enough GPU, same region, fast fabric, and available now. Any of these, like, is manageable, but all four of them, they are pretty hard to get at the same time.</span></div><div class="tline" data-t="176"><span class="ts">2:56</span><span class="tx">RDMA capacity is not as elastic in the way that inference capacity is elastic. You cannot assume you can grow the trainer cluster, uh, halfway through a run just because rollout wants more nodes for a trainer.</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">So if the whole RL loop has no live, like, has to live inside the, the one cluster, rollout inherits the hardest part, capacity constraint in here. So that leads to the key question: Does the whole RL loop actually need that, like this kind of shape?</span></div><div class="tline" data-t="205"><span class="ts">3:25</span><span class="tx">So let's dive into this. Training is one tightly coupled job. Every step has collectives, all-reduce, and the model parallel communication. That part, it actually wants one fast fabric RDMA-connected.</span></div><div class="tline" data-t="217"><span class="ts">3:37</span><span class="tx">Rollout is a fleet of serving jobs. It generates trajectories, call environments, or maybe tools, and they will be sending back data back to the trainer. So across, uh, rollout jobs, there's no global all-reduce.</span></div><div class="tline" data-t="229"><span class="ts">3:49</span><span class="tx">So the thing I want to move here is not backpropagation. Backpropagation should stay in the cluster. The run- the rollout fleet is the one that can leave. More precisely, the movable unit is the rollout serving island, a coherent endpoint, or maybe a local group of endpoint, or that they can be serving one policy version.</span></div><div class="tline" data-t="249"><span class="ts">4:09</span><span class="tx">Inside the island, a large model may still be having, like local parallelism. They can do PD disaggregation. They can have, like local serving constraints. So across islands, the dependence is much lighter right now.</span></div><div class="tline" data-t="260"><span class="ts">4:20</span><span class="tx">Policy version in, and the trajectory and the metadata out. So once we define the unit that way, the architecture is much, much more natural.</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">Once we define the movable unit, the architecture is very straightforward in this case. We just have trainer staying in RDMA cluster, and that's where the backprop and the collective go.</span></div><div class="tline" data-t="278"><span class="ts">4:38</span><span class="tx">The rollout side will be fanning out across the sprawl. Each rollout island will be, can be single engine or maybe a local serving group, depending on the model and the serving topology there.</span></div><div class="tline" data-t="288"><span class="ts">4:48</span><span class="tx">Across island, there is no global all-reduce. That's the most important thing there. The global interface is very simple. The trainer send policy weight version out, and the rollout sending trajectory and the metadata back.</span></div><div class="tline" data-t="301"><span class="ts">5:01</span><span class="tx">At this point, the architecture depends on one remaining link, the weight update. So if we want to s- if we want to send the full parameter, like full checkpoint from disk, or maybe through the network, then everything is, like meaningless and, like it will be breaking immediately.</span></div><div class="tline" data-t="316"><span class="ts">5:16</span><span class="tx">So, uh, after disaggregation, the things that we will be discussing about, like the size of like go th- the size of the full parameters go through the disk.</span></div><div class="tline" data-t="324"><span class="ts">5:24</span><span class="tx">Naively, that means shipping all f- full checkpoints every time rollout needs a new weight version. At this scale, the checkpoint is very huge. So a Kimi-scale NVFP4 checkpoint, you have like five hundred gigabytes.</span></div><div class="tline" data-t="336"><span class="ts">5:36</span><span class="tx">Normally, it take a minute or maybe i- normally it take mult- multiple minutes to hours to just do the weight sync. So moving that over commodity links might not be the smartest choice 'cause like, uh, when you're doing async, maybe even, even fully async training, you still want the weight updates latency to be as low as possible,</span></div><div class="tline" data-t="353"><span class="ts">5:53</span><span class="tx">like within seconds. So the problem here is not whether rollout can leave the cluster. The problem is like the full checkpoint is the wrong unit of synchronization. So the next question is, can we keep the exact same serve version there but send a much smaller object?</span></div><div class="tline" data-t="369"><span class="ts">6:09</span><span class="tx">So this is the bet. What if less than 1% of the rollout visible weights got changed from one version to another one? By rollout visible weights, I mean the weights in the served rollout ver- uh, checkpoint, uh, not the F- FP32 optimizer state, not the Adam, like, moments.</span></div><div class="tline" data-t="385"><span class="ts">6:25</span><span class="tx">Like, the weights are the rollout's engine, would ac- which we'll actually use to serve, maybe let's say, the FP8 or maybe NVFP4 format. If that's true, we do not need to ship the entire full parameter over the network.</span></div><div class="tline" data-t="397"><span class="ts">6:37</span><span class="tx">We just need to ship the change to serv- served view, the precision delta, got, got difference. The important part here is like still bitwise re- reconstruction. The rollout engine gets the same served, ser- uh, served version you would have gotten to as synced to the full checkpoint there.</span></div><div class="tline" data-t="413"><span class="ts">6:53</span><span class="tx">So if this works, then the link shrinks from hundreds of gigabytes to maybe hundreds of megabytes, and this is something small enough we can just send it across, like, the network.</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">So right now we need to justify the less than 1%, like, claim. Why would this rollout visible, like, weights barely change?</span></div><div class="tline" data-t="430"><span class="ts">7:10</span><span class="tx">Uh, now we get, we will get into this mechanism. So it's kind of small Adam, like, step meets finite precision. We need, we need a two,</span></div><div class="tline" data-t="439"><span class="ts">7:19</span><span class="tx">uh, prerequisite. The first one... Two gra- two ingredients. The ingredient one is the precision. The optimizer may keep very high precision ma- uh, master weights, but the next forward pass read the BF16 visible view.</span></div><div class="tline" data-t="451"><span class="ts">7:31</span><span class="tx">That view has finite resolution. Around a value of magnitude Theta, uh, BF16 spacing is roughly, uh, Theta over 128. Uh, that spacing is, people call it ULP, basically the unit in the last place.</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">Basically, it's the distance between the adjacent representable BF16 value. But an update only needs to cross the nearest rounding boundary to be v- viable, for it to be visible.</span></div><div class="tline" data-t="473"><span class="ts">7:53</span><span class="tx">That boundary is about half of the ULP, so roughly, like, this Theta over 256. For weight around one, the BF16 ULP is around, uh, .0078, and the nearest rounding boundary is about .0039.</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">If the optimizer nudged the master weight by something, like, smaller than that, uh, the BF16's visible value will round back. So you will not see any change from the weight perspective, rollout weight perspective.</span></div><div class="tline" data-t="500"><span class="ts">8:20</span><span class="tx">So that's the floor. The second primitive there is, we call push. So for Adam, or maybe AdamW here, we just, like, we ignore the weight decay term. The per, per...</span></div><div class="tline" data-t="510"><span class="ts">8:30</span><span class="tx">Sorry, the, the per- parameter update is the learning rate times the normalized direction. The raw gradient can be dense and can have very different magnitudes across parameters. An Adam, like, divides by running, uh, gradients statistics.</span></div><div class="tline" data-t="525"><span class="ts">8:45</span><span class="tx">So the per-weight push is usually on the order of learning rates. The paper Paused, I said there, uh, they have, they prove a bound. The Adam step is at most b times the learning rates.</span></div><div class="tline" data-t="536"><span class="ts">8:56</span><span class="tx">So you do not need to actually remember the exact, like, bound there. Like, the important notes here is the Adam makes the push small, and they're very controlled. So at RL post-training learning rates, the push is very, very tiny.</span></div><div class="tline" data-t="549"><span class="ts">9:09</span><span class="tx">So that's the push. Combining these two pr- primitives, now we have to, we have a whole, like, better picture. A served va- value changed only if the push cleared the floor.</span></div><div class="tline" data-t="560"><span class="ts">9:20</span><span class="tx">The push is the Adam step, roughly the learning rates. The floor is the nearest BF16 rounding boundary, uh, roughly Theta over 256. Take a Theta equal one, the BF16 boundary is about .0039.</span></div><div class="tline" data-t="572"><span class="ts">9:32</span><span class="tx">A typical, uh, Adam step i- here is around 3e-6. So the update is more than a thousand smaller than the boundary, so the BF16 visible value will not change.</span></div><div class="tline" data-t="582"><span class="ts">9:42</span><span class="tx">This is not saying the master weights are in, is frozen forever. It is saying the value that rollout engine would serve does not change on this part. So the whole mechanism is pushing, uh, is, is push versus floor.</span></div><div class="tline" data-t="596"><span class="ts">9:56</span><span class="tx">Let's visualize this to have better understanding. The x-axis is the weight magnitude, and the y-axis is the u- uh, update magnitude. First, we look at the red line. The red line now is the BF16 visible boundary.</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">It's like Theta over 256. And now we look at the green bound. This is the Adam push. It sits roughly around the learning rate and, uh, with a conservative upper bound.</span></div><div class="tline" data-t="616"><span class="ts">10:16</span><span class="tx">So now we ask, like, where the most point fits. For most of the weights, the red floor is above the green push. Those updates exist in the master weights, but they are not visible in the served BF16 view this step.</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">Small weights on the left can move. Large weight on the right, they will just stay the same. They will be absorbed it. This is the Adam absorption. This is why the served update become very sparse.</span></div><div class="tline" data-t="641"><span class="ts">10:41</span><span class="tx">In this case, the object will be shipped as just a diff, uh, it's just a diff, not the entire FP32 optimizer state. We first look at the rollout view.</span></div><div class="tline" data-t="651"><span class="ts">10:51</span><span class="tx">The weight cast, like, all projected to the dtype that the rollout engine will be serving. Then we will be comparing the version T minus one and the version T, uh, in this view.</span></div><div class="tline" data-t="661"><span class="ts">11:01</span><span class="tx">The patch is, the patch is the changed positions, plus, like, re- uh, replacement bits and also, like, some metadata. There are multiple lossless encoding. People can do selective overwrites.</span></div><div class="tline" data-t="672"><span class="ts">11:12</span><span class="tx">They can... People can also do XOR. The important part is, like, they are bit equivalent, bit-level equivalent, so it's not a floating point addition, so there's no additive, uh, delta drift.</span></div><div class="tline" data-t="684"><span class="ts">11:24</span><span class="tx">If a rollout engine apply the patch correctly, it reconstruct the same served version bitwise.</span></div><div class="tline" data-t="690"><span class="ts">11:30</span><span class="tx">So everything so far we explained is about the full parameter, which is hub, hub RL. So in full parameter reinforcement learning, the optimizer update the whole model. But the rollout view patch is sparse, as the thing we just explained.</span></div><div class="tline" data-t="703"><span class="ts">11:43</span><span class="tx">LoRA is a small for a different purpose, uh, for, for a different reason. The base model is frozen, and the adapter is small enough by construction, so do not need to put, so do not need to have the push versus the floor argument here.</span></div><div class="tline" data-t="716"><span class="ts">11:56</span><span class="tx">So full parameter delta is small by absorption, and the LoRA updates are small by construction.</span></div><div class="tline" data-t="723"><span class="ts">12:03</span><span class="tx">Let's dive into deeper about the paper itself. So the paper, they mentioned more stats I will be showing here. The measurement is not gradient sparsity. It's not optimizer state sparsity.</span></div><div class="tline" data-t="732"><span class="ts">12:12</span><span class="tx">They cast weights to BF16, compare consecutive versions delta, and they compare the, the version bitwise, and they count what did not change over time. Across model family, the result around 99% of them is bit identical per step.</span></div><div class="tline" data-t="747"><span class="ts">12:27</span><span class="tx">It's also s- it also survives staleness. Even when the rollout lags, the changes that remain are very small. The important part is not only the number, it is the patch is lossless.</span></div><div class="tline" data-t="758"><span class="ts">12:38</span><span class="tx">Change index plus replacement value reconstructs the exact same version.</span></div><div class="tline" data-t="764"><span class="ts">12:44</span><span class="tx">So a common misconception there is, like, the work- it works because all gradient are sparse. They are not. The paper reports the gradients are dense. About 99% of parameter gives non-zero gradients.</span></div><div class="tline" data-t="776"><span class="ts">12:56</span><span class="tx">The FP32 master update is also dense, it's just small. The main thing is, like, the rollout weight change is just 1% from the perspective of rollout engine.</span></div><div class="tline" data-t="786"><span class="ts">13:06</span><span class="tx">So far, we mostly talk about BF16, but the rollout often serving even lower precision, such as, like, MF- FP4- FP8 and NVFP4, and, uh, we can see many, many model providers doing this in their rollout.</span></div><div class="tline" data-t="798"><span class="ts">13:18</span><span class="tx">Uh, this is not a training precision. The training is ju- just, like, in the normal BF16, although people can do QAT on that. So f- for fixed scale float format, the visibility floor is roughly theta over two to the mantissa plus one.</span></div><div class="tline" data-t="812"><span class="ts">13:32</span><span class="tx">So as you can see, the FP4 will be higher, and FP8 also will be between BF16 and FP4, which means in even lower precision, there will be less weight change.</span></div><div class="tline" data-t="822"><span class="ts">13:42</span><span class="tx">So plain floats are easy to reason about, so each element has its own rounding ceiling. One value cross the floor, one value they just flip and it changed. Group scale such Int4, they are qui- they are a bit different.</span></div><div class="tline" data-t="834"><span class="ts">13:54</span><span class="tx">This is the regime where many low precision serving system are moving towards right now. For Int4, each weight is quantized against a shared group scale, and we can apply the same rationale, and also we can observe similar thing for NVFP4.</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">It's hierarchical scales, and, uh, we can see there are different encoding and scaling mechanism for NVFP4.</span></div><div class="tline" data-t="856"><span class="ts">14:16</span><span class="tx">So this is the... from one internal run. So here's the model we serve, like, GLM-4.7-Air in FP8, and we can see in the beginning, there are only, like, 0.15% of weights got changed in the first step where the learning rate is high.</span></div><div class="tline" data-t="869"><span class="ts">14:29</span><span class="tx">And after we have more training step, like, when the Adam is going r- r- relatively stable, and you can see the entire curve goes stable. We got only 1...</span></div><div class="tline" data-t="879"><span class="ts">14:39</span><span class="tx">0.5%, uh, weight change during each step. So we can see this pattern showing more generally. We have a different research. Uh, we, we saw different research across RL sync have a similar conclusion, and we saw a different model provider such as Cursor, Composer-2, MAI, they all using Adam in their post-training.</span></div><div class="tline" data-t="898"><span class="ts">14:58</span><span class="tx">At, at this point, assume we can produce exact rollout weights version cheaply. The next question is, how do we do this in practice?</span></div><div class="tline" data-t="906"><span class="ts">15:06</span><span class="tx">So from sparse delta to, to RL across globe, how do we do this with elastic rollout engines and also explicit staleness?</span></div><div class="tline" data-t="916"><span class="ts">15:16</span><span class="tx">This is the whole shape. The trainer stay in the RDMA cluster. After it got updated, it published immutable rollout weights version to a shared bulletin board. Rollout engine live outside of the training cluster, which means they don't need to be RDMA connected with the trainer.</span></div><div class="tline" data-t="931"><span class="ts">15:31</span><span class="tx">They can be in different region or different providers. This is also request lane. You can see a request does not just say, &quot;Give me the completion.&quot; You will also say which version you will be sending request to and then which version you will be accepting.</span></div><div class="tline" data-t="944"><span class="ts">15:44</span><span class="tx">And the response will come back with the version and also, like, exact same information as if, as if they are in the same cluster as the trainer. They will be returning tokens, log prob, like, router replay information, and many more me- metadata.</span></div><div class="tline" data-t="960"><span class="ts">16:00</span><span class="tx">The trainer writes immutable version to the board aft- after optimizer state. Uh, af- after optimizer step. Engine pull version and materialize it locally in the checkpoint layout, so they can just, like, serve directly.</span></div><div class="tline" data-t="973"><span class="ts">16:13</span><span class="tx">The auto-defined version, the engine choose how to, how to load and shard it. It does not change... It does, it does not choose the different served version.</span></div><div class="tline" data-t="982"><span class="ts">16:22</span><span class="tx">Since it will be displaying in a HuggingFa- HF, it will be safetensors format, which is accepted widely by many rollout engines such as AstroNet and vLLM. So we can support any compatible backend.</span></div><div class="tline" data-t="993"><span class="ts">16:33</span><span class="tx">Attention backend, MOE backend, different parallelism, compatible serving dtype, and any compatible GPUs there.</span></div><div class="tline" data-t="1001"><span class="ts">16:41</span><span class="tx">We can talk more about the sidecar itself. The sidecar is basically what makes a normal rollout engine version-aware. If the version is already at acceptable committed version, the sidecar just proxy the re- request.</span></div><div class="tline" data-t="1012"><span class="ts">16:52</span><span class="tx">If the engine is behind, but it can, they can catch up, the sidecar just apply the missing transaction. If they cannot get there, the, the sidecar just sim- simply return not ready.</span></div><div class="tline" data-t="1024"><span class="ts">17:04</span><span class="tx">So this will be supporting elastic rollouts, and id- any idle GPU can just be used with design, with this design to support disaggregated rollout.</span></div><div class="tline" data-t="1034"><span class="ts">17:14</span><span class="tx">So this is more like a system latency analysis. In-cluster weight sync is fast because they have RDMA. Uh, a full checkpoint across regions through network is pretty slow.</span></div><div class="tline" data-t="1045"><span class="ts">17:25</span><span class="tx">And but if we use the delta c- If, if we use exactly what we described previously, we can decrease the number of, like, transfer, t- transfer size from, like, five hundred gigabytes to fi- five hundred megabytes, so you will be, like, extremely fast, in seconds.</span></div><div class="tline" data-t="1062"><span class="ts">17:42</span><span class="tx">So everything above was very general protocol. Stitch is one of very concrete implementation from Modal that we imple- im- implementing everything above. So on the, on the trainer side, Stitch publish, uh, what defines a rollout weights version, and on the contract side, you'll be pulling out and it require everything on the bulletin board.</span></div><div class="tline" data-t="1080"><span class="ts">18:00</span><span class="tx">And on the rollout side, you'll be pulling the latest weights, and it start doing a weight sync across different region and different providers. So Stitch itself is a very framework-agnostic about trainer and engine and also transport.</span></div><div class="tline" data-t="1093"><span class="ts">18:13</span><span class="tx">It's very a- async first and also agent first, agentic first.</span></div><div class="tline" data-t="1097"><span class="ts">18:17</span><span class="tx">By doing this, we can have rollouts, uh, engines like auto-scale globally. Each one self sync its weights, serve accepted version, and return rollout metadata. That means scattered inference capab- uh, capacity became one, uh, elastic rollout fleet.</span></div><div class="tline" data-t="1113"><span class="ts">18:33</span><span class="tx">Instead of being limited by the training cluster, rollout can be the global pool. So inference capacity can now become RL capacity.</span></div><div class="tline" data-t="1124"><span class="ts">18:44</span><span class="tx">Last section, we have some, uh, ongoing explorations.</span></div><div class="tline" data-t="1128"><span class="ts">18:48</span><span class="tx">So w- we can see a lot of model providers such as Moonshot and also DeepSeek-V4, they have, like... they are adopting Muon in their post-training. Um, does the sparsity still hold for Muon?</span></div><div class="tline" data-t="1139"><span class="ts">18:59</span><span class="tx">'Cause a lot of thing we discussed previously only for Adam. Second question is async RL at scale. Right now, we can use the compute across the globe. Then how, like, how scalable is the fully async RL?</span></div><div class="tline" data-t="1152"><span class="ts">19:12</span><span class="tx">This is a very open-ended question there. And, uh, third question is, like, does it generalize past RL, 'cause, like, we have pre-training, mid-training, and SFT. Like, do we have-- can we apply same paradigm there?</span></div><div class="tline" data-t="1165"><span class="ts">19:25</span><span class="tx">Last but not least, we are working on some very hard problem, and come work with us. You can check the link there, modal.jobs. Thank you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

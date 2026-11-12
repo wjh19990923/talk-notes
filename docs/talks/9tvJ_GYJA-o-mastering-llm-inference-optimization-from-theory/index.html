@@ -1,0 +1,899 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>精通 LLM 推理优化：从理论到高性价比部署 | AI 工程师中文版</title>
+<meta name="description" content="LLM 的推理服务成本取决于提示词到达后 GPU 显存里还剩下什么。本文从分词和注意力讲起，一路到工作负载测量、批处理、量化和针对硬件的部署。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>精通 LLM 推理优化：从理论到高性价比部署</h1>
+    <div class="orig-title">Mastering LLM Inference Optimization: From Theory to Cost-Effective Deployment</div>
+    <div class="meta"><span class="speaker">Mark Moyou</span> · AI Engineer World's Fair 2024 · 33:39</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=local-inference">本地推理</a><a class="tag" href="../../index.html#topic=transformers-and-attention">Transformer 与注意力</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/9tvJ_GYJA-o-mastering-llm-inference-optimization-from-theory" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="9tvJ_GYJA-o"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=9tvJ_GYJA-o" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">推理经济学始于什么留在 GPU 上</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="22"><span class="ts">0:22</span><span>推理经济学始于什么留在 GPU 上</span></li><li data-t="336"><span class="ts">5:36</span><span>从 token 到矩阵，再到可复用的注意力状态</span></li><li data-t="851"><span class="ts">14:11</span><span>注意力头让内存预算成倍增加</span></li><li data-t="1043"><span class="ts">17:23</span><span>请求的形态决定了什么会变贵</span></li><li data-t="1241"><span class="ts">20:41</span><span>在生产负载下诊断延迟</span></li><li data-t="1387"><span class="ts">23:07</span><span>编译模型并优化服务循环</span></li><li data-t="1596"><span class="ts">26:36</span><span>在服务层之后部署针对特定硬件的引擎</span></li><li data-t="1746"><span class="ts">29:06</span><span>根据观察到的流量调整引擎边界</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 21 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Presenting Sponsor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting Sponsor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Microsoft is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=5s) [Microsoft presenting sponsor slide on a black background.](https://assets.ai.engineer/sites/aiecode2025/sha256/f7b39223831dbceed5d122e169f21e6a0fe24938907b3502e26cf14aa8c239ed.webp)
+
+PRESENTING SPONSOR
+
+Microsoft</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="1,000 Free Inference Requests" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>1,000 Free Inference Requests</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>NVIDIA offers 1,000 free inference requests for prototyping with optimized models. The speaker recommends them for benchmarking open-source models; the slide also lists deployment anywhere and a 90-day enterprise evaluation.
+
+[1:24](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=84s) [NVIDIA slide describing free inference requests, model prototyping, deployment, and an enterprise evaluation.](https://assets.ai.engineer/sites/aiecode2025/sha256/9b04142ad91a3c96624517f6cf05b7fffc61f3c4fdbe98fc529eb84a7b5f2d13.webp)
+
+1000 Free Inference Requests
+
+• Experience optimized foundation models
+• Start prototyping for free
+• Deploy anywhere
+• Get access to NVIDIA AI Enterprise 90-day eval
+
+ai.nvid[obscured]
+NVIDIA
+
+Interface text:
+NVIDIA
+Search NVIDIA AI
+Explore
+Docs
+Login
+Discover
+MODELS
+Reasoning
+Content Generation
+Speech &amp; Translation
+Video
+Biology
+DATA PROCESSING
+Embedding
+Retrieval
+OPTIMIZATION
+Inference
+Route Planning
+INDUSTRIES
+Gaming
+Healthcare
+Automotive
+Industrial
+
+Production-grade intelligence APIs
+Engineered for Your Enterprise.
+
+Trending Now
+The leading open models built by the community, optimized and accelerated by NVIDIA’s enterprise-ready inference runtime
+mistralai / mistral-large
+google / gemma-7b
+gettyimages / edify2d
+meta / codellama-70b
+
+Explore our Collections
+The leading open models built by the community, optimized and accelerated by NVIDIA’s enterprise-ready inference runtime
+RETRIEVAL AUGMENTED GENERATION
+Chat with Your Enterprise Knowledge
+Foundation generative AI models developed by NVIDIA from the ground up on responsibly sourced data and continually improved over time
+NVIDIA CLARA
+AI for Healthcare
+Accelerate drug discovery and analysis with generative AI
+
+Top Open Foundation Models
+View All
+The leading open models built by the community, optimized and accelerated by NVIDIA’s enterprise-ready inference runtime
+mistralai / mixtral-8x7b-instruct-v0.1
+google / gemma-7b
+stabilityai / stable-diffusion-xl
+mistralai / mistral-7b-instruct-v0.2
+[illegible model descriptions and tags]
+
+Top Open Foundation Models
+The leading open models built by the community, optimized and accelerated by NVIDIA’s enterprise-ready inference runtime</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Agenda" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agenda</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk moves from understanding LLM inference to measuring production deployments and optimizing them with open-source and paid software.
+
+[2:13](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=133s) [Agenda showing understand, measure, and optimize for the LLM inference workload.](https://assets.ai.engineer/sites/aiecode2025/sha256/b71b5af304d2b07c9f6413d709b30fc58c976193aac01d022fb7761caa0f0695.webp)
+
+Agenda
+
+Understand → Measure → Optimize
+LLM Inference Workload →
+
+Interface text:
+CC
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Understanding LLM Inference: Input and Output Flows" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Understanding LLM Inference: Input and Output Flows</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The prompt goes to the GPU, which generates the response one token at a time. Each generated token feeds back into the input so the model can continue the answer with its previous output in context.
+
+[2:53](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=173s) [Diagram showing a prompt sent to GPUs and generated output tokens fed back as input.](https://assets.ai.engineer/sites/aiecode2025/sha256/2068e7baa29762c31f420db246d5ba09cbe029f93aa687246dd804d0b038f0e3.webp)
+
+Understanding LLM Inference
+Input and output flows
+
+Prompt/Input
+Write me a presentation on llm inference optimization so I can keep my job at NVIDIA.
+
+Make me sound smart.
+
+GPU(s)
+Write me a presentation on llm inference optimization so I can keep my job at NVIDIA.
+
+Make me sound smart.
+
+LLM
+Inference
+is
+
+Output Prompt
+One token generated at a time (fast)
+T1 T2 T3 T4
+LLM Inference is hard
+
+Every output token generated gets fed in as input
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Understanding LLM Inference: Main Processing Blocks" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Understanding LLM Inference: Main Processing Blocks</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Input text becomes tokens for initial prompt processing and caching. The model then generates output one token at a time, using its weights; the output tokens are converted back to readable text.
+
+[4:20](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=260s) [Diagram of token conversion, prompt processing and caching, output generation and caching, model weights, and conversion back to text.](https://assets.ai.engineer/sites/aiecode2025/sha256/ab17f5ea14a95ec0eef95e6628f23b10d2aace65ad1ccc615a97e453aedd7136.webp)
+
+Understanding LLM Inference
+Main processing blocks – Intuitive Version
+
+Prompt/Input
+
+Convert text to tokens that model understands
+
+Initial Prompt Processing + Caching
+Output Prompt Generation + Caching
+model weights
+
+Convert model output tokens to human readable text
+
+Output Prompt
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Understanding LLM Inference: Technical Terms" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Understanding LLM Inference: Technical Terms</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Tokenization prepares the prompt for prefill, which processes and caches it. Decode generates tokens one at a time on the GPU; de-tokenization converts them back into readable text.
+
+[5:29](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=329s) [Diagram showing tokenization, prefill, decode and generation, model weights, and detokenization.](https://assets.ai.engineer/sites/aiecode2025/sha256/2f35d95302bb705ec27c7d22b9dd3a441ce6b7326e0255d07473584c0cb5b513.webp)
+
+Understanding LLM Inference
+End to end with technical terms
+
+Phase where input prompt is processed and cached by LLM
+
+Output tokens are generated one at a time and cached on the GPU
+
+Prompt/Input
+Tokenization
+
+GPU(s)
+Prefill
+decode/generation
+model weights
+
+De-tokenization
+Output Prompt
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="How Text Data is Transformed for LLM Processing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How Text Data is Transformed for LLM Processing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker turns to how text is transformed for LLM processing and what data sits on the GPU.
+
+[6:50](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=410s) [Section title introducing how text is transformed for LLM processing.](https://assets.ai.engineer/sites/aiecode2025/sha256/af812e3b9652d8ea4c4e1ae36e41a5c917b24cce218847892176dc503ceadfae.webp)
+
+How Text Data is Transformed for LLM Processing
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Tokenization – Different LLMs have Different Tokenizers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tokenization – Different LLMs have Different Tokenizers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A tokenizer converts a prompt into token IDs. The two example prompts share four IDs; the prompt ending in “smarter” adds a fifth. Tokens can represent parts of words.
+
+[7:34](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=454s) [A token vocabulary and ID diagram illustrates tokenization, with two example prompts mapped to sequences of token IDs.](https://assets.ai.engineer/sites/aiecode2025/sha256/2c8b40bf3e9576a6fa128270246b0eea82a5cd951cbfd9191a6aa2102cf2e744.webp)
+
+Tokenization – Different LLMs have Different Tokenizers
+Tokenization - Converting the input sentence/sequence into a sequence of LLM token ids
+
+token ~= 4 characters
+
+T1 | T2 | T3 | TV
+Total vocabulary of tokens for the LLM
+1 | 2 | 3 | V
+Token ids corresponding to tokens
+
+Convert input text /prompt → Tokenization → Vector of token ids
+
+Make me sound smart
+Make me sound smarter
+Tokenization
+1 | 10 | 3 | 50
+1 | 10 | 3 | 50 | 13
+Vector representation of text
+
+NVIDIA
+
+Interface text: CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Every LLM Token Has An Embedding/Vector" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Every LLM Token Has An Embedding/Vector</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each token ID maps to an embedding vector. The diagram arranges these vectors as columns; the speaker describes them as representations an LLM can compare and do math on.
+
+[8:01](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=481s) [A diagram maps vocabulary tokens and token IDs to columns of embedding vectors.](https://assets.ai.engineer/sites/aiecode2025/sha256/95de11923faa76c16e939fcb096795cc9e65c99c264e7233f38564f5c02faf1c.webp)
+
+Every LLM Token Has An Embedding/Vector
+A sequence of human words is really a sequence of vectors aka a matrix
+
+&quot;Token 1&quot;
+&quot;Token V&quot;
+
+T1  T2  T3  …  TV
+Total vocabulary of tokens for the LLM
+
+1  2  3  …  V
+Token ids corresponding to tokens
+
+E1  E2  E3  …  EV
+Embedding vector of Token 1
+Embedding vectors corresponding to token ids
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Matrix Representation of an Input Prompt" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Matrix Representation of an Input Prompt</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example maps a prompt to token IDs, then to an embedding matrix used in attention calculations. The longer prompt has a fifth token ID and an extra column in its matrix.
+
+[8:31](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=511s) [An example prompt is tokenized into four IDs and represented as a four-column embedding matrix.](https://assets.ai.engineer/sites/aiecode2025/sha256/be32974083e08a4d7a9816b4615dcd5cb8142a065966a21c881e44059f49211b.webp)
+
+Matrix Representation of an Input Prompt
+Tokenization - Converting the input sentence/sequence into a sequence of LLM token ids
+
+Make me sound smart
+Tokenization
+1 10 3 50
+Sequence vector of token ids
+
+E1 E10 E3 E50
+Embedding matrix representing an embedding for each token from the input sequence. Used in the attention calculations in the LLM.
+
+NVIDIA
+
+Interface text:
+CC
+
+[8:42](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=522s) [Two prompts are tokenized into token IDs and embedding matrices; the longer example has an extra column.](https://assets.ai.engineer/sites/aiecode2025/sha256/ae80a6fca03c607cceac3a5936800c0606d90d53e493177843415f0ed712e640.webp)
+
+Matrix Representation of an Input Prompt
+Tokenization - Converting the input sentence/sequence into a sequence of LLM token ids
+
+Make me sound smart
+Tokenization
+1 10 3 50
+Sequence vector of token ids
+
+E1 E10 E3 E50
+Embedding matrix representing an embedding for each token from the input sequence. Used in the attention calculations in the LLM.
+
+Make me sound smarter
+Tokenization
+1 10 3 50 13
+Sequence vector of token ids
+
+E1 E10 E3 E50 E13
+Embedding matrix representing an embedding for each token from the input sequence. Used in the attention calculations in the LLM.
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Prompt Size and GPU Matrix Size" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Prompt Size and GPU Matrix Size</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A prompt becomes a matrix on the GPU; a larger prompt produces a larger matrix. The speaker notes that GPUs process matrices quickly.
+
+[8:54](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=534s) [The slide states that an input prompt is stored as a GPU matrix and that a larger prompt produces a larger matrix.](https://assets.ai.engineer/sites/aiecode2025/sha256/6e270e0fa125d1baa3e9baae279df7d4159c62aa55aba0000d7268a12e0a33d8.webp)
+
+An input prompt to an LLM is stored as a matrix on the GPU
+
+The larger the prompt the larger the matrix on the GPU
+
+NVIDIA
+
+Interface text: CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Attention Mechanism" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Attention Mechanism</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Attention relates tokens so an LLM can focus on earlier information that matters when generating the next token.
+
+[9:35](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=575s) [The slide states that attention enables LLMs to focus on important tokens.](https://assets.ai.engineer/sites/aiecode2025/sha256/e3fa8d528f6dcfd7793281258212f82f76dbce51872d9247683dedec6f8559d9.webp)
+
+Attention Mechanism enables LLMs to focus on important information (tokens)
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Attention Model Weights" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Attention Model Weights</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The token embeddings for “Make me sound smart” are multiplied by separate query, key and value weights. The slide groups these weights as an attention head; LLMs have many such heads.
+
+[10:34](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=634s) [Token embedding matrices are shown multiplying query, key and value weight matrices.](https://assets.ai.engineer/sites/aiecode2025/sha256/0c7eb54e6d0f136a71a14382bddbb882e0bf4a483d49b012c3aba9c98210a76c.webp)
+
+How LLMs Make Sense Of Tokens Using Attention
+Convert text to token-ids -&gt; token embeddings -&gt; compute attention on the entire input sequence
+
+Prompt/Input
+Make me sound smart.
+
+GPU(s)
+
+Output
+LLM
+
+Model Weights
+
+make E1
+me E10
+sound E3
+smart E50
+x W_Query
+
+make E1
+me E10
+sound E3
+smart E50
+x W_Key
+
+make E1
+me E10
+sound E3
+smart E50
+x W_Value
+
+Collection of matrices known as an attention_head.
+LLMs have many attention heads
+
+Occupies [illegible]
+
+Many details of the model inference lifecycle are omitted for brevity such as mlps, layer-norms, decoding, etc
+
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="KV Cache and Attention Weights" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>KV Cache and Attention Weights</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The newly generated LLM token goes back into the GPU, where its vector is multiplied by query, key and value weights. Cached prior-token data avoids reprocessing the prompt.
+
+[13:14](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=794s) [A new token vector is shown alongside query, key, and value weight matrices.](https://assets.ai.engineer/sites/aiecode2025/sha256/c4d6d74abda9403183ff6dd2e843d8f74d268dde5042c360c6203f3e53d943c6.webp)
+
+The Value Of The Key-Value (KV) Cache – Increase Inference Speed
+KV Cache allows new tokens to be generated much faster
+
+Prompt/Input: Make me sound smart. LLM
+GPU(s)
+Output: inference
+
+Model Weights
+
+LLM
+make
+me
+sound
+smart
+Data was cached from previous iteration
+E20 × W_Query =
+
+LLM
+make
+me
+sound
+smart
+Data was cached from previous iteration
+E20 × W_Key =
+
+LLM
+make
+me
+sound
+smart
+Data was cached from previous iteration
+E20 × W_Value =
+
+Collection of matrices known as an attention_head.
+LLMs have many attention heads
+
+Many details of the model inference lifecycle are omitted for brevity such as mlps, layer-norms, decoding, etc
+
+NVIDIA
+
+Interface text: CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="The Value of the KV Cache" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Value of the KV Cache</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The KV cache retains keys and values from previous tokens, so the model can compute attention for the newest token without reprocessing the earlier prompt.
+
+[13:36](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=816s) [Diagram shows current-token query, key, and value vectors alongside cached keys and values from previous tokens.](https://assets.ai.engineer/sites/aiecode2025/sha256/89f692a9bedf1e266732c552eb3e40ea077dbd61d3d8daeb0893e79b0cad09a7.webp)
+
+The Value Of The Key-Value (KV) Cache – Increase Inference Speed
+KV Cache allows new tokens to be generated much faster
+
+Prompt/Input
+Make me sound smart. LLM
+GPU(s)
+Output
+inference
+
+Model Weights
+
+LLM
+make
+me
+sound
+smart
+Data was cached from previous iteration
+E20 × W_Query = Query E20
+
+LLM
+make
+me
+sound
+smart
+Data was cached from previous iteration
+E20 × W_Key = Key E20
+
+LLM
+make
+me
+sound
+smart
+Data was cached from previous iteration
+E20 × W_Value = Value E20
+
+Q, K, V vectors of current token
+
+Key
+E1
+E10
+E3
+E50
+
+Value
+E1
+E10
+E3
+E50
+
+K, V Cache of previous tokens
+
+Query, Key and Value Matrices are combined to help choose the best output token
+
+Collection of matrices known as an attention_head.
+LLMs have many attention heads
+
+Many details of the model inference lifecycle are omitted for brevity such as mlps, layer-norms, decoding, etc
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="LLM Parameters: Multiple Attention Heads" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>LLM Parameters: Multiple Attention Heads</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The diagram shows Llama3’s 32 attention heads as repeated sets of query, key, and value weight matrices. The speaker notes that these are the main matrices, with others omitted.
+
+[14:10](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=850s) [Query, key, and value weight matrices are repeated across illustrated attention heads.](https://assets.ai.engineer/sites/aiecode2025/sha256/f153d3c13dbee1b5d328514acd9d6e8a304b5163efcfd4875d7e32e650959b7f.webp)
+
+LLM Parameters – Multiple Attention Heads
+Each attention head learns different information
+
+Model Weights
+
+Attention Head 1
+W_Query
+W_Key
+W_Value
+
+Attention Head 2
+W_Query
+W_Key
+W_Value
+
+Attention Head 3
+W_Query
+W_Key
+W_Value
+
+…
+
+Attention Head 32
+W_Query
+W_Key
+W_Value
+
+Llama3 has 32 attention heads
+
+Many details of the model are omitted for brevity. Explore the model.safetensors.index.json on HuggingFace page for LLama3. Sign up required
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Estimating FP16 Model Size" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Estimating FP16 Model Size</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For FP16 weights, multiply the parameter count in billions by two to estimate GPU memory in GB. Llama 3-8B needs about 16 GB.
+
+[14:41](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=881s) [The slide estimates 16 GB for an eight-billion-parameter model in FP16.](https://assets.ai.engineer/sites/aiecode2025/sha256/8730ebec3ed67efa39025d9bd86627354ecbf00c4b11c5c3af3eb9caf84d0c79.webp)
+
+Size of model on GPU (GB) in FP16 = #parameters x 2
+
+Llama 3-8B is 8Billion parameters x 2 = 16GB
+
+NVIDIA
+
+Interface text: CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Estimate Your KV Cache Size" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Estimate Your KV Cache Size</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The NVIDIA inference optimization blog offers further reading on KV cache sizing and other optimizations.
+
+[15:11](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=911s) [A slide displays an NVIDIA blog article about LLM inference optimization.](https://assets.ai.engineer/sites/aiecode2025/sha256/f524f6903ca57150f4ef669a1614b19e756510dfd31c653a6bad075b1c11e325.webp)
+
+BLOG
+Estimate your KV Cache Size
+
+Mastering LLM Techniques: Inference Optimization
+Nov 17, 2023
+By Shashank Verma and Neal Vaidya
++115 Like    Discuss (0)
+
+LLM
+Optimize
+Deploy
+
+https://developer.nvidia.com/blog/mastering-llm-techniques-inference-optimization/
+
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Time to First Token" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Time to First Token</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Time to first token spans tokenization, prompt prefill, generation and detokenization, ending when the first output token appears.
+
+[15:38](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=938s) [Diagram showing time from prompt input through processing to the first output token.](https://assets.ai.engineer/sites/aiecode2025/sha256/172327c355fd099a5a12a69966370f3d48930694ff629cb136472556bc6cc9ac.webp)
+
+LLM Inference Measurement – Time to First Token
+The time it takes to process the input and generate the first token
+
+Prompt/Input
+Tokenization
+Initial Prompt Processing (Prefill)
+decode/generation
+De-Tokenization
+First Output Token
+
+Time to First Token (TTFT)
+Signifies time it takes to process the prompt and generate the first token
+
+https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/client/src/c%2B%2B/perf_analyzer/genai-perf/README.html#metrics
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Inter-token Latency" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inter-token Latency</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Inter-token latency measures the gaps between successive generated tokens. The slide suggests these gaps should stay near constant under load; drift can reveal slowing generation.
+
+[15:54](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=954s) [Diagrams show intervals between generated tokens and describe near-constant inter-token latency.](https://assets.ai.engineer/sites/aiecode2025/sha256/24932bb8bb5301efba02d286be3064146806f18b64c0dbcbd635b43507c334d5.webp)
+
+LLM Inference Measurement – Inter-token Latency
+Measuring generation performance when the system is under load
+
+Prompt/Input → Tokenization → Initial Prompt Processing (Prefill) → decode/generation → De-Tokenization → Output Prompt
+Inter-token Latencies
+
+Inter-token Latencies - Should be near constant over all token generations.
+Near constant time implies efficient generation
+
+Token 1
+itl-1   itl-2   itl-3   …   itl-T
+decode/generation
+
+https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/client/src/c%2B%2B/perf_analyzer/genai-perf/README.html#metrics
+NVIDIA
+
+Interface text: CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Input/Output Sequence Patterns" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Input/Output Sequence Patterns</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>ISL and OSL label the input and output sequence lengths used in the upcoming plots.
+
+[16:26](https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=986s) [Slide defines ISL as input sequence length and OSL as output sequence length.](https://assets.ai.engineer/sites/aiecode2025/sha256/f4397466da2129cd57e4e48b29c474209e2359a05122191c9c82d7f2cc12e584.webp)
+
+Input/Output Sequence Patterns
+
+ISL - Input Sequence Length
+OSL – Out Sequence Length
+
+NVIDIA
+
+Interface text:
+CC</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">推理经济学始于什么留在 GPU 上</a></li><li><a href="#sec-2">从 token 到矩阵，再到可复用的注意力状态</a></li><li><a href="#sec-3">注意力头让内存预算成倍增加</a></li><li><a href="#sec-4">请求的形态决定了什么会变贵</a></li><li><a href="#sec-5">在生产负载下诊断延迟</a></li><li><a href="#sec-6">编译模型并优化服务循环</a></li><li><a href="#sec-7">在服务层之后部署针对特定硬件的引擎</a></li><li><a href="#sec-8">根据观察到的流量调整引擎边界</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">精通 LLM 推理优化：从理论到高性价比部署</h2>
+      <div class="lede"><p>LLM 的推理服务成本取决于提示词到达后 GPU 显存里还剩下什么。本文从分词和注意力讲起，一路到工作负载测量、批处理、量化和针对硬件的部署。</p><p>熟悉 token、矩阵乘法、GPU 显存和基本的模型服务术语，有助于理解预填充、注意力和部署机制。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="22">▶ 0:22</button></div>
+      <h3>推理经济学始于什么留在 GPU 上</h3>
+      <p>A language-model deployment can become prohibitively expensive even when the model itself fits comfortably on a GPU. Every incoming prompt creates work and consumes memory, while each generated token adds context that must remain available for subsequent generation. At scale, the limiting question is not simply whether a model loads: it is how many active requests its remaining memory can sustain. Mark Moyou, an NVIDIA solutions architect, approaches inference economics through this distinction between resident model weights and the growing state required to serve users. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=22s" target="_blank" rel="noopener">0:22</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=38s" target="_blank" rel="noopener">0:38</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=57s" target="_blank" rel="noopener">0:57</a></p>
+<p>Real deployments often mix a commercial model API with an internally hosted open-source or fine-tuned model. Regardless of where a request goes, the underlying problem remains: the prompt enters the GPU workload, generation proceeds token by token, and previously generated context must remain available to produce a coherent continuation. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=69s" target="_blank" rel="noopener">1:09</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=170s" target="_blank" rel="noopener">2:50</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=184s" target="_blank" rel="noopener">3:04</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=190s" target="_blank" rel="noopener">3:10</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=201s" target="_blank" rel="noopener">3:21</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=211s" target="_blank" rel="noopener">3:31</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=225s" target="_blank" rel="noopener">3:45</a></p>
+<p>That retained context becomes the key-value cache, or KV cache, an important driver of deployment cost across both hosted APIs and self-managed GPUs. A request first has to be translated into the model’s vocabulary, then its entire prompt must be processed before token-by-token generation can begin. A heavily loaded service must perform that initial work for new users while continuing to generate responses for requests already in flight. Finally, generated model tokens must be converted back into human-readable text. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=237s" target="_blank" rel="noopener">3:57</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=241s" target="_blank" rel="noopener">4:01</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=251s" target="_blank" rel="noopener">4:11</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=262s" target="_blank" rel="noopener">4:22</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=277s" target="_blank" rel="noopener">4:37</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=288s" target="_blank" rel="noopener">4:48</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=308s" target="_blank" rel="noopener">5:08</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=321s" target="_blank" rel="noopener">5:21</a></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/0c2c8ec860c343130dd9b0d051cd9c6f16fadf465aaf7ca6fc883de0386aa2ae" alt="Inference separates prompt processing from token-by-token generation." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Inference separates prompt processing from token-by-token generation.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="336">▶ 5:36</button></div>
+      <h3>从 token 到矩阵，再到可复用的注意力状态</h3>
+      <p>Tokenization translates text into units from a model-specific vocabulary. Those units are chosen to represent the training corpus efficiently across natural languages, programming languages, and other text; they are not necessarily whole words. The vocabulary belongs to the model and tokenizer—for example, the <strong>Llama</strong> tokenizer Moyou uses—not to the application sending the request. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=336s" target="_blank" rel="noopener">5:36</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=349s" target="_blank" rel="noopener">5:49</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=369s" target="_blank" rel="noopener">6:09</a></p>
+<p>The inference pipeline has two distinct computational phases. During prefill, the system processes the complete prompt and computes attention over its tokens. During decoding, it generates subsequent tokens one at a time while retaining previously processed context on the GPU. These stages place different demands on hardware, and optimized implementations exploit different levels of GPU memory to accelerate them. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=378s" target="_blank" rel="noopener">6:18</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=389s" target="_blank" rel="noopener">6:29</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=399s" target="_blank" rel="noopener">6:39</a></p>
+<p>A useful rough estimate is that one token represents about four characters. Internally, each vocabulary entry has a numerical token ID, so incoming text becomes a sequence of integer lookups. The difference between a prompt ending in <code>smart</code> and one ending in <code>smarter</code> illustrates why word boundaries and token boundaries need not coincide: a small textual change can produce a different sequence of subword units. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=409s" target="_blank" rel="noopener">6:49</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=422s" target="_blank" rel="noopener">7:02</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=434s" target="_blank" rel="noopener">7:14</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=444s" target="_blank" rel="noopener">7:24</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=454s" target="_blank" rel="noopener">7:34</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=468s" target="_blank" rel="noopener">7:48</a></p>
+<p>Each token ID maps to an embedding vector: a numerical representation the model can compare and manipulate. Stack the vectors for an entire prompt together and the prompt becomes a matrix. Adding another token changes that matrix’s dimensions. GPUs are effective inference hardware because the workload repeatedly transforms and multiplies these large collections of vectors. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=477s" target="_blank" rel="noopener">7:57</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=488s" target="_blank" rel="noopener">8:08</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=499s" target="_blank" rel="noopener">8:19</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=510s" target="_blank" rel="noopener">8:30</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=522s" target="_blank" rel="noopener">8:42</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=535s" target="_blank" rel="noopener">8:55</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=545s" target="_blank" rel="noopener">9:05</a></p>
+<p>Attention determines which earlier tokens matter when interpreting context and choosing the next token. The prompt’s embedding matrix is multiplied by learned model-weight matrices to produce query, key, and value representations, conventionally abbreviated <code>Q</code>, <code>K</code>, and <code>V</code>. These projections describe the same token inputs in different mathematical spaces that the attention mechanism uses to relate context to the next generation step. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=578s" target="_blank" rel="noopener">9:38</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=596s" target="_blank" rel="noopener">9:56</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=607s" target="_blank" rel="noopener">10:07</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=620s" target="_blank" rel="noopener">10:20</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=627s" target="_blank" rel="noopener">10:27</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=648s" target="_blank" rel="noopener">10:48</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=662s" target="_blank" rel="noopener">11:02</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=677s" target="_blank" rel="noopener">11:17</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=687s" target="_blank" rel="noopener">11:27</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=701s" target="_blank" rel="noopener">11:41</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=712s" target="_blank" rel="noopener">11:52</a></p>
+<p>The keys and values are the reusable part. Saving them in the KV cache preserves the model’s relevant attention state instead of forcing the server to reconstruct the entire prompt every time another token appears. Making that cache smaller and faster directly affects both serving performance and the amount of context the GPU can hold. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=729s" target="_blank" rel="noopener">12:09</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=739s" target="_blank" rel="noopener">12:19</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=752s" target="_blank" rel="noopener">12:32</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=759s" target="_blank" rel="noopener">12:39</a></p>
+<p>The distinction becomes clearest with one request. Prefill processes the original prompt as matrix-matrix work. Once the first generated token is available, its embedding is processed against the existing model and cached context as vector-matrix work; its new keys and values extend the cache. Without that cache, each decode step would redo prior prompt processing. Production servers can batch these operations across many requests, but batching does not erase the underlying difference between a single request’s prefill and decode phases. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=771s" target="_blank" rel="noopener">12:51</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=784s" target="_blank" rel="noopener">13:04</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=799s" target="_blank" rel="noopener">13:19</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=814s" target="_blank" rel="noopener">13:34</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=826s" target="_blank" rel="noopener">13:46</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=834s" target="_blank" rel="noopener">13:54</a></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/1e13bb9c38a199a5852799c07c47ba2b458d48f4e00240d8788bc2430bb128f8" alt="Attention compares query and key projections to mix the value vectors." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Attention compares query and key projections to mix the value vectors.</figcaption></figure>
+<p>How cached attention changes decoding
+Prompt processing creates reusable attention state; each subsequent token consults and extends that state instead of rebuilding the entire prompt.
+- Prompt text — The incoming text is segmented using the model-specific tokenizer.
+- Token IDs and embeddings — Numeric token identifiers map to embedding vectors assembled into a matrix.
+- Q, K, and V projections — Model weight matrices project token representations into query, key, and value representations.
+- KV cache on GPU — Previously computed keys and values remain available as context for later generation.
+- Process newest token — A newly generated token is represented and evaluated against the retained context.
+- Emit next token — Generation proceeds one token at a time while the cache grows with the active sequence.
+- Prompt text → Token IDs and embeddings (tokenize and embed)
+- Token IDs and embeddings → Q, K, and V projections (matrix projections)
+- Q, K, and V projections → KV cache on GPU (retain K and V)
+- KV cache on GPU → Process newest token (reuse prior context)
+- Process newest token → Emit next token (generate token)
+- Emit next token → KV cache on GPU (extend cached state)</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="851">▶ 14:11</button></div>
+      <h3>注意力头让内存预算成倍增加</h3>
+      <p>Attention is not a single isolated calculation. An attention head contains its own query, key, and value projections, and multiple heads contribute to producing the next token. The particular Llama architecture Moyou uses as an example has 32 attention heads, meaning many sets of attention computations and associated cached state must be managed together; that count should not be generalized to every Llama variant. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=851s" target="_blank" rel="noopener">14:11</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=860s" target="_blank" rel="noopener">14:20</a></p>
+<p>At <code>FP16</code>, model weights require approximately two bytes per parameter. Moyou's simplified budget puts an eight-billion-parameter model on a 20 GB GPU:</p>
+<p>``<code>math
+\begin{aligned}
+M_{\mathrm{weights}} &amp;\approx 8\times10^9\times2\ \mathrm{bytes}=16\ \mathrm{GB}\\
+M_{\mathrm{remaining}} &amp;\approx 20-16=4\ \mathrm{GB}
+\end{aligned}
+</code>``</p>
+<p>Those remaining 4 GB must accommodate request context, KV-cache growth and other serving demands. <strong>Fitting the weights is not the same as serving concurrent requests.</strong> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=875s" target="_blank" rel="noopener">14:35</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=892s" target="_blank" rel="noopener">14:52</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=903s" target="_blank" rel="noopener">15:03</a></p>
+<p>Measure input and output lengths separately, then distinguish the timing questions:</p>
+<p>- <code>ISL</code> is input sequence length; <code>OSL</code> is output sequence length. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=920s" target="_blank" rel="noopener">15:20</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=932s" target="_blank" rel="noopener">15:32</a>
+- <strong>Time to first token:</strong> how long until prompt processing yields the first generated token? <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=941s" target="_blank" rel="noopener">15:41</a>
+- <strong>Inter-token latency:</strong> how long between subsequent tokens? <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=952s" target="_blank" rel="noopener">15:52</a>
+- <strong>Total generation time:</strong> how long from receiving the prompt to completing the answer? Growing memory pressure under concurrent load can change these measurements independently. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=963s" target="_blank" rel="noopener">16:03</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=973s" target="_blank" rel="noopener">16:13</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=987s" target="_blank" rel="noopener">16:27</a></p>
+<p>GPU utilization also depends on the type of workload. For some non-LLM deployments, colocating several models can increase throughput per hardware unit. LLM serving presents a different memory tradeoff: Moyou describes a typical production configuration as one model with remaining capacity devoted to active requests and their KV caches. More models are not automatically better if their weights displace the state needed for concurrent generation. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=998s" target="_blank" rel="noopener">16:38</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1012s" target="_blank" rel="noopener">16:52</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1023s" target="_blank" rel="noopener">17:03</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1034s" target="_blank" rel="noopener">17:14</a></p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="1043">▶ 17:23</button></div>
+      <h3>请求的形态决定了什么会变贵</h3>
+      <p>A single benchmark shape cannot represent a production system whose users submit radically different prompts and expect different response lengths. The joint distribution of input and output sizes determines how much work occurs during prefill, how long decoding continues, and how much GPU memory remains occupied across overlapping requests. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1043s" target="_blank" rel="noopener">17:23</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1056s" target="_blank" rel="noopener">17:36</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1068s" target="_blank" rel="noopener">17:48</a></p>
+<p>The resulting request shapes expose different bottlenecks:</p>
+<p>- Long input, short output: prefill must process substantial context, and the prompt occupies significant memory, but generation completes after relatively few tokens. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1077s" target="_blank" rel="noopener">17:57</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1087s" target="_blank" rel="noopener">18:07</a>
+- Long input, long output: substantial prompt state combines with prolonged generation, filling the GPU and reducing the number of requests that can run concurrently. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1099s" target="_blank" rel="noopener">18:19</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1111s" target="_blank" rel="noopener">18:31</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1122s" target="_blank" rel="noopener">18:42</a>
+- Short input, long output: the first token can arrive relatively quickly because prefill has less context to process, while decoding continues across a much longer response. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1122s" target="_blank" rel="noopener">18:42</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1131s" target="_blank" rel="noopener">18:51</a>
+- Short input, short output completes the four-way classification: both the prompt and continuation are short. Actual traffic mixes all four shapes, so concurrent memory occupancy depends on their distribution. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1143s" target="_blank" rel="noopener">19:03</a></p>
+<p>Shrinking model weights can free space for additional tokens, but weight compression alone does not describe the complete optimization problem. The engine must also accommodate the observed request shapes, their cached context, and the traffic arriving concurrently. A two-dimensional histogram of <code>ISL</code> against <code>OSL</code> reveals which combinations actually occur rather than relying exclusively on advertised maximum context sizes. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1156s" target="_blank" rel="noopener">19:16</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1168s" target="_blank" rel="noopener">19:28</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1179s" target="_blank" rel="noopener">19:39</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1193s" target="_blank" rel="noopener">19:53</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1205s" target="_blank" rel="noopener">20:05</a></p>
+<p>That distribution informs the maximum input and output boundaries used to size and optimize an inference engine. It also provides a basis for understanding when capacity should grow, how requests compete for available memory, and why a deployment tuned for one workload can perform differently when the traffic mix changes. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1217s" target="_blank" rel="noopener">20:17</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1231s" target="_blank" rel="noopener">20:31</a></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/81c3b00070acebed7d2212ef90450cf9970284db5dd11b312cb37eaa9609ca12" alt="Prompts and growing generations compete for space in GPU memory." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Prompts and growing generations compete for space in GPU memory.</figcaption></figure>
+<p>Request shape determines the bottleneck
+Input length drives initial prompt-processing pressure, while output length determines how long generation and cached context continue.
+- Production request mix — Real traffic contains multiple combinations of input and output sequence lengths.
+- Long input, short output — Prompt processing dominates; generation finishes comparatively quickly.
+- Long input, long output — Large prompt context plus extended generation consumes substantial GPU memory and restricts concurrency.
+- Short input, long output — Prefill is shorter, but generation continues across many output tokens.
+- Short input, short output — The fourth combination completes the input/output workload classification.
+- Observed ISL × OSL histogram — Measure the joint distribution to select engine bounds and reason about scaling.
+- Production request mix → Long input, short output (long / short)
+- Production request mix → Long input, long output (long / long)
+- Production request mix → Short input, long output (short / long)
+- Production request mix → Short input, short output (short / short)
+- Long input, short output → Observed ISL × OSL histogram (measure actual frequency)
+- Long input, long output → Observed ISL × OSL histogram (measure actual frequency)
+- Short input, long output → Observed ISL × OSL histogram (measure actual frequency)
+- Short input, short output → Observed ISL × OSL histogram (measure actual frequency)</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="1241">▶ 20:41</button></div>
+      <h3>在生产负载下诊断延迟</h3>
+      <p>Time to first token must be measured under meaningful concurrency. A single-request prefill measurement does not establish how attention processing behaves when the same server is busy admitting new prompts and generating tokens for existing users. The useful comparison is therefore between workloads with stated load conditions, not an isolated query and a saturated deployment treated as equivalent. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1241s" target="_blank" rel="noopener">20:41</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1251s" target="_blank" rel="noopener">20:51</a></p>
+<p><a href="https://github.com/triton-inference-server/perf_analyzer/tree/main/genai-perf" target="_blank" rel="noopener">GenAI-Perf</a> is the benchmarking package Moyou identifies for generating plots that expose these serving behaviors. One useful view examines time to completion across requests: a broad distribution invites investigation into whether different prompt shapes, batching decisions, or scheduling behavior explain why otherwise comparable requests finish at different times. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1262s" target="_blank" rel="noopener">21:02</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1270s" target="_blank" rel="noopener">21:10</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1279s" target="_blank" rel="noopener">21:19</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1291s" target="_blank" rel="noopener">21:31</a></p>
+<p>A second view plots token-to-token latency against token position. As a response grows, the retained context and memory pressure also grow; substantial variation between later token intervals can indicate that concurrency or scheduling is degrading generation. Stable spacing across positions is the operational behavior to investigate, rather than assuming that a fast first token guarantees a smooth response. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1317s" target="_blank" rel="noopener">21:57</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1337s" target="_blank" rel="noopener">22:17</a></p>
+<p>A third view plots time to first token against input length. Longer prompts require more initial attention work, but the slope reveals how sharply prompt-processing latency grows as the input expands. Comparing that relationship under realistic load makes it possible to distinguish an engine that handles growing context efficiently from one whose prefill cost rises too steeply. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1349s" target="_blank" rel="noopener">22:29</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1366s" target="_blank" rel="noopener">22:46</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1377s" target="_blank" rel="noopener">22:57</a></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/9a9de15a2386e70a95eb068a055578421cbd075501a51f400065fc856663f918" alt="Token-to-token latency varies across positions during generation." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Token-to-token latency varies across positions during generation.</figcaption></figure>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="1387">▶ 23:07</button></div>
+      <h3>编译模型并优化服务循环</h3>
+      <p><a href="https://github.com/NVIDIA/TensorRT-LLM" target="_blank" rel="noopener">TensorRT-LLM</a>, or <code>TRT-LLM</code>, is the NVIDIA inference and model-compilation framework Moyou introduces after establishing the workload and its measurements. <a href="https://github.com/triton-inference-server/server" target="_blank" rel="noopener">Triton Inference Server</a> provides a separate serving layer that can host models across different frameworks and hardware targets, reducing the need to maintain an independent model server for each deployment stack. NVIDIA Inference Microservice, or NIM, packages an enterprise-oriented path for deploying optimized configurations without reproducing every engine-building step manually. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1387s" target="_blank" rel="noopener">23:07</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1401s" target="_blank" rel="noopener">23:21</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1409s" target="_blank" rel="noopener">23:29</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1419s" target="_blank" rel="noopener">23:39</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1429s" target="_blank" rel="noopener">23:49</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1437s" target="_blank" rel="noopener">23:57</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1445s" target="_blank" rel="noopener">24:05</a></p>
+<p>One optimization changes numerical precision. Moving weights from <code>FP16</code> to <code>FP8</code> reduces their representation from 16 bits to eight bits, potentially freeing approximately half of the weight-storage memory for the same parameter count. Moyou describes accuracy preservation and faster execution as goals that must be evaluated for the model and supported hardware, rather than as unconditional results for every workload. He identifies Hopper and Ada Lovelace hardware when discussing <code>FP8</code>. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1455s" target="_blank" rel="noopener">24:15</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1468s" target="_blank" rel="noopener">24:28</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1484s" target="_blank" rel="noopener">24:44</a></p>
+<p>Other serving optimizations target the active workload directly:</p>
+<p>- In-flight batching admits a new request as soon as another finishes, without waiting for every request in an existing batch to complete. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1492s" target="_blank" rel="noopener">24:52</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1504s" target="_blank" rel="noopener">25:04</a>
+- Quantized KV cache stores cached attention state at reduced precision, shrinking the memory required by active contexts. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1504s" target="_blank" rel="noopener">25:04</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1521s" target="_blank" rel="noopener">25:21</a>
+- Paged KV cache changes how cache memory is managed across requests, improving control over GPU memory allocation rather than merely compressing model weights. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1521s" target="_blank" rel="noopener">25:21</a>
+- Tensor parallelism splits a model across multiple GPUs, typically within one node. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1530s" target="_blank" rel="noopener">25:30</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1541s" target="_blank" rel="noopener">25:41</a>
+- Pipeline parallelism processes successive model partitions sequentially and can pass work between nodes for larger deployments. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1541s" target="_blank" rel="noopener">25:41</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1553s" target="_blank" rel="noopener">25:53</a></p>
+<p>These strategies solve different problems: batching improves utilization as requests arrive and finish, cache techniques change how much active context fits in memory, and parallelism distributes model execution across devices. Moyou describes an NVIDIA 340-billion-parameter model designed for inference on a single H100 node using <code>FP8</code>, illustrating that model placement depends on both hardware topology and numerical representation. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1565s" target="_blank" rel="noopener">26:05</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1576s" target="_blank" rel="noopener">26:16</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1588s" target="_blank" rel="noopener">26:28</a></p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1596">▶ 26:36</button></div>
+      <h3>在服务层之后部署针对特定硬件的引擎</h3>
+      <p>TensorRT-LLM extends the earlier TensorRT compilation approach with the additional operations required by the autoregressive inference loop. In the workflow Moyou describes, an engine is compiled for its target GPU rather than treated as a generic artifact that can simply be moved unchanged onto different hardware; the optimization depends on the characteristics of the deployment device. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1596s" target="_blank" rel="noopener">26:36</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1610s" target="_blank" rel="noopener">26:50</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1620s" target="_blank" rel="noopener">27:00</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1632s" target="_blank" rel="noopener">27:12</a></p>
+<p>The compiled engine still needs a process that accepts requests, manages batching, and exposes model execution to clients. Triton Inference Server fills that role: it loads models from a configured repository and describes execution in terms of tensor inputs and tensor outputs. The division of responsibility is straightforward: TensorRT-LLM produces the optimized inference engine, while Triton hosts and schedules requests against it. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1645s" target="_blank" rel="noopener">27:25</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1657s" target="_blank" rel="noopener">27:37</a></p>
+<p>Moyou’s deployment outlook moves from <code>FP16</code> toward <code>FP8</code>, because lower-precision weights can leave more room for active tokens, and then toward the announced Blackwell generation’s <code>FP4</code> capability. Each lower-precision deployment still needs its own quality and performance measurements. NVIDIA Inference Microservice rounds out that outlook by packaging model-specific and GPU-specific configurations as an enterprise deployment option. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1672s" target="_blank" rel="noopener">27:52</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1681s" target="_blank" rel="noopener">28:01</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1693s" target="_blank" rel="noopener">28:13</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1705s" target="_blank" rel="noopener">28:25</a></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/bd4383fa3acfad0382cb579769edc9eb6e9a32dee8d18aed4a81ded405105a7b" alt="The deployment diagram connects a TensorRT-LLM engine to Triton and a client." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The deployment diagram connects a TensorRT-LLM engine to Triton and a client.</figcaption></figure>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1746">▶ 29:06</button></div>
+      <h3>根据观察到的流量调整引擎边界</h3>
+      <p>An <code>ISL</code>-by-<code>OSL</code> heat map becomes operationally useful when its observed distribution challenges the configuration used to build an engine. An organization might provision for prompts of 4,000 tokens, then discover that actual requests over the previous week were closer to 1,300 tokens. Those observations can justify rebuilding around the measured workload instead of optimizing exclusively for a theoretical maximum. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1746s" target="_blank" rel="noopener">29:06</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1752s" target="_blank" rel="noopener">29:12</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1759s" target="_blank" rel="noopener">29:19</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1767s" target="_blank" rel="noopener">29:27</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1778s" target="_blank" rel="noopener">29:38</a></p>
+<p>Moyou calls the possibility of varying configurations over time seasonal engines: daytime and nighttime traffic, or other recurring demand changes, might warrant differently sized engines and different scaling behavior. The heat map supplies the input and output bounds across the observed distribution; it does not, by itself, establish that dynamically replacing engines will improve every deployment. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1795s" target="_blank" rel="noopener">29:55</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1810s" target="_blank" rel="noopener">30:10</a></p>
+<p>For mixed request shapes, the typical starting point Moyou describes is one engine configuration capable of handling the full range of incoming traffic. Trying multiple configurations becomes an engineering experiment: check whether a replacement still serves the observed request distribution, then measure its cost and execution behavior. Changing traffic from agent-based systems could make those workload shifts more pronounced. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1830s" target="_blank" rel="noopener">30:30</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1839s" target="_blank" rel="noopener">30:39</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1843s" target="_blank" rel="noopener">30:43</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1847s" target="_blank" rel="noopener">30:47</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1863s" target="_blank" rel="noopener">31:03</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1877s" target="_blank" rel="noopener">31:17</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1885s" target="_blank" rel="noopener">31:25</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1894s" target="_blank" rel="noopener">31:34</a></p>
+<p>Longer context also raises a more fundamental question: can attention scale without making memory requirements prohibitive? Moyou describes approaches that train at shorter context lengths and interpolate to extend usable context, alongside attention implementations that exploit fast GPU memory and hardware interconnects such as NVLink to move data between GPUs. His expectation is that continued architectural and hardware work will address attention bottlenecks, rather than treating ever-larger context as free. <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1898s" target="_blank" rel="noopener">31:38</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1912s" target="_blank" rel="noopener">31:52</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1917s" target="_blank" rel="noopener">31:57</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1917s" target="_blank" rel="noopener">31:57</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1928s" target="_blank" rel="noopener">32:08</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1941s" target="_blank" rel="noopener">32:21</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1953s" target="_blank" rel="noopener">32:33</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1961s" target="_blank" rel="noopener">32:41</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1973s" target="_blank" rel="noopener">32:53</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1988s" target="_blank" rel="noopener">33:08</a> <a href="https://www.youtube.com/watch?v=9tvJ_GYJA-o&amp;t=1991s" target="_blank" rel="noopener">33:11</a></p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/NVIDIA/TensorRT-LLM" target="_blank" rel="noopener">TensorRT-LLM</a> — Explore the inference framework used for model execution, batching and KV-cache optimizations on NVIDIA GPUs.</li><li><a href="https://github.com/triton-inference-server/server" target="_blank" rel="noopener">Triton Inference Server</a> — Serve the inference engine behind an endpoint that accepts and schedules model requests.</li><li><a href="https://github.com/triton-inference-server/perf_analyzer/tree/main/genai-perf" target="_blank" rel="noopener">GenAI-Perf</a> — Inspect the benchmarking tool named in the talk for time to first token, inter-token latency, throughput and request-load analysis.</li><li><a href="https://github.com/MarkMoTrin/nim-simple-demo" target="_blank" rel="noopener">Mark Moyou's NIM walkthrough</a> — Moyou's deployment walkthrough supplies environment checks, NIM launch scripts and example inference requests.</li><li><a href="https://developer.nvidia.com/blog/mastering-llm-techniques-inference-optimization/" target="_blank" rel="noopener">Mastering LLM Techniques: Inference Optimization</a> — NVIDIA's technical overview expands the prefill/decode, KV-cache and model-parallelism mechanisms behind the talk.</li><li><a href="https://github.com/triton-inference-server/perf_analyzer/commit/263c5f6e0c7a6c15472a54409174981f67930cfe" target="_blank" rel="noopener">GenAI-Perf phase-out: new benchmarking work moves to AIPerf</a> — A December 2025 maintenance notice directs new benchmarking projects to AIPerf while the recording demonstrates GenAI-Perf.</li><li><strong>Related talks</strong></li><li><a href="https://ai.engineer/talks/pRM_P6UfdIc-low-level-technicals-llms" target="_blank" rel="noopener">Low Level Technicals of LLMs</a> — Connect implementation fidelity with KV-cache reuse and inference workload tradeoffs.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music]</span></div><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">It's very difficult to teach, um, extremely technical material in about twenty minutes. Initially, I had planned for at least a forty-five minute session, so I left some reading material for you at the end.</span></div><div class="tline" data-t="22"><span class="ts">0:22</span><span class="tx">And, um, all of the resources, you can download slides and everything, so feel free to take screenshots or not. And so I work at NVIDIA, I'm a solutions architect, so I work primarily with retail clients, and it's my job to essentially work with those clients, understand sort of what their main challenges are.</span></div><div class="tline" data-t="38"><span class="ts">0:38</span><span class="tx">This is data processing, computer vision, um, across all of the different use cases. And then now I'm focused on LLM inference. So my hope today is that, um, you get a better intuition of exactly what's happening with this particular workload and how you go about, uh, to some degree, sizing things, choosing different GPUs, et cetera, et cetera,</span></div><div class="tline" data-t="57"><span class="ts">0:57</span><span class="tx">and more importantly, controlling the cost of a deployment. 'Cause that's oftentimes the, the thing that's going to really prevent you from taking this to, taking this to any meaningful scale, is that overall cost of a deployment.</span></div><div class="tline" data-t="69"><span class="ts">1:09</span><span class="tx">Most folks that I've seen are doing some kind of hybrid. So you choose a big box API, you have some set of queries that go there, in addition to you have some set of queries that go to some open source, you know, hosted model or some fine-tuned model that you have internally.</span></div><div class="tline" data-t="85"><span class="ts">1:25</span><span class="tx">So just reference, um, if you go to build.nvidia.com or ai.nvidia.com, everyone can get, uh, a thousand inference requests for free. So I typically recommend this to folks who are benchmarking, um, different types of open source models.</span></div><div class="tline" data-t="98"><span class="ts">1:38</span><span class="tx">We have all of those models hosted. It's optimized if you're teaching a course, um, and you are trying to evaluate all of the different LLMs that are out there for your business.</span></div><div class="tline" data-t="107"><span class="ts">1:47</span><span class="tx">There are also multimodal LLMs, um, speech LLMs. Every model that NVIDIA accelerates will be available there for you, and that's sort of a path to you, um, to either go optimize them yourselves or to work with us.</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">Um, you'll see things about, uh, NVIDIA Inference Microservice, and all of those things that you can take to enterprise. So we have sometimes the, um, I call it the rocky road, and then there's smooth roads.</span></div><div class="tline" data-t="131"><span class="ts">2:11</span><span class="tx">Whatever path you want to take, we're here to support you.</span></div><div class="tline" data-t="135"><span class="ts">2:15</span><span class="tx">Uh, in terms of agenda, very simple. I, I want you to understand the LLM inference workload, and then we'll move to, um, how you go about measuring a production deployment and some of the things you need to be watching.</span></div><div class="tline" data-t="146"><span class="ts">2:26</span><span class="tx">It's a little more than, um, let's say, you know, the total time to generation, and really understanding what's happening on the GPUs as you sort of scale out. Even if you have a single GPU, I think it's very important for you to just have that intuition.</span></div><div class="tline" data-t="158"><span class="ts">2:38</span><span class="tx">And then lastly, I'll show you some software that you can use, um, some open source packages that you can use, and then point to, uh, some paid offerings. Okay, we're gonna get into the LLM inference workload itself.</span></div><div class="tline" data-t="170"><span class="ts">2:50</span><span class="tx">So the first part is, is really understanding what happens when you send a prompt onto the GPU. So I have this example here, I'm saying, &quot;Okay, write me a presentation so I sound smart, I come to the AI engineer conference, and you guys are maybe gonna like the talk.&quot;</span></div><div class="tline" data-t="184"><span class="ts">3:04</span><span class="tx">And essentially what I'm gonna do is I'm gonna put that on the GPU. So the moment that I send that prompt on the GPU, it stays on the GPU.</span></div><div class="tline" data-t="190"><span class="ts">3:10</span><span class="tx">So think about that, and then from there, I'm going to generate one token at a time. So I'm generating the tokens, &quot;LLM inference is hard,&quot; and I put the timestamps T1 through T4.</span></div><div class="tline" data-t="201"><span class="ts">3:21</span><span class="tx">So in every single deployment, no matter how fast anyone claims they're, they're doing things, um, it's typically one token that's generated at a time. That's very important to understand.</span></div><div class="tline" data-t="211"><span class="ts">3:31</span><span class="tx">The next thing is that in order for an LLM to give you a coherent answer, just like how you speak, you have to remember every single thing that you said before, and that you'll understand the mechanism of, um, how that-- how LLMs are able to do that.</span></div><div class="tline" data-t="225"><span class="ts">3:45</span><span class="tx">So that's why I'm putting, &quot;LLM inference is,&quot; in red and putting that back onto the GPU. So every token that I generate gets locked onto the GPU, and then you'll actually see what that looks like, um, in terms of vectors.</span></div><div class="tline" data-t="237"><span class="ts">3:57</span><span class="tx">How many of you have heard of KV cache before? [coughs]</span></div><div class="tline" data-t="241"><span class="ts">4:01</span><span class="tx">Okay, some of you. Um, typically I don't see maybe many leaders hear about this thing called KV cache. KV cache is this thing that really drives, to some degree, the cost.</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">Uh, so whe-whether or not you use some big box API or, um, you're using a single GPU, it's all the same sort of mechanisms, the same algorithm that everyone is trying to solve.</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">So in terms of steps, here the, the... I, I like to, as I said, sharpen your intuition. So the first thing, if we move from the left, my first job is to convert these text, whatever text that you send, we're gonna focus on LLM inference, into some words that the model understands.</span></div><div class="tline" data-t="277"><span class="ts">4:37</span><span class="tx">So the model will have its own vocabulary, and it's my job to translate that. I'll give you the technical, uh, terms coming up after that. And the first thing that happens is I do some initial prompt processing.</span></div><div class="tline" data-t="288"><span class="ts">4:48</span><span class="tx">So I have to compute the attention mechanism on the entire prompt. I repeat that. I have to compute the attention mechanism on the entire prompt per user. So if I have a million people hitting my service, and a million people send ten thousand tokens, that's a million times ten thousand attention mechanisms that I need to compute, also</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">while generating tokens for other people. So that's-- it's good for you to appreciate sort of that complexity that's happening. And once I finish processing that prompt, then I'm going to start generating one token at a time, and that typically happens very fast.</span></div><div class="tline" data-t="321"><span class="ts">5:21</span><span class="tx">And then from there, every token that gets generated, that's in the LLM's vocabulary, I need to now de- tokenize that back into your language. So here's the technical terms that you'll see when you read the literature or you read, uh, super technical documents.</span></div><div class="tline" data-t="336"><span class="ts">5:36</span><span class="tx">First, there's tokenization. Each model will have its own tokenizer. And, um, the thing to think about when you think of tokenizers, when they did pre-training, they had... they downloaded the Internet and some, right?</span></div><div class="tline" data-t="349"><span class="ts">5:49</span><span class="tx">And they cleaned it up, et cetera, et cetera. So a tokenizer, and as you start thinking of the complexity across languages, coding languages, uh, regions, et cetera, et cetera, they try to get what is the minimal set- Of character groups that can represent this entire training data set efficiently, because it's really all about efficiency.</span></div><div class="tline" data-t="369"><span class="ts">6:09</span><span class="tx">So for instance, the LLaMA tokenizer has one hundred and twenty thousand tokens, right? And I'll, I'll talk a bit more about that. So here's what it actually kinda looks like on a GPU.</span></div><div class="tline" data-t="378"><span class="ts">6:18</span><span class="tx">So I tokenize, the LLM understands it. I go into this thing called prefill. Prefill is a stage where you compute the attention mechanism, and many people are doing advancements with attention mechanisms.</span></div><div class="tline" data-t="389"><span class="ts">6:29</span><span class="tx">Um, I'll talk a bit more about that. So there are tons of different schemes. People leverage, um, all of the different types of memory hierarchies in GPUs to really accelerate this type of workload.</span></div><div class="tline" data-t="399"><span class="ts">6:39</span><span class="tx">And then I start generating tokens one at a time. The red and the green just signify, &quot;Hey, I'm storing those tokens on the GPU.&quot; The green is the latest one that I sent out.</span></div><div class="tline" data-t="409"><span class="ts">6:49</span><span class="tx">So hopefully that makes sort of intuitive sense. All right, so the other thing I want you to visualize, um, I, I think it's nice to visualize what, what is the actual data that sits on the GPU.</span></div><div class="tline" data-t="422"><span class="ts">7:02</span><span class="tx">So first, a, a token is approximately four characters. That's a nice way for you to think about it. Um, so from here I have, uh, two vectors. So the first vector is just showing token one through token V.</span></div><div class="tline" data-t="434"><span class="ts">7:14</span><span class="tx">V is the total number of tokens that I have in my tokenizer. And the second vector below is just I have some numeric index. I don't want to keep using the token to reference itself.</span></div><div class="tline" data-t="444"><span class="ts">7:24</span><span class="tx">I just use, use the number as a lookup. So my job when a prompt comes in is to convert that text into those token, what I'm gonna call token IDs.</span></div><div class="tline" data-t="454"><span class="ts">7:34</span><span class="tx">Okay? So I, I have, &quot;Make me sound smart,&quot; and &quot;Make me sound smarter.&quot; You see two vector sets of tokens, and the key thing I want you to walk away with from, from that distinction is that an LLM's token is not a human word.</span></div><div class="tline" data-t="468"><span class="ts">7:48</span><span class="tx">Sometimes it is, sometimes it's not. It's typically some subpart of words. You'll see weird symbols when you look at tokenizers from different models, um, but you want that first framing.</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">So now we have text, we hit to a vector, right? So from there, each one of those LLM tokens had a corresponding embedding vector. So embedding vector is everything.</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">We embed, uh, videos, we embed images, we embed text tokens. Think of it as a representation that, uh, an LLM can use to compare things and do math on.</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">So that's why we always want to com-- excuse me, convert into some vector representation, right? 'Cause some vector representation is just some high-dimensional coordinate space, and we're just rearranging objects.</span></div><div class="tline" data-t="510"><span class="ts">8:30</span><span class="tx">That's to some degree what you're doing. Okay, so from those token IDs, I went to the actual, um, embedding vectors themselves. So if you look, &quot;Make me sound smart,&quot; now becomes a matrix, right?</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">&quot;Make me sound smarter,&quot; becomes a matrix with an extra column. So in reality, what you're doing every time you submit a prompt, I don't care what LLM you submit it to, who you submit it to, this is what you're doing, right?</span></div><div class="tline" data-t="535"><span class="ts">8:55</span><span class="tx">You are converting your text, now images as well, they get converted to some, uh, either tokens or something like that. That'll be another interesting talk to do diffusion models, et cetera, et cetera.</span></div><div class="tline" data-t="545"><span class="ts">9:05</span><span class="tx">But you're really putting this large matrix on the GPU. So why that-- The next question you should ask is, &quot;Okay, um, why are GPUs good for this workload?&quot; 'Cause they process matrices really, really fast.</span></div><div class="tline" data-t="557"><span class="ts">9:17</span><span class="tx">So that's sort of the, the advantage and the thing hopefully that, that makes a lot more sense to you. Now, the next thing I want to talk about is how the LLM is going to process these tokens.</span></div><div class="tline" data-t="567"><span class="ts">9:27</span><span class="tx">And now keep in mind if any-- Well, I'm not even gonna ask you to raise your hand. I'm a hundred percent sure each of you has used an LLM.</span></div><div class="tline" data-t="573"><span class="ts">9:33</span><span class="tx">If you have not, I'm not sure what's happening. [laughs]</span></div><div class="tline" data-t="578"><span class="ts">9:38</span><span class="tx">Uh, the other one is the attention mechanism. I, I truly think, um, it's one of the things that you should understand. If we ever drift away from it, that's fine, but the fundamentals of that mechanism and, and seeing sort of the innovations around that I think can help anyone, any business leader, et cetera, et cetera, just because</span></div><div class="tline" data-t="596"><span class="ts">9:56</span><span class="tx">you are able to speak a different kind of language, um, in this generative future. So as you think of the attention mechanism, the intuition that you should have is just that mechanism of relating tokens.</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">How do I distinguish in a sentence what is important, right? And then for the next token that's gonna be generated, hey, what tokens that I said before were really important for me to make a next good decision for that next token?</span></div><div class="tline" data-t="620"><span class="ts">10:20</span><span class="tx">So that's the intuition, and now we're gonna... we won't necessarily touch too much on the math, but I want you to see sort of what's happening on the GPU.</span></div><div class="tline" data-t="627"><span class="ts">10:27</span><span class="tx">So once again, the prompt comes in. I'm just gonna do a short one, &quot;Make me sound smart.&quot; I'm gonna generate this token called LLM, right? Uh, we saw these same matrices that I said before, so remember my text now turns into a matrix heading onto the GPU.</span></div><div class="tline" data-t="642"><span class="ts">10:42</span><span class="tx">And, and the main thing I want you to understand or visualize here is actually how</span></div><div class="tline" data-t="648"><span class="ts">10:48</span><span class="tx">an LLM memory works. So now when you're speaking, you've recorded everything that I've said for the last, uh, ten minutes in your brain. Somewhere it's, it's stored. So now you're gonna see how the LLM is storing what it is that you just said.</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">So from there, um, a lot of folks will hear about these query, key, and value matrices. This is what the actual model weights look like. So when you look at a model weights file, if you go on Hugging Face, there's typically a JSON file that will show you all of the different pieces of model files, and you'll</span></div><div class="tline" data-t="677"><span class="ts">11:17</span><span class="tx">see this thing called Q, K, and V. So I have these model weights. So now I've went from text to a matrix. I'm going to matrix multiply against the weights of the models.</span></div><div class="tline" data-t="687"><span class="ts">11:27</span><span class="tx">So now I get these three output matrices. So think of these weight matrices that I showed here, think as, um, when you're doing a projection, what you're doing is you're taking, um, some coordinates and you're putting it into a different space.</span></div><div class="tline" data-t="701"><span class="ts">11:41</span><span class="tx">That's really what you're doing when you do vector matrix math. So now when I do this matrix multiplication, this query, key, and value matrix, so if you look at different tutorials on attention, you'll see these things pop up a lot.</span></div><div class="tline" data-t="712"><span class="ts">11:52</span><span class="tx">So hopefully that'll help you to read it a lot more. This is now the LLM's interpretation of each of those tokens that you sent in, right? And now the job is how do I now take, uh, these query, key, and value matrices and sort of interpret it- To try to generate the next best token.</span></div><div class="tline" data-t="729"><span class="ts">12:09</span><span class="tx">And this is just happening constantly over and over every single token that's happening. But the key thing I want you to walk away on this slide is where I drew the key and the value.</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">Right? When people talk about KV cache optimization, every LLM performance engineer is just literally trying to make that thing as fast and small as possible. And I'll, I'll-- that'll make a little more sense as to what that does to your cost.</span></div><div class="tline" data-t="752"><span class="ts">12:32</span><span class="tx">But ultimately, these key and value matrices, this is like your LLM's memory. So it'll make a little more sense coming up. I know I didn't show a ton of the math.</span></div><div class="tline" data-t="759"><span class="ts">12:39</span><span class="tx">I show some tutorials afterwards, so you can go read more about that. Um, my intention here is for you to visualize key and value. So every time you see a prompt, I just want you thinking, &quot;Crap, key and value is on my, on my GPU.&quot;</span></div><div class="tline" data-t="771"><span class="ts">12:51</span><span class="tx">Okay? The next. So here's the real value of the KV cache. So remember we said that whenever I generate a token, I'm going to push it back into the GPU, right?</span></div><div class="tline" data-t="784"><span class="ts">13:04</span><span class="tx">So every token I generate, it goes back into the GPU, and then I have to compute an attention mechanism. So this is what's happening. This new token I generated, LLM, I get its vector representation, as you see in blue, but now I, I do that vector matrix math now.</span></div><div class="tline" data-t="799"><span class="ts">13:19</span><span class="tx">So before I did matrix-matrix math, that's my first prompt first comes in. I generated my first token. Now I'm doing vector matrix math. You know, people will batch this across all requests, but I'm just showing you a single request so you can see it.</span></div><div class="tline" data-t="814"><span class="ts">13:34</span><span class="tx">Now, the value of the KV cache is if I were to-- if I didn't have the KV cache, I would have to reprocess all of that work I did on the prompt that I did before.</span></div><div class="tline" data-t="826"><span class="ts">13:46</span><span class="tx">So this is the benefit of your KV cache, is to now I'm just gonna compute attention on this newest token. How does this new token relate to everything that I said before?</span></div><div class="tline" data-t="834"><span class="ts">13:54</span><span class="tx">That's the thing that's really happening, uh, intuitively. So if I have this KV cache, my generation is gonna be fast. Okay? And it, it's really up to the, the what's called a batch manager on the GPU to make sure that I'm just pushing out as many tokens as possible.</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">Okay. So if you look at, uh, an LLM, these groups of three matrices are called an attention head. There are more matrices than that, but these are the main ones.</span></div><div class="tline" data-t="860"><span class="ts">14:20</span><span class="tx">Um, Llama has thirty-two attention heads, so I just kinda want you to appreciate what an LLM really looks like, right? So I have thirty-two sets of these matrices. I have thirty-two of those KV caches happening at the same time, and now I have to combine all of that to then generate the next token.</span></div><div class="tline" data-t="875"><span class="ts">14:35</span><span class="tx">So there's, like, an incredible amount of work that happens in a very short space of time to give you a coherent token. Okay. A good mental model for you to keep in your head, I'm gonna speed up a little bit, is to, um, if you see the number of parameters, multiply that by two, and that is your</span></div><div class="tline" data-t="892"><span class="ts">14:52</span><span class="tx">FP16 gigabyte memory on the GPU. So if you have, let's say, an L4, I think is twenty gigs, um, and I have a Llama 8B, that's automatically sixteen gigs FP16.</span></div><div class="tline" data-t="903"><span class="ts">15:03</span><span class="tx">So I only have four gigs left for my KV cache. So on the GPU, it's either the model weights or tokens. That's it. There's nothing else on the GPU.</span></div><div class="tline" data-t="912"><span class="ts">15:12</span><span class="tx">And I have, I have a thing to read on that. This is a really good blog. It shows you all of the different, um, optimizations that you can do and...</span></div><div class="tline" data-t="920"><span class="ts">15:20</span><span class="tx">Okay, now let's talk about measuring. So if you ever see this thing called ISL or... Do I have it here? Oh, sorry. ISL or OSL, that's input sequence length, output sequence length.</span></div><div class="tline" data-t="932"><span class="ts">15:32</span><span class="tx">So now I want you to see what some advanced monitoring might look like. If any of you are DevOps folks, these are things that you wanna record. The first thing that we measure is time to first token.</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">So how long does it take me to generate, um, the-- process the prompt and then generate my first token? And that's typically a measurement of how good your attention mechanism processing is.</span></div><div class="tline" data-t="952"><span class="ts">15:52</span><span class="tx">That's really what you're trying to suss out. So that's time to first token. Inter-token latencies, so after I've generated my first token, every single token after that, I'm looking at those individual spaces.</span></div><div class="tline" data-t="963"><span class="ts">16:03</span><span class="tx">So everything that's going to happen there, uh, think about when the system is under load. I have, you know, a thousand requests coming into my system. I'm generating a thousand sets of different tokens.</span></div><div class="tline" data-t="973"><span class="ts">16:13</span><span class="tx">And the more memory I occupy, typically that slows down processing. So if you start to see drift in this metric, then I'll show you some plots that you can look at, and then time to total generation, how long did it take me to initially get the prompt, fully finish the answer, right?</span></div><div class="tline" data-t="987"><span class="ts">16:27</span><span class="tx">Super intuitive. Like I said, ISL, OSL, that's all that means when you see them on the plots coming up. Okay, uh, this is a very important paradigm for you to understand in your mind.</span></div><div class="tline" data-t="998"><span class="ts">16:38</span><span class="tx">Uh, so I, I worked with a lot of folks on, you know, com-- maybe, uh, RecSys deployments or deployments of other types of models. So on the GPU, if you're only deploying one model on a GPU outside of LLM inference, uh, in my opinion, I think you're wasting the GPU.</span></div><div class="tline" data-t="1012"><span class="ts">16:52</span><span class="tx">You can put multiple models on the GPU to actually increase your throughput. That's why it was really created. Um, so this is a slide... Excuse me. This figure is just showing I can have multiple models.</span></div><div class="tline" data-t="1023"><span class="ts">17:03</span><span class="tx">I have some space for data, and that's how I increase my throughput per unit hardware. However, on the LLM inference side, it's very different. I have one model. You know, folks can fit multiple models on a GPU.</span></div><div class="tline" data-t="1034"><span class="ts">17:14</span><span class="tx">That's cool, but that's not a real production use case. You'll typically have a single model. The remaining space that you have is all for KV cache and generating all those tokens.</span></div><div class="tline" data-t="1043"><span class="ts">17:23</span><span class="tx">So I just put four different requests, and I, I just kinda want you to see the boxes that are happening. Okay? Uh, I would say this is the most important slide in the entire presentation because this is the thing that will determine both your cost and performance.</span></div><div class="tline" data-t="1056"><span class="ts">17:36</span><span class="tx">So there are four different querying patterns that happen, and this is something that you must measure in your deployment, 'cause oftentimes you might read benchmarks, and it'll just say, all right, they'll cherry-pick one or two of these.</span></div><div class="tline" data-t="1068"><span class="ts">17:48</span><span class="tx">But in reality, in your production system, you might have several of these different patterns that are occurring. So let's take a look at the first one, long input, short output.</span></div><div class="tline" data-t="1077"><span class="ts">17:57</span><span class="tx">So a long input means it's gonna take me technically longer to compute the attention mechanism. So my prefill stage will be longer. I occupy more memory from my prompt.</span></div><div class="tline" data-t="1087"><span class="ts">18:07</span><span class="tx">Does that make sense intuitively? Hopefully, it, it's grabbing you. But then on the generation side, I don't generate much tokens, so there's not much Those tokens are not taking up a lot of memory, and they will tend to finish fast.</span></div><div class="tline" data-t="1099"><span class="ts">18:19</span><span class="tx">So the second, the second one, or the maybe the most costly use case is, um, so I have clients that will message me and say, &quot;Hey, my data scientists are putting too big of prompts on my GPUs, so now they're killing my deployment.&quot;</span></div><div class="tline" data-t="1111"><span class="ts">18:31</span><span class="tx">'Cause if everyone went and put the maximum context length, I can only fit so many requests on the GPU. So that's something for you to think about. You'll have to manage that internally with your deployments.</span></div><div class="tline" data-t="1122"><span class="ts">18:42</span><span class="tx">So that's why I'm putting, you know, okay, the GPU is really full 'cause a long text, uh, excuse me, long input, a long output. The next one, short-long, you know, your time to first token be really fast.</span></div><div class="tline" data-t="1131"><span class="ts">18:51</span><span class="tx">I don't have much to compute the attention mechanism on, but hey, I'm generating a ton of tokens. That's really, really fast. So hopefully, as you start measuring these types of different query patterns, um, you'll see different results.</span></div><div class="tline" data-t="1143"><span class="ts">19:03</span><span class="tx">I just put, you know, what a random sampling set might actually look like on the GPU, 'cause not everyone will send the same length of input and output. Um, so that will-- it'll be good for you to just sort of visualize and track these statistics.</span></div><div class="tline" data-t="1156"><span class="ts">19:16</span><span class="tx">More importantly, why we're doing that, uh, internally, I'm, I'm gonna steal the time here, Peter. Uh, more importantly, why we're doing that or why we're tracking these things is that the whole goal is to build...</span></div><div class="tline" data-t="1168"><span class="ts">19:28</span><span class="tx">I have a big model. My goal is to shrink it as much as I can, but to keep it as accurate as possible. So the more that I shrink, the faster it runs, the more GPU memory I have for what?</span></div><div class="tline" data-t="1179"><span class="ts">19:39</span><span class="tx">Tokens. All right? So that's how you really try to improve your cost. This is why I'm, I'm sort of proposing to you to build inference engines. So what I-- all I'm showing here is a 2D histogram of input sequence length versus output sequence length.</span></div><div class="tline" data-t="1193"><span class="ts">19:53</span><span class="tx">'Cause the question that you'll have to answer is, &quot;Hey, how long are my actual prompts?&quot; Someone might say, &quot;Okay, here's the max prompt length that you can ingest, or the max prompt you can out, you know, excuse me, get on the output.&quot;</span></div><div class="tline" data-t="1205"><span class="ts">20:05</span><span class="tx">And all of the big box model providers have to estimate this when they go into costing or providing a service to you, right? 'Cause they have to host all of that machinery under the hood now that you understand what's happening.</span></div><div class="tline" data-t="1217"><span class="ts">20:17</span><span class="tx">So we use this stat- to statistically determine what is the max input sequence length and the max output sequence length across all of my users. And this would give you a really good indication of, um, how you can size your engines.</span></div><div class="tline" data-t="1231"><span class="ts">20:31</span><span class="tx">We use that to actually build more optimized engines. In addition, um, it'll just give you good view as to maybe, uh, what you call it, scaling out and things like that.</span></div><div class="tline" data-t="1241"><span class="ts">20:41</span><span class="tx">The next one is time to first token analysis. Remember, time to first token is measuring my performance of the attention mechanism under load. So someone might show attention mechanism at one query.</span></div><div class="tline" data-t="1251"><span class="ts">20:51</span><span class="tx">Woohoo. Show me attention mechanism under load. When this thing is fully maxed out twenty-four/seven, that's when you really need to start, um, measuring these types of things. So this is something you can look at.</span></div><div class="tline" data-t="1262"><span class="ts">21:02</span><span class="tx">These are sort of experimental plots. Um, there's a package called GenAI-Perf that will be released open source. It, it's out already. I have a link to it there.</span></div><div class="tline" data-t="1270"><span class="ts">21:10</span><span class="tx">This is where you can-- it'll generate these plots for you. But I, I'm just showing you what the engineers are looking at internally to measure the performance of, of the compute platform.</span></div><div class="tline" data-t="1279"><span class="ts">21:19</span><span class="tx">Next, time to completion analysis. How long did it take me to go from start to finish across every single request? Naturally, the wider that box plot, you have to intuitively ask, &quot;What's happening?</span></div><div class="tline" data-t="1291"><span class="ts">21:31</span><span class="tx">Why did this person's prompt take longer than another?&quot; So you can investigate either batching issues, scheduling issues, different things like that. I'll, I'll take questions in the end. Um, or I have to move really fast.</span></div><div class="tline" data-t="1301"><span class="ts">21:41</span><span class="tx">Sorry there, Peter. Okay, I'm gonna speed up here. Uh, token-to-token latency. Peter, how much time I got?</span></div><div class="tline" data-t="1307"><span class="ts">21:47</span><span class="tx">Oh, you're fine. Yeah, we'll definitely have time for questions.</span></div><div class="tline" data-t="1309"><span class="ts">21:49</span><span class="tx">Okay, cool. I, I'm gonna steal... I'm definitely over, so sorry. I just wanna-- I realize I may have gone a little too fast, so forgive me for that.</span></div><div class="tline" data-t="1316"><span class="ts">21:56</span><span class="tx">No, you've got five minutes.</span></div><div class="tline" data-t="1317"><span class="ts">21:57</span><span class="tx">Cool. All right. Time, uh, token-to-token latency. So that is, I'm generating tokens, so I'm looking at that spacing versus token position. So the longer a sequence gets, remember, my memory grows, so typically that means our system is under more load, it has more throttling that might happen under high load of requests.</span></div><div class="tline" data-t="1337"><span class="ts">22:17</span><span class="tx">So if I see a large variation in token-to-token latency as the sequence gets longer when I'm generating, that means I'm not very performant, right? So we look at that to see, I try to make sure that that's constant.</span></div><div class="tline" data-t="1349"><span class="ts">22:29</span><span class="tx">No matter how much tokens I'm generating, that means I'm, I'm really proficient. Okay? Uh, last one would be time to first token versus number of input tokens. So time to first token, remember, is computing the attention mechanism, okay, versus number of input tokens.</span></div><div class="tline" data-t="1366"><span class="ts">22:46</span><span class="tx">So if I have a bigger prompt, my attentions will take longer. But I-- if that plot goes up like, uh, from your perspective, it goes up like this in terms of sequence length, that's not really good performance.</span></div><div class="tline" data-t="1377"><span class="ts">22:57</span><span class="tx">We really look at that slope, and we try to get that slope almost, you know, as, as low as possible. So if you send me this long sequence, I can get that thing done really fast.</span></div><div class="tline" data-t="1387"><span class="ts">23:07</span><span class="tx">Okay? Okay. Uh, in terms of software, uh, you'll see this thing called TRT-LLM, uh, Triton as an open source inference server. So you can deploy models on CPU, on GPU, computer vision, RecSys, Python, PyTorch, TensorFlow.</span></div><div class="tline" data-t="1401"><span class="ts">23:21</span><span class="tx">It's, uh, it'll host all of the different types of models, so there's one way that your deployment team deploys. All the data scientists are happy 'cause they don't have to do conversion.</span></div><div class="tline" data-t="1409"><span class="ts">23:29</span><span class="tx">You're happy as a deployment person 'cause you don't have to manage a TorchServe versus TF Serve and, uh, Flask, and all of it is done through one. It's written in C++, blazingly fast.</span></div><div class="tline" data-t="1419"><span class="ts">23:39</span><span class="tx">And then the other thing you'll see in NVIDIA, you'll see a lot more coming out of NVIDIA's NVIDIA Inference Microservice, 'cause building these engines, getting them deployed, optimize at scale is not easy.</span></div><div class="tline" data-t="1429"><span class="ts">23:49</span><span class="tx">So we've sort of made that easy for you as an enterprise offering, but you guys can try it out, uh, for free. Okay. So TRT-LLM, let me just give you a high level.</span></div><div class="tline" data-t="1437"><span class="ts">23:57</span><span class="tx">Lots of stuff on this slide, but the main thing I want you to walk away with, um, uh, is this is the model compilation package for LLMs on NVIDIA GPUs.</span></div><div class="tline" data-t="1445"><span class="ts">24:05</span><span class="tx">This, if you want to get best performance from NVIDIA GPUs, please make sure you use TRT-LLM. Um, and naturally, uh, once we're investing more in NIM, you'll see some more things come out.</span></div><div class="tline" data-t="1455"><span class="ts">24:15</span><span class="tx">So you'll see performances on A100 and H100 really focus on FP8 GPUs. So FP8 will be Hopper and Ada Lovelace. Okay, so FP8, I'll, I'll talk a bit more about that, what the advantage there is.</span></div><div class="tline" data-t="1468"><span class="ts">24:28</span><span class="tx">But mainly is if I go from FP16, FP8 is this, half my memory, almost the same accuracy. And so we measured the accuracy, and we publish the accuracy. So now I have this much more space for tokens, but more importantly, this model is that much faster.</span></div><div class="tline" data-t="1484"><span class="ts">24:44</span><span class="tx">Okay, so I want you to understand where the sort of industry is going. This is why Hopper, the world ate Hopper for breakfast and lunch and dinner because of FP8.</span></div><div class="tline" data-t="1492"><span class="ts">24:52</span><span class="tx">It gave folks that cost, um, benefit to do this thing a lot faster, okay? Um, in-flight batching, it just means I don't have to wait for all the requests to finish to start a new request.</span></div><div class="tline" data-t="1504"><span class="ts">25:04</span><span class="tx">The moment your request finishes, I can in-inject a new request while others are going. Okay? Tons of features here. I, I put the features. Um, so some ones to, to focus on are quantized KV cache, so I can actually represent my KV cache in different, uh, excuse me, precision.</span></div><div class="tline" data-t="1521"><span class="ts">25:21</span><span class="tx">So that means I'm actively shrinking that memory, making it more performant. Um, you have paged KV cache, that's just you managing, uh, your GPUs a lot better in terms of all of that memory.</span></div><div class="tline" data-t="1530"><span class="ts">25:30</span><span class="tx">So there are tons of things you can do. Tensor parallelism, the thing to remember about tensor parallelism, if you want to decrease latency, you use tensor parallelism. Split the model up across multiple GPUs.</span></div><div class="tline" data-t="1541"><span class="ts">25:41</span><span class="tx">That's typically done within a node. I repeat that. That's typically done within a node. You don't like to do tensor parallelism across nodes. You'll see pipeline parallelism go across nodes.</span></div><div class="tline" data-t="1553"><span class="ts">25:53</span><span class="tx">Pipeline parallelism is more sequential, so I process this chunk. So in a multi-node model, like huge models, this box will finish and pass off to the next box. But most folks will typically just work...</span></div><div class="tline" data-t="1565"><span class="ts">26:05</span><span class="tx">Most models will work within a single node, like, um, NVIDIA's 340B model that they just released. It was designed to do inference on a single H100 node, but that's an FP8.</span></div><div class="tline" data-t="1576"><span class="ts">26:16</span><span class="tx">Okay. So those are some of the things. In terms of models that you have access to, um, we optimize those models, and we give you a lot of scripts where you can go do that on your own, or you can sort of take our software, um, and take an easy path.</span></div><div class="tline" data-t="1588"><span class="ts">26:28</span><span class="tx">You-- Either way, we support you. So here are some of the models that are there. All of the Llamas, Mistral, Mixtrals, we work with all those teams behind the scenes.</span></div><div class="tline" data-t="1596"><span class="ts">26:36</span><span class="tx">So typically, before any foundation model comes out, we, we work with those teams to, to get them deployed. Okay, what does it mean for TensorRT? Uh, so you might have seen TensorRT before, which was a deep learning compilation package for NVIDIA GPUs.</span></div><div class="tline" data-t="1610"><span class="ts">26:50</span><span class="tx">Lots of folks in computer vision, et cetera, et cetera, have used that. We took the best practices from there and added all of the extra things that need to happen in the LLM inference loop.</span></div><div class="tline" data-t="1620"><span class="ts">27:00</span><span class="tx">So that's what TRT-LLM is really about. Um, so mainly focus on LLM inference. Uh, here's a good visual. An engine that's built to a specific GPU cannot be moved to another GPU.</span></div><div class="tline" data-t="1632"><span class="ts">27:12</span><span class="tx">So you always have to compile to that GPU. That's why it's that performant, 'cause we really leverage, um, all of the, the actual hardware on that system to rewrite the algorithm, rewrite that model to that specific piece of hardware.</span></div><div class="tline" data-t="1645"><span class="ts">27:25</span><span class="tx">Okay? Um, TRT-LLM on Triton. So TRT-LLM will give me an inference engine. I need something to host that inference engine and accept requests, batching, et cetera, et cetera. So we have Triton.</span></div><div class="tline" data-t="1657"><span class="ts">27:37</span><span class="tx">Triton works very simply. It's literally a folder where you specify it, it works on tensor in and tensor out. So it'll tell you what are my inputs coming in and out, and then it'll basically understand how to interpret that file, or you can host any other different models.</span></div><div class="tline" data-t="1672"><span class="ts">27:52</span><span class="tx">That's one-- That's a thing I do a lot with folks. Just two more slides. This is where the future of inference is going. So a lot of folks do FP16 inference today.</span></div><div class="tline" data-t="1681"><span class="ts">28:01</span><span class="tx">Um, a lot of folks are moving towards FP8 just because, hey, I know half the model size, almost twice the speed, more space for tokens. It just makes more sense from a cost perspective.</span></div><div class="tline" data-t="1693"><span class="ts">28:13</span><span class="tx">That's why folks like that. And then, uh, you saw Blackwell was announced. That's the major innovation. I get FP4. So that's where things are really gonna get interesting. I'll end with, um, NVIDIA Inference Microservice.</span></div><div class="tline" data-t="1705"><span class="ts">28:25</span><span class="tx">So we've made this thing really easy. We've gone and actually found the best configurations for all of these models on each piece of GPU, and we're slowly rolling out, um, all of the models 'cause it, you know, it'll just take some time to optimize the world, [chuckles] essentially.</span></div><div class="tline" data-t="1718"><span class="ts">28:38</span><span class="tx">And yeah, you can use this to download all the slides. I put papers, um, tons of other things you, for you to read. So yeah, hopefully your, your intuition has sharpened. [laughs] [audience applauding]</span></div><div class="tline" data-t="1733"><span class="ts">28:53</span><span class="tx">Shall we just conclude with the... 'Cause there was someone had a question.</span></div><div class="tline" data-t="1736"><span class="ts">28:56</span><span class="tx">Sure. Yeah, I think-</span></div><div class="tline" data-t="1737"><span class="ts">28:57</span><span class="tx">Where was the question?</span></div><div class="tline" data-t="1738"><span class="ts">28:58</span><span class="tx">Yeah.</span></div><div class="tline" data-t="1739"><span class="ts">28:59</span><span class="tx">Oh, hang on. I'm gonna come over and, uh, point my mic at you.</span></div><div class="tline" data-t="1746"><span class="ts">29:06</span><span class="tx">Thank you. Uh, so hi. Um, sorry. My question is actually on the heat map that you shared.</span></div><div class="tline" data-t="1752"><span class="ts">29:12</span><span class="tx">Yeah, yeah.</span></div><div class="tline" data-t="1752"><span class="ts">29:12</span><span class="tx">Do you mind, um, walking through the heat map and how to interpret it? 'Cause it was a little small, couldn't really-</span></div><div class="tline" data-t="1757"><span class="ts">29:17</span><span class="tx">Yeah, sorry about that. Yeah. So the heat map-</span></div><div class="tline" data-t="1758"><span class="ts">29:18</span><span class="tx">Thanks</span></div><div class="tline" data-t="1759"><span class="ts">29:19</span><span class="tx">... all I'm looking at is, um, so when you go to build an engine, you build an engine to the max input sequence length and the max output sequence length.</span></div><div class="tline" data-t="1767"><span class="ts">29:27</span><span class="tx">So we actually change how that matrix math is happening under the hood based on those settings. So you might say, &quot;All right, uh, my users are only gonna send four thousand tokens.&quot;</span></div><div class="tline" data-t="1778"><span class="ts">29:38</span><span class="tx">But in reality, they might have been sending thirteen hundred over the past week that you measured. So now you can say with statistical certainty that, hey, the majority of people that we're serving, um, during this time, these were their querying patterns, so I can rebuild an engine for that period of time.</span></div><div class="tline" data-t="1795"><span class="ts">29:55</span><span class="tx">What gets super interesting, this is a topic I'm very interested in, is seasonal engines. So during the day, you have different querying patterns. So you'll scale down, you'll scale up, and so you might have different engines built for different types of querying patterns based on traffic and stuff like that.</span></div><div class="tline" data-t="1810"><span class="ts">30:10</span><span class="tx">So hopefully that, that may have answered your question, yeah. But it's just saying, you know, looking at the bounds of what's the minimum number of tokens that came in, the max, uh, min, min out and max out, and just looking at that over the entire distribution.</span></div><div class="tline" data-t="1825"><span class="ts">30:25</span><span class="tx">Yes, sir. Oh, yeah, yeah, right. [laughs]</span></div><div class="tline" data-t="1830"><span class="ts">30:30</span><span class="tx">When it comes to those, uh, inference strategies you talked about, like LILO and LISO, um, how do you-- what kind of strategies do you have to manage, like, which ones are used at, like ...</span></div><div class="tline" data-t="1839"><span class="ts">30:39</span><span class="tx">'Cause obviously each session is going to be pretty generic. You don't know which one to use at first.</span></div><div class="tline" data-t="1843"><span class="ts">30:43</span><span class="tx">Correct.</span></div><div class="tline" data-t="1843"><span class="ts">30:43</span><span class="tx">Um, do you split those between GPUs or do you stick with one? Does it switch between-</span></div><div class="tline" data-t="1847"><span class="ts">30:47</span><span class="tx">So typically we'll, we'll go to ... You try to find what's one configuration that'll manage the, the plethora of types of requests that you have coming in. So we, we're typically at a, a one engine per all the different querying types, and I think you'll start seeing ...</span></div><div class="tline" data-t="1863"><span class="ts">31:03</span><span class="tx">I'm giving you a little bit of future ways to think about it on the DevOps side, because that's something you'll have to test, right? If I look at this querying pattern that came into my system with this engine, if I switch the engine, does it still satisfy the querying pattern?</span></div><div class="tline" data-t="1877"><span class="ts">31:17</span><span class="tx">And how much cost does it save? How much faster is it? So that's more of a, an engineering ex- exercise that you'll have to deploy. Sorry, I, I didn't have a- [speaking faintly]</span></div><div class="tline" data-t="1885"><span class="ts">31:25</span><span class="tx">Yeah, yeah. So I, I just ... I'm very interested in the seasonal side just because, okay, querying patterns will change. Um, especially when agents come, it'll just be ...</span></div><div class="tline" data-t="1894"><span class="ts">31:34</span><span class="tx">That's gonna get super interesting when agents are just throwing stuff. Yes, sir?</span></div><div class="tline" data-t="1898"><span class="ts">31:38</span><span class="tx">Um, so a question about how you measure quality of attention. Um, is it, is it correct intuition to think that attention is a fundamentally scarce resource, in the sense of it's about paying attention to one thing at the expense of other contexts?</span></div><div class="tline" data-t="1912"><span class="ts">31:52</span><span class="tx">So then how do ... Or like, can you scale attention mechanisms infinitely the way we can</span></div><div class="tline" data-t="1917"><span class="ts">31:57</span><span class="tx">context lengths?</span></div><div class="tline" data-t="1917"><span class="ts">31:57</span><span class="tx">Yeah. So, so what people do in order to scale the attention mechanism is, here's another interesting fact that, um, why folks don't train huge context models, 'cause it's actually ...</span></div><div class="tline" data-t="1928"><span class="ts">32:08</span><span class="tx">Now you've seen the bigger my, uh, prompt, the more memory I need. So imagine what that does to a huge, I don't know, 10,000, 100,000 GPU deployment. It might make it a million GPUs just to do that context length.</span></div><div class="tline" data-t="1941"><span class="ts">32:21</span><span class="tx">So people will train to a small context length and then interpolate in that value to, to give you that length of context length, and then you're sort of bound to what attention mechanism you were using.</span></div><div class="tline" data-t="1953"><span class="ts">32:33</span><span class="tx">Design there, there's things like FlashAttention that will just do everything in the L1 cache really, really fast. So it depends on the speed of some of the different ...</span></div><div class="tline" data-t="1961"><span class="ts">32:41</span><span class="tx">It also depends on the GPU as well. So that's why, um, if you look at Blackwell that was announced by, by Jensen, they literally have connected, I think, 72 different GPUs on one NVLink.</span></div><div class="tline" data-t="1973"><span class="ts">32:53</span><span class="tx">So NVLink connects GPUs together. That's how we can move data insanely fast. So now we've connected like 72 GPUs on one. That's, that's just to show you, um, like mixture of experts trying to compute attention across all of these different things.</span></div><div class="tline" data-t="1986"><span class="ts">33:06</span><span class="tx">But that's a, actually a really good question. Yep.</span></div><div class="tline" data-t="1988"><span class="ts">33:08</span><span class="tx">So, so we're not gonna be bottlenecked then by attention mechanisms as-</span></div><div class="tline" data-t="1991"><span class="ts">33:11</span><span class="tx">No, I, I don't necessarily think so. And like the entire industry is, you know, going after that problem. That's why everybody wants to maybe see something other than attention and, ah, you know, there's so much excitement there.</span></div><div class="tline" data-t="2002"><span class="ts">33:22</span><span class="tx">Yeah. Okay. Unfortunately, I have to call time on that. Yeah, yeah. Sorry about that. But that's been fantastic. Thank you, Mo. Great. Um- [clapping] [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

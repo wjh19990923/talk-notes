@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>构建受保护的 MCP 服务器 | AI 工程师中文版</title>
+<meta name="description" content="跟随一个受保护的 MCP 请求，从第一次 HTTP 质询，经过 OAuth 发现、C# token 校验和 Azure 部署，一直到在 VS Code 中经过认证的工具调用。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>构建受保护的 MCP 服务器</h1>
+    <div class="orig-title">Building Protected MCP Servers</div>
+    <div class="meta"><span class="speaker">Den Delimarsky、Julia Kasper</span> · AI Engineer World's Fair 2025 · 20:13</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=agent-auth">智能体认证</a><a class="tag" href="../../index.html#topic=sandboxes-and-execution-isolation">沙箱与执行隔离</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/PHBGhUKAM-w-building-protected-mcp-servers" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="PHBGhUKAM-w"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=PHBGhUKAM-w" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">谁应该被允许调用你的工具？</div></div>
+      <div class="label row">章节跳转 <span>共 10 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="34"><span class="ts">0:34</span><span>谁应该被允许调用你的工具？</span></li><li data-t="124"><span class="ts">2:04</span><span>本地二进制程序有不同的认证边界</span></li><li data-t="187"><span class="ts">3:07</span><span>把资源服务器与 token 工厂分开</span></li><li data-t="272"><span class="ts">4:32</span><span>更少的安全代码，清晰的职责</span></li><li data-t="419"><span class="ts">6:59</span><span>一个 401 响应开启了发现流程</span></li><li data-t="549"><span class="ts">9:09</span><span>保护一个 ASP.NET Core MCP 服务器</span></li><li data-t="771"><span class="ts">12:51</span><span>在已部署的服务器前面放一个网关</span></li><li data-t="933"><span class="ts">15:33</span><span>先授权 Inspector，再授权 VS Code</span></li><li data-t="1072"><span class="ts">17:52</span><span>把现有的 REST 操作开放为工具</span></li><li data-t="1168"><span class="ts">19:28</span><span>对照规范和安全指南进行构建</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 15 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Why servers need protection" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why servers need protection</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>MCP servers need to protect access to APIs that require authorization. This matters especially for remote servers exposed to the internet; local servers run as binaries with existing local access.
+
+[0:48](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=48s) [Slide says not every server should be open, protection is especially important for remote servers, and is less relevant to local servers; a door lock illustrates the point.](https://assets.ai.engineer/sites/aiecode2025/sha256/c8b5ffcaa8679b0ea60eb2330d3d596f77f4b748d111794bae589c833ecabe77.webp)
+
+Not every server should be open
+
+Super-important for remote servers
+
+Not (really) relevant to local servers
+
+METAL SYSTEM
+
+AIE
+Microsoft
+smol ai
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="API user context and access" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>API user context and access</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Remote MCP servers need to expose API access controls to the MCP layer. The API uses user context and credentials to determine access and may offer different tools to admins and contributors.
+
+[1:18](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=78s) [Slide says an API requires user context, controls which users have access, and acts differently depending on credentials.](https://assets.ai.engineer/sites/aiecode2025/sha256/20b600ade09bb59d63e8a589e1e3ed7ed0761d4fb5f5e7a633ea354ada12c3da.webp)
+
+Your API requires user context
+Your API controls which users have access
+Your API acts differently depending on credentials
+
+Interface text:
+AIE
+aws
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Local server authorization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Local server authorization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Local servers run in the machine’s context and can use methods such as certificates or passkeys. Remote desktop and multi-user scenarios require additional work by implementers.
+
+[2:13](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=133s) [Local servers run with the machine’s current context, can use different authorization methods, and require extra work for remote desktop or multi-user cases.](https://assets.ai.engineer/sites/aiecode2025/sha256/9c2389ffc5acdc8fe3a28603a2b5a0915b71203afa7031b57032c6948ec39ca0.webp)
+
+Local servers work on the box with current context
+Authorization can be done in any way necessary
+Special cases (e.g., RDP/multi-user) require work
+
+AIE
+Microsoft
+smol ai
+AI Engineer World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="The Tale of Two Specifications" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Tale of Two Specifications</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The March 2025 specification required MCP server builders to run an authorization server and manage tokens. The draft separates those roles: the authorization server mints tokens, while the client handles them directly.
+
+[3:06](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=186s) [Comparison of the March 26, 2025 specification and a draft: the former places authorization-server and token responsibilities on implementers, while the draft separates the server and authorization server and has the client handle tokens directly.](https://assets.ai.engineer/sites/aiecode2025/sha256/423b24b386bac385ad5a1149d712141dd3ee7c803f69329a417dd5f6acbef9bf.webp)
+
+The Tale Of Two Specifications
+
+2025-03-26
+✓ Implement Authorization Server (AS)
+✓ Handle token “minting”
+✓ Keep track of token issuance
+✓ Become OAuth expert
+
+DRAFT
+✓ Clean separation between server/AS
+✓ Token “minting” done by AS
+✓ MCP Server advertises AS
+✓ Client handles tokens directly
+
+AIE
+AI Engineer World's Fair
+
+[3:57](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=237s) [Comparison of the March 2025 authorization specification with a draft that separates the MCP server from the authorization server.](https://assets.ai.engineer/sites/aiecode2025/sha256/4fa4bb15f10ad499b34c9452bc82dd556c8950909c7a1782d02ee14ea300cb8e.webp)
+
+The Tale Of Two Specifications
+
+2025-03-26
+✓ Implement Authorization Server (AS)
+✓ Handle token “minting”
+✓ Keep track of token issuance
+✓ Become OAuth expert
+
+DRAFT
+✓ Clean separation between server/AS
+✓ Token “minting” done by AS
+✓ MCP Server advertises AS
+✓ Client handles tokens directly
+
+AIE
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Client and server responsibilities" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Client and server responsibilities</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The client handles the token flow and passes the token to the server. The server validates it and hosts metadata pointing to authorization servers, reducing implementation work for developers.
+
+[5:53](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=353s) [The client handles the end-to-end token flow; the server validates tokens and hosts metadata, reducing developer implementation work.](https://assets.ai.engineer/sites/aiecode2025/sha256/31daa186574e6fa10164c365366fb35c7ed605b5ad218a4ba078abcb8d96b5a7.webp)
+
+Client does the end-to-end token dance
+Server only validates tokens and hosts metadata
+Minimal implementation work for developers
+
+AIE
+Microsoft
+smol ai
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Use off-the-shelf identity providers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Use off-the-shelf identity providers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Providers such as Microsoft Entra and Okta let developers rely on existing identity services and write less security code.
+
+[6:33](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=393s) [A slide shows logos of identity providers, including Microsoft Entra, Okta, Auth0, Ping Identity, Firebase, Keycloak and Descope.](https://assets.ai.engineer/sites/aiecode2025/sha256/7e45cceaf42f070aa9e0f68adacd671fe42f5fba06b1438f4882697dcee63e34.webp)
+
+Use Off-The Shelf Identity Providers
+
+okta
+Auth0
+Ping Identity
+Firebase
+KEYCLOAK
+descope
+
+AIE
+Microsoft
+smol ai
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="How Does This Work in Practice?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How Does This Work in Practice?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speakers turn to how the new spec works in practice.
+
+[6:57](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=417s) [A thinking-face illustration above the section title.](https://assets.ai.engineer/sites/aiecode2025/sha256/e69654e5047559cc7032305a0de5f9c9068fe91fddf5c74889a9bc52b7acd523.webp)
+
+How Does This Work In Practice?
+
+Interface text:
+AIE
+Microsoft
+smol ai
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="MCP Request and Metadata Discovery" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MCP Request and Metadata Discovery</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The MCP client requests data and receives a 401 response pointing to Protected Resource Metadata. It then fetches that metadata to learn how to authorize with the server.
+
+[7:04](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=424s) [An MCP client requests data, receives a 401 response with a metadata pointer, and requests the protected resource metadata.](https://assets.ai.engineer/sites/aiecode2025/sha256/73ee43d7eace98fa9678403dfb82ffd6c537e92e2f6d23ab18f2fbd69c906298.webp)
+
+MCP Client
+MCP Server
+
+(1) Request data
+(2) 401 Unauthorized w/PRM pointer
+(3) Get PRM
+
+AIE
+Microsoft
+smol ai
+AI Engineer
+World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="MCP Authorization Flow" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MCP Authorization Flow</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The MCP client completes the authorization flow and receives tokens. It then requests data with a token, and the MCP server returns the data.
+
+[7:51](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=471s) [The client completes an authorization flow, receives tokens, requests data with a token, and receives data from the MCP server.](https://assets.ai.engineer/sites/aiecode2025/sha256/23333691c4f336eb68c821b039ca2bb42f16b44babb267a0f6622e1b84226630.webp)
+
+MCP Client
+MCP Server
+Auth Server
+
+(4) Complete flow
+(5) Return tokens
+(6) Request data w/token
+(7) Return data
+
+Interface text:
+AIE
+AI Engineer World's Fair
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Protected Resource Metadata Example" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Protected Resource Metadata Example</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The MCP server publishes metadata identifying the resource, its authorization servers, supported bearer methods and scopes. The client uses this information to bootstrap the OAuth flow.
+
+[8:36](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=516s) [JSON example listing a resource, authorization servers, bearer methods, scopes, and documentation.](https://assets.ai.engineer/sites/aiecode2025/sha256/a0f020f3c7db5562504a7c5bcb7829fb657c5ee501ac1de15a3bc4f476bdbf6c.webp)
+
+{
+  &quot;resource&quot;: &quot;https://resource.example.com&quot;,
+  &quot;authorization_servers&quot;: [
+    &quot;https://as1.example.com&quot;,
+    &quot;https://as2.example.net&quot;
+  ],
+  &quot;bearer_methods_supported&quot;: [
+    &quot;header&quot;,
+    &quot;body&quot;
+  ],
+  &quot;scopes_supported&quot;: [
+    &quot;profile&quot;,
+    &quot;email&quot;,
+    &quot;phone&quot;
+  ],
+  &quot;resource_documentation&quot;:
+&quot;https://resource.example.com/resource_documentation.html&quot;
+
+Interface text:
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Let’s See It in Action (C#)" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Let’s See It in Action (C#)</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The presenter introduces a C# demo of an ASP.NET Core MCP server protected by an OAuth identity provider. The example is in a pull request for the official MCP C# SDK.
+
+[9:09](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=549s) [A saluting face above the text “Let’s See It In Action (C#).”](https://assets.ai.engineer/sites/aiecode2025/sha256/de4cbf1a9fc47d43a1b99558bfefd02708a7b5daf9a050c1ac71c0e58624899e.webp)
+
+Let’s See It In Action (C#)
+
+Interface text:
+AIE
+Microsoft
+smol ai
+AI Engineer
+World’s Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="C# Authentication Configuration" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>C# Authentication Configuration</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The C# demo sets MCP and JWT authentication schemes, then configures token validation for the issuer, audience, lifetime, and signing key.
+
+[10:12](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=612s) [C# code configuring MCP authentication and JWT validation in an ASP.NET Core application.](https://assets.ai.engineer/sites/aiecode2025/sha256/88ffbb2d0e06321f779ed49339f36ddf759d79192c1b0d55c10df145d5eb844e.webp)
+
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using ModelContextProtocol.AspNetCore.Authentication;
+using ModelContextProtocol.Authentication;
+using ProtectedMCPServer.Tools;
+using System.Net.Http.Headers;
+using System.Security.Claims;
+
+var builder = WebApplication.CreateBuilder(args);
+
+var serverUrl = &quot;http://localhost:7071/&quot;;
+var tenantId = &quot;[illegible]&quot;;
+var instance = &quot;https://login.microsoftonline.com/&quot;;
+
+builder.Services.AddAuthentication(options =&gt;
+{
+    options.DefaultChallengeScheme = McpAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =&gt;
+{
+    options.Authority = $&quot;{instance}{tenantId}/v2.0&quot;;
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidAudience = &quot;[illegible]&quot;,
+        ValidIssuer = $&quot;{instance}{tenantId}/v2.0&quot;,
+        NameClaimType = &quot;name&quot;,
+        RoleClaimType = &quot;roles&quot;
+    };
+
+options.MetadataAddress = $&quot;{instance}{tenantId}/v2.0/.well-known/openid-configurat[illegible]
+
+Interface text:
+Visual Studio; Program.cs; ProtectedMCPServer; Solution Explorer; Solution 'ModelContextProtocol' (15 of 15 projects); samples; AspNetCoreSseServer; ChatWithTools; EverythingServer; ProtectedMCPClient; ProtectedMCPServer; QuickstartClient; QuickstartWeatherServer; TestServerWithHosting; No issues found.
+AIE; AI Engineer World's Fair; Microsoft; smol ai.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="C# Protected Resource Metadata" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>C# Protected Resource Metadata</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo configures protected resource metadata for header authentication, an authorization server, and a weather.read scope, then registers weather tools with the MCP server’s HTTP transport.
+
+[10:28](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=628s) [C# code configuring protected resource metadata, supported scopes, and an MCP server.](https://assets.ai.engineer/sites/aiecode2025/sha256/1156d3cea86199bc2df52935869117d0b9142d4ec003a17fc517a15368b2d82b.webp)
+
+.AddJwtBearer(options =&gt;
+    options.Events = new JwtBearerEvents
+        OnChallenge = context =&gt;
+        [elided]
+        }
+    };
+})
+.AddMcp(options =&gt;
+{
+    options.ProtectedResourceMetadataProvider = context =&gt;
+    {
+        var metadata = new ProtectedResourceMetadata
+        {
+            Resource = new Uri(&quot;http://localhost:7071/sse&quot;),
+            BearerMethodsSupported = { &quot;header&quot; },
+            ResourceDocumentation = new Uri(&quot;https://docs.example.com/api/weather&quot;),
+            AuthorizationServers = { new Uri($&quot;{instance}{tenantId}/v2.0&quot;) }
+        };
+
+metadata.ScopesSupported.AddRange([
+            &quot;api://167b4284-3f92-4436-92ed-38b38f83ae08/weather.read&quot;
+        ]);
+
+return metadata;
+    };
+});
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddMcpServer()
+    .WithTools&lt;WeatherTools&gt;()
+    .WithHttpTransport();
+
+// Configure HttpClientFactory for weather.gov API
+builder.Services.AddHttpClient(&quot;WeatherApi&quot;, client =&gt;
+{
+
+Interface text:
+Visual Studio: ModelContextProtocol; Program.cs; ProtectedMCPServer
+Solution 'ModelContextProtocol' (15 of 15 projects)
+.github
+samples
+AspNetCoreSseServer
+ChatWithTools
+EverythingServer
+ProtectedMCPClient
+Dependencies
+Program.cs
+ProtectedMCPServer
+Connected Services
+Dependencies
+Properties
+Tools
+Program.cs
+QuickstartClient
+QuickstartWeatherServer
+TestServerWithHosting
+Solution Items
+src
+Solution Explorer; Git Changes; Class View; Properties
+No issues found
+AIE; AI Engineer World's Fair; aws
+12:55:29 PM; 6/5/2025
+
+[10:35](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=635s) [Visual Studio displays C# code configuring protected-resource metadata and an MCP server.](https://assets.ai.engineer/sites/aiecode2025/sha256/bec184318c13e1eb574c6155388618cb34bc9049e8682197e26859f501121293.webp)
+
+.AddJwtBearer(options =&gt;
+    options.Events = new JwtBearerEvents
+        OnChallenge = context =&gt;
+        [elided]
+        }
+    };
+})
+.AddMcp(options =&gt;
+{
+    options.ProtectedResourceMetadataProvider = context =&gt;
+    {
+        var metadata = new ProtectedResourceMetadata
+        {
+            Resource = new Uri(&quot;http://localhost:7071/sse&quot;),
+            BearerMethodsSupported = { &quot;header&quot; },
+            ResourceDocumentation = new Uri(&quot;https://docs.example.com/api/weather&quot;),
+            AuthorizationServers = { new Uri($&quot;{instance}{tenantId}/v2.0&quot;) }
+        };
+
+metadata.ScopesSupported.AddRange([
+            &quot;api://167b4284-3f92-4436-92ed-38b38f83ae08/weather.read&quot;
+        ]);
+
+return metadata;
+    };
+});
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddMcpServer()
+    .WithTools&lt;WeatherTools&gt;()
+    .WithHttpTransport();
+
+// Configure HttpClientFactory for weather.gov API
+builder.Services.AddHttpClient(&quot;WeatherApi&quot;, client =&gt;
+{
+
+Interface text:
+Visual Studio: ModelContextProtocol; Program.cs; ProtectedMCPServer
+Solution 'ModelContextProtocol' (15 of 15 projects)
+.github
+samples
+AspNetCoreSseServer
+ChatWithTools
+EverythingServer
+ProtectedMCPClient
+Dependencies
+Program.cs
+ProtectedMCPServer
+Connected Services
+Dependencies
+Properties
+Tools
+Program.cs
+QuickstartClient
+QuickstartWeatherServer
+TestServerWithHosting
+Solution Items
+src
+Solution Explorer; Git Changes; Class View; Properties
+No issues found
+AIE; AI Engineer World's Fair; Microsoft; smol ai
+12:55:35 PM; 6/5/2025</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Protected-resource metadata response" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Protected-resource metadata response</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The local server’s metadata tells the client which authorization server to use, the weather.read scope, and that bearer tokens are sent in a header.
+
+[11:12](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=672s) [A browser displays JSON metadata for a local resource, including an authorization server, bearer method, scope and documentation.](https://assets.ai.engineer/sites/aiecode2025/sha256/18a5719679c08a7c09df912b2491f63fdfc8cf734c51bf00f023bd076880f867.webp)
+
+{
+  &quot;resource&quot;: &quot;http://localhost:7071/sse&quot;,
+  &quot;authorization_servers&quot;: [
+    &quot;https://login.microsoftonline.com/a2213e1c-e51e-4304-9a0d-effe57f31655/v2.0&quot;
+  ],
+  &quot;bearer_methods_supported&quot;: [
+    &quot;header&quot;
+  ],
+  &quot;scopes_supported&quot;: [
+    &quot;api://167b4284-3f92-4436-92ed-38b38f83ae08/weather.read&quot;
+  ],
+  &quot;resource_documentation&quot;: &quot;https://docs.example.com/api/weather&quot;
+}
+
+Interface text:
+localhost:7071/.well-known/oauth-protected-resource
+Pretty-print ☑
+AIE
+AI Engineer World’s Fair
+aws
+12:56:13 PM
+6/5/2025
+
+[11:18](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=678s) [Browser displays metadata for a protected weather service, including authorization and scope fields.](https://assets.ai.engineer/sites/aiecode2025/sha256/c0ce497ca22ff00f92e7775a8767a756b99fecec0ae5071808a833c7d8b8bde9.webp)
+
+{
+  &quot;resource&quot;: &quot;http://localhost:7071/sse&quot;,
+  &quot;authorization_servers&quot;: [
+    &quot;https://login.microsoftonline.com/a2213e1c-e51e-4304-9a0d-effe57f31655/v2.0&quot;
+  ],
+  &quot;bearer_methods_supported&quot;: [
+    &quot;header&quot;
+  ],
+  &quot;scopes_supported&quot;: [
+    &quot;api://167b4284-3f92-4436-92ed-38b38f83ae08/weather.read&quot;
+  ],
+  &quot;resource_documentation&quot;: &quot;https://docs.example.com/api/weather&quot;
+}
+
+Interface text:
+localhost:7071/.well-known/oauth-protected-resource
+Pretty-print ☑
+AIE
+AI Engineer World’s Fair
+Microsoft
+smol ai
+12:56:25 PM
+6/5/2025</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Client transport and tool discovery" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Client transport and tool discovery</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The client passes its OAuth token provider to an SSE transport, creates an MCP client, and lists the server’s available tools.
+
+[11:53](https://www.youtube.com/watch?v=PHBGhUKAM-w&amp;t=713s) [C# code configures an authenticated transport and lists server tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/3ca6cb218d83e8017eb52f35c003fc3cb671dbc93c8eae538406835cde964b49.webp)
+
+class Program
+    static async Task Main(string[] args)
+        var tokenProvider = new GenericOAuthProvider(
+            clientSecret: &quot;&quot;, // No secret needed for this client
+            redirectUri: new Uri(&quot;http://localhost:1179/callback&quot;),
+            scopes: [&quot;api://167b4284-3f92-4436-92ed-38b38f83ae08/weather.read&quot;],
+            logger: null,
+            authorizationUrlHandler: HandleAuthorizationUrlAsync
+        );
+
+Console.WriteLine();
+        Console.WriteLine($&quot;Connecting to weather server at {serverUrl}...&quot;);
+
+try
+        {
+            var transportOptions = new SseClientTransportOptions
+            {
+                Endpoint = new Uri(serverUrl),
+                Name = &quot;Secure Weather Client&quot;
+            };
+
+// Create a transport with authentication support using the correct constru[illegible]
+            var transport = new SseClientTransport(
+                transportOptions,
+                tokenProvider
+            );
+
+var client = await McpClientFactory.CreateAsync(transport);
+
+var tools = await client.ListToolsAsync();
+            if (tools.Count == 0)
+            {
+                Console.WriteLine(&quot;No tools available on the server.&quot;);
+                return;
+            }
+
+Interface text:
+Visual Studio: File, Edit, View, Git, Project, Build, Debug, Test, Analyze, Tools, Extensions, Window, Help
+ModelContextProtocol; GitHub Copilot; Program.cs; What's New?
+Solution Explorer: Solution 'ModelContextProtocol' (15 of 15 projects); .github; samples; AspNetCoreSseServer; ChatWithTools; EverythingServer; ProtectedMCPClient; Dependencies; Program.cs; ProtectedMCPServer; Connected Services; Dependencies; Properties; Tools; Program.cs; QuickstartClient; QuickstartWeatherServer; TestServerWithHosting; Solution Items; src
+Solution Explorer; Git Changes; Class View; Properties
+No issues found
+AIE; AI Engineer World's Fair; aws</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">谁应该被允许调用你的工具？</a></li><li><a href="#sec-2">本地二进制程序有不同的认证边界</a></li><li><a href="#sec-3">把资源服务器与 token 工厂分开</a></li><li><a href="#sec-4">更少的安全代码，清晰的职责</a></li><li><a href="#sec-5">一个 401 响应开启了发现流程</a></li><li><a href="#sec-6">保护一个 ASP.NET Core MCP 服务器</a></li><li><a href="#sec-7">在已部署的服务器前面放一个网关</a></li><li><a href="#sec-8">先授权 Inspector，再授权 VS Code</a></li><li><a href="#sec-9">把现有的 REST 操作开放为工具</a></li><li><a href="#sec-10">对照规范和安全指南进行构建</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">构建受保护的 MCP 服务器</h2>
+      <div class="lede"><p>跟随一个受保护的 MCP 请求，从第一次 HTTP 质询，经过 OAuth 发现、C# token 校验和 Azure 部署，一直到在 VS Code 中经过认证的工具调用。</p><p>熟悉 HTTP 请求、bearer token 和基本的 ASP.NET Core 配置，有助于理解示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="34">▶ 0:34</button></div>
+      <h3>谁应该被允许调用你的工具？</h3>
+      <p>Should everyone who can reach an MCP server be allowed to use its tools? Clients such as Claude Desktop, VS Code, and Visual Studio can connect to servers that expose protected APIs. An internet-accessible server outside a VPN needs an authorization boundary just as those APIs do. <strong>Reachability is not permission.</strong></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/07f32c52d27ff2549cfba79099b064e8f798dbd1bbc4394e9cc0fceb009eb846" alt="Slide with a door lock photograph and three statements: not every server should be open, protection is super-important for remote servers, and not really relevant to local servers." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Not every server should be open: remote and local servers have different authorization needs.</figcaption></figure>
+<p>The API behind a tool may need to know which customer is calling, what permissions that customer has, and which administrator policies apply. That user context must remain meaningful at the MCP layer: an administrator may have access to one set of tools, while a contributor receives another. Protecting the server therefore means preserving permission boundaries, not merely placing a login screen in front of an otherwise unrestricted tool catalog.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="124">▶ 2:04</button></div>
+      <h3>本地二进制程序有不同的认证边界</h3>
+      <p>A local MCP server is a program running in the machine’s execution context. It can authenticate to downstream APIs using secrets, certificates, passkeys associated with credentials on the machine, or ordinary authentication libraries. MCP does not need to prescribe one mechanism for all of those possibilities. Remote desktop and shared virtual-machine arrangements add their own identity questions, which Den Delimarsky leaves to implementers.</p>
+<p>The precise protocol distinction is <strong>HTTP versus STDIO</strong>, rather than simply remote versus physically local. The <a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization" target="_blank" rel="noopener">March 26 authorization specification</a> excludes STDIO from this HTTP authorization flow. A server listening on localhost over HTTP can still participate—which is how the later C# demonstration works.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="187">▶ 3:07</button></div>
+      <h3>把资源服务器与 token 工厂分开</h3>
+      <p>At recording time, the March 26 specification was stable and a revised authorization model was still a draft. Den describes the earlier model as making MCP developers operate a token factory: minting, signing, refreshing, and managing tokens. The historical specification did allow an authorization server to run as a separate service, so building a custom issuer was not literally mandatory; the coupling lay in authorization discovery through the MCP server’s origin. The practical concern remains substantial: implementing token issuance is a much larger security responsibility than implementing a tool.</p>
+<p>The draft refined with Anthropic and security experts makes the roles explicit: the MCP server is a <strong>resource server</strong>, while an <strong>authorization server</strong> manages token issuance and lifetime. That authorization server can be an existing provider such as Okta, Auth0, or Microsoft Entra ID. The MCP application no longer needs to own the token factory.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="272">▶ 4:32</button></div>
+      <h3>更少的安全代码，清晰的职责</h3>
+      <p>Julia Kasper’s implementation question is straightforward: what must a developer still build? The server publishes metadata pointing to its authorization server, and it validates the tokens presented by clients. Existing identity services and OAuth libraries supply the machinery around that boundary. The speakers use OAuth 2.0 terminology; MCP’s authorization requirements are based on OAuth 2.1 alongside OAuth 2.0 metadata standards.</p>
+<p>| Component | Responsibility |
+| --- | --- |
+| MCP client | Complete authorization, acquire a token, send it with requests |
+| MCP resource server | Publish discovery metadata and validate incoming tokens |
+| Authorization server | Issue tokens and manage their lifetime |</p>
+<p>The client completing authorization does not relieve the resource server of validation. <strong>A client’s possession of a token is not enough; the server must establish that the token authorizes access to this resource.</strong></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/bbed68631935f936e55fb2cecfa318a29bd0459047dd824ce17ce881364523f9" alt="Three emoji-marked statements describe the client's end-to-end token dance, server token validation and metadata hosting, and minimal implementation work for developers." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Clients handle the token dance; servers validate tokens and host metadata.</figcaption></figure>
+<p>This division also reduces the amount of custom security code in an MCP application. Developers can concentrate on the problem their tools solve while relying on established identity providers and framework components for security-sensitive operations.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="419">▶ 6:59</button></div>
+      <h3>一个 401 响应开启了发现流程</h3>
+      <p>The authorization flow begins with an ordinary request that lacks user context:</p>
+<p>1. The MCP client requests data from the protected server.
+2. The server returns HTTP <code>401</code>. Its <code>WWW-Authenticate</code> header points to a <strong>Protected Resource Metadata</strong> document, or PRM.
+3. The client retrieves that document and discovers which authorization server to use. The provider could be Entra ID, Okta, Auth0, or Keycloak.
+4. The client completes OAuth discovery and authorization to obtain a token.
+5. The client retries the resource request with that token. The MCP server validates it before returning data.</p>
+<p>The talk’s diagram’s authorization step compresses an entire OAuth flow into one interaction. It does not mean the MCP server performs that flow on the client’s behalf.</p>
+<p>Token validation also has a destination boundary. The subsequent <a href="https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization" target="_blank" rel="noopener">June 18 specification</a> requires validation that a token is intended for the MCP server and prohibits token passthrough to upstream APIs. Preserving downstream user context therefore requires appropriate, separate upstream credentials—not forwarding the MCP client’s bearer token unchanged.</p>
+<p>PRM supplies the information needed to bootstrap discovery. In the explanation, it is a JSON document hosted by the MCP server that identifies the resource, lists its authorization servers, and can declare supported methods for bearer tokens and scopes. Den also mentions a JWT variation, but the demonstration uses JSON. The document tells a client where and how to begin authorization; it is not itself a credential.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="549">▶ 9:09</button></div>
+      <h3>保护一个 ASP.NET Core MCP 服务器</h3>
+      <p>The C# demonstration uses an ASP.NET Core application and the <a href="https://github.com/modelcontextprotocol/csharp-sdk" target="_blank" rel="noopener">official MCP C# SDK</a>. The OAuth integration shown here was still in a pull request. Den begins with <code>AddAuthentication</code>, selecting the MCP authentication scheme and framework-provided validation. After repairing the screen sharing, he walks through the configuration again with the code visible.</p>
+<p>The configuration has distinct layers:</p>
+<p>- <strong>Authentication and validation:</strong> MCP authentication defaults select the scheme, while framework JWT components validate the incoming token.
+- <strong>Discovery:</strong> Metadata events and the demonstrated <code>AddMcp</code> configuration supply PRM, including header-based bearer authentication and Entra ID authorization metadata.
+- <strong>Request processing:</strong> <code>UseAuthentication</code> and <code>UseAuthorization</code> add the middleware that applies authentication and authorization to requests.</p>
+<p>For the JWT-validation layer, the following C# helper makes the trusted issuer and intended resource explicit. It complements the MCP-specific discovery configuration described above:</p>
+<p>```csharp
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;</p>
+<p>public static class TokenValidationConfiguration
+{
+    public static AuthenticationBuilder AddResourceTokenValidation(
+        this AuthenticationBuilder authentication,
+        string authority,
+        string audience)
+    {
+        return authentication.AddJwtBearer(
+            JwtBearerDefaults.AuthenticationScheme,
+            options =&gt;
+            {
+                options.Authority = authority;
+                options.Audience = audience;
+                options.TokenValidationParameters =
+                    new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true
+                    };
+            });
+    }
+}
+```</p>
+<p>The JWT handler supplies validation machinery; the application still supplies the identity provider and resource it trusts. The server then starts locally for the end-to-end test.</p>
+<p>In the browser, the localhost PRM identifies <code>login.microsoftonline.com</code> as the authorization server and declares scopes and header-based bearer authentication. On the client side, Den configures a generic OAuth provider with a client ID and scopes, then uses the normal transport setup to connect to the test server. The client’s authorization logic is not specific to Microsoft.</p>
+<p>The client run finishes quickly because Den is already authorized; it does not show a fresh interactive sign-in. He reports that the client discovers metadata, acquires a token from Entra ID, and sends it to the server. The server verifies the token and invokes the weather tool, which returns no alerts. This completes the protected request path using the pending SDK integration.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="771">▶ 12:51</button></div>
+      <h3>在已部署的服务器前面放一个网关</h3>
+      <p>Moving from localhost to a deployed service introduces another place to enforce protection: a gateway. Julia, who works on Azure API Management, recommends placing it between clients and the remote MCP server. She starts a public sample deployment with the Azure Developer CLI:</p>
+<p>``<code>bash
+azd up
+</code>``</p>
+<p>The command provisions the sample’s Azure resources while she explains the architecture.</p>
+<p>Azure API Management fronts an Azure-hosted MCP server with three implemented tools. The architecture slide shows the server in Azure Functions, with VS Code and MCP Inspector as clients. The Azure Remote MCP Proxy arrangement includes an OAuth API that coordinates Entra ID login and consent, alongside the MCP API that exposes the backend.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b01dbde297a169e435d6c774935f5eff03f97e93064f778cb26a5f81da50dfa8" alt="Architecture diagram connects VS Code and MCP Inspector to an Azure API Management gateway, an Azure Function with three MCP tools, and Microsoft Entra ID below." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Azure API Management sits between MCP clients and an Azure Function MCP server, with Microsoft Entra ID handling identity.</figcaption></figure>
+<p>Julia estimates that this sample deployment takes “maybe five minutes max.” That is an estimate for her demonstration, without measured timing conditions. Provisioning also creates an App Service plan and Log Analytics for hosting, monitoring, analysis, and logging. These are the operational components behind her description of the example as production ready; they do not establish that an arbitrary deployment has passed a security review.</p>
+<p>Before connecting a client, Julia checks API Management’s APIs tab for both expected endpoints: the MCP API and the OAuth API. She also notes that the samples will evolve with the specification. This deployment check establishes that both the resource path and the authorization path are present before testing consent.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="933">▶ 15:33</button></div>
+      <h3>先授权 Inspector，再授权 VS Code</h3>
+      <p>MCP Inspector provides the first client test:</p>
+<p>1. Enter the deployed endpoint and select Connect.
+2. Check the application name on the consent page and allow access.
+3. Accept the requested permissions on first use.
+4. Return to Inspector and list the tools.</p>
+<p>After consent, Inspector connects and displays the sample’s tool catalog. The user-facing authorization step is now visible, unlike the already-authorized C# run.</p>
+<p>Next, Julia adds the endpoint to VS Code’s user settings under the name <code>AI Engineer</code>. Starting the server triggers an OAuth notification. Opening it leads to the same consent flow, this time with VS Code’s application name. Once she grants consent, the tools become available in VS Code Insiders. Authorization is associated with the client application requesting access, not merely with having visited a consent page earlier in another client.</p>
+<p>GitHub Copilot detects the tools, and Julia submits a simple Hello World prompt. Copilot selects and runs the tool through the authenticated connection. Expanding the tool call shows the successful output, “Hello, I'm an MCP tool”. This demonstration goes beyond discovering a tool catalog: it shows an authorized invocation and its returned result.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1072">▶ 17:52</button></div>
+      <h3>把现有的 REST 操作开放为工具</h3>
+      <p>A custom MCP implementation is not the only starting point. Julia next demonstrates API Management’s ability to expose selected operations from an existing REST API as MCP tools. Instead of rewriting those operations, a developer configures which endpoints should become tools and connects the generated MCP endpoint to a client.</p>
+<p>Julia copies that endpoint into VS Code and starts it, explicitly reminding developers to implement authorization. API Management can secure the interface as well as host it. Copilot detects the server, and VS Code lists three tools backed by the REST API. This final example reaches discovery and readiness to interact; the recording does not show a completed invocation of those REST-backed tools.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1168">▶ 19:28</button></div>
+      <h3>对照规范和安全指南进行构建</h3>
+      <p>The closing guidance returns to the security contract beneath the demos. Den points developers to the authorization specifications and to Security Best Practices, which he says was developed with Anthropic. Those documents matter whether the interface comes from a handwritten server or an existing REST API: the implementation still needs a sound authorization boundary.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/4e582baa0e8107f900e70b6b29a1cfc17a2f259deb0c4a7c5f729f90603c21e1" alt="Slide lists modelcontextprotocol.io links for the dated authorization specification, draft authorization specification, and draft security best practices beside a castle photograph." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>MCP authorization specifications and security best practices provide further guidance.</figcaption></figure>
+<p>At recording time, VS Code Insiders supports the new authorization model and provides a concrete client for trying it. Den encourages developers to install it, test their servers, and provide feedback, with Harold available at the conference to help debug problems. The next step is to exercise the full path—discovery, consent, validation, and tool access—with an actual client, not stop once the endpoint responds.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization" target="_blank" rel="noopener">MCP authorization: March 2025 specification</a> — The historical authorization specification discussed in the talk, including discovery, OAuth flows and token handling.</li><li><a href="https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization" target="_blank" rel="noopener">MCP authorization: June 2025 specification</a> — The subsequent specification formalizing resource-server discovery and token audience requirements.</li><li><a href="https://github.com/modelcontextprotocol/csharp-sdk" target="_blank" rel="noopener">Official MCP C# SDK</a> — Source code, packages and examples for building MCP clients and servers in C#.</li><li><a href="https://den.dev/blog/mcp-csharp-sdk-authorization/" target="_blank" rel="noopener">OAuth in the MCP C# SDK</a> — Den's follow-up walkthrough of OAuth client configuration and protected ASP.NET Core MCP servers.</li><li><a href="https://github.com/Azure-Samples/remote-mcp-apim-functions-python" target="_blank" rel="noopener">Azure API Management remote MCP sample</a> — An experimental Azure sample with gateway authorization, Functions hosting, monitoring and azd deployment instructions.</li><li><a href="https://modelcontextprotocol.io/docs/2025-11-25/tutorials/security/security_best_practices" target="_blank" rel="noopener">MCP Security Best Practices</a> — Later security guidance covering client consent, token passthrough and other MCP implementation risks.</li><li><a href="https://learn.microsoft.com/en-us/azure/api-management/export-rest-mcp-server" target="_blank" rel="noopener">Expose REST operations as MCP tools</a> — Azure API Management instructions for creating an MCP interface from existing REST API operations.</li><li><a href="https://code.visualstudio.com/updates/v1_101" target="_blank" rel="noopener">VS Code 1.101 authorization support</a> — June 12, 2025 release notes documenting support for both the March authorization specification and its draft successor.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Welcome, folks, uh, to the Building Protected MCP Servers session.</span></div><div class="tline" data-t="20"><span class="ts">0:20</span><span class="tx">Uh, I'm Den Delimarsky. I'm a Product Engineer at Microsoft, uh, and member of the MCP Steering Committee.</span></div><div class="tline" data-t="25"><span class="ts">0:25</span><span class="tx">And I'm Julia, and I work in Azure API Management at Microsoft. And the both of us are part of an MCP squad at Microsoft, so I guess that's why we are here.</span></div><div class="tline" data-t="34"><span class="ts">0:34</span><span class="tx">Yeah. Um, so we're gonna... Again, talking about protected MCP servers, and, uh, why, why is this even important? Why is this even a topic? Well, the thing is, when we talk about MCP servers and MCP servers that folks connect to their whatever clients, whether it's Claude Desktop, VS Code, VS, not every server should be open because there's</span></div><div class="tline" data-t="54"><span class="ts">0:54</span><span class="tx">a bunch of different APIs that might require authorization. They're protected. So naturally, your MCP server needs to be able to do the same. Uh, it is super important for remote MCP servers because anybody can access them, and especially if the servers are open to the broad internet, not behind a VPN.</span></div><div class="tline" data-t="70"><span class="ts">1:10</span><span class="tx">Uh, but it's not really relevant for local servers, uh, and mainly because locally you can do a bunch of stuff already because it's just a binary, and we'll get to that in a second.</span></div><div class="tline" data-t="80"><span class="ts">1:20</span><span class="tx">Now, um, if you're building MCP servers and remote MCP servers specifically, one of the things that you're connecting to are likely third-party APIs, uh, whether it's your own or somebody else's, and that API requires user context.</span></div><div class="tline" data-t="93"><span class="ts">1:33</span><span class="tx">That API needs to know who's invoking it because different customers have different permissions. You might have different admin policies. Uh, so while your API does control, through the help of an identity provider, as you...</span></div><div class="tline" data-t="106"><span class="ts">1:46</span><span class="tx">who actually has access, uh, this needs to be somehow exposed to the MCP layer. Uh, and of course your API will act differently depending on the credentials that you give it.</span></div><div class="tline" data-t="116"><span class="ts">1:56</span><span class="tx">If I'm an admin, I get access to a certain set of tools. If I'm somebody that's just a contributor, I get a- access to a, a bunch of different tools.</span></div><div class="tline" data-t="124"><span class="ts">2:04</span><span class="tx">Now, all these things considered, one of the questions I get asked a lot is like, &quot;Well, okay, th- this is all great for remote, but why not local? Why...</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">What's the story for authorization for local servers?&quot; And the answer is kind of simple. Local servers are binaries on the box. They're binaries that run within the context of whatever machine you have.</span></div><div class="tline" data-t="144"><span class="ts">2:24</span><span class="tx">That means that they can do auth in any way you can possibly have. Like, it doesn't need to be OAuth. You can have credentials that are secrets. You can have certificates.</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">You can have passkeys that are bound to whatever credential you have on the box. Like, it's just... Like, you don't have any constraints whatsoever. Um, that means that any APIs you connect to can also be done, you know, in any way with any of the off-the-shelf libraries.</span></div><div class="tline" data-t="166"><span class="ts">2:46</span><span class="tx">Uh, there's of course special cases here if you do things like remote desktop and all sorts of kind of multi-user scenarios on VMs. Uh, but that's kind of out of scope for MCP.</span></div><div class="tline" data-t="176"><span class="ts">2:56</span><span class="tx">That's something that we've left to implementers. Now, remote servers, let's get back to that. So one of the things that if you've browsed kind of the MCP specs, you might know that we have two different specifications.</span></div><div class="tline" data-t="187"><span class="ts">3:07</span><span class="tx">There's one that is stable, that is March twenty-sixth, uh, and there's one that is draft that we worked very closely with a bunch of security experts to refine. So for the previous specification, the one that is currently marked as stable, MCP required people that are building MCP servers to essentially spin up their own authorization server.</span></div><div class="tline" data-t="208"><span class="ts">3:28</span><span class="tx">That means you are building your own token factory. So if you wanna issue, um, tokens to an MCP client to authorize users, you're the one that has to craft those tokens and manage them and refresh them and sign them.</span></div><div class="tline" data-t="221"><span class="ts">3:41</span><span class="tx">Very complicated. It required people to actually be OAuth experts. Like, if you wanna build an MCP server that does OAuth, you need to understand how OAuth works end to end, including to the point of minting those tokens, which is very complicated.</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">So the draft spec that we worked with Anthropic and a bunch of security experts to refine actually does this clean separation between the server, the MCP server, which we call the resource server, and the authorization server.</span></div><div class="tline" data-t="247"><span class="ts">4:07</span><span class="tx">So things like token minting and managing token lifetime actually is not done by the MCP server anymore. It's done by whatever authorization server you're using. So if you're using Okta, Auth0, Entra ID, it doesn't really matter.</span></div><div class="tline" data-t="260"><span class="ts">4:20</span><span class="tx">You can just plug it in into your MCP server, and it's gonna work with the clients that those servers can connect to. And the spec, by the way, is gonna be stable very soon.</span></div><div class="tline" data-t="268"><span class="ts">4:28</span><span class="tx">Now, I wanna hand it off to Julia to talk about the fact that-</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">Not every developer wants to be a security expert, right? Like, we've seen the current draft, now the new one that's about to go live into production. But not everyone, we have some exceptions here, um, who do wanna become security experts, who actually wanna focus on building the remote MCP server, right?</span></div><div class="tline" data-t="290"><span class="ts">4:50</span><span class="tx">You wanna solve a real problem. So this is why the new authorization spec, um, and that's why Den, why a pe- why a bunch of people at Microsoft, we partner- partnered with Anthropic in a security, um, committee to get this new Auth spec out there.</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">So let's see if I paid attention. What are some of the core things that's gonna change now moving forward? First of all, no need to implement the authorization servers anymore.</span></div><div class="tline" data-t="318"><span class="ts">5:18</span><span class="tx">So, um, that means we can now just rather than implementing it from scratch, we can actually ex- at- attend it or append it to our server overall. We can use the standard ways.</span></div><div class="tline" data-t="330"><span class="ts">5:30</span><span class="tx">We only need to reference metadata that are gonna point to our authorization servers, and they are... that's where we're gonna get the token, and then on server side you're gonna have the token validation here.</span></div><div class="tline" data-t="341"><span class="ts">5:41</span><span class="tx">And all of this is still gonna continue standard OAuth 2.0, so we can actually, as developers, we can rely on all of the libraries that are already out there, all of the services.</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">So it's gonna make our lives a lot, a lot of easier. What does this also include on client side? So on client side, they are now, in a way, responsible for the end-to-end token dance.</span></div><div class="tline" data-t="361"><span class="ts">6:01</span><span class="tx">So this means if the authorization code comes in, um, we can validate it or the client validates, first of all, is the token, has it been, um, acquired successfully?</span></div><div class="tline" data-t="371"><span class="ts">6:11</span><span class="tx">And then on server, it's gonna pass it through to the server, and on server side, which is still very important, um, you're gonna have to make sure if it's been validated correctly.</span></div><div class="tline" data-t="381"><span class="ts">6:21</span><span class="tx">Um, and also, of course, on server side we have to implement, um, the metadata, which we, which I previously just talked about. So again, a lot, a lot of, um, yeah, enhancements now moving forward with the new spec.</span></div><div class="tline" data-t="393"><span class="ts">6:33</span><span class="tx">Saving effort. Saving or sa- saving keystrokes. As developers, they don't need to write a lot of security code because, again, it's ... The risk is higher.</span></div><div class="tline" data-t="400"><span class="ts">6:40</span><span class="tx">Exactly.</span></div><div class="tline" data-t="401"><span class="ts">6:41</span><span class="tx">If you're not a security expert and you start implementing security code, what are the chances that you're gonna get it right on the first shot?</span></div><div class="tline" data-t="406"><span class="ts">6:46</span><span class="tx">100%. And you can start relying on these off-shelf identity providers like Microsoft Entra, Okta, so all of these things, and you, it's just gonna be less work for the developer.</span></div><div class="tline" data-t="417"><span class="ts">6:57</span><span class="tx">But yeah, how does it work in practice, Den?</span></div><div class="tline" data-t="419"><span class="ts">6:59</span><span class="tx">Yeah, so let, let's talk a bit ... We talked about the new spec and the, for folks that might be a little confused, like, what the heck is the new spec and how exactly it works.</span></div><div class="tline" data-t="425"><span class="ts">7:05</span><span class="tx">So, in a new spec, um, there's a very clear separation of interaction between the MCP client, MCP server, and the authorization server. So, in this case, what happens is your MCP client, like let's say Claude Desktop, is gonna request data from the MCP server.</span></div><div class="tline" data-t="441"><span class="ts">7:21</span><span class="tx">The MCP server at that point, because the MCP client doesn't have any user context yet, is gonna respond back with a standard HTTP 401 saying, &quot;I have no idea who you are and my server is protected.&quot;</span></div><div class="tline" data-t="452"><span class="ts">7:32</span><span class="tx">But here's a pointer to something that we call the PRM, the Protected Resource Metadata document, that's embedded in one of the headers in WWW-Authenticate, that's gonna say, &quot;But you can go here and learn more about how to authorize against me, the MCP server.&quot;</span></div><div class="tline" data-t="467"><span class="ts">7:47</span><span class="tx">So the MCP client, again, Claude Desktop or VS Code or any other variation, will then talk to the, uh, the, take the PRM, extract from that PRM information about what authorization server it's using, whether it's Okta, Auth0, Entra, Keycloak, it doesn't really matter, and is gonna then ...</span></div><div class="tline" data-t="486"><span class="ts">8:06</span><span class="tx">I, again, I abstracted this out in a very simplistic way, step four, complete flow, but basically the client is gonna do the whole OAuth discovery step by step, go through the dance, get the token, and then it's gonna request data with a token from the server, and the server's gonna return it back.</span></div><div class="tline" data-t="501"><span class="ts">8:21</span><span class="tx">The client is responsible for completing this entire OAuth dance where the server now doesn't actually need to manage tokens. You only need to make sure that you're validating them.</span></div><div class="tline" data-t="511"><span class="ts">8:31</span><span class="tx">I call out th- this thing called the PRM, and the PRM is something hosted by the MCP server that is essentially a JSON document where there's variation. It could be a JSON web token, but for the purpose of this conversation, it's basically a JSON document that says, &quot;Hey, I am this resource.</span></div><div class="tline" data-t="528"><span class="ts">8:48</span><span class="tx">I am this server. And by the way, my authorization servers are the following.&quot; And it can give a list of servers. It can specify things like bearer methods supported as well as scopes.</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">So the client, when it gets this document, knows exactly how to bootstrap the end-to-end authorization flow with OAuth against standard OAuth. You can use, again, off-the-shelf libraries for, for doing this.</span></div><div class="tline" data-t="549"><span class="ts">9:09</span><span class="tx">Uh, let's see it in action in C#, and because we're Microsoft, of course it's gonna be C#. Uh- [laughs] You know. Uh, so, uh, this is currently in a, uh, in a pull request for the C# S- for the official MCP C# SDK, by the way.</span></div><div class="tline" data-t="565"><span class="ts">9:25</span><span class="tx">Uh, to show you just how easy it is to set up an MCP server that is protected by an OAuth provider, by an identity provider, I have essentially an ASP.NET Core application.</span></div><div class="tline" data-t="576"><span class="ts">9:36</span><span class="tx">It could work for any other application, but what I'm doing is all I'm configuring is AddAuthentication to make sure that I'm actually adding Auth to my server. I'm saying that it's using the MCP Auth scheme.</span></div><div class="tline" data-t="588"><span class="ts">9:48</span><span class="tx">I'm adding some validation logic that, again, is built into the framework. Excuse me, we don't see it on the screen. Oh. No. Uh, I see, I see what the problem is.</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">I s- That's invisible C#. Great call-out. Yeah. [laughs]</span></div><div class="tline" data-t="602"><span class="ts">10:02</span><span class="tx">See? It's a fantastic demo. I'm gonna duplicate my screen. That's, that's I think what it's gonna do. There we go. All right. So, say it again. Uh, I'm adding authentication.</span></div><div class="tline" data-t="613"><span class="ts">10:13</span><span class="tx">I'm adding MCP authentication defaults here because it's all baked into the framework. I'm adding some logic to validate the JWT, the token, and this is again, standard embedded into the framework components.</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">Uh, I have some metadata events that are relevant here, and then I'm saying, AddMcp. And within AddMcp, I'm saying that I'm adding some PRM metadata that I just talked about, which is my server supporting header Auth.</span></div><div class="tline" data-t="639"><span class="ts">10:39</span><span class="tx">And because I'm using Entra ID, can be again Okta, Auth0, I'll specify the metadata and that's it. And then I'll say UseAuthentication, UseAuthorization. There's a lot of boilerplate code here because it's an MCP server that uses, again, the, the stock SDK.</span></div><div class="tline" data-t="653"><span class="ts">10:53</span><span class="tx">But the Auth, that's the complexity. That's all. I needed to add this metadata, and that's kind of it. When I start the server, so it's gonna run locally. Let's take this on.</span></div><div class="tline" data-t="664"><span class="ts">11:04</span><span class="tx">And what I'm gonna do now is I'm gonna go to the browser here, gonna refresh this, and you'll notice that this is the PRM that I talked about. I have a localhost server.</span></div><div class="tline" data-t="675"><span class="ts">11:15</span><span class="tx">It says my authorization server is login.microsoftonline.com because I'm using Entra ID. Again, it could be any of them. I define the scopes, and I say that it's using header.</span></div><div class="tline" data-t="685"><span class="ts">11:25</span><span class="tx">That's it. That's what the server says to the client in terms of Auth. Now, I have another instance here that is the client, and the client definition with the C# SDK, again, is super, super simplistic.</span></div><div class="tline" data-t="696"><span class="ts">11:36</span><span class="tx">What I have here is I'm essentially on the client side say, saying that I'm using a generic OAuth provider. There's nothing Microsoft specific here. It's generic OAuth. I'm specifying the client ID for my MCP client, some scopes, and that's kind of it.</span></div><div class="tline" data-t="712"><span class="ts">11:52</span><span class="tx">The rest is standard boilerplate for transport setup as you would with any other client. This client is already set up to connect to my test server, my local server, so if I run this</span></div><div class="tline" data-t="724"><span class="ts">12:04</span><span class="tx">Let's see. Is it gonna connect? It's gonna go ahead and discover the metadata document. It actually went really fast because I'm already authorized here. Perfect demo. Um, but behind the scenes it actually, what it did is it did request the token from Entra ID.</span></div><div class="tline" data-t="741"><span class="ts">12:21</span><span class="tx">It verified, it sent the token to the server, the server verified it, and then invoked a tool that I had on the MCP server and said that there's no alerts, it's a simple weather example.</span></div><div class="tline" data-t="750"><span class="ts">12:30</span><span class="tx">It's nothing too complex here. But the end-to-end developer experience here is extremely simple. Like, we worked very, very hard to not expose any of the security intricacies to developers.</span></div><div class="tline" data-t="760"><span class="ts">12:40</span><span class="tx">You just, that, that's all you do. So C# SDK, it's there. It's, it's in a PR. It's gonna be in production very, very soon. So, uh, Julia, do you wanna talk about VS Code and API Management?</span></div><div class="tline" data-t="771"><span class="ts">12:51</span><span class="tx">Yeah, totally. So okay, we saw this working locally now. We've used the libraries. So what if you now wanna take it to prod- production? I might be biased because I'm part of the Azure API Management team, but I always recommend putting a gateway in between to make it more secure, and actually use it to protect, um, and</span></div><div class="tline" data-t="788"><span class="ts">13:08</span><span class="tx">secure your remote MCP servers. Um, so what I'm gonna show you today is, um, for this we have a public available GitHub repository out there. Um, it's gonna help you and it's gonna spin up an example.</span></div><div class="tline" data-t="801"><span class="ts">13:21</span><span class="tx">Um, and in our example, let's scroll down and go to the overview here, um, we're gonna use Azure API Management in the middle to do and help with, um, authentication.</span></div><div class="tline" data-t="812"><span class="ts">13:32</span><span class="tx">Um, the beauty about this example is it only uses an azd up. So we wanted to give developers especially, we've heard a lot of, um, complaints about sometimes it takes some time, so we want it to go super fast.</span></div><div class="tline" data-t="824"><span class="ts">13:44</span><span class="tx">So with an azd up, it will spin up all of the resources. So while I'm doing this and everything is gonna be, um, deploying here, let's talk a little bit about what is gonna be set up under the hood and what's gonna help make our remote MCP server, um, more secure.</span></div><div class="tline" data-t="840"><span class="ts">14:00</span><span class="tx">So as I've mentioned, Azure API Management, Azure Remote MCP Proxy, um, we h- we are hosting it, our remote MCP server on Azure, where we have three tools implemented.</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">We wanna make sure the connection here is secured, and that's where we're gonna use the gateway in between to help us do the dance. And for this, we have an OAuth API that's gonna help the play between our identity provider, in our case it's Microsoft Entra ID, that's gonna help essentially with the login, and also the consent</span></div><div class="tline" data-t="871"><span class="ts">14:31</span><span class="tx">flow here to truly make sure that the, um, connection here is secured to our back end, to our remote MCP server, right? All right, so let's see, um, how the deployment of my resources, resources are looking.</span></div><div class="tline" data-t="885"><span class="ts">14:45</span><span class="tx">I told you it truly only takes maybe five minutes max. Um, it does spin a bunch of other things like, um, an App Service plan, Log Analytics, to make sure that this is truly production ready, and it, um, gives you a way to monitor and also analyze and log it.</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">So I'm gonna copy my endpoint here. Before I'm gonna do something with it, let's just check on Azure API Management side if all of the things have been implemented correctly.</span></div><div class="tline" data-t="910"><span class="ts">15:10</span><span class="tx">Because what we should see now in my APIs tab is we should see the re- the endpoint to my remote MCP server, which is the MCP API, and also the endpoint that's gonna help us handle OAuth.</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">And of course, while the spec evolves, we are also gonna evolve the samples and all of it that comes with it. So let's test it. I'm gonna start MCP Inspector here.</span></div><div class="tline" data-t="933"><span class="ts">15:33</span><span class="tx">Um, let's open MCP s- um, Inspector, um, and provide the URL endpoint. So once I connect, now what I should see is, um, if I click the Connect button here, this is gonna pop up my consent page, right?</span></div><div class="tline" data-t="949"><span class="ts">15:49</span><span class="tx">So it's gonna show the application name. It's gonna make sure that I'm providing the right consent. I'm gonna allow access to it. The first time I'm doing it, I also have to, um, provide the right permissions, so I'm gonna, gonna accept this here.</span></div><div class="tline" data-t="963"><span class="ts">16:03</span><span class="tx">And once I'm back, now you can see I'm actually connected, and now I'm gonna list the tools, and as we talked about it, I currently just have three tools implemented here.</span></div><div class="tline" data-t="973"><span class="ts">16:13</span><span class="tx">All right. VS Code, how does it work actually now in VS Code, for example? VS Code has MCP support as well. I'm just gonna provide the endpoint, um, I'm gonna find a name for my MCP remote server here, which let's call it AI Engineer, and it's gonna add it to my user settings, and immediately it's gonna start</span></div><div class="tline" data-t="993"><span class="ts">16:33</span><span class="tx">running it. And you can see now in VS Code, because they now also support OAuth, they're gonna pop up the window. They're gonna show a notification about, &quot;Hey, let's authenticate towards it.&quot;</span></div><div class="tline" data-t="1004"><span class="ts">16:44</span><span class="tx">I'm gonna open it, and we're gonna see the same consent page, right? This time with VS Code. Different application name here, where we are again, we're gonna, um, provide our, um, consent.</span></div><div class="tline" data-t="1015"><span class="ts">16:55</span><span class="tx">We're gonna allow it, and now back I'm authorized. I'm a- allowed to use it in VS Code Insiders. So once that's done, you saw now I have access to the three tools here in VS Code.</span></div><div class="tline" data-t="1027"><span class="ts">17:07</span><span class="tx">So let's test this. What it's gonna do in Copilot Studio, uh, Co- uh, GitHub Copilot. Um, so first I'm gonna select and see. Perfect. It's, um, it was able to select my tools, and it's g- um, able to detect these.</span></div><div class="tline" data-t="1042"><span class="ts">17:22</span><span class="tx">And now once I start interacting, I s- I have my text prompt here, and just kind of do the Hello Worlds, um, very simple example. Um, GitHub Copilot is now gonna run it.</span></div><div class="tline" data-t="1054"><span class="ts">17:34</span><span class="tx">It's gonna detect the tool. Because I've been, am authenticated, it's gonna run it, um, hopefully successfully. Perfect. And now we can also double-check. So if I open the tool calling here, I can see that the output of, &quot;Hello, I'm an MCP tool,&quot; has been successfully, um, provided.</span></div><div class="tline" data-t="1072"><span class="ts">17:52</span><span class="tx">Um, something new, and I know the world is spinning very, very fast, so... As being part of Azure API Management, we wanna make it easier as well. So we know the similarities between MCP servers and APIs, so one of the latest announcements that we have done is you can now also start transforming your REST APIs into remote</span></div><div class="tline" data-t="1094"><span class="ts">18:14</span><span class="tx">MCP servers using our tools, u- using our, um, platform here. And you can configure your already existing endpoint, REST endpoints, into tools that you want to expose to get, like, um, the VS Code.</span></div><div class="tline" data-t="1109"><span class="ts">18:29</span><span class="tx">Um, and we're gonna do this all with our platform because we wanna make it easier for enterprise customers, but also developers, to get started with this. So here in my use case, um, I just copied the endpoint that was provided by me, um, by API Management.</span></div><div class="tline" data-t="1123"><span class="ts">18:43</span><span class="tx">I'm gonna hit Start and Running. Um, of course, always make sure to implement auth, and that's the beauty about our platform. You can use it for securing it, um, but also for hosting in this case.</span></div><div class="tline" data-t="1135"><span class="ts">18:55</span><span class="tx">And now I'm able to also just immediately call it. Um, let's just check if, um, GitHub Copilot was able to detect the MCP server here. Perfect. You can see it right under my Service AI Engineering one.</span></div><div class="tline" data-t="1148"><span class="ts">19:08</span><span class="tx">I'm seeing the three tools. That is all based on my REST API in VS Code, and now I'm ready to go and interact with it, um, in VS Code right here.</span></div><div class="tline" data-t="1160"><span class="ts">19:20</span><span class="tx">With this being said-</span></div><div class="tline" data-t="1162"><span class="ts">19:22</span><span class="tx">Yeah</span></div><div class="tline" data-t="1162"><span class="ts">19:22</span><span class="tx">... um, lots of things are changing in this space. Any, um, good words for the people out there-</span></div><div class="tline" data-t="1168"><span class="ts">19:28</span><span class="tx">Yeah</span></div><div class="tline" data-t="1168"><span class="ts">19:28</span><span class="tx">... who wanna get started with remote MCP server Den?</span></div><div class="tline" data-t="1170"><span class="ts">19:30</span><span class="tx">Yeah. So, uh, there's links on the screen that you can go to. These are the specification documents, uh, that you can learn more about how MCP auth works. We also have a document that we partnered with Anthropic on.</span></div><div class="tline" data-t="1180"><span class="ts">19:40</span><span class="tx">It's called Security Best Practices that outline what are the best practices that you should be adopting in your MCP servers, so you wanna make sure that you're not pwned.</span></div><div class="tline" data-t="1188"><span class="ts">19:48</span><span class="tx">Uh, very, very important. And then I'll also mention that, uh, starting with VS Code Insiders, we do support the new authorization spec. So you should check it out, download it, install it, give us your feedback, and if anything doesn't work, we have Harold at this conference who can help you debug it.</span></div><div class="tline" data-t="1203"><span class="ts">20:03</span><span class="tx">So thank you, folks.</span></div><div class="tline" data-t="1204"><span class="ts">20:04</span><span class="tx">Yeah.</span></div><div class="tline" data-t="1204"><span class="ts">20:04</span><span class="tx">This was great.</span></div><div class="tline" data-t="1204"><span class="ts">20:04</span><span class="tx">Stop by at the booth. [audience applauding]</span></div><div class="tline" data-t="1206"><span class="ts">20:06</span><span class="tx">Yeah. [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

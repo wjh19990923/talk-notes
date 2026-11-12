@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>观其友，知其交易 —— Somya Rai 与 MD Sharique，EXL | AI 工程师中文版</title>
+<meta name="description" content="Somya Rai 和 MD Sharique 讲解了 EXL 如何在 XGBoost 中加入图嵌入来做欺诈检测——以及为什么保留交易邻域、防止数据泄露、把图计算移出请求路径，与模型本身同样重要。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>观其友，知其交易 —— Somya Rai 与 MD Sharique，EXL</h1>
+    <div class="orig-title">Judge a Transaction by the Company It Keeps — Somya Rai &amp; MD Sharique, EXL</div>
+    <div class="meta"><span class="speaker">Somya Rai、MD Sharique</span> · AI Engineer NYC 2026 Online Talks · 20:27</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=ai-in-finance">金融 AI</a><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=fine-tuning">微调</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=privacy-and-data-governance">隐私与数据治理</a><a class="tag" href="../../index.html#topic=human-in-the-loop-validation">人在环中验证</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/SHvwutPSeZg-judge-transaction-by-company-it-keeps" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="SHvwutPSeZg"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=SHvwutPSeZg" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">同一笔购买，两个截然不同的分数</div></div>
+      <div class="label row">章节跳转 <span>共 9 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="4"><span class="ts">0:04</span><span>同一笔购买，两个截然不同的分数</span></li><li data-t="124"><span class="ts">2:04</span><span>给现有的分类器加上邻域信息</span></li><li data-t="387"><span class="ts">6:27</span><span>对用户采样而不掏空他们的历史</span></li><li data-t="509"><span class="ts">8:29</span><span>让时间和实体历史成为图构建的一部分</span></li><li data-t="669"><span class="ts">11:09</span><span>别让可疑的邻居淹没在均值里</span></li><li data-t="823"><span class="ts">13:43</span><span>在同样的告警预算内比较欺诈检测效果</span></li><li data-t="879"><span class="ts">14:39</span><span>把一个高分变成相互关联的证据</span></li><li data-t="1007"><span class="ts">16:47</span><span>把图规模的计算移出请求路径</span></li><li data-t="1114"><span class="ts">18:34</span><span>在边缘端预测以缩小缓存</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 11 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Judge a Transaction by the Company It Keeps" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Judge a Transaction by the Company It Keeps</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Rai and Sharique present a graph neural network that beats XGBoost by 27–33% on fraud capture and is served at 3ms in production, built with NVIDIA’s fraud-detection blueprint.
+
+[0:02](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=2s) [Title slide introducing graph connectivity for fraud detection, presented by Somya Rai and MD Sharique.](https://assets.ai.engineer/sites/aiecode2025/sha256/ef4ce8659b8e07ce551868aef920644da8e183401af67222816adcf685356ba0.webp)
+
+AI ENGINEER NYC 2026 · ONLINE TALK SUBMISSION
+
+Judge a Transaction by
+ the Company It Keeps
+
+Harnessing graph connectivity to beat XGBoost by 27–33% on fraud capture, served at 3ms in production
+
+Somya Rai · MD Sharique
+Vice President, AI Engineering · Principal AI Architect
+
+Built in partnership with NVIDIA, on their fraud-detection blueprint
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS
+1</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Same transaction, different verdict" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Same transaction, different verdict</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The same purchase scores 0.04 alone and 0.91 with its graph neighbors; three of its four neighbors were flagged for fraud within the last hour.
+
+[0:07](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=7s) [A transaction scores 0.04 alone and 0.91 when viewed with its graph neighbors.](https://assets.ai.engineer/sites/aiecode2025/sha256/772199103a15481e09caa171fd5e3068cd84c01a2da9c2dddb5e44f78454ba37.webp)
+
+THE HOOK
+
+Same transaction. Same features.
+A completely different verdict.
+
+VIEWED ALONE
+
+TX
+
+A single online transaction. Nothing about it, by itself, looks unusual.
+
+Fraud score: 0.04
+Looks clean
+
+VIEWED WITH ITS NEIGHBORS
+
+U
+M
+TX
+TX
+TX
+
+Same purchase — but three of its four graph neighbors were flagged fraud within the last hour.
+
+Fraud score: 0.91
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS
+3</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Fraud detection at production scale" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fraud detection at production scale</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Online transactions have a 12x higher natural fraud rate than physical PoS. Analysts review only the top 0.5–1.5% of scored transactions, so models must surface fraud in that slice at the latency of the tabular model they replace.
+
+[1:03](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=63s) [Physical point-of-sale and online transactions are compared by natural fraud rate, signal, and alert-review constraints.](https://assets.ai.engineer/sites/aiecode2025/sha256/adc88ccb30b50fadf2c6b14c0c4d3f36a85c2f17443ad75430381990f5d78a3a.webp)
+
+BUSINESS PROBLEM
+
+Fraud detection at production scale is two problems wearing one name
+
+PoS
+Physical transactions at merchant PoS
+~0.05% natural fraud rate
+
+relative natural fraud rate, drawn to the same scale
+
+Tight, low-noise signal. Fraud rides the card's own transaction velocity.
+
+Web
+Online transactions
+~0.6% natural fraud rate — 12x higher
+
+Noisier, higher-volume channel. Merchant and neighbor context matter more.
+
+Why this forces an engineering problem, not just a modeling one:
+
+Alert budgets are fixed — analysts can only review the top 0.5–1.5% of scored transactions. A model only creates value if it moves genuinely fraudulent transactions into that thin slice, and it has to do it at the same latency as the tabular model it's replacing.
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS
+4</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="More features, marginal gain" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>More features, marginal gain</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At a fixed alert rate, engineered features raise TPR from 35.5% to 36.6% for physical PoS and 47.3% to 48.3% online. The speaker argues that more columns still miss connections between transactions.
+
+[2:08](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=128s) [A chart compares true-positive rates for raw and engineered features in physical and online transactions.](https://assets.ai.engineer/sites/aiecode2025/sha256/9173cf06f48d8624615e61b106c9879513e4de0e88b977f146d120e85b15c7cc.webp)
+
+WHY NOT JUST BETTER XGBOOST?
+
+More features, marginal gain — the ceiling is structural, not a feature-count problem
+
+1. Raw features
+40 (physical PoS) / 136 (online) raw transaction attributes. Establishes the floor.
+
+2. Engineered features
+87 (physical PoS) / 198 (online) after iterative selection and leakage checks.
+
+3. The ceiling
+2x–5x more features buys about one point of TPR. The plateau is structural.
+
+FEATURE COUNT vs. TPR @ FIXED ALERT RATE
+Y-axis ticks: 0, 10, 20, 30, 40, 50, 60
+Physical PoS raw (40 feat): 35.5%
+Physical PoS eng. (87 feat): 36.6%
+Online raw (136 feat): 47.3%
+Online eng. (198 feat): 48.3%
+
+Every tabular feature answers “what does this transaction look like?” A graph adds a second question — “who is it connected to, and what are they doing?” — that no amount of tabular feature engineering can answer.
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS
+5</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="A graph neural network learns from neighbors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A graph neural network learns from neighbors</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A GNN gathers neighbors across typed edges, aggregates their states into a fixed-width vector, then combines it with the node’s own state. Two layers carry information from neighbors of neighbors.
+
+[3:16](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=196s) [A transaction node is connected to neighboring nodes alongside the gather, aggregate, and update steps.](https://assets.ai.engineer/sites/aiecode2025/sha256/e6b4cf064297f653de1722faeb0f1c9213121b442794a9bd88370d1fb2c90c49.webp)
+
+THE IDEA
+A Graph Neural Network learns a node from the company it keeps
+
+Diagram labels: TX (center); U, TX, M, TX, TX (neighbors)
+
+1 Gather
+Collect each neighbor's feature vector across the typed edges.
+
+2 Aggregate
+Combine them with an order-invariant function — more on this shortly.
+
+3 Update
+Blend the aggregate with the node's own features through learned weights.
+
+hv ← σ(W·[hv ∥ AGG(hu), u∈N(v)])
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Four decisions, in order" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Four decisions, in order</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The roadmap moves from connectivity-preserving sampling to a leakage-safe graph with 32 derived features, explainable scores, and 3 ms serving. A validated post-launch iteration adds a rolling window and edge-time decay.
+
+[4:07](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=247s) [Roadmap covering sampling, graph and features, explainability, and serving at 3 milliseconds, followed by a rolling-window and edge-time-decay iteration.](https://assets.ai.engineer/sites/aiecode2025/sha256/d82cfadfd9e189d672accf33f000a366788ced9146aadcf75b792014aabc22b1.webp)
+
+ROADMAP
+
+Four decisions, in order
+
+1. Sampling
+Hold a soft target fraud rate without breaking connectivity.
+
+2. Graph &amp; Features
+Leakage-safe graph, plus 32 derived features built to catch fraud.
+
+3. Explainability
+Turning a black-box score into evidence — and why that's non-negotiable.
+
+4. Serving at 3ms
+The aggregation method and the node-vs-edge pivot that made this deployable.
+
+Plus, at the end: a validated next iteration — rolling window + edge-time decay.
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS
+8
+
+[5:01](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=301s) [Roadmap covering sampling, graph and features, explainability, and serving at 3 ms.](https://assets.ai.engineer/sites/aiecode2025/sha256/af7a2e7c94ad2acb9e574839863e7b20bbb5cc90a5b25b8c2fae5126e08aaf58.webp)
+
+ROADMAP
+
+Four decisions, in order
+
+1. Sampling
+Hold a soft target fraud rate without breaking connectivity.
+
+2. Graph &amp; Features
+Leakage-safe graph, plus 32 derived features built to catch fraud.
+
+3. Explainability
+Turning a black-box score into evidence — and why that's non-negotiable.
+
+4. Serving at 3ms
+The aggregation method and the node-vs-edge pivot that made this deployable.
+
+Plus, at the end: a validated next iteration — rolling window + edge-time decay.
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS
+8</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Disjoint monthly graphs" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Disjoint monthly graphs</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Monthly graphs connect transactions to users, merchants, and five prior transactions. No edges cross month boundaries, so information cannot travel between monthly splits.
+
+[8:27](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=507s) [Three monthly graph diagrams show no edges crossing month boundaries, with user, merchant, and transaction relationships listed below.](https://assets.ai.engineer/sites/aiecode2025/sha256/05f80b87428e224c5472c88dd13ae3df194ad383986775309612ea600d89d29b.webp)
+
+DECISION 2 · GRAPH CONSTRUCTION
+
+Each month is its own disjoint graph —
+no edge ever crosses the boundary
+
+Month t−1
+U   M
+TX   TX
+
+Month t (scoring)
+U   M
+TX   TX
+
+Month t+1
+U   M
+TX   TX
+
+G = G(t−1) ∪ G(t) ∪ G(t+1) ∪ …
+each calendar month is one connected component
+
+• user ↔ transaction (makes / made_by)
+• merchant ↔ transaction (receives / at)
+• transaction → transaction (follows, K=5 prior, causal)
+
+Every scored transaction: one disjoint graph, three entity types, six typed message-passing edges.
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="GraphSAGE architecture" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>GraphSAGE architecture</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GraphSAGE samples a capped, recency-biased neighborhood, combines mean, max and standard deviation with the node’s vector, and repeats for two hops. Learned aggregator weights let it embed new nodes without retraining.
+
+[9:35](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=575s) [GraphSAGE process showing sample, aggregate, combine, and embed stages.](https://assets.ai.engineer/sites/aiecode2025/sha256/d009f409bd4ef1bcfe09884dd2d30d1bb76304168a32e3cbaeb599870b59a465.webp)
+
+ARCHITECTURE
+
+GraphSAGE: sample, aggregate, combine,
+embed — inductive by design
+
+1 SAMPLE
+Draw a fixed-size, recency-biased set of neighbors per hop — a fan-out cap, not every neighbor.
+
+2 AGGREGATE
+Merge sampled neighbors with three order-invariant statistics — mean, max, and std — concatenated.
+
+3 COMBINE
+Concatenate the node's own vector with the aggregate, apply learned weights + activation.
+
+4 EMBED
+Emit a fixed-length vector; repeat once per hop (K = 2).
+
+hv(k) = σ(W(k) · [hv(k−1) ∥ AGG(hu(k−1)), u∈N(v)]), AGG=[MEAN∥MAX∥STD]
+
+Inductive: it's the aggregator weights that are learned, not a fixed vector per node — so it embeds a brand-new node on the fly, no retraining. Why thre[illegible] — next slide.
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="128 dimensions: the capacity sweet spot" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>128 dimensions: the capacity sweet spot</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Validation PR-AUC peaks at 0.138 with 128 dimensions; 256 dimensions score 0.137 and cost more GPU, while 64 dimensions slightly underfit.
+
+[13:18](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=798s) [Validation PR-AUC is 0.132 for 64 dimensions, 0.138 for 128, and 0.137 for 256.](https://assets.ai.engineer/sites/aiecode2025/sha256/4dd944081c72e1afedd2c219a20f63e88da1256354dbf46e954d463e6d10f1ac.webp)
+
+ARCHITECTURE · SIZING
+
+128 dimensions: the capacity sweet spot
+
+Validation PR-AUC
+Y-axis ticks: 0.12, 0.125, 0.13, 0.135, 0.14
+64 dims: 0.132
+128 dims: 0.138
+256 dims: 0.137
+
+Good, slight underfit
+CHOSEN — sweet spot
+Highest cost, no gain
+
+Pipeline
+input projection 128 → hidden 256 → output embedding 128
+
+Dimensions are learned and entangled — not one-concept-per-axis. We attribute meaning by probing: correlating dimension groups with known signals like neighbor fraud rate.
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Rolling window and edge-time decay" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Rolling window and edge-time decay</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A trailing 30-day window removes the fixed month’s cold start, while a 7-day half-life weights recent edges more heavily. The slide reports a +5% TPR uplift on the held-out validation set.
+
+[20:07](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=1207s) [A slide reports a 5% TPR uplift on the validation set with a 30-day rolling window and recency weighting.](https://assets.ai.engineer/sites/aiecode2025/sha256/437bae721b74da0345d1c4a7fc9df63f72cac8abb4585a5406309f8f82297a5c.webp)
+
+NEXT ITERATION · VALIDATED, NOT JUST PROPOSED
+
+Rolling window + edge-time decay:
++5% TPR on the validation set
+
+TODAY · fixed calendar month
+
+first txn of month: little history
+last txn: full context
+
+A transaction on day 1 has almost no causal history; the same transaction on day 30 would have a full month behind it — a month-boundary cold-start problem built in by construction.
+
+VALIDATED · 30-DAY ROLLING WINDOW + EDGE-TIME DECAY
+
++5% TPR
+uplift on the held-out validation set
+
+Every transaction now gets a full trailing 30 days of causal context — no month-boundary cold start. follows edges are additionally weighted by recency: weight = 0.5^(gap_days / 7) — a 7-day half-life, so a same-user transaction from yesterday counts more than one from three weeks ago.
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS
+23</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Production GNN takeaways" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Production GNN takeaways</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Trimming users can damage the graph a GNN learns from. Derived features complement connections, explainability gates deployment, and caching per-node layer states offline makes 3ms possible.
+
+[20:11](https://www.youtube.com/watch?v=SHvwutPSeZg&amp;t=1211s) [Four takeaways cover sampling, complementary features and graph structure, explainability, and precomputed state.](https://assets.ai.engineer/sites/aiecode2025/sha256/06e9eddb4b2073967460eb1ed6e3607b601da7c476ec1e803c36c782f3efe179.webp)
+
+KEY TAKEAWAYS
+
+If you're building a production GNN, start here
+
+1. Sampling is a graph-health decision
+Not just a class-balance one. Trimming users for balance breaks the structure the model learns from.
+
+2. Derived features and graph structure are complementary
+One tells you who a transaction is connected to; the other tells you how it's behaving differently from its own norm.
+
+3. Explainability is a deployment gate, not a nice-to-have
+Regulatory, analyst-trust, and debugging pressures all point the same way — an accurate black box doesn't get used.
+
+4. Precompute state, don't compute structure
+Caching per-node layer states offline — not building graphs online — is what makes 3ms possible.
+
+AI ENGINEER NYC 2026 · JUDGE A TRANSACTION BY THE COMPANY IT KEEPS
+24</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">同一笔购买，两个截然不同的分数</a></li><li><a href="#sec-2">给现有的分类器加上邻域信息</a></li><li><a href="#sec-3">对用户采样而不掏空他们的历史</a></li><li><a href="#sec-4">让时间和实体历史成为图构建的一部分</a></li><li><a href="#sec-5">别让可疑的邻居淹没在均值里</a></li><li><a href="#sec-6">在同样的告警预算内比较欺诈检测效果</a></li><li><a href="#sec-7">把一个高分变成相互关联的证据</a></li><li><a href="#sec-8">把图规模的计算移出请求路径</a></li><li><a href="#sec-9">在边缘端预测以缩小缓存</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">观其友，知其交易</h2>
+      <div class="lede"><p>Somya Rai 和 MD Sharique 讲解了 EXL 如何在 XGBoost 中加入图嵌入来做欺诈检测——以及为什么保留交易邻域、防止数据泄露、把图计算移出请求路径，与模型本身同样重要。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="4">▶ 0:04</button></div>
+      <h3>同一笔购买，两个截然不同的分数</h3>
+      <p>An online purchase scores 0.04 when the model sees its amount, merchant, merchant category code, device, time of day and the rest of its 198 engineered features. Give the model access to the transaction’s neighborhood, without changing the feature row, and the score becomes 0.91. Somya Rai opens EXL’s example with this discrepancy: links to recently flagged fraud change how an otherwise ordinary purchase looks. The comparison asks a concrete question: what information becomes visible when the model can inspect connections between transactions?</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/99404a1a7d65db75623ca386e9a951bb134446c38b85deb88ede415b7ab594c0" alt="The transaction scores 0.04 alone; with three of its four graph neighbors flagged for fraud, the score shown is 0.91." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The transaction scores 0.04 alone; with three of its four graph neighbors flagged for fraud, the score shown is 0.91.</figcaption></figure>
+<p>The answer depends on the portfolio. Physical point-of-sale transactions have a reported natural fraud rate of roughly 0.05%, or one in 2,000, with much of the signal in the card’s own transaction velocity. Online transactions have a 0.6% fraud rate—12 times higher—and more signal in merchants and neighboring activity. Those different base rates and patterns lead to separate models for the two portfolios.</p>
+<p>Both models face the same operational constraint: analysts can review only the highest-scoring 0.5% to 1.5% of transactions. Ranking more real fraud into that fixed slice matters more than improving an overall discrimination score alone. At a fixed number of alerts, catching more fraud also makes the analyst queue more precise. The model must do that without increasing scoring latency.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="124">▶ 2:04</button></div>
+      <h3>给现有的分类器加上邻域信息</h3>
+      <p>More tabular engineering had already produced diminishing returns. For point-of-sale transactions, expanding 40 raw attributes to 87 engineered features moved true positive rate from 35.5% to 36.6% after feature selection and leakage checks. Nearly 200 engineered features produced about a one-point improvement online. Rai interprets this as an information ceiling in their existing pipeline: transformations of a row and its card history keep reusing the same underlying evidence.</p>
+<p>A merchant that became suspicious 40 minutes ago or a velocity chain spanning cards introduces a different input: relationships between rows. A graph neural network gathers neighboring hidden states, reduces a variable-size neighbor set to a fixed-width vector, and combines that vector with the node’s own state through learned weights. Stacking two layers lets a transaction’s representation incorporate both immediate neighbors and neighbors two steps away.</p>
+<p>The deployment keeps <strong>XGBoost</strong> as the classifier. The GNN supplies embeddings that become additional inputs to the gradient-boosted model: “We did not replace XGBoost. We fed it.” The reported comparison is therefore XGBoost alone against XGBoost with graph embeddings, at matched alert rates and evaluation windows, with the same underlying features available to both.</p>
+<p>Making that addition useful requires decisions before and after training. Sampling must raise the representation of rare fraud without deleting the neighborhoods that explain it. Graph construction must prevent future information and labels from entering the inputs. Explanations must connect a score to evidence an analyst can investigate. Serving must fit a millisecond budget. Rai also reports a post-launch improvement from rolling-window training and edge time decay, without quantifying that iteration’s separate contribution.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="387">▶ 6:27</button></div>
+      <h3>对用户采样而不掏空他们的历史</h3>
+      <p>MD Sharique begins the implementation with soft fraud-rate targets: 0.5% for the point-of-sale portfolio and 6% online, about ten times each portfolio’s natural rate. The targets are soft because enforcing a precise class ratio by deleting individual legitimate transactions would also delete their edges. The sampled graph could retain the fraud labels while losing the context needed to learn from them.</p>
+<p>The preservation rule works at the user level: selected users retain their complete transaction histories. A user associated with fraud keeps legitimate transactions too, providing hard negatives that help the model distinguish suspicious behavior from ordinary behavior by the same person. Fraud users remain uncapped. Balanced batch sampling inside the trainer addresses the remaining class imbalance.</p>
+<p>Neighborhood size is the practical check on whether this sampling has changed the learning problem. Sharique reports an average training-time user degree of roughly 11.5 to almost 14 in the point-of-sale portfolio, matching inference-time neighborhoods. Across the 12 tested months, the reported stability matters because a model trained on artificially sparse histories would learn from a different neighborhood structure than the one it encounters when scoring real transactions.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="509">▶ 8:29</button></div>
+      <h3>让时间和实体历史成为图构建的一部分</h3>
+      <p>Each calendar month becomes a disjoint graph. A transaction connects to its user and merchant, with a five-hop follows chain back through its recent transaction history. No edge crosses a month boundary. This separates monthly data partitions structurally; timestamp restrictions then determine which information a transaction may aggregate within its graph.</p>
+<p>The leakage controls address four different routes by which an evaluation could become too easy:</p>
+<p>- <strong>Future information:</strong> a transaction aggregates only neighbors with earlier timestamps.
+- <strong>Split contamination:</strong> disjoint monthly graphs prevent graph paths from crossing training, validation and test partitions.
+- <strong>Target information:</strong> the fraud flag remains the prediction target; it is never a feature or an edge.
+- <strong>Preprocessing information:</strong> scalers and vocabularies are fitted on training-month data, then frozen for later use.</p>
+<p>The model uses 202 features across three node types: 73 user features, 109 transaction features and 20 merchant features. Of the transaction features, 32 are derived fraud features. These provide behavioral context alongside the graph’s relational context:</p>
+<p>- <strong>Entity history—10 features:</strong> past transaction count, days since last activity, and statistics such as the mean, standard deviation and maximum of the last five amounts establish a user or merchant baseline.
+- <strong>Risk aggregates—8 features:</strong> an amount Z-score against that history, recent-versus-past ratios and transactions per day describe departures from the entity’s own behavior.
+- <strong>Velocity and time—14 features:</strong> counts and amounts over five-minute, one-hour and 24-hour windows, distinct counterparties over the last day, seconds since the previous transaction and country-change rate capture bursts or implausible movement.</p>
+<p>The combination answers two separate questions. Edges identify whom a transaction connects to. Historical and temporal features describe how those entities are behaving relative to their own normal activity. A connection to a merchant and an unusual burst of activity at that merchant carry complementary information.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="669">▶ 11:09</button></div>
+      <h3>别让可疑的邻居淹没在均值里</h3>
+      <p><strong>GraphSAGE</strong> samples a fixed, recency-biased set of neighbors at each hop, preventing a very large merchant neighborhood from dominating the messages. It aggregates those neighbors, combines the result with the node’s own vector and produces an embedding over two layers. The learned object is the aggregation function rather than a separate fixed embedding for every known node, allowing new users and merchants to receive representations without retraining.</p>
+<p>Why concatenate mean, maximum and standard deviation instead of averaging alone? Sharique’s example gives a transaction four neighbors: three with scores around 0.1 and one linked to a fraud ring at 0.92. The mean falls to roughly 0.3, while the maximum remains 0.92. Averaging weakens the very pattern the model needs to preserve: one dangerous connection among several ordinary ones.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/83013d542b6b9ccbdcaa3d99b23eedd4ebe9f233debcb9435d80fdaebe490227" alt="With three neighbor scores near 0.1 and one at 0.92, mean pooling yields 0.32 while max pooling retains 0.92." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>With three neighbor scores near 0.1 and one at 0.92, mean pooling yields 0.32 while max pooling retains 0.92.</figcaption></figure>
+<p>The three statistics expose different properties of the same neighborhood:</p>
+<p>- <strong>Mean:</strong> the neighborhood’s overall level of activity or signal.
+- <strong>Maximum:</strong> a strong individual signal that could disappear in an average.
+- <strong>Standard deviation:</strong> disagreement within the neighborhood, distinguishing a uniformly ordinary group from one containing an outlier.</p>
+<p>All three are invariant to neighbor ordering and produce a fixed-size aggregate regardless of neighborhood size. The statistical operations introduce no learned parameters of their own; the combined aggregate then passes through learned weights.</p>
+<p>Embedding width also has a measured stopping point in this application. A 64-dimensional representation slightly underfits; 128 dimensions gives the preferred validation result. Moving to 256 dimensions costs more GPU resources without improving performance, with validation gains flattening and overfitting beginning beyond 128. Increasing representation size does not recover useful information indefinitely.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="823">▶ 13:43</button></div>
+      <h3>在同样的告警预算内比较欺诈检测效果</h3>
+      <p>The reported detection gains are easiest to read side by side. True positive rate measures the share of actual fraud detected; relative lift divides the increase by the baseline rate.</p>
+<p>| Portfolio | XGBoost TPR | GNN + XGBoost TPR | Relative lift |
+| --- | ---: | ---: | ---: |
+| Point of sale | 36% | 48% | 33% |
+| Online | 48% | 61% | 27% |</p>
+<p>The point-of-sale comparison explicitly uses a 0.5% alert rate. The online comparison is also described as using matched alert rates, although its precise rate is not stated in this results passage. These are portfolio-specific results against the team’s tuned baseline.</p>
+<p>The financial quantities need to remain distinct. Rai describes approximately $65 million in projected annualized incremental fraud capture across the portfolios. Sharique later reports $5.6 million captured at an 83% capture rate for point of sale, and $35.4 million at 71% online. The recording does not reconcile those amounts with the annualized projection or define the denominator of the capture percentages. They should therefore remain separately reported quantities, rather than being added together or presented as realized savings. The higher online fraud rate helps explain why that portfolio contributes most of the projected opportunity.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/cc14e69a41d67c540eec0473db44ae99a8f0b2f0f503de77db20d74122091976" alt="At the stated alert rates, GNN + XGBoost raises TPR from 36.6% to 48.7% for physical POS and from 48.3% to 61.5% online." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>At the stated alert rates, GNN + XGBoost raises TPR from 36.6% to 48.7% for physical POS and from 48.3% to 61.5% online.</figcaption></figure>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="879">▶ 14:39</button></div>
+      <h3>把一个高分变成相互关联的证据</h3>
+      <p>Subgraph attribution examines which relationships contributed to a flagged result. Across 200 flagged cases in each channel, transaction-to-transaction velocity edges had reported mean importance of 0.94 for point of sale and 0.62 online. They were the leading evidence in all 200 point-of-sale cases. Merchant edges had higher importance online—0.19 versus 0.04 for point of sale—consistent with the different signal patterns introduced at the start.</p>
+<p>For an analyst, the useful change is from a bare score of 0.91 to a score supported by three linked transactions in the last 40 minutes. The analyst can inspect those transactions rather than reconstruct the entire case. The importance values describe this attribution sample; they are not percentages of all fraud caused by each edge type.</p>
+<p>That evidence serves several operational purposes:</p>
+<p>- <strong>Documented rationale:</strong> financial institutions need explanations for automated decisions within regulatory and model-risk processes.
+- <strong>Investigation speed:</strong> specific links give analysts something to verify, reducing the temptation to ignore or rubber-stamp an unexplained score.
+- <strong>Model debugging:</strong> changing attribution patterns can reveal reliance on a spurious or weakening signal before aggregate performance visibly deteriorates.
+- <strong>Training feedback:</strong> explanations can help analysts assess borderline cases and supply more useful labels for later training.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1007">▶ 16:47</button></div>
+      <h3>把图规模的计算移出请求路径</h3>
+      <p>The first serving design computes graph representations offline. A GPU-sharded, layer-wise GraphSAGE forward pass processes the graph in destination-node batches. Sharique describes it as numerically equivalent to a full-graph forward pass while keeping each batch within a few gigabytes across multiple GPUs. Per-layer representations for users, merchants and recent transactions go into a low-latency embedding store; each user’s last five transactions also sit in a ring buffer.</p>
+<p>What crosses from offline computation into online scoring? Cached neighbor states let a new transaction reuse prior graph work. At request time, an assembly step retrieves those states and applies exponential recency weighting matched to training. The service then runs only the new transaction’s two-layer forward pass and the XGBoost classifier. It builds no graph and performs no neighbor sampling during the request, so request work does not grow with the full graph.</p>
+<p>Small runtime decisions matter at this scale. The service pins math-library thread pools to one before loading the heavy libraries; Sharique reports a reduction from 30 milliseconds to one millisecond from that change. Startup warmup avoids making the first real request pay initialization costs. The implementation described is a single in-memory process, with a distributed cache presented as a later scaling option through the same interface.</p>
+<p>Cached states connect offline graph computation to a small online forward pass
+This is the initial transaction-node serving design. The cache carries computed representations into scoring; the incoming transaction supplies the new work.
+- Offline GraphSAGE — GPU-sharded, layer-wise computation in destination-node batches.
+- Representation cache — Per-layer user, merchant and recent-transaction states; last five transactions per user in a ring buffer.
+- Incoming transaction — The new transaction being scored.
+- Assemble neighbor states — Retrieve cached states and apply training-matched exponential recency weighting.
+- New transaction forward — Compute only this transaction’s two-layer representation.
+- XGBoost score — Use the graph representation in the existing classifier.
+- Offline GraphSAGE → Representation cache (Store per-layer representations)
+- Representation cache → Assemble neighbor states (Retrieve neighbor states)
+- Assemble neighbor states → New transaction forward (Supply cached neighborhood information)
+- Incoming transaction → New transaction forward (Supply the new transaction’s state)
+- New transaction forward → XGBoost score (Supply graph embedding)</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1114">▶ 18:34</button></div>
+      <h3>在边缘端预测以缩小缓存</h3>
+      <p>Caching every transaction creates a second bottleneck. At production scale, the initial design needs roughly 60 GB of representations and expensive high-memory serving. Freshness also matters: with a one-day embedding lag, the reported true positive rate falls from 48% to 44%. A fast lookup is less useful when the stored neighborhood has fallen behind the activity it is meant to describe.</p>
+<p>The proposed correction changes what receives an embedding. Predicting on the transaction edge allows the system to precompute user and merchant embeddings without retaining a representation for every transaction. The stated footprint falls to 2–3 GB, roughly 20 times smaller, and fits the same CPU class used for the accompanying XGBoost model. Sharique says Nvidia independently recommended the approach and expected performance comparable to the node model. That expectation does not establish a measured recovery of the four-point detection loss from stale embeddings.</p>
+<p>Where does the remaining request time go? Preprocessing, cache lookup and the XGBoost head each take fractions of a millisecond. The two-layer GNN forward pass is the largest component at 1.61 milliseconds. The reported end-to-end latency is 2.3 milliseconds at the median and 3.1 milliseconds at P99, within the stated 3–4 millisecond service-level agreement. That breakdown identifies the GNN computation as the next useful optimization target.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/49fdd62902de337bf12c00146487cf40e90c55470cb43e11322ec880318ee5ac" alt="The two-layer GNN forward pass takes 1.61 ms, while preprocessing, cache lookup and XGBoost each take a fraction of a millisecond; the slide reports 2.3 ms p50 and 3.1 ms p99 end-to-end." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The two-layer GNN forward pass takes 1.61 ms, while preprocessing, cache lookup and XGBoost each take a fraction of a millisecond; the slide reports 2.3 ms p50 and 3.1 ms p99 end-to-end.</figcaption></figure>
+<p>The two-layer GNN forward pass takes 1.61 ms, while preprocessing, cache lookup and XGBoost each take a fraction of a millisecond; the slide reports 2.3 ms p50 and 3.1 ms p99 end-to-end.</p>
+<p>The closing optimization options follow that measured bottleneck: recompile or quantize the GNN forward pass if more headroom becomes necessary. The practical design has already moved full-graph computation offline, bounded online work to a new transaction and reduced the set of entities requiring cached representations. Further latency work can focus on the computation still dominating the request.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Graph embeddings add neighborhood information to XGBoost. The reported 27–33% relative detection gains compare the combined system with a tuned tabular baseline at matched alert rates.</li><li>Sampling must preserve useful connectivity: retain selected users’ histories, keep legitimate transactions from fraud-associated users as hard negatives, and balance training batches downstream.</li><li>Monthly graph separation, earlier-timestamp aggregation, target exclusion and training-only preprocessing address different leakage routes.</li><li>Mean, maximum and standard deviation preserve different neighborhood signals; maximum pooling keeps a single suspicious neighbor from disappearing into an average.</li><li>Caching removes graph-sized work from each request, but memory and freshness remain constraints. User-and-merchant embeddings reduce the stated cache from 60 GB to 2–3 GB; the final reported latency is 3.1 milliseconds at P99.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="4"><span class="ts">0:04</span><span class="tx">Hi, I'm Somya Rai, VP of AI Engineering. What we see here are two score, same transaction both the times. On the left, a single online purchase where we look at the amount spent, who is the merchant, MCC code, device type, what time of the day, and with one ninety-eight features by the time we are done engineering. And it scores zero point zero four, comfortably under any threshold we would alert on. As far as we are concerned, this one looks clean. On the right,</span></div><div class="tline" data-t="34"><span class="ts">0:34</span><span class="tx">same transaction, same feature vector. Not one byte of that row is different. The only thing that we change is what model is allowed to look at, the neighborhood it sits in. Three of the four transactions, a user, a merchant, and two other transactions were flagged fraud within the last hour. Now the score is zero point nine one. So the signal was never in the row, it was in the edges. Therefore, fraud isn't a property of a transaction, it is a property of the neighborhood it sits in.</span></div><div class="tline" data-t="64"><span class="ts">1:04</span><span class="tx">Let me describe the shape of the problem, because it is two problems wearing one name. Physical transaction at the merchant point of sale roughly has zero point zero five percent natural fraud rate. That is one in two thousand. These are tight, low noise signal and fraud largely resides in the card's own transaction velocity. Whereas online transactions have zero point six percent of the fraud rate, twelve times higher, with higher volume, noisier, and far more of it of the signal sits in the merchant and the neighbor context.</span></div><div class="tline" data-t="94"><span class="ts">1:34</span><span class="tx">These two portfolios have a different base rate and a different signal geometry. Therefore, in practice, two models, not one. And here is the constraint that makes this as an engineering problem, not... and not just a modeling one. The alert budget is fixed. Analysts review the top zero point five to one point five percent of the score transaction. That's it. So the area under the curve isn't just the objective we care about, rather the precision at the fixed K. To be worth anything, a model has to move a</span></div><div class="tline" data-t="124"><span class="ts">2:04</span><span class="tx">real fraud into that slice and do it at the same latency. So the obvious question here is: Why not just build a better XGBoost model? We did. Physical point of sale, we went from the forty raw attributes to eighty-seven engineered features. After selection and the leakage checks, the true positive rates moves from thirty-five point five to thirty-six point six. And for the online transaction, same story. Nearly two hundred engineered features, and we c-- we pick up about a point. So</span></div><div class="tline" data-t="154"><span class="ts">2:34</span><span class="tx">you know, two to five times the feature surface, one point of TPR. Now, that's not a tuning failure, right? That's ceiling. Because every feature we engineered is just a function of the same row and the same card's own history. We are projecting the information we already had. Tabular features answers one question, &quot;What does this transaction look like?&quot; They cannot answer the second one, &quot;Who is it connected to, and what are they doing right now?&quot; Rates sharing a device, velocity chains across card, a merchant</span></div><div class="tline" data-t="184"><span class="ts">3:04</span><span class="tx">went... that went bad forty minutes ago. This lives in edges between the rows, and a model that sees one row at a time is blind to it by design, no matter how many columns we add to it. Okay. So here's the mental model for the rest of the talk. A graph neural network does not learn a node from its own feature. It learns from its, its neighborhood. One layer, three operations. First, gather. We pull in each neighbor's hidden states across the tight</span></div><div class="tline" data-t="214"><span class="ts">3:34</span><span class="tx">edges, such as transaction to user, transaction to merchant. Aggregate. We collapse that neighbor set, which is, you know, a different size for every node, one into a fixed-width vector, and we do it with a permutation invariant function. Which function we pick mattered way more than we expected, and Sharique is going to come back to that. Third, update. We concatenate that aggregate with the node's own state, push it through learned weights, and then we stack it twice. So every transaction knows about its neighbors</span></div><div class="tline" data-t="244"><span class="ts">4:04</span><span class="tx">and its neighbor's neighbor before the classifiers ever sees it. So does these results hold up? Yes, it does. And I want to be precise about what's being compared. We did not replace XGBoost. We fed it. The GNN produces the embeddings. These embeddings goes into the same gradient boosted model, and that's what gets scored. So XGBoost alone versus XGBoost plus the graph is what we are comparing at. So the three numbers that we would like to highlight, first is twenty-seven to thirty percent--</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">thirty-three percent relative lift in the true positive rate over a tuned XGBoost baseline using the same alert rate, same evaluation window, and same features available to both the models. Second, approximately sixty-five million dollars projected annualized incremental fraud capture across the two card portfolios. And third, the three millisecond P99 in production. So this talk is just not about the numbers. It's about how we got here. Four decisions and order</span></div><div class="tline" data-t="304"><span class="ts">5:04</span><span class="tx">matters. First, in the foremost, sampling. Fraud is one in two thousand, so we cannot train a raw distribution. We have to lift the fraud rate, but this is not a tabular data set where the rows are independent. Every negative we drop takes its edges with it. Downsample the easy way, we keep the labels, but lose the neighborhood that makes them worth anything. So holding a soft target fraud rate without really breaking the connectivity was the key. Second, graphing features.</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">Building it leakage safe, which is harder than it sounds when your edges carry timestamps plus thirty-two derived features created to detect fraud. The third, explainability. An analyst won't action a number. This is a regulated work where the score has to come with an evidence, so or it does not ship. And serving at three milliseconds, two thing got us here, the aggregation method and the pivot from the node level prediction to edge level. Then at the end, one iteration that we validated</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">after launch was creating and training the, training the model at a rolling window plus an edge time decay approach, and this moved the numbers again. With this, I would like to hand it over to Sharique to get into the nuts and bolts of how did we create the graphs, how did we optimize the same, and what were the engineering decisions that we have taken in order to make this model more optimized.</span></div><div class="tline" data-t="387"><span class="ts">6:27</span><span class="tx">Hi, I am Mohammed Sharique, Principal AI Architect. This is judge a transaction by the company it keeps. How a graph neural network beat XGBoost by over thirty percent on fraud capture, and how we serve it in three milliseconds. I will walk through the technical build, sampling, graph construction, serving, and explainability. So let's get into it. First decision most teams get wrong is the data sampling. We hold a soft target</span></div><div class="tline" data-t="417"><span class="ts">6:57</span><span class="tx">fraud rate of point five percent for card-related merchant transactions, about ten times the zero point zero five percent natural fraud rate, and six percent for online transactions, again, about ten times the zero point six percent natural fraud rate. Both far gentle than the aggressive over or under-sampling a tabular pipeline would use. Why? Because every selected user's complete transactional history</span></div><div class="tline" data-t="447"><span class="ts">7:27</span><span class="tx">stays in the graph. If you trim a genuine user's history to hit a class ratio, you break the connectivity their neighbors depend on, and a fraud user's own genuine transactions stay in too as hard negatives, the most useful example for the decision boundary. If capping ever triggers, only the genuine user's word budget shrinks. Fraud users are never capped. Class imbalance gets handled downstream instead with balanced batch sampling inside the trainer.</span></div><div class="tline" data-t="478"><span class="ts">7:58</span><span class="tx">Here's the receipt. Average user degree at training time, eleven and a half to almost fourteen for card-related merchant transactions. Matches what the model sees at inference. If training time neighborhood don't match inference time neighborhood, the model learns the wrong thing. It's stable across all twelve months we tested at natural rate of zero point zero five percent and zero point six percent. No vintage drift to correct for.</span></div><div class="tline" data-t="509"><span class="ts">8:29</span><span class="tx">Second decision, leakage control built into the graph itself, not checked for afterward. Each calendar month is its own disjoint graph. No edge overcrosses the boundary. The transaction is the central node with type stages out to its user and its merchant, plus a five-hop follows chain back to its own recent history. Because months never connect, there's no path for information to leak from one split</span></div><div class="tline" data-t="539"><span class="ts">8:59</span><span class="tx">into another.</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">Four properties fall out of that construction. No future leakage. A transaction only ever aggregates neighbors with an earlier timestamp. No train val test leakage because of the disjoined month. No label leakage. The fraud flag is the target, never a feature or an edge. And no distribution leakage. Every scalar and vocabulary is fit on training month only, then frozen. Four for four, verified by construction,</span></div><div class="tline" data-t="572"><span class="ts">9:32</span><span class="tx">not by post-hoc audit.</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">One more decision before the architecture. Two hundred two model features across three node types. Seventy-three on the user, a hundred and nine on the transaction, twenty on the merchant. Thirty-two of the transactional features are derived, purpose-built for fraud, added in three waves. Ten entity history features, past transaction count, days since last activity, the mean standard</span></div><div class="tline" data-t="606"><span class="ts">10:06</span><span class="tx">deviation, and max of the last five amounts. A behavioral baseline per user and merchant. Eight risk aggregates, an amount Z-score against that history, a recent versus past ratio, transactions per day. These flag deviation from the entity's own baseline, not some global threshold. And fourteen true rolling window velocity and temporal features. Five-minute,</span></div><div class="tline" data-t="636"><span class="ts">10:36</span><span class="tx">one-hour, and twenty-four-hour, uh, transactional counts and amounts, distinct counterparties in the last day, seconds since the last transaction, even a country change rate for impossible travel patterns. Why this matters? The graph tells the model who a transaction is connected to. These derived features tell it how that entity is behaving differently from its own normal. Complementary signals, not redundant</span></div><div class="tline" data-t="667"><span class="ts">11:07</span><span class="tx">ones.</span></div><div class="tline" data-t="669"><span class="ts">11:09</span><span class="tx">Under the hood, this is GraphSAGE architecture. Sample, aggregate, combine, embed. Sampling, a fixed recency bias set of neighbors per hop, so one enormous merchant node can't dominate every message. Aggregate, and here's a detail worth pausing on. We don't just average. We concatenate three order invariant statistics: mean, max, and standard</span></div><div class="tline" data-t="699"><span class="ts">11:39</span><span class="tx">deviation. Combine that with the node's own vector through learned weights, embed a fixed-length vector to hops. It's inductive. We learn that the aggregator weights not a fixed vector per node, so a brand-new user or merchant gets embedded on the fly, no retraining. Why three statistics instead of one? Let me show you</span></div><div class="tline" data-t="725"><span class="ts">12:05</span><span class="tx">Picture four neighbors of a transaction. Three look completely normal, scores around zero point one. The fourth is tied to a fraud ring, zero point nine two. Average those four together and you get zero point three two. That ring-linked neighbor just got diluted in, into the crowd. Take the max instead, and it comes through untouched, zero point nine two. That's why we don't</span></div><div class="tline" data-t="755"><span class="ts">12:35</span><span class="tx">rely on mean alone. A single dangerous neighbor among many genuine ones is exactly the pattern fraud rings create, and mean pooling is precisely the operation that would hide it. The standard deviation adds a third view. How much the neighbor disagree with itself. A uniform boring neighborhood looks nothing like one with a live outlier in it, and this cost us nothing extra at</span></div><div class="tline" data-t="785"><span class="ts">13:05</span><span class="tx">serving time. No additional learned parameters, still a fixed size output no matter how many neighbors a node has.</span></div><div class="tline" data-t="796"><span class="ts">13:16</span><span class="tx">One quick hyperparameter note. One twenty-eight dimension is the sweet spot. Sixty-four dimension is close, but slightly underfit. Two fifty-six cost more GPU and gives you nothing back. Validation performance flattens past one twenty-eight and then starts to overfit. It's not a philosophical debate, just a sweet.</span></div><div class="tline" data-t="823"><span class="ts">13:43</span><span class="tx">Now, the actual numbers side by side. For card-related merchant transactions, best XGBoost gets thirty-six percent true positive rate at a fixed zero point five percent alert rate. GNN plus XGBoost gets forty-eight percent. For thirty-three percent relative lift, five point six million dollars captured at an eighty-three percent capture rate. For online transactions,</span></div><div class="tline" data-t="854"><span class="ts">14:14</span><span class="tx">forty-eight percent up to sixty-one percent. Twenty-seven percent relative lift, thirty-five point four million dollar captured at seventy-one percent. Online transaction is where most of that sixty-five million dollar savings lives, since it runs at twelve times the fraud rate of card-related merchant transactions.</span></div><div class="tline" data-t="879"><span class="ts">14:39</span><span class="tx">Third decision, explainability. We ran subgraph attribution across two hundred flagged cases in each channel. Transaction-to-transaction velocity edges carry zero point nine four mean importance in card-related transactions, zero point six two in online transactions, and they are the top piece of evidence in all two hundred card present cases. Merchant edges matter</span></div><div class="tline" data-t="909"><span class="ts">15:09</span><span class="tx">more in online transactions, zero point one nine versus zero point zero four in card present, where fraud writes the card's own velocity rather than the acceptance point. That's the difference between the model says point nine one, and the model says point nine one because of these three linked transaction in the last forty minutes.</span></div><div class="tline" data-t="938"><span class="ts">15:38</span><span class="tx">Why does this matter so much, specifically in fraud? Four reasons. One, regulatory and model risk management. Financial institutions operate under frameworks that require documented rationale for automated decision. This isn't optional. Two, analyst trust and investigation speed. An unexplained high score gets rubber-stamped or ignored. Edge-level</span></div><div class="tline" data-t="968"><span class="ts">16:08</span><span class="tx">evidence turns recompute the case from scratch into verified three linked transactions. Three, model debugging. Attribution patterns show us when the model leans on a spurious or decaying signal before performance visibly drops in production. And four, feedback loop quality. When explanation match what an analyst already suspects, they trust the borderline calls enough to label them</span></div><div class="tline" data-t="998"><span class="ts">16:38</span><span class="tx">correctly, improving the next round of training data. An accurate black box simply doesn't get used.</span></div><div class="tline" data-t="1007"><span class="ts">16:47</span><span class="tx">Now, the real fight, serving these solution in three milliseconds. Offline, we run a memory-bound GPU-sharded layer-wise GraphSAGE forward pass over the entire graph batched by destination node. So it's numerically identical to a full graph forward, just bounded to a few gigabyte at a time across multiple GPUs. Every user, merchant, and recent transaction</span></div><div class="tline" data-t="1037"><span class="ts">17:17</span><span class="tx">gets its per-layer representation cached in a low-latency embedding store. Each user's last five transaction sit in a ring buffer. Online, at request time, a lightweight assembly step reconstructs the neighbor states straight from that cache. No graph build, no sampling, recency weighted by an exponential decay that reproduces training exactly. Then the real-time</span></div><div class="tline" data-t="1067"><span class="ts">17:47</span><span class="tx">scoring services runs only the new transaction's own two-layer forward from those cached states, plus the XGBoost head. Nothing that scales with graph size runs per request. Three small tricks make it fast in practice. We pin math library thread pools to one before the heavy libraries even load. That alone is the difference between thirty milliseconds and</span></div><div class="tline" data-t="1096"><span class="ts">18:16</span><span class="tx">one. We warm the model up at startup, so the first real request isn't slow. And today, it's a single in-memory process. The same interface maps directly into a distributed cache when we need to scale out.</span></div><div class="tline" data-t="1114"><span class="ts">18:34</span><span class="tx">Now, there's a catch. That trick requires caching a representation for every node, including every transaction. At production scale, that's sixty gigabyte, and it needs expensive high memory serving. With a one-day embedding lag in real-time, true positive rate actually drops from forty-eight to forty-four percent. The fix, predict on the edge, not the node. Precompute</span></div><div class="tline" data-t="1144"><span class="ts">19:04</span><span class="tx">embeddings for user and merchants only, never per transaction. That collapses the footprint to two to three gigabytes, about twenty times smaller, cheap enough to run on the same CPU class as the XGBoost model it sits beside. Nvidia independently recommended the same approach and expects it to perform on par with the n-node model. Here's the actual request path. Pre-processing, cache</span></div><div class="tline" data-t="1174"><span class="ts">19:34</span><span class="tx">lookup, and the XGBoost head are all fractions of a millisecond. The GNN's own true two-layer forward is the biggest single piece at one point six one millisecond. End-to-end, two point three millisecond at the median, three point one at P99, comfortably inside our three-to-four millisecond SLA. If we ever need more headroom, that GNN forward is the first thing</span></div><div class="tline" data-t="1204"><span class="ts">20:04</span><span class="tx">we would recompile or quantize.</span></div><div class="tline" data-t="1216"><span class="ts">20:16</span><span class="tx">Thank you for watching. We are both happy to go deeper, sampling, graph construction, explainability, or serving. Reach out anytime. Thank you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

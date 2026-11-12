@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LLM 性能基准可靠吗？ —— Ashok Chandrasekar 与 Jason Kramberger，Google | AI 工程师中文版</title>
+<meta name="description" content="Ashok Chandrasekar 和 Jason Kramberger 解释了一个基准测试客户端如何施加不足的负载、夸大延迟，并改变它声称要测量的工作负载——以及 InferencePerf 如何在生产规模上让这些问题变得可观测。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>LLM 性能基准可靠吗？ —— Ashok Chandrasekar 与 Jason Kramberger，Google</h1>
+    <div class="orig-title">Are LLM Performance Benchmarks Reliable? — Ashok Chandrasekar &amp; Jason Kramberger, Google</div>
+    <div class="meta"><span class="speaker">Ashok Chandrasekar、Jason Kramberger</span> · AI Engineer World's Fair 2026 · 16:07</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=benchmarks">基准测试</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/l1-D89bAuOA-are-llm-performance-benchmarks-reliable" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="l1-D89bAuOA"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=l1-D89bAuOA" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">一张结果表并不能告诉你跑的是哪个实验</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>一张结果表并不能告诉你跑的是哪个实验</span></li><li data-t="161"><span class="ts">2:41</span><span>用负载扫描和延迟目标找到运行点</span></li><li data-t="324"><span class="ts">5:24</span><span>要求 200 QPS，实际拿到 38</span></li><li data-t="439"><span class="ts">7:19</span><span>更快的结果可能描述的是另一个工作负载</span></li><li data-t="526"><span class="ts">8:46</span><span>把请求计划与执行分开——并测量两者的差距</span></li><li data-t="660"><span class="ts">11:00</span><span>分享数据是如何变成请求的</span></li><li data-t="770"><span class="ts">12:50</span><span>Prism 连同工作负载上下文一起分享结果</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 23 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Meet the Speakers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Meet the Speakers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Google engineers Ashok Chandrasekar and Jason Kramberger work on inference performance and benchmarking. Ashok leads the Kubernetes Inference Perf project; Jason is a maintainer.
+
+[0:20](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=20s) [Portraits and roles of Google engineers Ashok Chandrasekar and Jason Kramberger.](https://assets.ai.engineer/sites/aiecode2025/sha256/d05975c9317de794fc387dd2e49f0602d32f4ca5d6935b139eaed6523dbf4677.webp)
+
+Meet the Speakers
+
+Ashok Chandrasekar
+Staff Software Engineer, Google
+• Inference Performance Evaluation and Optimization at Google Cloud
+• Kubernetes Inference Perf Project Lead / llm-d SIG Benchmarking Co-lead
+
+Jason Kramberger
+Software Engineer, Google
+• Inference Performance and Benchmarking at Google Cloud
+• Kubernetes Inference Perf Project Maintainer.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="The Benchmark Ecosystem" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Benchmark Ecosystem</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Model-server benchmarks measure engine performance, while competitive and web tools compare hardware or test HTTP load. The talk focuses on production-scale benchmarks of the inference serving stack.
+
+[1:02](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=62s) [Four categories of benchmarks: model server frameworks, competitive analysis tools, web benchmarks, and production-scale LLM benchmarks.](https://assets.ai.engineer/sites/aiecode2025/sha256/9dd3b0625111852061843bf9027162e2641a4840cb14467c2ecdb12efe120e8b.webp)
+
+The Benchmark Ecosystem
+
+1. Model Server Frameworks
+Focus: Engine throughput and inference acceleration
+vLLM, SGLang, Hugging Face TGI, etc.
+
+2. Competitive Analysis Tools
+Focus: Industry-wide hardware &amp; software comparison
+ML Perf, Semi Analysis Inference X, etc.
+
+3. Web Benchmarks
+Focus: Protocol-level request concurrency &amp; HTTP load
+Locust, Grafana K6, Apache Bench, etc.
+
+4. Production-scale LLM Benchmarks
+Focus: End-to-end production scenarios
+Inference Perf, Guide LLM, NVIDIA AI Perf</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Typical Benchmark Execution &amp; Output" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Typical Benchmark Execution &amp; Output</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A vLLM benchmark runs 10,000 random prompts with 1,024-token input and output lengths. The sample report pairs output throughput with mean and P99 latency for first and subsequent tokens.
+
+[2:08](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=128s) [A benchmark command appears beside throughput, duration, success rate, and latency results.](https://assets.ai.engineer/sites/aiecode2025/sha256/7199a467e1e11b5678c084ab8cae46c4161d83851106709277eb6cec13e55016.webp)
+
+Typical Benchmark Execution &amp; Output
+
+Benchmark Command Execution
+
+Benchmark Suite Execution
+The benchmark tool sends a specified number of concurrent requests to evaluate throughput and latency under load.
+
+# Run benchmark with 10000 prompts
+python3 benchmarks/benchmark_serving.py \
+  --backend vllm \
+  --model google/gemma-4-31b-it \
+  --dataset-name random \
+  --num-prompts 10000 \
+  --random-input-len 1024 \
+  --random-output-len 1024 \
+  --request-rate 200 \
+  --ignore-eos
+
+Output Metrics
+
+Serving Benchmark Results
+Standard output report detailing duration, absolute token throughput, and percentile-based latency SLA metrics.
+
+THROUGHPUT
+7,135 tok/s
+DURATION
+143.5 sec
+SUCCESS RATE
+100% ([illegible])
+
+Serving Benchmark Result
+Successful requests: 10000
+Benchmark duration: 143.50 s
+Output token throughput: 7135.79 tokens/s
+Total token throughput: 14271.58 tokens/s
+
+SLA Latency Metrics
+Mean TTFT: 1893.13 ms | P99 TTFT: 3339.51 ms
+Mean TPOT: 72.80 ms | P99 TPOT: 81.51 ms</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="What is Production-scale?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is Production-scale?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An llm-d example combines online and batch traffic with prefill/decode variants and autoscaling. Production benchmarks need high load, realistic workloads, accurate percentile metrics, and SLOs.
+
+[2:45](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=165s) [An inference architecture diagram accompanies characteristics of production-scale benchmarking, including load, realistic workloads, metrics, and SLOs.](https://assets.ai.engineer/sites/aiecode2025/sha256/252c15012664d67874404bae2282d90c2f0332e1107e195204c8e4f4f717ed0a.webp)
+
+What is Production-scale?
+
+client
+client
+High-priority traffic
+Low-priority traffic
+
+llm-d Batch
+Processes latency-tolerant requests from storage (e.g., message queues)
+
+llm-d Router
+Proxy (e.g. Envoy)
+llm-d EPP
+Extensible library of scrapers, scorers, filters for load-, KV- and P/D-aware routing
+Route to selected pods
+Probing model replica state
+
+Inference Pool
+Variant A (e.g. Prefill)
+Variant B (e.g. Decode)
+Model [illegible] (repeated)
+Shared Prefix Caching
+e.g. NIXL, DCN
+Independent Prefix Caching
+e.g. llm-d FS, LMCache, Host Memory
+
+Deploy and handle failures
+llm-d Workload APIs
+(LeaderWorkerSet, DisaggregatedSet)
+Multi-node and disaggregated workload orchestration
+Update replica counts
+llm-d Variant Autoscaler
+Translate capacity bounds, saturation measurements, and traffic mix to variant count
+
+Nodes
+NVIDIA
+Google
+AMD
+intel
+
+Key Characteristics
+• High Load &amp; Concurrency
+High QPS/concurrency demands under heavy volume.
+• Real-world Workloads
+Various arrival patterns and dynamic request composition.
+• Metrics &amp; Percentiles
+High accuracy and focus on strict percentile SLA targets.
+• Goodput &amp; SLOs
+Ensuring total system conformance to business SLOs.
+
+Image Source: llm-d.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Metrics for Production Scenarios" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Metrics for Production Scenarios</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>As request rates rise, k8s-service throughput levels off while its time to first token jumps. The sweep helps identify saturation and assess TTFT p90 SLOs.
+
+[3:47](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=227s) [Plots compare latency and token throughput across request rates for two serving configurations.](https://assets.ai.engineer/sites/aiecode2025/sha256/31aa3fb798f4adfb23dd802390aa5399f13c667176bf6781440e88444dcf59b9.webp)
+
+Metrics for Production Scenarios
+
+Latency vs Request Rate
+Legend: standalone-baseline; k8s-service (RR)
+
+Time to First Token vs. QPS
+Y-axis: Mean TTFT (ms)
+Y-axis ticks: 0, 10000, 20000, 30000, 40000, 50000, 60000, 70000
+X-axis: QPS (requested rate)
+X-axis ticks: 10, 20, 30, 40, 50, 60
+
+Norm. Time per Output Token vs. QPS
+Y-axis: Mean Norm. Time (ms/token)
+Y-axis ticks: 0.05, 0.10, 0.15, 0.20, 0.25, 0.30
+X-axis: QPS (requested rate)
+X-axis ticks: 10, 20, 30, 40, 50, 60
+
+Inter-Token Latency vs. QPS
+Y-axis: Mean ITL (ms)
+Y-axis ticks: 15, 20, 25, 30, 35, 40, 45, 50, 55
+X-axis: QPS (requested rate)
+X-axis ticks: 10, 20, 30, 40, 50
+
+Throughput vs Request Rate
+
+Input Tokens/sec vs. QPS
+Y-axis: Tokens/sec
+Y-axis ticks: 20000, 40000, 60000, 80000, 100000, 120000
+X-axis: QPS (requested rate)
+X-axis ticks: 10, 20, 30, 40, 50, 60
+
+Output Tokens/sec vs. QPS
+Y-axis: Tokens/sec
+Y-axis ticks: 2000, 4000, 6000, 8000, 10000, 12000, 14000, 16000
+X-axis: QPS (requested rate)
+X-axis ticks: 10, 20, 30, 40, 50, 60
+
+Total Tokens/sec vs. QPS
+Y-axis: Tokens/sec
+Y-axis ticks: 20000, 40000, 60000, 80000, 100000, 120000, 140000
+X-axis: QPS (requested rate)
+X-axis ticks: 10, 20, 30, 40, 50, 60
+
+TTFT p90 vs QPS
+Legend: standalone-baseline; k8s-service (RR)
+Y-axis: TTFT p90 (ms)
+Y-axis ticks: 0, 20000, 40000, 60000, 80000, 100000, 120000, 140000
+X-axis: QPS (requested rate)
+X-axis ticks: 10, 20, 30, 40, 50, 60
+
+Image Source: llm-d.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="The Benchmarking Pitfalls" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Benchmarking Pitfalls</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speakers introduce benchmark reproducibility and production-scale reliability, motivated by their difficulty reproducing results shared by others.
+
+[4:32](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=272s) [Title slide asking why benchmark numbers are difficult to reproduce and often fail at production scale.](https://assets.ai.engineer/sites/aiecode2025/sha256/2f6a5dccc3796726ec3d3f4b0e89b106fbdd1ae9c6e508d7db01a1cb00cb6a94.webp)
+
+The Benchmarking Pitfalls
+
+Why benchmarking numbers aren’t fully reproducible and why do they often fail at production-scale?</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Four Common Benchmarking Pitfalls" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Four Common Benchmarking Pitfalls</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Benchmark harnesses can miss production load or inflate latency. Random model generation and unrepresentative datasets can also make results inconsistent or unrealistic.
+
+[4:43](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=283s) [Four cards describe production-scale accuracy, metric observability, reproducibility and stochasticity, and input dataset quality.](https://assets.ai.engineer/sites/aiecode2025/sha256/c3f639d15c94806a92b5706d56dde2814163f3fad6c12b7c75292d19023f190f.webp)
+
+Four Common Benchmarking Pitfalls
+
+1. Production Scale Accuracy
+Traditional benchmarks fail to simulate high-concurrency production environments, silently dropping requests or distorting actual system limits.
+
+2. Metric Observability
+Hidden client-side overheads (like asyncio context-switching) inflate key latency measurements, leading to deceptive server performance data.
+
+3. Reproducibility &amp; Stochasticity
+Stochastic parameters, run-to-run variance, and unseeded randomness in model generations make benchmark results highly inconsistent.
+
+4. Input Dataset Quality
+Synthetic, non-representative prompt distributions and specific sampling techniques fail to mimic real-world user behaviors, leading to unrealistic cache hits and token rates.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Accuracy at Production Scale: Requested vs Achieved QPS" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Accuracy at Production Scale: Requested vs Achieved QPS</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Asked for 200 QPS, the 144-vCPU single-process harness reached 171.5 QPS; the multi-process harness reached 199.6 QPS. A benchmark can report results without revealing that it failed to sustain the requested load.
+
+[5:22](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=322s) [Bar chart compares single- and multi-process benchmark throughput on 2- and 144-vCPU machines, ranging from 38.6 to 199.6 QPS against a 200 QPS target.](https://assets.ai.engineer/sites/aiecode2025/sha256/c9bd1de2468bc1bd93ea937e425629b7379e38479e59bc4d0fe9519c722e8dbd.webp)
+
+Accuracy at Production Scale: Requested vs Achieved QPS
+
+Single-Proc (2 vCPU) 38.6 QPS
+Multi-Proc (2 vCPU) 65.5 QPS
+Single-Proc (144 vCPU) 171.5 QPS
+Multi-Proc (144 vCPU) 199.6 QPS
+
+Target: 200 QPS. Even when executed on a massive 144-vCPU instance, single-process architectures fail to reach a moderate 200 QPS target due to python core limitations (GIL essentially)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Lack of Metric Accuracy Observability: Latency Inflation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Lack of Metric Accuracy Observability: Latency Inflation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At 1,000 QPS against a zero-latency simulator, the single-process tool added up to 58 seconds of delay; the multi-process tool added 0.63 ms. Client overhead can look like a server bottleneck.
+
+[6:31](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=391s) [A zero-latency simulator test compares 58 seconds of single-process tool delay with 0.63 milliseconds of multi-process tool delay.](https://assets.ai.engineer/sites/aiecode2025/sha256/f072b6f2fc6bf02a935b2804882753a50c2f7a863c42f95191284507cddba20a.webp)
+
+Lack of Metric Accuracy Observability: Latency Inflation
+
+58s
+Single-Process Tool Delay
+
+0.63ms
+Multi-Process Tool Delay
+
+When tested against a zero-latency simulator at 1,000 QPS, single-process tools injected up to 58 seconds of artificial delay. The distributed architecture recorded less than 1 millisecond of evaluation overhead.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Reproducibility and Stochasticity" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reproducibility and Stochasticity</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At temperature 0, throughput reached 6,767 tokens/sec versus 5,573 at 0.7. Two tools also produced different input-token counts from the same ShareGPT dataset, reflecting differences in sampling and truncation.
+
+[7:19](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=439s) [Two panels compare throughput at temperatures 0 and 0.7, and input token counts produced by two benchmark tools processing the same dataset.](https://assets.ai.engineer/sites/aiecode2025/sha256/019aae804917a9fd77ef85d300be2f6e4e1cb94ca40e98f2df9b9844239b205f.webp)
+
+Reproducibility and Stochasticity
+
+1. Probabilistic Sampling Variance
+
+Modifying the model's temperature configuration alters the decoding phase's arithmetic intensity, creating significant throughput discrepancies on identical hardware.
+
+Deterministic (Temp = 0)
+Greedy scheduling bypasses low-prob branches
+6,767 tokens / sec
+
+Probabilistic (Temp = 0.7)
+Reflects real-world generative compute
+5,573 tokens / sec
+
+Resulting in a 21% performance variance solely due to configuration.
+
+2. Dataset Processing Discrepancies
+
+Different benchmarking tools processing the exact same public dataset (ShareGPT, 3K requests at 10 QPS) exhibit extreme variance in load volume due to execution logic.
+
+Tool 1
+Strict execution limits and precise sampling
+1,052,100 input tokens
+
+Tool 2
+Differing prompt truncation and sequencing
+702,412 input tokens
+
+Yielding a 50% discrepancy in processed load metrics.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Benchmark measurement bias" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Benchmark measurement bias</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An apparent inference-stack problem may come from the benchmark harness. Different harnesses can sample and truncate the same dataset differently, producing different input tokens.
+
+[8:25](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=505s) [A statement says an apparent infrastructure issue may be measurement bias induced by the benchmark.](https://assets.ai.engineer/sites/aiecode2025/sha256/2aab09d12944a1d3d9e831f6b33b9338d32b73fd1c340e9d3b3cbf982dd62ea0.webp)
+
+What is frequently diagnosed as an infrastructure issue is, in reality, a measurement bias induced by the benchmark itself.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="What is the solution?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is the solution?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speakers turn to reproducible, production-scale benchmarks and introduce InferencePerf as a community project for addressing benchmarking problems.
+
+[8:37](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=517s) [A question asks how to produce reproducible, reliable production-scale benchmarks.](https://assets.ai.engineer/sites/aiecode2025/sha256/9d9db249e2cd3c423ed09a24c8e1b21a6d5f7248704fcab202204e1e717f5748.webp)
+
+What is the solution?
+
+How do you produce reproducible production-scale benchmarks that you can rely on?</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Inference Perf framework architecture" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference Perf framework architecture</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Inference Perf combines reproducible load and dataset definitions with a multi-process load generator. Client and server metrics help distinguish benchmark tool issues from problems in the system under test.
+
+[8:51](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=531s) [Three columns describe declarative configuration, load generation, and metric fidelity.](https://assets.ai.engineer/sites/aiecode2025/sha256/34d70a620283f3b6d998c2fbd98dfb8922016414c1ab4f7580a0b0cc2b0c76ca.webp)
+
+Inference Perf: An Unbiased Framework Architecture
+
+Declarative Configuration
+User-defined load and dataset definitions for clear reproducibility.
+
+Load Generator
+Queues requests according to user-defined load pattern.
+
+Workers dynamically pulls tasks across processes, distributing asyncio loops across vCPUs.
+
+Metric Fidelity
+Report client observed metrics and server metrics for faithful reporting and observability.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Inference Perf multi-process architecture" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference Perf multi-process architecture</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The main process queues requests for their planned execution times. Worker processes pull them, run concurrent tasks through uvloop event loops, and send them to the inference stack; execution timing remains observable.
+
+[9:50](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=590s) [A load generator queues requests to worker processes, each running concurrent tasks against an inference stack.](https://assets.ai.engineer/sites/aiecode2025/sha256/cf94541daab614f5c0e2a8b83c199a7e341961eac9e2118374c06f677e790686.webp)
+
+Inference Perf: Multi-process architecture
+
+Main Process
+QPS / Concurrency
+Load Generator
+Request Queue / Channels
+
+Worker Process 1
+uvloop Event Loop
+Concurrent Tasks
+Task 1.1
+Task 1.2
+⋮
+Task 1.n
+
+Worker Process 2
+uvloop Event Loop
+Concurrent Tasks
+Task 2.1
+Task 2.2
+⋮
+Task 2.n
+
+Worker Process n
+uvloop Event Loop
+Concurrent Tasks
+Task n.1
+Task n.2
+⋮
+Task n.n
+
+Inference Stack</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Load fidelity at scale" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Load fidelity at scale</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At a 5,000 QPS target, Inference Perf reaches 4,998 QPS, nearly matching k6’s 5,000 QPS. Locust and MLPerf reach 1,634 and 1,944 QPS, respectively.
+
+[10:32](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=632s) [A bar chart compares achieved request rates for four tools against a 5,000 QPS target.](https://assets.ai.engineer/sites/aiecode2025/sha256/faee18f1eeb2f25bde44f75c497f13ce8ccd0def3d4641f5fb41e59e8b1829f3.webp)
+
+Load Fidelity at Scale
+
+Locust (Python): 1,634 QPS
+MLPerf (C++/Py): 1,944 QPS
+Inference Perf (Multi-Py): 4,998 QPS
+k6 (Go native): 5,000 QPS
+
+Target: 5,000 QPS. The distributed multi-process Python methodology (Inference Perf) achieves complete performance parity with native Go concurrency, effectively bypassing the GIL.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Inference Perf configuration" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference Perf configuration</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A simple command runs random data against an endpoint. A conversation replay configuration adds controls for token-length distributions, turns and tool-call latency.
+
+[10:56](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=656s) [Side-by-side examples show a simple benchmark command and an agentic conversation replay configuration.](https://assets.ai.engineer/sites/aiecode2025/sha256/10fa6bbdc43a28f53922d63ea8d51e10aa3bc10355eaaeaa8301ff6281be7cb1.webp)
+
+Inference Perf: Configuration
+
+Simple Benchmark Execution
+
+$ inference-perf \
+  --server.type vllm \
+  --server.base_url http://localhost:8000 \
+  --server.model_name google/gemma-4-31b-it \
+  --server.ignore_eos true \
+  --tokenizer.pretrained_model_name_or_path google/gemma-4-31b-it \
+  --data.type random
+
+Agentic Load Configuration
+
+data:
+  type: conversation_replay
+  conversation_replay:
+    seed: 42
+    num_conversations: 50
+    shared_system_prompt_len: 1000
+    max_model_len: 262144
+    dynamic_system_prompt_len:
+      type: lognormal
+      min: 500
+      max: 15000
+      mean: 4000
+      std_dev: 2500
+    turns_per_conversation:
+      type: lognormal
+      min: 1
+      max: 15
+      mean: 4
+      std_dev: 2.5
+    input_tokens_per_turn:
+      type: lognormal
+      min: 10
+      max: 1000
+      mean: 50
+      std_dev: 40
+    output_tokens_per_turn:
+      type: normal
+      min: 10
+      max: 1000
+      mean: 300
+      std_dev: 150
+    tool_call_latency_sec:
+      type: lognormal
+      min: 5
+      max: 300
+      mean: 45
+      std_dev: 40</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Workload Catalog" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Workload Catalog</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The catalog pairs natural-language workload descriptions with configurations that can be shared across benchmarking tools, from multi-turn chat and coding agents to batch summarization.
+
+[11:41](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=701s) [Prism workload catalog showing six benchmark workload cards.](https://assets.ai.engineer/sites/aiecode2025/sha256/b06afda6d9cb2fd43dcee0901d96bc4712ff99f3701a1273f2d7723cde92a407.webp)
+
+Workload Catalog
+
+This is catalog of benchmarking workloads that represent real-world inference use cases. Extending beyond standard single-turn prompts, it models the distinct system constraints of agentic workflows—where models generate commands, pause for external tool execution, and inject results into subsequent prompts. By simulating these causal dependencies and inter-request wait times, users can evaluate KV cache retention, prefix-aware routing, and memory fragmentation under realistic agent-driven load.
+
+View on GitHub
+
+Interactive Chat (Standard Multi-Turn)
+Simulates human-driven chat with long idle times, testing the system's ability to manage KV cache retention and P/D disaggregation for prefill-heavy, multi-turn traffic.
+Source   View Details →
+
+Code Generation Agent (Tree of Thought)
+Represents coding agents evaluating parallel paths over massive codebases, stressing prefix-aware routing and KV offloading to prevent OOM errors across shared branches.
+Source   View Details →
+
+Deep Research Agent (Sequential ReAct)
+Simulates autonomous agents executing rapid-fire tool calls, testing KV cache retention and prefix reuse during causally dependent wait periods as context grows exponentially.
+Source   View Details →
+
+Deep Thinking (Chain-of-Thought)
+Represents o1/o3-style reasoning with massive uninterrupted generation, acting as the definitive bandwidth-bound decode stress test that requires P/D disaggregation.
+Source   View Details →
+
+Batch Summarization (Stateless RAG)
+A single-turn batch job processing massive distinct documents, serving as a pure compute-bound prefill stress test that relies on prefix-aware routing to deduplicate system prompts.
+Source   View Details →
+
+Synthetic Data Generation (High-Throughput Batch)
+Represents massive-scale, asynchronous batch jobs generating synthetic data, serving as the ultimate throughput-maximization stress test that relies on P/D disaggregation and tiered KV caching to process massive unique contexts.
+Source   View Details →
+
+Interface text:
+llm-d Prism
+Workload catalog
+Contact us
+Share view</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Code Generation Agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Code Generation Agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The workload models coding agents exploring multiple paths through a large codebase, feeding generated code back into the prompt. Its configuration specifies 540 mean turns and 15s between turns.
+
+[12:20](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=740s) [Code generation agent workload narrative and configuration variables.](https://assets.ai.engineer/sites/aiecode2025/sha256/eedcda2f5728c7a659ed264f0883a236a17f8a684fa620c97c587fde1b779dc5.webp)
+
+Code Generation Agent (Tree of Thought)
+
+Represents coding agents evaluating parallel paths over massive codebases, stressing prefix-aware routing and KV offloading to prevent OOM errors across shared branches.
+
+Source
+
+Use Case Narrative
+
+Represents advanced coding agents evaluating multiple logical paths. The context is massive (up to 100k tokens) because the entire codebase is in the prompt. The high &quot;new ISL&quot; (2,000 tokens) represents the agent injecting large blocks of generated code back into the prompt to evaluate them.
+
+Configuration Variables
+
+SYSTEM PROMPT: 3000
+ISL (mean, max): 160000, 990000
+ISL NEW PER TURN: 1500
+INPUT DISTRIBUTION: Log Normal
+MULTI TURN: Yes
+TURNS MEAN: 540
+TIME BETWEEN TURNS: 15s
+OSL (mean, max): 425, 10000
+MODEL TEMPERATURE: 0.2
+
+Interface text:
+llm-d Prism
+Workload catalog
+Contact us
+Share view</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Total Tokens per Second vs. Normalized TPOT" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Total Tokens per Second vs. Normalized TPOT</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For the agentic code-generation workload on eight TPU replicas, combined optimizations reach nearly 80,000 total tokens/sec; the Kubernetes service reference stays below 40,000 in the plotted results.
+
+[12:47](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=767s) [Chart comparing total token throughput against normalized TPOT for three configurations.](https://assets.ai.engineer/sites/aiecode2025/sha256/571a8ed40fee2d51c05188032aa8b2953ab118306a7b415e5fe38aa13b5f684d.webp)
+
+Total Tokens/sec vs. Normalized TPOT (ms)
+
+Infra: tpu7x-standard-4t TPU7X (8 replicas)
+Model: Qwen3-Coder-480B-A35B (FP8) • vLLM
+
+Y-axis: Total Tokens/sec
+Y-axis ticks: 0, 20000, 40000, 60000, 80000
+X-axis: Normalized TPOT (ms)
+X-axis ticks: 29.54, 33.55, 39.96, 43.51
+
+Legend:
+K8S SERVICE (REFERENCE) — P50
+LLM-D ROUTING — P50
+COMBINED OPTIMIZATIONS — P50
+
+Interface text:
+FILTERS
+X-AXIS: NTPOT, TPOT, TTFT, ITL, E2E Latency
+Y-AXIS: Output, Input, Total, QPS
+Log Scale, Per Chip, P50, P90, P99
+CAP: 292000 ms</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Principles for Valid Benchmarking" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Principles for Valid Benchmarking</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speakers recommend multi-process clients above 400 QPS, checking actual dispatch against the target, and matching sampling and datasets to real workloads, including prefix-cache behavior.
+
+[13:59](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=839s) [Four benchmarking principles: client concurrency, metric fidelity, stochastic variables, and context-aware datasets.](https://assets.ai.engineer/sites/aiecode2025/sha256/d583ea861456d7716469a44b2d1f85e59b017d6fabb7f55674c535f6fa8cf55f.webp)
+
+Takeaways; Principles for Valid Benchmarking
+
+Client Concurrency for Production Scale: Single-process tools should never be used to evaluate production thresholds. Always require multi-process architectures for tests exceeding 400 QPS.
+
+Metric Fidelity: Measure actual dispatch throughput against target scheduling precision to mathematically guarantee the client did not quietly throttle the traffic.
+
+Fix Stochastic Variables: Setting temperature to 0 forces greedy decoding, artificially accelerating token generation. Ensure deterministic bounds reflect real-world arithmetic intensity.
+
+Context-Aware Datasets: Enforce standardized prompt structures and explicitly report prefix cache hit ratios to prevent sequence-based TTFT variance.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Links" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Links</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>InferencePerf is the benchmarking tool; llm-d targets production-scale inference. llm-d Prism provides the benchmarking results UI and workload catalog.
+
+[15:04](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=904s) [Links and QR codes for Inference Perf, llm-d, and llm-d Prism.](https://assets.ai.engineer/sites/aiecode2025/sha256/4baa7098a4bb707bf9597e8d8fb9d845a0879c90f2a1420a00c161cf9545d08b.webp)
+
+Links
+
+Inference Perf
+https://github.com/kubernetes-sigs/inference-perf
+
+llm-d
+https://llm-d.ai/
+
+llm-d-prism
+https://prism.llm-d.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Questions" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Questions</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The presenters thank the audience and say they will answer questions afterward.
+
+[15:39](https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=939s) [Questions slide thanking the audience for attending.](https://assets.ai.engineer/sites/aiecode2025/sha256/ef2251f424c48b7b565e279504c4de3a44fd3dca3aa9b2487f3bcdaa4edcc6ab.webp)
+
+Questions?
+
+Thank you for attending.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/566c2910ee71a5cedab336d40174ef21fb97102d01d54e578f0cf7c7dfff87f1.webp" alt="AI Engineer World's Fair logo on a black background." loading="lazy" data-lb="22" data-cap="AI Engineer World's Fair" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer World's Fair</h3>
+        <p>AI Engineer World's Fair logo on a black background.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+World’s Fair
+
+HTTPS://AI.ENGINEER</pre></details>
+        <button class="ts" data-t="951">▶ 15:51</button>
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">一张结果表并不能告诉你跑的是哪个实验</a></li><li><a href="#sec-2">用负载扫描和延迟目标找到运行点</a></li><li><a href="#sec-3">要求 200 QPS，实际拿到 38</a></li><li><a href="#sec-4">更快的结果可能描述的是另一个工作负载</a></li><li><a href="#sec-5">把请求计划与执行分开——并测量两者的差距</a></li><li><a href="#sec-6">分享数据是如何变成请求的</a></li><li><a href="#sec-7">Prism 连同工作负载上下文一起分享结果</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">LLM 性能基准可靠吗？</h2>
+      <div class="lede"><p>Ashok Chandrasekar 和 Jason Kramberger 解释了一个基准测试客户端如何施加不足的负载、夸大延迟，并改变它声称要测量的工作负载——以及 InferencePerf 如何在生产规模上让这些问题变得可观测。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>一张结果表并不能告诉你跑的是哪个实验</h3>
+      <p>A benchmark usually starts with a small set of inputs: a model, a number of prompts, input and output lengths, and a requested load. It returns input-token throughput, output-token throughput, time to first token, and time per output token. <a href="https://www.linkedin.com/in/ashokchandrasekar/" target="_blank" rel="noopener">Ashok Chandrasekar</a> and <a href="https://www.linkedin.com/in/jkramberger" target="_blank" rel="noopener">Jason Kramberger</a>, Google engineers working on inference performance and co-maintaining InferencePerf, kept encountering a problem with these reassuring tables: they often could not reproduce other people’s results. The numbers could look plausible even when the harness had failed to run the intended experiment.</p>
+<p>The benchmark ecosystem contains tools with different jobs:</p>
+<p>- <strong>Model-server benchmarks:</strong> Frameworks such as vLLM and SGLang include developer-oriented benchmarks, commonly Python scripts, for measuring their servers.
+- <strong>Competitive comparisons:</strong> MLPerf and Artificial Analysis are examples of tools used to compare chips and accelerators.
+- <strong>HTTP load tests:</strong> Locust and Grafana k6 focus on generating web traffic at high scale.
+- <strong>Production inference benchmarks:</strong> The focus here is the complete inference-serving stack, including the many servers and serving mechanisms working together.</p>
+<p>A tool that measures one model server successfully may struggle to drive an entire fleet. The benchmark harness—the client that generates requests and collects responses—has its own capacity limits. Those limits affect both the traffic reaching the server and the measurements coming back.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="161">▶ 2:41</button></div>
+      <h3>用负载扫描和延迟目标找到运行点</h3>
+      <p>The production example is llm-d, a distributed inference framework. Online serving and batch workloads can run against an inference pool containing many model servers. Prefill/decode disaggregation and workload autoscaling add further complexity. A harness must generate enough traffic to exercise that larger system while preserving the characteristics of the workload customers will actually run.</p>
+<p>One queries-per-second figure cannot identify the best operating point. A sweep through several loads lets a team compare a baseline with an optimized configuration and find where the server saturates. The aim is to use capacity efficiently and save costs, with accurate measurements at each load. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=230s" target="_blank" rel="noopener">3:50</a></p>
+<p>Latency objectives constrain that choice. A P90 time-to-first-token service-level objective asks whether the ninetieth-percentile wait for the first token stays within the target. A configuration may complete plenty of work while failing that objective. The sweep therefore needs to show both throughput and the latency experienced at each load.</p>
+<p>Four recurring problems undermine these comparisons: inaccurate metrics, little visibility into the harness itself, runs that cannot be reproduced, and unsuitable datasets. Before interpreting a server’s saturation curve, the team needs to know whether the client maintained the requested load and whether the requests remained comparable across runs.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="324">▶ 5:24</button></div>
+      <h3>要求 200 QPS，实际拿到 38</h3>
+      <p>Chandrasekar’s experiment makes the client problem concrete. A harness was asked to generate <strong>200 queries per second</strong>, but on a small machine it delivered only <strong>38 QPS</strong>. Moving to a much more powerful machine increased the achievable load, yet some single-process harnesses still capped near <strong>170 QPS</strong>. The requested rate remained 200; changing the client machine changed the traffic the server actually received. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=324s" target="_blank" rel="noopener">5:24</a></p>
+<p>The explanation centers on Python’s global interpreter lock in the CPU-bound, single-process harnesses under discussion. CPU work within that process can be limited by one CPU even when the machine has several available. A larger machine does not necessarily let the process use all that capacity. Distributing the work across processes addresses this limit.</p>
+<p>The damaging part is the silent shortfall. The harness can finish and print its results without warning that it missed the requested rate: “I ran it. These are the numbers.” A reader may interpret the table as the server’s behavior under 200 QPS, although the server received much less traffic. The configured load and the measured response no longer describe the same experiment.</p>
+<p>The client can also manufacture a latency problem. Collecting many streaming token responses can overwhelm the harness and delay its handling of those streams. One test showed client-induced delay of up to <strong>58 seconds</strong>, enough to make a healthy server appear bottlenecked. In a <strong>1,000 QPS</strong> test against a simulated server intended to introduce no serving latency, a harness that could scale out instead showed very little latency. The simulated endpoint helps isolate delay introduced by the measurement client. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=393s" target="_blank" rel="noopener">6:33</a></p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="439">▶ 7:19</button></div>
+      <h3>更快的结果可能描述的是另一个工作负载</h3>
+      <p>Another shared benchmark claimed <strong>20% better throughput</strong>. Inspection revealed that its harness had set temperature to <strong>zero</strong>, producing more deterministic outputs than the workload Chandrasekar was comparing it with, whose temperature was around <strong>0.7</strong>. That advantage belonged to the differing test conditions. The example does not establish a general throughput penalty for nonzero temperature or isolate which part of generation caused the difference. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=439s" target="_blank" rel="noopener">7:19</a></p>
+<p>Even “same dataset” can conceal different requests. Two harnesses using the same ChatGPT dataset produced different input tokens because they sampled and truncated the data differently. Naming the dataset identified the source material, but the preparation rules determined what the model actually processed.</p>
+<p>Several workload decisions need to be explicit:</p>
+<p>- <strong>Generation stopping:</strong> Whether the harness forces generation through to the end of the sequence affects the work requested.
+- <strong>Prefix-cache behavior:</strong> Prefix-cache rates help characterize the workload and the reuse it exercises.
+- <strong>Multi-turn replay:</strong> Conversation turns require a replay strategy; a collection of isolated prompts does not fully describe that scenario.
+- <strong>Sampling and truncation:</strong> Rules for selecting and shortening examples must accompany the dataset.</p>
+<p>These failures invite the wrong diagnosis. Low throughput may come from insufficient client capacity, high latency from an overwhelmed stream collector, and an apparent improvement from changed generation settings. Server measurements become useful when the experiment also exposes these possible client and workload causes.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="526">▶ 8:46</button></div>
+      <h3>把请求计划与执行分开——并测量两者的差距</h3>
+      <p>Kramberger introduces <strong>InferencePerf</strong> as a community benchmarking project developed out of Kubernetes Working Group Serving. Its design combines declarative configuration, a multiprocess load generator, and client metrics reported alongside server metrics. The configuration describes the intended experiment; the telemetry helps determine whether the client carried it out. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=526s" target="_blank" rel="noopener">8:46</a></p>
+<p>The main process queues requests according to their planned execution times. The plan can follow a Poisson process, use a constant request rate, or maintain a constant number of concurrent requests. These options express different demands: a schedule of arriving requests or a target number of requests in flight. Multiple worker processes pull from the queue and execute the requests, spreading client work across processes. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=592s" target="_blank" rel="noopener">9:52</a></p>
+<p>How does the architecture expose a client that falls behind? The diagram traces two paths: requests move from the plan through the queue to workers, while execution timing joins server metrics in the reporting path. Workers observe when requests actually execute relative to their planned times. That comparison makes scheduling delay visible rather than letting it disappear into an apparently valid server result.</p>
+<p>This supplies the missing observation in the 200-QPS example. The requested rate becomes a plan whose execution can be checked, instead of a setting readers must take on trust. In the comparison Kramberger presents, InferencePerf kept up at <strong>5,000 QPS</strong> and reported that it kept up. That is a demonstrated result under the comparison’s conditions, rather than a capacity guarantee for every workload and client machine. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=634s" target="_blank" rel="noopener">10:34</a></p>
+<p>From planned load to observed execution
+One scheduler feeds multiple worker processes. Comparing planned and actual execution times exposes client lag; server metrics describe the system receiving the load.
+- Declarative configuration — Poisson arrivals, constant rate, or fixed concurrency.
+- Main process — Plans execution times and queues requests.
+- Request queue — Shares requests across worker processes.
+- Multiple worker processes — Execute requests and observe actual versus planned timing.
+- System under test — Receives benchmark requests.
+- Client and server metrics — Separate harness behavior from serving-system behavior.
+- Declarative configuration → Main process (Defines the request plan)
+- Main process → Request queue (Queues planned requests)
+- Request queue → Multiple worker processes (Workers pull requests)
+- Multiple worker processes → System under test (Executes requests)
+- Multiple worker processes → Client and server metrics (Reports execution timing)
+- System under test → Client and server metrics (Server measurements)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="660">▶ 11:00</button></div>
+      <h3>分享数据是如何变成请求的</h3>
+      <p>A minimal InferencePerf configuration can run a random dataset against an endpoint. More detailed configurations describe conversation replay, including input and output lengths and their distributions. Those distributions preserve variation in request sizes instead of reducing the workload to one fixed length. The extra controls serve a practical purpose: representing the traffic the inference stack is supposed to handle. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=660s" target="_blank" rel="noopener">11:00</a></p>
+<p>The published workload catalog extends this idea beyond a single configuration file. Its examples include multi-turn generation, tree of thought, agentic generation, and batch summarization. Each has a natural-language scenario definition and detailed configuration information. Generic descriptions accompany InferencePerf-specific configuration so other tools can express the same scenarios. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=704s" target="_blank" rel="noopener">11:44</a></p>
+<p>This addresses the earlier dataset mismatch at the level where it occurred. A dataset names the source material; a workload definition explains how that material becomes requests. Cross-tool comparisons need agreement about the scenario, sampling, and preparation. Giving two harnesses the same data does not by itself make them perform the same work.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="770">▶ 12:50</button></div>
+      <h3>Prism 连同工作负载上下文一起分享结果</h3>
+      <p><strong>Prism</strong>, part of llm-d, provides a UI for sharing workloads and benchmark results. The closing example uses agentic code generation on TPUs with <strong>eight replicas</strong>. It compares combined optimizations with a baseline consisting of a simple Kubernetes service in front of multiple model-server replicas. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=770s" target="_blank" rel="noopener">12:50</a></p>
+<p>The optimized configuration achieves substantially higher throughput in the presented comparison, described as approaching hundreds of thousands of tokens per second. The explanation does not specify the optimization bundle or precise curve values, so the result illustrates a production-scale comparison rather than a recipe for reproducing that gain. Its role is to complete the progression: define the workload, generate observable load, compare serving configurations, and share the result.</p>
+<p>The closing principles turn the earlier failures into requirements for a valid benchmark:</p>
+<p>- <strong>Client concurrency:</strong> The harness needs enough parallel execution capacity to generate production-scale load.
+- <strong>Client observability:</strong> Measurements must show whether it met the configured demand, including planned-versus-actual execution behavior.
+- <strong>Metric fidelity:</strong> Client and server measurements together help determine whether the scenario ran as intended and where delays occurred.
+- <strong>Representative randomness and data:</strong> Deterministic settings, stochastic variables, and datasets must reflect the workload being tested. Making a run easier to repeat is useful only if it still represents the intended demand. <a href="https://www.youtube.com/watch?v=l1-D89bAuOA&amp;t=842s" target="_blank" rel="noopener">14:02</a></p>
+<p>InferencePerf supplies the load generation and measurement tool; llm-d supplies the production inference context; Prism shares benchmark results and workload definitions. The practical question behind all three is whether a reported number describes the traffic you intended to measure. Delivered load, client behavior, and workload preparation make that question answerable.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Check delivered load before interpreting server performance: a requested 200-QPS run delivered only 38 QPS, while some single-process harnesses capped near 170 QPS on a larger machine.</li><li>An overwhelmed streaming-response collector can inflate measured latency. One test showed up to 58 seconds of client-induced delay.</li><li>Temperature, sampling, truncation, generation stopping, prefix-cache behavior, and multi-turn replay help define the workload. Dataset identity alone does not ensure comparable requests.</li><li>InferencePerf distributes execution across processes and reports planned-versus-actual timing alongside server metrics, exposing a harness that falls behind.</li><li>Use load sweeps and latency objectives to choose an operating point, then preserve the workload definition so comparisons can be repeated across runs and tools.</li><li><a href="https://ai.engineer/talks/DeFF3J8T5Pk-fast-are-llm-inference-engines-anyway" target="_blank" rel="noopener">How fast are LLM inference engines anyway?</a> — Continues the performance question at the inference-engine level, complementing this recording’s focus on measurement clients.</li><li><a href="https://ai.engineer/talks/YXowceUKYJI-kv-cache-aware-routing-p-d-disaggregation" target="_blank" rel="noopener">KV Cache-Aware Routing and P/D Disaggregation on Kubernetes — Yuchen Fama &amp; Ashish Kamra, Red Hat</a> — Focuses on serving mechanisms that make production workloads more complex to benchmark: cache-aware routing and prefill/decode disaggregation.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Hi, everyone. Welcome to our talk on, um, Are LLM Performance Benchmarks Reliable?</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">Little bit about us. I'm Ashok Chandrasekar. I'm a staff software engineer at Google. I work on inference performance evaluation and optimization, um, and I lead a couple of open source projects. One is called InferencePerf, uh, which is a benchmarking tool to do reliable performance benchmarks, and, uh, I'm also the SIG lead for, uh, llm-d SIG Benchmarking. llm-d is a distributed inference framework, um, that makes production scale inference possible.</span></div><div class="tline" data-t="47"><span class="ts">0:47</span><span class="tx">Hi, everyone. I'm Jason Kramberger. I'm a software engineer at Google. Uh, I'm also a co-maintainer of InferencePerf and a few of the sub-projects that Ashok brought up, uh, and I work on inference performance and benchmarking.</span></div><div class="tline" data-t="63"><span class="ts">1:03</span><span class="tx">Okay, let's get started. Um, let's look a little bit about the... how the benchmark ecosystem looks like, right? Uh, you have your model server frameworks. Uh, these are vLLM, SGLang, um, and other model servers, and all of these have some benchmark capability within them, right? These are primarily Python scripts and are developer-focused benchmarks to see how you can, uh, measure the performance of your model server itself. And then you have your competitive analysis tools. Uh, these are MLPerf, Semianalysis, uh, Artificial Analysis, and so on,</span></div><div class="tline" data-t="93"><span class="ts">1:33</span><span class="tx">right? Um, they mainly aim for, uh, competitive performance benchmarks to compare, like, chip and accelerator performance. Uh, and then you have your typical web benchmarks. Uh, these are like Locust, uh, Grafana k6, um, and so on. These mainly focus on, uh, high scale, uh, HTTP benchmarks, right? Uh, and then you have your, um, last segment, which is the production scale, uh, LLM benchmarks, right? These are to actually benchmark, uh, your production inference serving stack, and that is our focus today, right?</span></div><div class="tline" data-t="123"><span class="ts">2:03</span><span class="tx">We'll be focusing mainly on InferencePerf and how we solve this, uh, production scale benchmark problem.</span></div><div class="tline" data-t="131"><span class="ts">2:11</span><span class="tx">So if you have run a benchmark before, uh, it typically looks like this, right? Um, you have some sort of, uh, benchmark harness, uh, and then you specify what model you are benchmarking, um, the number of prompts you want to run, what is the input/output sequence length, uh, and the request rate or the load you want to send, right? Uh, and your output looks something, uh, like what is on the right. Uh, this is basically your, uh, input token throughput, output token throughput, some latency metrics, time to first token, time per output token, and so on.</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">Um, so what are some issues with a simple benchmark like this? Right. So if you want to actually benchmark production scale workloads, um, here I have a llm-d, uh, inference stack as an example, right? Uh, you can have, uh, online serving, you can have batch workloads, and if you see the inference pool below, uh, there are, like, lot of, um, servers that are running, right? And then you have, like, uh, complex configurations like prefill decode disaggregation, um, and workload autoscaling, and other</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">things that are going on under the hood, and usually the scale is much larger, right? So your, um, normal benchmark harnesses runs into issues when you try to benchmark a setup like this. And if you look at, like, the key characteristics of what we want out of a production scale benchmark, we need to be able to do high load, uh, which is limited in a lot of tools out there. We need to be able to simulate real-world workloads, right? Um, what use it is if it is just some synthetic workload that is not accurately representing, uh, what your customers are going to run.</span></div><div class="tline" data-t="221"><span class="ts">3:41</span><span class="tx">Uh, and then mo- metrics fidelity is very important, right? Are the metrics accurate, and how well they work?</span></div><div class="tline" data-t="230"><span class="ts">3:50</span><span class="tx">Uh, this is like, uh, the set of metrics that llm-d measures, uh, by default. Uh, I just pulled it from the, uh, website there. Uh, as you can see, it's not just like a single QPS that you're running, right? You are sweeping a, a list of, uh, various loads, and, uh, you try to measure what the baseline is, and what optimizations you are making, and what the difference there is. Um, you need to find the right point where the server gets saturated, uh, s- uh, so you know the right optimal, uh, point to run your servers on,</span></div><div class="tline" data-t="260"><span class="ts">4:20</span><span class="tx">uh, to maximize performance and to save costs. Um, and things like, uh, SLOs become more important, right? What is your, um, time to first token P90 SLO, and are you conforming to that SLO?</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">So when you run, like, um, normal benchmark, like we saw before, what are some of the pitfalls that you run into, right? Uh, we have been run, uh, running benchmarks for a couple of years, so we run into all sort of, uh, different results that people share, and a lot of times we aren't able to reproduce the results, uh, that are shared by other people, right? So that is what motivated this talk. Um, so these four common, uh, things that we, uh, see as an issue, right? One is accurate, uh, metrics, and two, observability into your benchmark tool itself.</span></div><div class="tline" data-t="305"><span class="ts">5:05</span><span class="tx">Um, do you know if your benchmark harness is actually failing? Is it not able to maintain the load? Um, and three, reproducibility. Uh, there is some inherent, uh, randomness, uh, in, like, the datasets that you use, so how do you make sure it is reproducible? And four, the dataset quality itself.</span></div><div class="tline" data-t="324"><span class="ts">5:24</span><span class="tx">So this is an experiment we ran. Um, we asked, like, a different benchmark harness to generate two hundred QPS, and this was the result, right? Um, so a couple of things I want to point out. Um, Python has this, uh, global interpreter lock  if you have been working with Python, you know that, which makes everything, uh, sort of single-threaded. So even when you have, like, a multi-CPU machine, a lot of times you are limited by, uh, the performance of a single CPU, uh, when you are CPU-bound especially, right? Uh, so this</span></div><div class="tline" data-t="354"><span class="ts">5:54</span><span class="tx">kind of shows a single-process, um, benchmark harness and a multiprocess harness, and how, um, the QPS you are able to achieve differs based on it, right? When you run with a really, uh, small chat code mission, you can see that even when you request two hundred QPS, you are only getting thirty-eight QPS. And then you give it a bigger machine, and then some of these, uh, single process harness, they cap out at, like, 170 QPS, right? This is a much more powerful machine. Um, but it is a problem because you ask for 200 QPS, and then you don't know whether it actually</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">delivered it. It will just say, &quot;I ran it. These are the numbers.&quot; So you think, okay, you ran 200 QPS, but in fact, you are... You have not.</span></div><div class="tline" data-t="393"><span class="ts">6:33</span><span class="tx">Uh, the other issue that comes out of it is the latency inflation, right? If your server is saying, &quot;Okay, this is how much QPS I was able to run, and this was the accurate numbers,&quot; that is one thing. But if your, uh, uh, benchmark harness is actually inflating latency, right, because it's thrashing trying to collect all the streaming token requests. Um, in one of the tests, we noticed, like, uh, the delay was up to 58 seconds. So you might look at this and go, &quot;Oh, my server is bottlenecked,&quot; right? It's not able to handle all the requests. But in fact, it's actually your benchmark client that is inflating the latency,</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">right? Uh, we ran, like, 1000 QPS test. Uh, when your, when your benchmark harness is actually able to scale out, you can see there is very minimal latency, right? This is a, a simulated server, so there shouldn't be any latency at all.</span></div><div class="tline" data-t="439"><span class="ts">7:19</span><span class="tx">Um, and like I said, there are, like, other, uh, variables that go into it, right? In one of the benchmarks, um, someone shared, and they said, &quot;Hey, we are getting 20% better throughput.&quot; Then we looked into it, and we found out the benchmark harness was setting the model temperature to zero, right? Which means your model outputs are a lot more deterministic, and it was able to, uh, churn out a higher throughput than what you would normally see in, like, a real workload, right? Where your model temperature is, uh, somewhere around 0.7. Um, another thing is, like, we used a, a ChatGPT</span></div><div class="tline" data-t="469"><span class="ts">7:49</span><span class="tx">dataset, the same dataset across two different benchmark harness, and they produce different input tokens, right? This is because they sample them differently, they truncate them, uh, differently. So as a user, you don't have insight into this, right? You run it, you trust the numbers it produces, but they are wildly different. Uh, and there is much more, right? Do you actually force it to generate, uh, till the end of sequence? Are you looking at prefix cache rates? How do you do multi-turn, uh, replay via benchmarks? And, uh, how it...</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">How do you actually get high fidelity, uh, on the actual workload that would resemble your production workload, right?</span></div><div class="tline" data-t="508"><span class="ts">8:28</span><span class="tx">So the main thing I wanted to convey here is, like, a lot of times you diagnose it as, um, your server or inference stack problem, but in a lot of cases it could be your, uh, benchmark harness.</span></div><div class="tline" data-t="519"><span class="ts">8:39</span><span class="tx">So what is the solution to this? How do we actually do reproducible benchmarks? Jason here will take you over that.</span></div><div class="tline" data-t="526"><span class="ts">8:46</span><span class="tx">Cool. Thanks, Ashok. Uh, so yeah. How do you, how do you solve these problems? Uh, we pulled together InferencePerf, uh, the CNCF project spanned out of Kubernetes Working Group Serving, uh, to provide, like, a standardized place for us to work with the community and solve some of these issues together. Uh, it enables the ability to have, like, a</span></div><div class="tline" data-t="555"><span class="ts">9:15</span><span class="tx">user-defined declarative configuration, uh, that allows you to have clear re- reproducibility across runs. Uh, we also added a load generator, uh, that solves the GIL problem in Python, uh, across multiple processes, and reports those client metrics back along with server metrics to ensure that you have the highest metric fidelity, and you're able to actually observe when</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">your tool is having an issue versus your system under test.</span></div><div class="tline" data-t="592"><span class="ts">9:52</span><span class="tx">So first, going over the load generator, uh, you see that the main process actually queues requests based off of the planned time that they need to execute, which is based off of your configuration. This may be in some Poisson process or constant rate or maintaining a constant number of concurrent requests. This request queue channel is then spread across multiple processes</span></div><div class="tline" data-t="623"><span class="ts">10:23</span><span class="tx">which pull and ensure that they execute with minimum overhead, but then also observability about when they execute versus their planned time.</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">And you can see this working at scale. So this is a comparison across other tools, uh, some being the HTTP Scale tools like k6. Uh, but you see that even at 5,000 QPS, InferencePerf was able to keep up due to this architecture, and most importantly, actually report that it was able to keep up.</span></div><div class="tline" data-t="660"><span class="ts">11:00</span><span class="tx">Other portion is configuration. So earlier, Ashok showed a brief example of how you might simply run a benchmarking tool. And here on the left, you can see a simple example running a random dataset against an endpoint. But the actual configuration that we have in front of InferencePerf is very detailed with a lot of knobs that allow you to accurately, uh, test your configuration off of your workloads.</span></div><div class="tline" data-t="690"><span class="ts">11:30</span><span class="tx">You can see here on the right that this is, uh, configuration for a conversation replay, where you're able to configure not only, like, the input/output length, but their distributions, et cetera.</span></div><div class="tline" data-t="704"><span class="ts">11:44</span><span class="tx">And further, beyond just the ability to configure a single run, we've actually worked together to have a published set of some of these workloads and configuration of InferencePerf that are tied to state-of-the-art inference workloads. For example, here in the workload catalog that we've put out, you're able to access standard multi-turn, uh, generation, tree of thought, agentic generation,</span></div><div class="tline" data-t="735"><span class="ts">12:15</span><span class="tx">uh, as well as batch summarization and others. Each one of these has a simple definition, uh, kind of in natural language that allows you to understand what the scenario is. But beyond that, there's also pretty detailed configuration metrics, not only in InferencePerf's configuration, but in generic terms so that this can actually be shared across tools and have a place for standardization</span></div><div class="tline" data-t="764"><span class="ts">12:44</span><span class="tx">of these workloads.</span></div><div class="tline" data-t="770"><span class="ts">12:50</span><span class="tx">So kind of the culmination of these things, uh, leads us to actual results that we can clearly display. Uh, and here's a screenshot from Prism, which is a UI we have for sharing not only those workloads that I showed before, but also some benchmarking results. Uh, and Prism is a part of the llm-d project. Here you can see a benchmark result for the agentic code generation workload that we showed before</span></div><div class="tline" data-t="801"><span class="ts">13:21</span><span class="tx">on TPUs. Uh, these three lines you see here</span></div><div class="tline" data-t="807"><span class="ts">13:27</span><span class="tx">show you the difference between combined optimizations, is the green line, and a baseline that is just a simple Kubernetes service incentive in front of multiple model server replicas. It's important to note here is that this is at production scale with eight replicas, and you can see that the combined optimizations were measured to be much higher than the baseline, scaling into almost hundreds of</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">thousands of tokens per second.</span></div><div class="tline" data-t="842"><span class="ts">14:02</span><span class="tx">So the takeaways, kind of the principles for benchmarking validity based off of the pitfalls that Ashok brought up earlier. At production scale, you need client concurrency, and you need observability into your client's behavior and its ability to meet your configuration. The metric fidelity allows you to actually observe your client's behavior as well as your system under test and understand that your scenario was accurately executed and</span></div><div class="tline" data-t="872"><span class="ts">14:32</span><span class="tx">your performance results were valid. The stochastic variables, uh, and non-determinism or determi-determinism that you set amongst your run needs to reflect your real world demands, uh, for your workload. And m-most importantly, your data sets do truly matter. Your workloads, uh, need to be as close to what you are intending to test as possible. And,</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">uh, we have examples in the workload catalog. So here we have three links to some of the things that we've presented on here before. InferencePerf is our benchmarking tool, and there's the Git repo for it. llm-d is a project that we work under, and InferencePerf under it in llm-d Benchmark. Uh, llm-d is for production scale inference, and then llm-d Prism, which was that UI we showed for the benchmarking</span></div><div class="tline" data-t="932"><span class="ts">15:32</span><span class="tx">results, uh, and the workload catalog that defines some of these workloads.</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">So that will answer questions after, but we appreciate your time.</span></div><div class="tline" data-t="946"><span class="ts">15:46</span><span class="tx">Thank you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

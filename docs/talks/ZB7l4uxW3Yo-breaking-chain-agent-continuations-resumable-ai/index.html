@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>打破链条：用智能体续延实现可恢复的 AI 工作流 | AI 工程师中文版</title>
+<meta name="description" content="智能体应该能够停下来等待审批，而不必让它的执行循环一直活着。递归续延保留了恢复智能体及其子智能体所需的状态。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>打破链条：用智能体续延实现可恢复的 AI 工作流</h1>
+    <div class="orig-title">Breaking the Chain: Agent Continuations for Resumable AI Workflows</div>
+    <div class="meta"><span class="speaker">Greg Benson</span> · AI Engineer World's Fair 2025 · 27:02</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=agent-memory">智能体记忆</a><a class="tag" href="../../index.html#topic=design-engineering-and-ai-interfaces">AI 界面设计</a><a class="tag" href="../../index.html#topic=harness-engineering">框架工程</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/ZB7l4uxW3Yo-breaking-chain-agent-continuations-resumable-ai" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="ZB7l4uxW3Yo"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=ZB7l4uxW3Yo" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">当一个正在工作的智能体不得不等待时会怎样？</div></div>
+      <div class="label row">章节跳转 <span>共 10 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="0"><span class="ts">0:00</span><span>当一个正在工作的智能体不得不等待时会怎样？</span></li><li data-t="173"><span class="ts">2:53</span><span>必须扛过中断的循环</span></li><li data-t="361"><span class="ts">6:01</span><span>一个暂停的子智能体可能卡住整个层级</span></li><li data-t="488"><span class="ts">8:08</span><span>消息数组已经保存了大部分状态</span></li><li data-t="682"><span class="ts">11:22</span><span>一个请求可能返回尚未完成的工作</span></li><li data-t="883"><span class="ts">14:43</span><span>捕获递归状态，暴露一个简单的审批界面</span></li><li data-t="1126"><span class="ts">18:46</span><span>一个 HR 智能体在账户授权中途暂停</span></li><li data-t="1306"><span class="ts">21:46</span><span>从一个编辑过的响应文件恢复</span></li><li data-t="1453"><span class="ts">24:13</span><span>不止于人工审批</span></li><li data-t="1548"><span class="ts">25:48</span><span>可视化智能体构建器中的同一机制</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 18 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Challenges with Agents in Practice" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Challenges with Agents in Practice</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Agents may need human decisions on high-risk tasks, checkpoints to resume long-running work after failures, and ways to run in distributed environments.
+
+[1:14](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=74s) [Three challenges: human in the loop, long running, and distributed execution.](https://assets.ai.engineer/sites/aiecode2025/sha256/d4d15cf85f33423aefc60c75fdb1030a14945902ad0557a59999d46d2f1078f6.webp)
+
+Challenges with Agents in Practice
+
+Human in the Loop
+Long Running
+Distributed Execution
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Agent Execution" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent Execution</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent loop calls an LLM, executes requested tools, and returns their results to the LLM. A tool can itself be a sub-agent.
+
+[3:00](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=180s) [An agent loop exchanges information with a user, an LLM, two tools, and a sub-agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/531af917d88123e86a87f573df18cd0d039fd70230ba4f6dc5add5907b0d103b.webp)
+
+Agent Execution
+
+User
+Agent
+(Loop)
+LLM
+Tool 1
+Tool 2
+Sub
+Agent
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Agent Execution Details" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent Execution Details</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent handles a request through two LLM exchanges and two tool executions before returning a final response. Each tool result goes back to the agent.
+
+[3:43](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=223s) [Sequence diagram showing a user request, LLM exchanges, two tool executions, and a final response.](https://assets.ai.engineer/sites/aiecode2025/sha256/0561d49d92dabc6aca16778cbdf1be9542972ee73e2be3ea02b9ad7536a856ab.webp)
+
+Agent Execution Details
+
+User    Agent    LLM    Tool 1    Tool 2
+
+Request
+Prompt + Tools
+Response
+Execute
+Result
+Prompt + Tools
+Response
+Execute
+Result
+Final Response
+
+User    Agent    LLM    Tool 1    Tool 2
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Multi-level Agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Multi-level Agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A main agent can delegate to a sub-agent with its own LLM and tools, raising questions about human approval and saving state after failures.
+
+[6:19](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=379s) [A main agent connects to an LLM, two tools, and a sub-agent that has its own LLM and tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/875708ea631277dc4adbf9fc3d35d6084b2bd94e4ad62a22658f1671222208c0.webp)
+
+Multi-level Agents
+
+User
+Main Agent (Loop)
+LLM
+Tool 1
+Tool 2
+Sub Agent (Loop)
+LLM
+Tool 3
+Tool 4
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Agent Loop Persistence" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent Loop Persistence</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent loop connects user interfaces to an LLM, tools, and a sub-agent. The speaker says most human-in-the-loop frameworks keep it running even while it awaits a human response.
+
+[6:50](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=410s) [An agent loop connects to command-line, web app, and third-party interfaces, as well as an LLM, tools, and a sub-agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/84ddd7b3af5885b1acfb58ffc8683d76f6ab96bcd10e4f8133ba84bbf134d826.webp)
+
+Agent Loop Persistence
+
+CLI
+WebApp
+3rd Party (Slack)
+
+Agent (Loop)
+
+LLM
+Tool 1
+Tool 2
+Sub Agent
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Agent Continuations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent Continuations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Inspired by programming language continuations, the proposed mechanism captures agent state so execution can pause for human approval and resume later.
+
+[8:14](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=494s) [Agent continuations are inspired by programming language continuations and support state capture and tool call approvals.](https://assets.ai.engineer/sites/aiecode2025/sha256/9ed771d627bfe37993884c1376088cc524bd2997faa86fb0d789e95513172d8e.webp)
+
+Agent Continuations
+
+Inspired from Programming Language Continuations
+
+Full Agent State Capture
+
+Tool Call Approvals
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Observations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Observations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The messages array acts as an agent log: it records tool calls and results alongside conversation messages. That history is replayed to the LLM and captures much of the agent’s state, though not all of it.
+
+[10:07](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=607s) [A messages array records an agent interaction, including a tool call and its result.](https://assets.ai.engineer/sites/aiecode2025/sha256/22b64f2a995c32c9521ba28b23c6b03a7c0953c7e68012504fdd052464e374b9.webp)
+
+Observations
+
+Messages Array
+Tool Calls
+An Agent Log
+
+&quot;messages&quot;: [
+    { &quot;role&quot;: &quot;developer&quot;,
+      &quot;content&quot;: &quot;\nYou are an Account Agent, ...&quot;},
+
+{ &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;Help me open an account for ...&quot;},
+
+{ &quot;role&quot;: &quot;assistant&quot;,
+      &quot;tool_calls&quot;: [
+          { &quot;id&quot;: &quot;[illegible]&quot;,
+            &quot;function&quot;: {
+              &quot;arguments&quot;: &quot;{\&quot;username\&quot;:\&quot;alice\&quot;}&quot;,
+              &quot;name&quot;: &quot;create_account&quot;},
+              &quot;type&quot;: &quot;function&quot;}],},
+
+{ &quot;role&quot;: &quot;tool&quot;,
+      &quot;tool_call_id&quot;: &quot;[illegible]&quot;,
+      &quot;content&quot;: &quot;Account created for alice.&quot;},
+
+{ &quot;role&quot;: &quot;assistant&quot;,
+      &quot;content&quot;: &quot;The account with username **alice** has been successfully created.&quot;}]
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Implementation Sketch" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Implementation Sketch</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>On suspension, the agent saves messages and resume metadata in a continuation. The top-level agent exposes approval requests; on resume, the Continuation Agent reconstructs state and continues processing.
+
+[15:07](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=907s) [Steps for creating a continuation at suspension, exposing approval requests, and reconstructing agent state on resume.](https://assets.ai.engineer/sites/aiecode2025/sha256/c67cc6bcb248141fc47181323e0fca346b1c4d0ad89e25a1004312994cda1faf.webp)
+
+Implementation Sketch
+
+• Agent forward progress remains the same
+
+• At time of suspension (e.g, tool call approval)
+  ○ Create a continuation object
+  ○ Embed messages array + resume metadata
+  ○ Return continuation to top level agent
+
+• Before returning continuation object response
+  ○ Create top-level approval requests object
+
+• On resume, the Continuation Agent reconstructs the agent state from the continuation and resumes processing
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Continuation Object Examples" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Continuation Object Examples</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The single-level example exposes approval information for a paused call. The nested example puts a sub-agent’s messages, resume request, and processed state inside the parent’s resume request.
+
+[17:22](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1042s) [Side-by-side continuation object examples show messages, resume requests, processed calls, and approval information.](https://assets.ai.engineer/sites/aiecode2025/sha256/84a49ca5fee209f39ccb659a9f96ed5d78f679f1924b4eb6e2aad2c518a396b6.webp)
+
+Continuation Object Examples
+
+// Single Level Continuation
+{
+  &quot;continuation&quot;: {
+    &quot;messages&quot;: [...],
+    &quot;resume_request&quot;: [{&quot;id&quot;: &quot;call_abc&quot;,
+&quot;function&quot;: {&quot;name&quot;: &quot;deploy_code&quot;, ...}}],
+    &quot;processed&quot;: [{&quot;id&quot;: &quot;call_abc&quot;, &quot;approved&quot;:
+false}] // Original processed
+  },
+  &quot;approval_info&quot;: [{ // User has approved this
+    &quot;paths&quot;: [&quot;deploy_code&quot;],
+    &quot;path_ids&quot;: [&quot;call_abc&quot;],
+    &quot;tool_call&quot;: {&quot;id&quot;: &quot;call_abc&quot;, ...},
+    &quot;approved&quot;: true // Key change: user approved
+  }]
+}
+
+// Nested Continuation
+{
+  &quot;continuation&quot;: {
+    &quot;messages&quot;: &quot;[...]&quot;, // Parent messages
+    &quot;resume_request&quot;: [
+      {
+        &quot;id&quot;: &quot;call_parent_tool_id&quot;, // Tool
+        &quot;function&quot;: {&quot;name&quot;: &quot;run_analysis&quot;,
+        &quot;arguments&quot;: &quot;{...}&quot;},
+        &quot;continuation&quot;: {
+          &quot;messages&quot;: &quot;[...]&quot;, // SubAgent
+          &quot;resume_request&quot;: [
+            {
+              &quot;id&quot;: &quot;call_sub_tool_abc&quot;,
+              &quot;function&quot;: {&quot;name&quot;: &quot;fetch_data&quot;,
+              &quot;arguments&quot;: &quot;{...}&quot;}
+            }
+          ],
+          &quot;processed&quot;: [{&quot;id&quot;: &quot;call_sub_tool_abc&quot;,
+&quot;approved&quot;: false}]
+        }
+...
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Multi-level HR Agent Example" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Multi-level HR Agent Example</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The HR agent delegates account work to a sub-agent. Authorizing the account requires approval, suspending the workflow until the approved continuation is sent back to the HR agent.
+
+[18:55](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1135s) [Code for an HR agent that delegates account creation and authorization to a sub-agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/d4162d0ceea8586bcc0a477e98e4c4a761181ab9b01e2a8d76766b546cc7a017.webp)
+
+Multi-level HR Agent Example
+
+# hr_agent.py
+
+HR_SYSTEM_PROMPT = &quot;&quot;&quot;
+You are **HR Agent**, responsible for handling HR-related
+tasks, including onboarding new colleagues. You have access
+to the following tools: . . .
+&quot;&quot;&quot;
+
+@tool()
+def send_email_tool(recipient: str, subject: str, message: str):
+    &quot;&quot;&quot;Send an email to the specified recipient.&quot;&quot;&quot;
+    return f&quot;Email sent to {recipient} ...&quot;&quot;&quot;
+
+@tool(is_agent=True)
+def account_agent_tool(*args, **kwargs):
+    &quot;&quot;&quot;This tool handles all account-related tasks ...&quot;&quot;&quot;
+    return account_agent.request(*args, **kwargs)
+
+hr_agent = ContinuationAgent(
+    instruction=HR_SYSTEM_PROMPT,
+    tools=[send_email_tool, account_agent_tool])
+
+prompt = {&quot;prompt&quot;: &quot;Help me open an account for Alice with username: alice. Her email is alice@example.com.&quot;}
+
+hr_response1 = hr_agent.request(prompt) # A Continuation returned
+
+# Approve all the tool calls
+for to_be_approved in hr_response1[&quot;approval_info&quot;]:
+    to_be_approved[&quot;approved&quot;] = True
+
+# The agent can complete and return a response object
+hr_response2 = hr_agent.request(hr_response1)
+
+# account_agent.py
+
+AA_SYSTEM_PROMPT = &quot;&quot;&quot;
+You are **Account Agent**, responsible for managing
+user accounts and assigning security levels. You have access to the following tools:
+&quot;&quot;&quot;
+
+@tool()
+def create_account(username: str):
+    &quot;&quot;&quot;Create a new user account.&quot;&quot;&quot;
+    return f&quot;Account created for {username}.&quot;
+
+# Simulate the authorization process
+@tool(need_approval=True)
+def authorize_account(username: str, level: int):
+    &quot;&quot;&quot;Authorize a user account by taking a username and a
+security level.&quot;&quot;&quot;
+    return f&quot;Account {username} authorized with security level {level}.&quot;
+
+account_agent = ContinuationAgent(
+    instruction=AA_SYSTEM_PROMPT,
+    tools=[create_account, authorize_account])
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="HR Agent Illustrated" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>HR Agent Illustrated</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The HR agent delegates account work to an account agent. When authorization needs approval, a continuation grows as it returns through both agents to the app, which can inspect it and resume the agents.
+
+[20:16](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1216s) [Diagram linking an app, HR agent, account agent, tools and an approval step.](https://assets.ai.engineer/sites/aiecode2025/sha256/5913e2ee6261be7f8c68e517145a8ba1c28344a2d01b0e40cc266084a90d0dc3.webp)
+
+HR Agent Illustrated
+
+App
+HR Agent (Loop)
+LLM
+Send Email
+Account Agent (Loop)
+LLM
+Create Account
+Authorize Account
+Approval
+Continuation
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Running the HR Agent Demo" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Running the HR Agent Demo</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo passes an account-opening prompt to the HR agent and redirects its response to a JSON file. The speaker uses this to demonstrate that continuation objects carry the state needed to resume work.
+
+[21:45](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1305s) [Terminal showing a JSON prompt and a command that runs the HR agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/cfcb0288f9acd691f3b4294a696e6cc4b604fee04e0283ba6cd7ca6dd596369b.webp)
+
+(gdb) gbenson@mp4 demo1 % ls
+__pycache__                 example_decorator_usage.py    hr_prompt_1.json
+account_agent.py            hr_agent_cli.py
+core                        hr_agent_cli2.py
+(gdb) gbenson@mp4 demo1 % cat hr_prompt_1.json
+{&quot;prompt&quot;: &quot;Help me open an account for Alice with username: alice. Her email is alice@example.com.&quot;}
+(gdb) gbenson@mp4 demo1 % python hr_agent_cli.py --json hr_prompt_1.json &gt; hr_response_1.json</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Opening the Response File" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Opening the Response File</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo writes the HR agent’s response to a JSON file and prepares to open it. The speaker says the response object contains the state needed to decouple the workflow.
+
+[22:22](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1342s) [Terminal showing a command to open the agent response file.](https://assets.ai.engineer/sites/aiecode2025/sha256/a87d97d0556394a1d4e6aa65a40d6fb4ca721dae481278e8570e6e311de01c8f.webp)
+
+(gdb) gbenson@mp4 demo1 % ls
+__pycache__              example_decorator_usage.py    hr_prompt_1.json
+account_agent.py         hr_agent_cli.py
+core                     hr_agent_cli2.py
+(gdb) gbenson@mp4 demo1 % cat hr_prompt_1.json
+{&quot;prompt&quot;: &quot;Help me open an account for Alice with username: alice. Her email is alice@example.com.&quot;}
+(gdb) gbenson@mp4 demo1 % python hr_agent_cli.py --json hr_prompt_1.json &gt; hr_response_1.json
+(gdb) gbenson@mp4 demo1 % m hr_response_1.json</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Nested Agent Continuation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Nested Agent Continuation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The response embeds the account agent’s continuation and instructions inside its tool call. The instructions sequence account creation before authorization and default the security level to 0.
+
+[22:33](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1353s) [JSON response showing an account-agent tool call and nested continuation messages.](https://assets.ai.engineer/sites/aiecode2025/sha256/ec4d69c00b643cef91af158748d917be82af4d49bcd2bad9a8ba68b82472a52f.webp)
+
+&quot;arguments&quot;: &quot;{\&quot;prompt\&quot;:\&quot;Help me open an account for our new colleague with username: alice.\&quot;}&quot;,
+&quot;name&quot;: &quot;account_agent_tool&quot;
+},
+&quot;type&quot;: &quot;function&quot;
+}
+],
+&quot;annotations&quot;: []
+}
+],
+&quot;resume_request&quot;: [
+    {
+        &quot;id&quot;: &quot;call_x7A6wAKq5NR8o906JvsrePbD&quot;,
+        &quot;function&quot;: {
+            &quot;arguments&quot;: &quot;{\&quot;prompt\&quot;:\&quot;Help me open an account for our new colleague with username: alice.\&quot;}&quot;,
+            &quot;name&quot;: &quot;account_agent_tool&quot;
+        },
+        &quot;type&quot;: &quot;function&quot;,
+        &quot;continuation&quot;: {
+            &quot;messages&quot;: [
+                {
+                    &quot;role&quot;: &quot;developer&quot;,
+                    &quot;content&quot;: &quot;\nYou are **Account Agent**, responsible for managing user accounts and assigning security levels. You have access to the following tools: \n\n1. **`create_account`** \u2013 Creates a user account using a provided username. \n2. **`authorize_user`** \u2013 Assigns a security level to a user. \n\n- If a request involves creating a new account, first call `create_account` with the provided username. \n- **Wait for confirmation** that the account has been successfully created **before proceeding** to assign a security level. \n- If no security level is specified, assign a default security level of **0**. \n- If a request only involves updating security levels, call `authorize_user` directly. \n- Execute tool calls **sequentially**, never in parallel. \n\n- **Input:** *\&quot;Help me open an account for our new colleague with username: stzhang.\&quot;* \n - **Step 1:** Call `create_account(\&quot;stzhang\&quot;)` \n - **Step 2 (only after</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Inspecting the agent response" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inspecting the agent response</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The resumed HR agent returns Alice’s account result in a normal messages array. The speaker explains that a continuation appears only when the agent needs to suspend.
+
+[23:54](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1434s) [Terminal shows a command and JSON response containing the result and HR agent instructions.](https://assets.ai.engineer/sites/aiecode2025/sha256/4037599c546002558c45db51fdf3c95e4b0ede8e79c1bdfa53a5404170feefe3.webp)
+
+(gdb) gbenson@mp4 demo1 % cat hr_prompt_1.json
+{&quot;prompt&quot;: &quot;Help me open an account for Alice with username: alice. Her email is alice@example.com.&quot;}
+(gdb) gbenson@mp4 demo1 % python hr_agent_cli.py --json hr_prompt_1.json &gt; hr_response_1.json
+(gdb) gbenson@mp4 demo1 % m hr_response_1.json
+(gdb) gbenson@mp4 demo1 % python hr_agent_cli.py --json hr_response_1.json
+{
+    &quot;result&quot;: &quot;Alice's account has been successfully created with the username \&quot;alice,\&quot; and she's been assigned a security level of 0. A welcome email has also been sent to her at alice@example.com. If you need anything else, feel free to ask!&quot;,
+    &quot;messages&quot;: [
+        {
+            &quot;role&quot;: &quot;developer&quot;,
+            &quot;content&quot;: &quot;\nYou are **HR Agent**, responsible for handling HR-related tasks, including onboarding new colleagues. You have access to the following tools:  \n\n1. **`send_email`** \u2013 Sends emails to specified recipients.  \n2. **`account_agent`** \u2013 Manages user accounts, including creation and security level assignment.  \n\n### **Key Responsibilities:**  \n- **Onboarding New Employees:** \n  * Send a welcome email to the new colleague.  \n  * Meanwhile, call `account_agent` to create their account and assign a security level.  \n\n- **Other HR Tasks:**  \n  - Use `account_agent` for any account-related tasks, such as updating security levels or future account modifications.  \n  - Use `send_email` for any HR-related communications as needed.  \n\n### **Execution Rules:**  \n- Always send the welcome email **before** initiating account creation.  \n- Ensure sequential execution\u2014**wait for email confirmation** before calling `account_agent`.  \n- If any additional instructions are provided in a request, follow them accordingly while maintaining logical execution order.  \n\n### **Example Workflow:**  \n- **Input:** *\&quot;Onboard our new colleague stzhang, their email is stzhang@example.com.\&quot;*  \nUsing Parallel tool call to:\n  - Call `send_email(recipient=\&quot;stzhang@example.com\&quot;, subject=\&quot;Welcome!\&quot;, message=\&quot;Welcome to the team, stzhang! We're excited to have you.\&quot;)`  \n  - Call `account_agent(\&quot;Help me open an account for our new colleague with username: stzhang.\&quot;)`  \n\nYour role is to ensure smooth HR operations, with a focus on structured and efficient task execution.\n&quot;
+        },
+        {
+
+Interface text:
+__pycache__    example_decorator_usage.py    hr_prompt_1.json
+account_agent.py    hr_agent_cli.py
+core    hr_agent_cli2.py</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Details, plans and related work" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Details, plans and related work</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The prototype uses the OpenAI Python API. A version supports suspension beyond human approval, including after a time or turn count or on an asynchronous request. The team is exploring extensions to existing frameworks.
+
+[24:15](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1455s) [Slide lists prototype implementation details, future suspension and framework plans, and related state-management work.](https://assets.ai.engineer/sites/aiecode2025/sha256/9064c3c81f89a8a3644b2ed03213ab295e38695466705637b84059341dd67207.webp)
+
+Details – Plans – Related Work
+
+• Implementation Details
+  ○ Prototype implemented on top of OpenAI Python API
+  ○ https://github.com/SnapLogic/agent-continuations
+
+• Agent Continuations Future Work
+  ○ General Agent Suspension
+  ○ Extend existing frameworks like Strands / Pydantic AI
+
+• Related Work - Framework State Management
+  ○ Strands
+  ○ AutoGen
+  ○ HumanLayer
+
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Agent continuations in AgentCreator" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent continuations in AgentCreator</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The HR agent calls send_email and an account agent, which calls create_account and authorize_user. AgentCreator shows the visual workflows alongside their nested execution; continuations were prototyped in the platform.
+
+[25:50](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1550s) [HR and account agent workflows appear beside a diagram of their nested tool calls.](https://assets.ai.engineer/sites/aiecode2025/sha256/d48d37bdd20127702d9eabadf53eab6b3d151427c0d0016bc231ab213acebd7b.webp)
+
+Agent Continuations in AgentCreator
+
+HR Agent:
+account agent
+send email
+OpenAI Tool Calling
+62
+Tool calls view
+Router
+account agent
+OpenAI Function ...
+Tool Result
+output1
+send email
+OpenAI Function ...
+input2
+62
+Message Appender
+result filter
+
+Account Agent:
+create account
+authorize user
+OpenAI Tool Calling
+10
+Tool calls view
+Router
+create account
+OpenAI Function ...
+Tool Result
+output1
+authorize user
+OpenAI Function ...
+input2
+10
+Message Appender
+result filter
+
+Agent Diagram:
+AGENT
+HR Agent
+STEP 1
+send_email
+STEP 2
+account_agent
+STEP 2.1
+create_account
+STEP 2.2
+authorize_user
+Agent Output
+
+Interface text:
+Diagram
+Agent Continuations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Agent continuations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent continuations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Agent continuations manage agent state and human-in-the-loop processing. A prototype is available on GitHub; SnapLogic AgentCreator provides a visual environment for building agents.
+
+[26:39](https://www.youtube.com/watch?v=ZB7l4uxW3Yo&amp;t=1599s) [Conclusion slide describes agent continuations as a mechanism for agent state and human-in-the-loop processing.](https://assets.ai.engineer/sites/aiecode2025/sha256/8d3760c79a9109e0ac806ba9b0607c2cc5bd514949588729a924447fe98adb6b.webp)
+
+Agent Continuations
+
+A new mechanism for managing agent state and human in the loop
+
+https://github.com/SnapLogic/agent-continuations
+
+SnapLogic AgentCreator - https://agentcreator.com/
+
+Agent Continuations</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">当一个正在工作的智能体不得不等待时会怎样？</a></li><li><a href="#sec-2">必须扛过中断的循环</a></li><li><a href="#sec-3">一个暂停的子智能体可能卡住整个层级</a></li><li><a href="#sec-4">消息数组已经保存了大部分状态</a></li><li><a href="#sec-5">一个请求可能返回尚未完成的工作</a></li><li><a href="#sec-6">捕获递归状态，暴露一个简单的审批界面</a></li><li><a href="#sec-7">一个 HR 智能体在账户授权中途暂停</a></li><li><a href="#sec-8">从一个编辑过的响应文件恢复</a></li><li><a href="#sec-9">不止于人工审批</a></li><li><a href="#sec-10">可视化智能体构建器中的同一机制</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">打破链条：用智能体续延实现可恢复的 AI 工作流</h2>
+      <div class="lede"><p>智能体应该能够停下来等待审批，而不必让它的执行循环一直活着。递归续延保留了恢复智能体及其子智能体所需的状态。</p><p>熟悉 Python 函数、JSON 和 LLM 工具调用，有助于理解续延接口和嵌套智能体示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="0">▶ 0:00</button></div>
+      <h3>当一个正在工作的智能体不得不等待时会怎样？</h3>
+      <p>Your agent works well. Now you want to put it into production: can it stop for a human decision, and can a long-running task survive a failure without losing everything it has done? These are the opening questions behind <strong>Agent Continuations</strong>, the mechanism Greg Benson introduces as a University of San Francisco computer science professor and SnapLogic chief scientist. The approach captures agent state so execution can resume later, supporting both human intervention and snapshots for recovery.</p>
+<p>The work comes from SnapLogic’s Agent Creator research group. Consider an agent about to transfer a large amount of money or delete an account. It needs to hand the decision to a human before performing the consequential action. Separately, a long-running agent needs checkpoints so a failure does not force it to restart from the beginning. Moving those agents from a developer’s desktop into a distributed environment adds another requirement: execution must be able to outlive the particular process hosting it.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/75135c66b7b3d1434eb28b336fb1e21655fdee99b1865abd5ac034882830135d" alt="Slide titled “Challenges with Agents in Practice” with three illustrated boxes labeled Human in the Loop, Long Running, and Distributed Execution." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Three challenges with agents: human oversight, long-running work, and distributed execution.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="173">▶ 2:53</button></div>
+      <h3>必须扛过中断的循环</h3>
+      <p>An agent alternates between model inference and tool execution. It sends the LLM a request describing available tools; the model may return tool-call requests; the agent executes those calls, collects their results, and sends the results back to the model. That cycle continues until the task is complete. A tool can itself be an agent, so even an apparently simple request can involve several interacting loops.</p>
+<p>Three situations make uninterrupted execution an awkward assumption:</p>
+<p>- <strong>Human approval:</strong> A tool may require permission to access an environment or to perform a consequential action within it.
+- <strong>Rate limiting:</strong> Benson points to coding assistants encountering heavily used new models. The workflow needs a way to handle an API that cannot accept more work immediately.
+- <strong>Long-running work:</strong> Extensive research across internal and external systems increases exposure to network or hardware failures. Preserving progress becomes more valuable as the work accumulates.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="361">▶ 6:01</button></div>
+      <h3>一个暂停的子智能体可能卡住整个层级</h3>
+      <p>A main agent or orchestrator may call several sub-agents, each of which can call further sub-agents. Approval and recovery must therefore account for more than the innermost tool. If a deeply nested operation pauses, the system must preserve the parent agents’ progress and the calls through which they are waiting for that operation to return.</p>
+<p>Benson calls the hosting problem <strong>agent loop persistence</strong>. The loop is code running on a physical machine, whether on a desktop or in the cloud. It connects an interface—a command line, a web application, or a channel such as Slack—to the model, tools, and sub-agents.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/6db24cb2989b935a6e52014c04571bffc354b3e9e5e1628c80fa64292c2934f2" alt="Agent Loop Persistence diagram with CLI, WebApp, and 3rd Party (Slack) on the left, Agent (Loop) in the center, and LLM, Tool 1, Tool 2, and Sub Agent on the right, joined by bidirectional arrows." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The agent loop connects user interfaces to an LLM, tools, and a sub-agent.</figcaption></figure>
+<p>Benson describes continuously running loops during human approval waits as common among the frameworks his team examined. That characterization should not be read as a requirement of agent frameworks generally. The design target here is precise: <strong>shut down every affected loop after suspension, then reconstruct execution when the human responds.</strong> A Slack approval should not require keeping the original agent process alive for the duration of the wait.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="488">▶ 8:08</button></div>
+      <h3>消息数组已经保存了大部分状态</h3>
+      <p>The inspiration comes from programming-language <strong>continuations</strong>: capture execution at a particular point, retain what is needed to continue, and resume later. Supporting that operation in a general programming language can require sophisticated runtime machinery. Agent continuations apply the idea to a narrower execution model built around LLM calls, tool calls, and calls into sub-agents.</p>
+<p>When the agent suspends, it returns saved state to the application layer. The application can obtain approval or persist the state for later resumption. Here, suspension means stopping at supported execution boundaries, such as before an approval-gated tool; it does not mean preempting arbitrary instructions inside an executing tool or an in-flight model request.</p>
+<p>The useful observation is that an agent already maintains a <strong>messages array</strong>. This is a history of interactions that is supplied back to the LLM for its next inference. The system therefore already performs much of the bookkeeping a continuation needs: previous requests, tool interactions, and results are retained as conversation state. The messages array is close to sufficient, but it does not by itself identify all the control state needed to resume a suspended operation.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="682">▶ 11:22</button></div>
+      <h3>一个请求可能返回尚未完成的工作</h3>
+      <p>The <a href="https://github.com/SnapLogic/agent-continuations" target="_blank" rel="noopener">Agent Continuations prototype</a> starts with a familiar Python interface. Decorators identify Python functions as tools, and the agent receives a list of those tools at construction. It can also receive instructions or a system prompt. An application submits a user request, and the agent performs its model-and-tool loop before returning a response.</p>
+<p>Continuation support changes two pieces of that setup: designate a tool as requiring approval, and construct a <code>ContinuationAgent</code>. The important change is in the result contract.</p>
+<p>| Result | Meaning | Application action |
+|---|---|---|
+| Completed response | The agent finished its task | Present or consume the result |
+| Continuation object | Execution suspended | Inspect the suspension metadata |</p>
+<p>A returned object is therefore not necessarily the final answer. Its metadata tells the application why execution stopped and what intervention is required.</p>
+<p>For the approval path, the application records the human’s decision as true or false. Benson follows the positive branch: update the continuation with approval, then pass that same object back through <code>request</code>. The agent recognizes the continuation and resumes immediately before the pending tool call. Approval changes permission to execute; the resumed agent still has to perform the tool call and continue toward its final response.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="883">▶ 14:43</button></div>
+      <h3>捕获递归状态，暴露一个简单的审批界面</h3>
+      <p>Forward execution remains ordinary agent processing until a suspension condition occurs. The framework then creates a continuation containing the messages array and additional resumption metadata. As that object returns to the top-level agent, the framework extracts the information the application needs to understand the suspension and supply any required approvals. The application does not have to navigate the whole nested execution structure to find the decision it must present.</p>
+<p>After the application updates the object, the framework reconstructs the agent state and continues execution. <strong>The saved continuation replaces the need to keep the suspended loops running.</strong> Once capture is complete, the loops can shut down because the object contains the information needed to restore them.</p>
+<p>The single-level representation separates interaction history from the pending operation and the application’s decision:</p>
+<p>| Field | Role |
+|---|---|
+| <code>messages</code> | Normal interaction history |
+| <code>resume_request</code> | Identifies the operation at which to resume |
+| <code>processed</code> | Carries processed information, including approval decisions |
+| <code>approval_info</code> | Exposes approval information to the application |</p>
+<p>The top-level approval surface makes updating the object convenient without discarding the underlying execution structure.</p>
+<p>For nested agents, a <code>resume_request</code> can contain a sub-agent continuation with its own <code>messages</code>, <code>resume_request</code>, and <code>processed</code> information. The representation is recursive: each level preserves its local history and the child operation it must resume. This is how the format accommodates arbitrary layers of sub-agent nesting rather than treating the entire workflow as one flat conversation.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c2f7eae27294d4a83215ac6de4c3c23e563491a0660a3d976aef6745f96e2592" alt="Continuation Object Examples slide comparing single-level and nested structures, with messages, resume_request, processed, and approval_info fields highlighted and annotated." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Single-level and nested continuation objects shown side by side.</figcaption></figure>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1126">▶ 18:46</button></div>
+      <h3>一个 HR 智能体在账户授权中途暂停</h3>
+      <p>The worked example has two agent levels. The top-level HR agent has an email tool and an account-agent tool. The account sub-agent handles account creation and privilege assignment through its own create-account and authorize-account tools. Authorization requires approval. Each agent has its own system prompt and tool configuration.</p>
+<p>A new-account request enters through the HR agent and eventually reaches the account sub-agent’s authorization tool. The suspension travels back through the same hierarchy:</p>
+<p>1. The account agent reaches the pending authorization and detects that approval is required.
+2. It captures a continuation before authorization executes.
+3. As that continuation propagates upward, the parent level expands it with the state needed to resume the HR agent.
+4. The application receives the full continuation and inspects the approval information.</p>
+<p>Once the application has supplied the decision, it sends the continuation back to the HR agent. The framework restores both the parent and the account sub-agent to the suspended point. The application’s job is to resolve the approval; reconstructing the nested execution is the framework’s job.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1306">▶ 21:46</button></div>
+      <h3>从一个编辑过的响应文件恢复</h3>
+      <p>The demonstration makes the process boundary concrete. Benson supplies the initial prompt as JSON, runs the agent, and writes its response to a file. The point of this arrangement is that the request and its later continuation are decoupled: the saved object must carry the state needed by the later invocation. A small Python file boundary around an already configured agent expresses that handoff:</p>
+<p>```python
+import json
+from pathlib import Path</p>
+<p>def request_from_file(agent, input_path: Path, output_path: Path):
+    request = json.loads(input_path.read_text(encoding=&quot;utf-8&quot;))
+    response = agent.request(request)
+    output_path.write_text(
+        json.dumps(response, indent=2),
+        encoding=&quot;utf-8&quot;,
+    )
+    return response
+```</p>
+<p>The same function can accept the initial JSON request or the saved continuation because both enter through <code>request</code>.</p>
+<p>Inspecting the saved response reveals the top-level continuation and messages, followed by the sub-agent’s messages and system prompt. At the bottom is the application-facing approval information. Benson edits that approval manually, saves the file, and submits the edited response back to the agent. In an application, a review interface would collect the decision and make this update. The resumed invocation reconstructs state with the pending tool now approved.</p>
+<p>The resulting output reports successful account creation and a granted security level. The displayed JSON names Alice, shows security level <code>0</code>, includes a welcome-email confirmation, and ends with <code>end_reason</code> set to <code>completed</code>. These are the workflow’s reported results after resumption.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c69e14f9f6c44b29a7858c247787e68a1882c2088d4e462dd3702bfe0b06d646" alt="JSON output showing an account creation result for Alice, security level 0, a welcome-email confirmation, and an underlined end_reason value of completed." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The demo output reports successful account creation and an end reason of completed.</figcaption></figure>
+<p>The completed result also illustrates a useful property of the representation: it contains a normal messages array, with no continuation structure remaining. The continuation is introduced when execution suspends; it is not a permanent wrapper around every finished response.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1453">▶ 24:13</button></div>
+      <h3>不止于人工审批</h3>
+      <p>Benson describes the Python prototype as built on the OpenAI Python API with no other dependencies, and makes the implementation available on GitHub. He also reports an implemented version with more general suspension triggers: elapsed time, a number of turns, and asynchronous requests to suspend. Those triggers broaden the reasons to stop while retaining the same capture-and-resume model.</p>
+<p>The proposed direction is to bring the mechanism into existing frameworks, such as <a href="https://strandsagents.com/docs/user-guide/concepts/interrupts/" target="_blank" rel="noopener">Strands</a> or <a href="https://pydantic.dev/docs/ai/tools-toolsets/deferred-tools/" target="_blank" rel="noopener">Pydantic AI</a>, rather than necessarily grow the prototype into another complete agent framework. These are prospective integrations in the talk, not announced integrations.</p>
+<p>Benson explicitly acknowledges that other frameworks already manage state. In his team’s investigation, the missing piece was either human approval or support for arbitrary depths of sub-agent nesting. His novelty claim concerns combining those capabilities: approval can occur inside a nested agent, while the continuation preserves the surrounding execution needed to return there.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1548">▶ 25:48</button></div>
+      <h3>可视化智能体构建器中的同一机制</h3>
+      <p>The work also exists above the Python layer. SnapLogic’s Agent Creator provides visual agent construction and a way to visualize agent execution. The team prototyped continuations there as well, applying the mechanism both in Python and within the higher-level SnapLogic platform.</p>
+<p>Benson closes by pointing readers to the public prototype and to Agent Creator for visual agent building. The concrete capability connecting those implementations is saved, resumable execution: an application can receive the state of a suspended agent hierarchy, obtain the human decision, and return that state so the workflow can continue.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/SnapLogic/agent-continuations" target="_blank" rel="noopener">Agent Continuations prototype</a> — Python prototype with installation instructions, approval-gated tools, suspension predicates, and account and HR agent examples.</li><li><a href="https://github.com/SnapLogic/agent-continuations/blob/main/continuations.md" target="_blank" rel="noopener">How recursive continuations are reconstructed</a> — Implementation walkthrough covering nested continuation objects, flattened approval metadata, and parent/sub-agent resumption.</li><li><a href="https://www.langchain.com/blog/making-it-easier-to-build-human-in-the-loop-agents-with-interrupt" target="_blank" rel="noopener">LangGraph's persisted human-in-the-loop interrupts</a> — A 2024 explanation of checkpoint-backed approval pauses and resumption, including interrupted-node replay behavior.</li><li><a href="https://strandsagents.com/docs/user-guide/concepts/interrupts/" target="_blank" rel="noopener">Strands interrupt documentation</a> — Current examples of human input, tool interrupts, and persisted multi-agent interruption.</li><li><a href="https://pydantic.dev/docs/ai/tools-toolsets/deferred-tools/" target="_blank" rel="noopener">Pydantic AI deferred tools</a> — Current guidance for approval-required tools and resuming deferred work using message history and tool results.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">So you've built some agents, and they're working. Actually, they may be working really well, doing amazing things. And now you want to put these agents into a production setting.</span></div><div class="tline" data-t="10"><span class="ts">0:10</span><span class="tx">What are the other things you have to worry about? For example, do your agents need some form of human approval during their processing steps? Will your agents be running for long periods of time in the presence of failure?</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">How do you address these issues? Today, we're going to be learning about a new mechanism that addresses both these issues, and I'm really excited to talk about it. So let's get started. [upbeat music]</span></div><div class="tline" data-t="36"><span class="ts">0:36</span><span class="tx">Hi, I'm Greg Benson. I'm a professor of computer science at the University of San Francisco, and I'm chief scientist at SnapLogic. And today, I'm excited to talk about a new mechanism that we've developed at SnapLogic called Agent Continuations.</span></div><div class="tline" data-t="50"><span class="ts">0:50</span><span class="tx">Agent Continuations allow you to capture the full state of complex agents that can be used both to do arbitrary human-in-the-loop processing and also be the basis for reliable agent continuation through taking snapshots.</span></div><div class="tline" data-t="67"><span class="ts">1:07</span><span class="tx">This work came out of the Agent Creator research group at SnapLogic. First, let's talk about the general challenges that we face with agents today. First of all, there's a lot of concern about where the human sits relative to agent processing.</span></div><div class="tline" data-t="82"><span class="ts">1:22</span><span class="tx">That is, for people to get comfortable with agent automation, key aspects of agent execution require some amount of human oversight. And so there's been lots of work and lots of techniques for including human-in-the-loop.</span></div><div class="tline" data-t="100"><span class="ts">1:40</span><span class="tx">I'm not going to go over all of those, but essentially, the agent will get to a point where there's a designated tool or task that might be a high-value, high-risk task, like transferring a lot of money or deleting an account.</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">And we need a way to ensure that when the agent gets to that point, that in some manner it gets to the human, the human can provide the final determ-determination or decision.</span></div><div class="tline" data-t="130"><span class="ts">2:10</span><span class="tx">Another problem with agents is that many of them will be long-running. Um, there's lots of steps in agentic processing, and the longer that any process runs, the greater chance that there may be a failure.</span></div><div class="tline" data-t="144"><span class="ts">2:24</span><span class="tx">And we'd like some way to not lose all the work that an agent has done and be able to potentially, uh, checkpoint our agent state to be able to resume from a point that is not the beginning.</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">And finally, uh, increasingly, agents are going to be operating in a distributed environment and not just on your desktop, for example. And so what are the considerations for running agents in a scalable distributed environment?</span></div><div class="tline" data-t="173"><span class="ts">2:53</span><span class="tx">Let's talk about basic agent execution just so we can level set for the rest of the talk today.</span></div><div class="tline" data-t="181"><span class="ts">3:01</span><span class="tx">An agent is essentially a loop that involves calls to an LLM that specify potential tools for that LLM to use, and if the LLM determines that it needs to use those tools, it will come back to the agent loop, which will then call the tools on behalf of the LLM request and collect the tool results and send</span></div><div class="tline" data-t="200"><span class="ts">3:20</span><span class="tx">them back to the LLM. And it does this in a progressive loop, LLM, tool call, LLM, tool call, and so on. Now, it's also possible that a tool can be an agent itself, and that's illustrated in the picture here.</span></div><div class="tline" data-t="217"><span class="ts">3:37</span><span class="tx">We have a sub-agent. So this is the basic agent processing setup, pretty standard across agent frameworks today. Clearly, there's a lot more going on. There's a lot of interaction, and this gives us a detailed view of the interactions I just mentioned.</span></div><div class="tline" data-t="230"><span class="ts">3:50</span><span class="tx">The mo-main point of this is to, to indicate that even simple agents have quite a bit of interaction with the LLM and with the tools. So what are some of the agent execution scenarios that we're concerned with addressing?</span></div><div class="tline" data-t="247"><span class="ts">4:07</span><span class="tx">I've mentioned tool calls that require human approval. This is a common idiom; that is, uh, a tool call is an access to something in the environment, something that may require, uh, human approval for the access itself, or it may be an action in the environment, like, like a deleting account, transferring money, um, doing something of consequence.</span></div><div class="tline" data-t="270"><span class="ts">4:30</span><span class="tx">And in those situations, it's desirable to allow the human an opportunity to approve that request. Another situation that can happen, it happens to me all the time with coding assistants, is the landscape of LLMs and the LLM APIs is changing rapidly, and their use is, is dynamic.</span></div><div class="tline" data-t="294"><span class="ts">4:54</span><span class="tx">And often new models come out, they get used heavily, and you might encounter rate limiting. And there's other reasons you might encounter rate limiting. Uh, but</span></div><div class="tline" data-t="306"><span class="ts">5:06</span><span class="tx">there are different ways to handle this situation, and we should seek mechanisms in the presence of this. And finally, I mentioned long-running agents, uh, especially agents that have to do very complicated tasks or extensive research to, to multiple systems, either external to your organization or internal to your organization.</span></div><div class="tline" data-t="328"><span class="ts">5:28</span><span class="tx">Um, the longer that the agent runs, the more susceptible it is to some potential failure, either some sort of network failure or hardware failure. Um, and as these sophisticated agents run longer, we would like a way to not lose all of the work that the agent has done.</span></div><div class="tline" data-t="348"><span class="ts">5:48</span><span class="tx">So, so we want to also tolerate failures in the presence of long-running agents.</span></div><div class="tline" data-t="357"><span class="ts">5:57</span><span class="tx">Another thing I want to elaborate on is</span></div><div class="tline" data-t="361"><span class="ts">6:01</span><span class="tx">The fact that increasingly agents are becoming more sophisticated in the sense that not only will you have, say, a single level agent that has its access to an LLM and its tool calls, but you may have an agent configuration in which you have a main agent or an orchestrator agent, and then several sub-agents.</span></div><div class="tline" data-t="383"><span class="ts">6:23</span><span class="tx">In fact, those sub-agents could have their own sub-agents. This is... This pattern is, is becoming quite common. So then the question is, in the presence of these more sophisticated multi-level agents, how are we going to deal with those two primary, uh, primary tasks that I mentioned earlier, human approval and state saving in the presence of failure?</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">The last concept I want to talk about is what I'm calling agent loop persistence. And this is the idea of if you have an agent running, there is this loop.</span></div><div class="tline" data-t="417"><span class="ts">6:57</span><span class="tx">That code that actually is doing the loop has to run somewhere. It has to be on a physical machine running. It might be in the cloud, it might be in your desktop.</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">It, it could be in, in many locations. That agent loop is going to be interacting with the user in some manner. Maybe you're doing it from the command line, maybe you have a web app, um, maybe it's interacting through some sort of third-party communication channel like Slack.</span></div><div class="tline" data-t="442"><span class="ts">7:22</span><span class="tx">Most of the frameworks today to support things like human-in-the-loop require that that agent loop be running continuously, even if it's waiting for something, like waiting for a human response from Slack, it requires, they require this, this agent loop to, to persist.</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">And this is something that we wanted to address in our agent continuations work. That is, we wanted to develop a mechanism that would re- would allow us to fully shut down the agent loop, or multiple agent loops in some cases, and then restart them at a later point, say, when the human has provided their approval.</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">So what are agent continuations? So first off, agent continuations are inspired from the programming language theory concept of continuations. This is a long-standing concept in programming languages in which you can, at any point in time during program execution, you can say, &quot;Hey, I want to stop the program execution at this</span></div><div class="tline" data-t="513"><span class="ts">8:33</span><span class="tx">particular point,&quot; and sort of bundle that up so that I could resume or continue the execution from that point going forward at some later time. In effect, what that lets you do is it lets you take a snapshot of the program's execution so far so that later it could be continued.</span></div><div class="tline" data-t="537"><span class="ts">8:57</span><span class="tx">Um, it's a powerful me- mechanism that doesn't exist in, in all programming languages, um, because it requires fairly sophisticated runtime support.</span></div><div class="tline" data-t="548"><span class="ts">9:08</span><span class="tx">But this mechanism, this language continuations mechanism, was the inspiration for what we're calling agent continuations, in which we want to do the same thing. We want to be able to say at some point during agent ex-execution, which again might be through multiple tool calls, multiple LLM calls, and maybe even calls to sub-agents and their tool calls and</span></div><div class="tline" data-t="571"><span class="ts">9:31</span><span class="tx">LLM calls. At any point in time, we want to be able to say, &quot;Let me pause what the agent is doing. Let me be able to save that state, and then return it back, say, to the application layer so it can, for example, process a human approval, or perhaps persist the state of the agent at that moment</span></div><div class="tline" data-t="592"><span class="ts">9:52</span><span class="tx">in time to be resumed later.&quot; So now let's go into the details of agent continuations. First, let's make some observations about why this may even be possible. The way we work with LLMs and agents today is we maintain the messages array.</span></div><div class="tline" data-t="609"><span class="ts">10:09</span><span class="tx">The messages array is really almost a log of all the interactions that you've had with the agent or with the LLMs. The... And if you, if you look at it, right, it records a history which is actually replayed back to the LLM to make its next inference.</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">And so in a sense, uh, agent interactions with LLMs are already doing a lot of the bookkeeping to keep track of everything that's been done so far so that that past history can be sent back to the LLM for the next action, say, for the next tool call response or the next decision that the</span></div><div class="tline" data-t="654"><span class="ts">10:54</span><span class="tx">LLM has made. So one of our, one of the key insights is that we're building on top of this or this messages array, which already is saving quite a bit of the state of the agent.</span></div><div class="tline" data-t="667"><span class="ts">11:07</span><span class="tx">Now, it's not quite enough, but it's pretty close. Before we get into the details of how agent continuations are implemented, let's look at how you use the prototype framework.</span></div><div class="tline" data-t="682"><span class="ts">11:22</span><span class="tx">First, I'm gonna show you how to use the framework like other agent frameworks, that is without continuation support, and this should look pretty familiar.</span></div><div class="tline" data-t="694"><span class="ts">11:34</span><span class="tx">We have tools, and we use a decorator</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">to indicate that these Python functions are tools. Uh, and then when we go to create the agent, right, we just send the tool list to the agent so the agent knows to use those tools in processing a user request.</span></div><div class="tline" data-t="714"><span class="ts">11:54</span><span class="tx">Now, one thing I'm not showing you here for brevity is you can also include instructions or a system prompt to the agent. Now, once you've instantiated your agent, then you can make a request and give a user prompt And the agent will go off and do its LLM request and its tool calling, and eventually come back with</span></div><div class="tline" data-t="733"><span class="ts">12:13</span><span class="tx">a response. Let's look at our continuation extension to this standard approach. There's only a couple of differences. So now let's look at using the framework with continuation support.</span></div><div class="tline" data-t="750"><span class="ts">12:30</span><span class="tx">And you'll notice there's only a couple of differences. Let me point those out.</span></div><div class="tline" data-t="755"><span class="ts">12:35</span><span class="tx">First off, now with continuations, we can designate a tool as needing approval. So here we've said that this tool will need approval. In addition, instead of creating an agent from the agent class, we're gonna use the continuation agent class.</span></div><div class="tline" data-t="777"><span class="ts">12:57</span><span class="tx">And other than that, it's pretty identical to the standard agent usage. Now, in terms of execution, it's a little bit different. The response</span></div><div class="tline" data-t="788"><span class="ts">13:08</span><span class="tx">may be the complete response of the agent if the agent was able to complete its task. But if the agent for some reason needs to suspend,</span></div><div class="tline" data-t="799"><span class="ts">13:19</span><span class="tx">then the response will be a continuation object.</span></div><div class="tline" data-t="803"><span class="ts">13:23</span><span class="tx">This continuagent, uh, continuation object has metadata that can be inspected so that you can understand the reason for suspension. In this example here, we're assuming that because we know we built the agent with the tool call that needed approval, that that continuation object is going to need a human approval response, which could be</span></div><div class="tline" data-t="828"><span class="ts">13:48</span><span class="tx">true or false, depending on what the human ultimately decides. But let's say in this case that we decide to approve this tool call request. So we update the continuation object appropriately with the positive human approval, and then you can send the continuation back to the agent using the same request method.</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">And the agent will know, because this is a continuation object, that it needs to resume from the place that it suspended in the first place. That is, in this case, just before the tool call so that we can get the human approval.</span></div><div class="tline" data-t="870"><span class="ts">14:30</span><span class="tx">Then the agent can continue to completion and get the final response. So let's go into a little more detail about the implementation.</span></div><div class="tline" data-t="883"><span class="ts">14:43</span><span class="tx">So with continuations, the forward processing of the agent remains the same. You're gonna do LLM calls. The LLMs are going to come back with a tool call request. We'll perform the tool call request as long as they don't necessarily need human approval.</span></div><div class="tline" data-t="904"><span class="ts">15:04</span><span class="tx">Uh, but if the human approval o- isn't needed, it's standard agent processing.</span></div><div class="tline" data-t="910"><span class="ts">15:10</span><span class="tx">If we get to a point where we determine that we need to suspend, like for human approval, or if we've reached some other suspension condition, that's when we create the continuation object.</span></div><div class="tline" data-t="921"><span class="ts">15:21</span><span class="tx">The continuation object embeds the standard messages array with some additional metadata. That metadata provides the continuation enough information of how to resume when we want to send the continuation back to the agent.</span></div><div class="tline" data-t="937"><span class="ts">15:37</span><span class="tx">Ultimately, this continuation object will be sent back to the top level agent, which we do some final</span></div><div class="tline" data-t="946"><span class="ts">15:46</span><span class="tx">processing of to make the application layer, to make it easier for the application layer to understand why the continuation was suspended, and also to allow it to provide human approval updates if required.</span></div><div class="tline" data-t="964"><span class="ts">16:04</span><span class="tx">So essentially what we do is we take this fairly potentially complicated nested continuation object and extract the core information that the application layer needs to act on to make it easy for that application layer to make those approvals.</span></div><div class="tline" data-t="983"><span class="ts">16:23</span><span class="tx">Then once the application layer has updated the continuation object, we send it back to the agent. The agent knows that it's a continuation and has the logic in order to reconstruct the agent back to its state so that we can continue the execution.</span></div><div class="tline" data-t="1004"><span class="ts">16:44</span><span class="tx">Now, one really important point of all this is that</span></div><div class="tline" data-t="1009"><span class="ts">16:49</span><span class="tx">once you've suspended the agent and you've created the continuation object, you actually don't need to keep any of the agent loops running in your system. That is, they can be shut down because we've captured enough information to restart everything back to where it was, and this is a really powerful aspect of agent continuation.</span></div><div class="tline" data-t="1034"><span class="ts">17:14</span><span class="tx">So going into a little bit of the detail just to get a sense of what this continuation object actually looks like. I've sh- I'm showing two versions. First is a single level continuation.</span></div><div class="tline" data-t="1049"><span class="ts">17:29</span><span class="tx">Uh, you can see that we've wrapped it. We have the top level continuation, the messages array, which is the normal messages array, and the two other pieces of metadata are this resume request, which indicates exactly which tool call, for example, we need to resume at.</span></div><div class="tline" data-t="1069"><span class="ts">17:49</span><span class="tx">And also processed is going to be populated with whether we approved or, say, disapproved in the case of human approval. And I mentioned that before the continuation is returned is that we extract to the top level of this object the metadata that allows the application layer to easily update the continuation, um, pr- So that it can</span></div><div class="tline" data-t="1094"><span class="ts">18:14</span><span class="tx">proceed after we send it back to the agent. On the right, a slightly more complicated continuation object in which we have an agent that calls a sub-agent, and the main point here is that our format is recursive, and it can handle arbitrary layers of nesting.</span></div><div class="tline" data-t="1112"><span class="ts">18:32</span><span class="tx">And you can see that here in the fact that we have a resume request that now has its own continuations object with its own messages, and that's the messages of the sub-agent, and its own resume request and processed.</span></div><div class="tline" data-t="1126"><span class="ts">18:46</span><span class="tx">So let's look at a full example. Here we have a multi-level HR agent. And so the top-level agent has an email tool, and it has access to a sub-agent, the account agent tool, which is responsible for creating an account and setting account privileges.</span></div><div class="tline" data-t="1147"><span class="ts">19:07</span><span class="tx">I have a abbreviated system prompt up here, and we construct our continuation agent for the HR agent here. Now let's take a look at the account agent for a moment.</span></div><div class="tline" data-t="1159"><span class="ts">19:19</span><span class="tx">It's its own agent with its own tools, create account, and authorize account. In this case here, authorize account needs approval. But you can see it uses the same basic setup.</span></div><div class="tline" data-t="1171"><span class="ts">19:31</span><span class="tx">Uh, we give it its system prompt up here and its tools. And this sub-agent is going to be used by the top-level HR agent.</span></div><div class="tline" data-t="1183"><span class="ts">19:43</span><span class="tx">Here I have an example prompt to create a new account, and that prompt will be sent to the agent to be processed. Now, in this example here, it's set up, right, such that eventually the account agent sub-agent will need human approval for the authorize account tool, which will cause the agent to suspend,</span></div><div class="tline" data-t="1208"><span class="ts">20:08</span><span class="tx">create a continuation, return that back to the application lay-layer for processing. Here is an illustrated diagram of the steps that I mentioned. In this diagram, we have the application layer that's interacting with the user.</span></div><div class="tline" data-t="1224"><span class="ts">20:24</span><span class="tx">We have our HR agent and its tool call send mail, and then it's using the account agent as a tool, and that account agent has its create account tool and its authorize account tool.</span></div><div class="tline" data-t="1241"><span class="ts">20:41</span><span class="tx">Now, in the scenario I just described, we'll get down to the point where</span></div><div class="tline" data-t="1247"><span class="ts">20:47</span><span class="tx">we know we need approval for authorize account. So that's the point at which we need to suspend and start creating or building up our continuation object. And that's what happens here.</span></div><div class="tline" data-t="1263"><span class="ts">21:03</span><span class="tx">So the approval propagates a continuation object, object that gets expanded at each level as it's propagating back to the application layer until finally we have the full continuation object for the application to inspect and then act on.</span></div><div class="tline" data-t="1280"><span class="ts">21:20</span><span class="tx">Now, once the application layer has done that, then that continuation object can be sent back into the HR agent, and the framework will know that we need to restore the agent state and the sub-agent state back to where it was when we needed the approval in the first place,</span></div><div class="tline" data-t="1300"><span class="ts">21:40</span><span class="tx">and that will be handled all by the framework. So let's do a quick demo.</span></div><div class="tline" data-t="1306"><span class="ts">21:46</span><span class="tx">So let's look at our prompt. So we have the prompt here as a JSON, and</span></div><div class="tline" data-t="1316"><span class="ts">21:56</span><span class="tx">I'm going to run this prompt here. So I'm just giving that prompt as the first prompt to the agent starting off, and I'm going to send this out to</span></div><div class="tline" data-t="1336"><span class="ts">22:16</span><span class="tx">a response file. And the whole point of this is to show that these things are fully decoupled and that these objects contain all of the state that we need.</span></div><div class="tline" data-t="1345"><span class="ts">22:25</span><span class="tx">So let's look at the response object, and this has the things that you could imagine. There's the continuation, there's the top-level messages, and if you go down, right, here is the sub-agent messages with its system prompt.</span></div><div class="tline" data-t="1364"><span class="ts">22:44</span><span class="tx">And finally, if we go down to the bottom of this object, this is that top level approval object that the application layer can then present to the user and then update.</span></div><div class="tline" data-t="1377"><span class="ts">22:57</span><span class="tx">So here I'm just doing it manually. Obviously, you would do this in application code. So I'm gonna save that, and now what I'm gonna do is I'm gonna send that edited response back to the agent.</span></div><div class="tline" data-t="1391"><span class="ts">23:11</span><span class="tx">And the point of this is that now the agent will reconstruct its state, but with the information that the tool has been approved so that the agent can continue processing.</span></div><div class="tline" data-t="1406"><span class="ts">23:26</span><span class="tx">And there you go. If you look here, right, we-- agent has indicated that the account has been successfully created, uh, and that a security level has been granted, and that we now have the end reason of completed.</span></div><div class="tline" data-t="1425"><span class="ts">23:45</span><span class="tx">The other thing I'll note in this output here is that</span></div><div class="tline" data-t="1430"><span class="ts">23:50</span><span class="tx">everything above now is normal, a normal messages array. That is, uh, there's no sign of continuation in the final result object.</span></div><div class="tline" data-t="1443"><span class="ts">24:03</span><span class="tx">The continuation is just introduced when we need to suspend. Okay. So let me go over just a few details, um-</span></div><div class="tline" data-t="1453"><span class="ts">24:13</span><span class="tx">Our prototype is built up on top of the OpenAI Python API. There's no other dependencies. We have the prototype implementation. Here's the link that you can go to on GitHub, and it should be in the channel notes as well.</span></div><div class="tline" data-t="1466"><span class="ts">24:26</span><span class="tx">Where do we want to take this? We've already implemented a version with more general agent suspension that is beyond just human approval, is that setting up arbitrary suspension points like after a certain amount of time, a certain number of turns, even asynchronous requests for suspension.</span></div><div class="tline" data-t="1485"><span class="ts">24:45</span><span class="tx">And what we're looking at is not just, not necessarily developing, uh, this prototype into a full separate agent framework, um, because there's lots of good frameworks out there, but rather looking at ways to extend existing frameworks, something like Strands or Pydantic AI.</span></div><div class="tline" data-t="1502"><span class="ts">25:02</span><span class="tx">Now, I should also mention that, um, we're not the first framework to consider state management. Some of the other frameworks do have forms of state management. However, uh,</span></div><div class="tline" data-t="1516"><span class="ts">25:16</span><span class="tx">in our investigation of the state management, they either sort of lack the human approval element or the, um, the sophistication of having arbitrary depths of nesting into sub-agents.</span></div><div class="tline" data-t="1533"><span class="ts">25:33</span><span class="tx">And so we think our approach is novel in the sense that it combines both those, both a human approval mechanism and also this arbitrary nesting, uh, of complex agent.</span></div><div class="tline" data-t="1548"><span class="ts">25:48</span><span class="tx">This work came out of the Agent Creator team at SnapLogic. Agent Creator is SnapLogic's visual agent building interface and platform. Not only did we build it out in Python, but we built it out in Agent Creator itself, and you can see here that we allow our users to create sophisticated agents using a more visual approach, and you</span></div><div class="tline" data-t="1571"><span class="ts">26:11</span><span class="tx">can also visualize in the platform agent execution. We prototyped continuations in the SnapLogic Agent Creator environment as well. Uh, so we, we did it both at the Python layer, and we also did it at our higher level, uh, layer in, in the SnapLogic platform.</span></div><div class="tline" data-t="1593"><span class="ts">26:33</span><span class="tx">In conclusion, Agent Continuations are a new mechanism for managing agent state and human-in-the-loop processing. We have a prototype implementation that you can access on GitHub from the link on this page.</span></div><div class="tline" data-t="1609"><span class="ts">26:49</span><span class="tx">And if you want to learn more about building agents visually with SnapLogic Agent Creator, go to agentcreator.com. [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>高性能机器人系统面临的挑战 | AI 工程师中文版</title>
+<meta name="description" content="一个通过 CAN 总线连接的简单机器人揭示了总线延迟、过时的传感器输入、日志记录和调度，如何把正确的策略输出变成不稳定的动作。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>高性能机器人系统面临的挑战</h1>
+    <div class="orig-title">Challenges in High Performance Robotics Systems</div>
+    <div class="meta"><span class="speaker">Rishabh Garg</span> · AI Engineer World's Fair 2025 · 12:43</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=robotics">机器人</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=computer-use">计算机操作</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/bCGbuyv8PMk-challenges-in-high-performance-robotics-systems" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="bCGbuyv8PMk"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=bCGbuyv8PMk" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">在控制器与线缆之间</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="15"><span class="ts">0:15</span><span>在控制器与线缆之间</span></li><li data-t="83"><span class="ts">1:23</span><span>消失的那一毫秒</span></li><li data-t="200"><span class="ts">3:20</span><span>让通信与计算重叠</span></li><li data-t="272"><span class="ts">4:32</span><span>观察实际到达总线的是什么</span></li><li data-t="417"><span class="ts">6:57</span><span>一个迟到的策略结果变成一次突发</span></li><li data-t="480"><span class="ts">8:00</span><span>常规命令仍可能使用过时的输入</span></li><li data-t="566"><span class="ts">9:26</span><span>日志记录成为时序问题的一部分</span></li><li data-t="670"><span class="ts">11:10</span><span>让整个接收路径跑完</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 14 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Why this talk?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why this talk?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>When a motor does not move, the cause could lie in the policy or the software system. The talk examines how to diagnose failures across a robot’s interacting components.
+
+[1:02](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=62s) [Slide describes interacting robotics systems and critical data flow, then asks how to identify the root cause of unexplained behavior.](https://assets.ai.engineer/sites/aiecode2025/sha256/3d1ed5d3bbfe7ec9eb182424637867aede7c942361de0b20c8f80acccc8b1aa7.webp)
+
+Why this talk?
+
+- Robots are complex systems.
+- Mechanical, Electrical, and Software systems must work together
+- Data flow between sensors, actuators, and computers is critical.
+- Big Question:
+
+How to Root Cause
+unexplained behavior?
+
+Event branding: AIE; Microsoft; smol ai
+
+[1:07](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=67s) [The slide describes robot system complexity and asks how to find the root cause of unexplained behavior.](https://assets.ai.engineer/sites/aiecode2025/sha256/6190dbc065884fd727795628f4ab9ce739d113c54abbd486d61283c2d49776b4.webp)
+
+Why this talk?
+
+- Robots are complex systems.
+- Mechanical, Electrical, and Software systems must work together
+- Data flow between sensors, actuators, and computers is critical.
+- Big Question:
+
+How to Root Cause
+unexplained behavior?
+
+Event branding: AIE; Microsoft; smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Part 1: Buildup" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Part 1: Buildup</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The buildup starts with a small toy robot architecture for examining how to diagnose robot issues.
+
+[1:17](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=77s) [Section divider reading Part 1, Buildup.](https://assets.ai.engineer/sites/aiecode2025/sha256/cc96a35b409b9d6a113ede5131802c2a0f5f10f345d238572b78557f4d79d464.webp)
+
+Part 1
+Buildup
+
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="General Architecture" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>General Architecture</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A toy robot architecture connects two sensors to a CPU, with a GPU alongside it and two actuators below.
+
+[1:23](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=83s) [A robot diagram connects two sensors through CPU and GPU hardware to two motors.](https://assets.ai.engineer/sites/aiecode2025/sha256/3f441f248b38c2f67c57276e3fb17148f1d7665d06a49bf0fe073fb48ae64dd5.webp)
+
+General Architecture
+
+Sensor 1
+Sensor 2
+
+CPU
+GPU
+
+Interface text:
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="General Architecture" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>General Architecture</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The toy robot architecture places a CPU and GPU between sensors and actuators, using CAN buses for communication.
+
+[1:38](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=98s) [A robot architecture diagram shows CAN communication between sensors, computing hardware, and motors.](https://assets.ai.engineer/sites/aiecode2025/sha256/64dbb5c354c7cdb0b7da8b57db151bd131692b98ec967b7b2ce1faa90f671b12.webp)
+
+General Architecture
+
+Sensor 1
+Sensor 2
+CAN
+CPU
+GPU
+CAN
+
+Interface text: AIE, aws
+
+[1:43](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=103s) [Robot architecture with sensors, CPU, GPU and actuators connected through CAN buses.](https://assets.ai.engineer/sites/aiecode2025/sha256/cca6d2a9e1b336d8ff92f6945081429d79c9bba8ec308bb5499a914f659ab455.webp)
+
+General Architecture
+
+Sensor 1
+Sensor 2
+CAN
+CPU
+GPU
+CAN
+
+Interface text: AIE, Microsoft, smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Let's start simple" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Let's start simple</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A simple control loop receives CAN data, runs a policy, and sends the outputs. The example assumes the policy takes approximately two milliseconds.
+
+[1:56](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=116s) [A loop receives CAN data, runs a policy in approximately two milliseconds, and sends the outputs.](https://assets.ai.engineer/sites/aiecode2025/sha256/5c36b3f3bb02e7192aa686ab6240ae73718f3c18b85ab404d3977971b9f9a9ca.webp)
+
+Let's start simple
+
+loop {
+    let inputs = recv_can_data( ... );
+    // ...
+    let outputs = policy.forward(inputs); // approx two milliseconds
+    // ...
+    send_can_data(outputs);
+}
+
+Interface text:
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Expectation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Expectation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>With a policy taking approximately two milliseconds, the expected control loop runs continuously, producing an output every two milliseconds.
+
+[2:13](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=133s) [A timeline shows consecutive control-loop blocks with no gaps.](https://assets.ai.engineer/sites/aiecode2025/sha256/187b0e05b09b4dda5741f2f20834ab84068ad26431f768f424379d519b3a5a93.webp)
+
+Expectation
+
+Loop  Loop  Loop  Loop  Loop
+Timeline: 0  2  4  8  10  12
+milliseconds
+
+Interface text: AIE  Microsoft  smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Reality" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reality</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>On the robot, gaps appear between loop runs. The policy takes approximately two milliseconds, while the time spent receiving and sending CAN data is unknown.
+
+[2:24](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=144s) [A timeline shows gaps between loop blocks; the code marks CAN receive and send durations as unknown.](https://assets.ai.engineer/sites/aiecode2025/sha256/b8b31165e631f3de3a562b2471db426a683e0fe7963e446581c2fd490d67de35.webp)
+
+Reality
+
+Loop    Loop    Loop    Loop
+Timeline (milliseconds): 0 1 2 3 4 5 8 9 10 11 12 13
+
+loop {
+    let inputs = recv_can_data( ... ); // ???
+    // ...
+    let outputs = policy.forward(inputs); // approx two milliseconds
+    // ...
+    send_can_data(outputs); // ???
+}
+
+Interface text: AIE; Microsoft; smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Math in System Software" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Math in System Software</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At 1 Megabit per second, ten 100-bit CAN messages—five sent and five received—take 1 ms. The speaker uses that transmission time to explain the observed loop gap.
+
+[2:41](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=161s) [At one megabit per second, a 100-bit message takes 0.1 milliseconds; ten messages take one millisecond.](https://assets.ai.engineer/sites/aiecode2025/sha256/4584dcc32d72ec80b797e4321371e8da0ffeb90898ad4dce13b19781aeaa3047.webp)
+
+Math in System Software
+
+Assume every message is 100 bits and our CAN bus operates at 1 Megabit per second.
+
+For each message, it takes
+
+100 / 10⁶ s = 0.1ms
+
+seconds. If we send 5 messages and receive 5 messages we get
+
+0.1 ms × 10 = 1 ms
+
+AIE
+aws
+
+[2:49](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=169s) [CAN bus timing calculation: ten 100-bit messages at 1 megabit per second take 1 millisecond.](https://assets.ai.engineer/sites/aiecode2025/sha256/a4cec3f0624c9ce14e0bf18e5c9304be7723302454c611ef08734156fa9a0893.webp)
+
+Math in System Software
+
+Assume every message is 100 bits and our CAN bus operates at 1 Megabit per second.
+
+For each message, it takes
+
+100 / 10⁶ s = 0.1ms
+
+seconds. If we send 5 messages and receive 5 messages we get
+
+0.1 ms × 10 = 1 ms
+
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="What to do about it" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What to do about it</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The proposed design puts communication and policy execution on separate threads, then pipelines them to target a 2 ms loop instead of simply accepting the transmission delay.
+
+[3:25](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=205s) [A code loop that accepts transmission delay sits beside a diagram separating policy execution and communication into two threads.](https://assets.ai.engineer/sites/aiecode2025/sha256/7d681666ab32b23da5b4b579d1c4aae7057fc9465f0bd2d3c0f783392f533a47.webp)
+
+What to do about it
+
+Bake in the transmission delay in the loop time and accept the delay
+
+loop {
+    let inputs = recv_can_data( ... );
+    // ...
+    let outputs = policy.forward(inputs);
+    // ...
+    send_can_data(outputs);
+    sleep_milliseconds(1);
+}
+
+Multithread and pipeline!
+
+Have one thread do communication, one thread run the policy.
+
+Loop
+Thread 1: Policy
+Thread 2: RX, TX
+
+Interface text:
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="New Design" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>New Design</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each policy run overlaps receipt of the next input. At the next iteration, the system transmits the previous policy’s output while running the policy again.
+
+[3:59](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=239s) [Timeline showing policy execution with staggered receive and transmit operations over six milliseconds.](https://assets.ai.engineer/sites/aiecode2025/sha256/521b1278565637d3b2d124b46e6dfca97863989726fd3ea82bdd54b70152a65f.webp)
+
+New Design
+
+Policy | Policy | Policy
+RX | RX TX | RX TX | RX TX
+Timeline: 0 1 2 3 4 5 6 milliseconds
+
+Interface text: AIE; Microsoft; smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="New Issues" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>New Issues</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After deployment on the robot, the system stutters intermittently and the motors ramp up as if trying to catch up. The cause is still under investigation.
+
+[4:33](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=273s) [Slide lists intermittent system stuttering and motors sounding as though they are catching up.](https://assets.ai.engineer/sites/aiecode2025/sha256/f08d2d9084ad94dff49d2be6ed25cbed68cfb95e724bd537d68008194445573d.webp)
+
+New Issues
+
+We have improved the runtime, but now
+
+1. Our system is &quot;stuttering&quot; intermittently.
+2. Sound of motors ramping up abnormally, trying to &quot;catch up&quot;
+
+Where could the issue be?
+
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="More Data" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>More Data</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An external transceiver collects CAN bus data for a host computer, where candump records which messages appeared and when.
+
+[4:48](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=288s) [Diagram of sensors, processors, motors and CAN buses, with an external transceiver; text lists external transceivers and candump for collecting data.](https://assets.ai.engineer/sites/aiecode2025/sha256/35b4f63f386c5cc2870a49f9fd793ba261ffba075234dea641afb2a94069d2db.webp)
+
+More Data
+
+We can collect can data using
+1. External Transceivers
+2. candump
+
+Sensor 1
+Sensor 2
+CAN
+CPU
+GPU
+External Transceiver
+CAN
+
+Interface text:
+AIE
+AI Engineer World's Fair</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Expected Plot" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Expected Plot</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The expected CAN bus plot shows ten messages evenly spaced at two-millisecond intervals, from 0 to 18 milliseconds.
+
+[5:23](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=323s) [Messages appear at two-millisecond intervals from 0 to 18 milliseconds.](https://assets.ai.engineer/sites/aiecode2025/sha256/175a1b8c280122feaee642273f1a8f9c5c029aeeac368bc34ae5ef648da2b8d7.webp)
+
+Expected Plot
+
+Messages over time
+
+Y-axis: Message ID
+Y-axis ticks: 0, 1, 2, 3, 4
+X-axis: Time (milliseconds)
+X-axis ticks: 0, 2, 4, 6, 8, 10, 12, 14, 16, 18
+Point labels: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+
+AIE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Actual Plot" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Actual Plot</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Messages 3 and 7 follow four-millisecond gaps, then arrive almost alongside messages 4 and 8. The speaker says this jitter can leave an actuator trying to follow two commands at once.
+
+[5:41](https://www.youtube.com/watch?v=bCGbuyv8PMk&amp;t=341s) [Messages 3 and 4 and messages 7 and 8 appear close together after longer gaps.](https://assets.ai.engineer/sites/aiecode2025/sha256/918ffab7dd8171f0f8ff17fcfea37102ffe4448a41857c803d8729ec58577123.webp)
+
+Actual Plot
+
+Messages over time
+
+Y-axis: Message ID
+Y-axis ticks: 0, 1, 2, 3, 4
+X-axis: Time (milliseconds)
+X-axis ticks: 2, 4, 6, 8, 10, 12, 14, 16, 18
+Point labels: 1, 2, 3, 4, 5, 6, 7, 8, 9
+
+Interface text:
+AIE
+World's Fair</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">在控制器与线缆之间</a></li><li><a href="#sec-2">消失的那一毫秒</a></li><li><a href="#sec-3">让通信与计算重叠</a></li><li><a href="#sec-4">观察实际到达总线的是什么</a></li><li><a href="#sec-5">一个迟到的策略结果变成一次突发</a></li><li><a href="#sec-6">常规命令仍可能使用过时的输入</a></li><li><a href="#sec-7">日志记录成为时序问题的一部分</a></li><li><a href="#sec-8">让整个接收路径跑完</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">高性能机器人系统面临的挑战</h2>
+      <div class="lede"><p>一个通过 CAN 总线连接的简单机器人揭示了总线延迟、过时的传感器输入、日志记录和调度，如何把正确的策略输出变成不稳定的动作。</p><p>对控制循环、线程和从传感器到执行器的数据流有基本了解会有帮助；不需要 CAN 经验。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="15">▶ 0:15</button></div>
+      <h3>在控制器与线缆之间</h3>
+      <p>A robot’s motor does not move. Did the policy fail to produce a command, or did the software fail to deliver it? A controller depends on two journeys: sensor data must reach the policy, and the resulting commands must reach the actuators. A failure anywhere along those paths can look like a bad policy.</p>
+<p>Rishabh Garg builds a small toy robot around this diagnostic problem. The question is not simply whether the policy computes the right answer, but whether the surrounding system supplies the right input and delivers the answer when the motor needs it. That distinction becomes increasingly important as mechanical, electrical and software components interact.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/9c446f7a6ace4a2675994a19bdb0cdf247043e3038e3e0ad3c62872e04536dc7" alt="Slide listing robot complexity, coordination of mechanical, electrical and software systems, and critical data flow, followed by “How to Root Cause unexplained behavior?”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Why this talk? Finding the root cause of unexplained robot behavior.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="83">▶ 1:23</button></div>
+      <h3>消失的那一毫秒</h3>
+      <p>The toy architecture contains actuators, a CPU, an optional hardware accelerator and a sensor. Garg chooses <strong>CAN</strong> for communication because it is affordable, compatible with many components and fast enough for the example. His description of CAN as open source is best understood as enthusiasm for its accessible ecosystem; the protocol and particular open-source implementations are distinct.</p>
+<p>The initial control loop is sequential: receive data, run the policy, transmit its output. With approximately 2 ms allocated to policy execution, it is tempting to expect a new output every 2 ms. Deployment introduces an extra gap, however. The receive and transmit operations at the edges of the loop also consume time.</p>
+<p>In the toy budget, ten 100-bit messages at 1 Mbit/s require 1 ms of serialization. Five messages go out and five come back:</p>
+<p>``<code>math
+Total bits = 100 bits/message × 10 messages = 1,000 bits
+Time per message = 100 / 1,000,000 seconds = 0.1 ms
+Total bus time = 1,000 / 1,000,000 seconds = 1 ms
+</code>``</p>
+<p>Communication is now on the same order as computation, explaining the additional millisecond. This is a simplified budget: actual <a href="https://www.can-cia.org/can-knowledge/can-cc" target="_blank" rel="noopener">CAN frame structure</a>, stuffing, arbitration, intermission and retries affect bus occupancy. The 100-bit assumption is not a universal frame size.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="200">▶ 3:20</button></div>
+      <h3>让通信与计算重叠</h3>
+      <p>Accepting the communication delay gives an approximately 3 ms sequential loop; the proposed pipeline instead targets a 2 ms iteration cadence. The bus work does not disappear. The design changes when that work happens, separating transmission (<code>TX</code>), reception (<code>RX</code>) and policy execution, with communication running on a different thread from the policy.</p>
+<p>The staggered schedule proceeds as follows:</p>
+<p>1. Receive initial sensor data to seed the first policy iteration.
+2. While that policy executes, begin receiving the data intended for the next iteration.
+3. At the next iteration, transmit the previous policy’s output while the next policy computation runs.</p>
+<p><strong>Pipelining recovers cadence by overlapping work.</strong> It does not establish a 2 ms end-to-end sensor-to-actuator latency, and the proposed schedule still depends on tasks completing at the intended boundaries.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/5d166090095a2088d527798c9dda7ffc40ffb33e2489a0b5fe40c356e1eb84b3" alt="New Design timeline with three consecutive Policy blocks, yellow RX blocks and blue TX blocks arranged around their boundaries, above a milliseconds axis." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The new design overlaps RX and TX with successive policy executions.</figcaption></figure>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="272">▶ 4:32</button></div>
+      <h3>观察实际到达总线的是什么</h3>
+      <p>After deployment, the actuators stutter, make catching-up sounds or move strangely. Again, the policy looks suspicious. Before changing it, inspect the commands that actually reach the wire. Attach an external CAN transceiver to the bus and connect it to a separate host, such as a laptop. This gives a view of traffic outside the robot’s control process.</p>
+<p>On that host, <a href="https://github.com/linux-can/can-utils" target="_blank" rel="noopener"><code>candump</code> from can-utils</a> can display timestamped CAN traffic. For an already configured interface named <code>can0</code>, a basic capture is:</p>
+<p>``<code>bash
+candump can0
+</code>``</p>
+<p>The measurement’s timestamp source matters. The <a href="https://github.com/linux-can/can-utils/blob/master/candump.c" target="_blank" rel="noopener">current <code>candump</code> options</a> include <code>-H</code> to request hardware rather than system timestamps; Garg does not specify the adapter or timestamp mode used in his example.</p>
+<p>Plot the outgoing command timestamps. The expected spacing is 2 ms. In the illustrated failure, the gap from message two to message three grows to 4 ms, then message four follows message three with almost no gap. Message three is late; message four is on time. The actuator experiences a pause followed by closely spaced commands, producing the apparent catch-up motion. Messages seven and eight repeat the pattern. CAN frames still serialize: almost no gap here means small relative to the intended cadence, not simultaneous transmission.</p>
+<p>A <strong>cycle-time plot</strong> makes this pattern easier to see. For each message, subtract the preceding message’s arrival time:</p>
+<p>``<code>math
+Cycle time[n] = arrival time[n] − arrival time[n − 1]
+</code>``</p>
+<p>Healthy spacing produces a line around 2 ms. A delayed message produces a rise to 4 ms, followed by a near-zero interval when the next on-time message arrives. The pair reveals a missed interval followed by a burst, rather than a uniformly slower stream. With the symptom characterized, the next step is to find which task missed its timing boundary.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="417">▶ 6:57</button></div>
+      <h3>一个迟到的策略结果变成一次突发</h3>
+      <p>Policy execution time can vary. If an iteration runs long, its output misses the scheduled transmission opportunity. In Garg’s illustrated implementation, that result is queued. At the next opportunity, the system sends both the queued result and the current result, placing two commands on the bus in quick succession.</p>
+<p>Desynchronization between communication threads can produce the same symptom. Synchronization is therefore part of the control system’s behavior, not merely an implementation detail. Fixing the transmit schedule improves the motion—but does not necessarily fix everything. Even a clean outgoing timing plot says nothing about whether each command was computed from fresh sensor data.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="480">▶ 8:00</button></div>
+      <h3>常规命令仍可能使用过时的输入</h3>
+      <p>Now delay the receive thread instead. The next policy iteration starts before its new sensor data is available, so it reuses the previous input. In iteration two, the command is therefore based on older data. Iteration three then jumps ahead, skipping an intermediate data-processing step. The motor can again appear to catch up or jitter, even though outgoing messages arrive regularly.</p>
+<p>The system must preserve the pairing between received data and the policy iteration that consumes it. Garg proposes two approaches:</p>
+<p>- <strong>Synchronization primitives:</strong> Use condition variables or semaphores to coordinate task handoffs.
+- <strong>Timing padding:</strong> Where the particular target lacks the needed primitives, leave a cushion so reception can finish before the intended policy iteration consumes its input.</p>
+<p>The second option is conditional on the environment, not a general limitation of real-time operating systems. Garg specifies no padding duration; the purpose is to keep the intended RX data, computation and timely output together.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="566">▶ 9:26</button></div>
+      <h3>日志记录成为时序问题的一部分</h3>
+      <p>Logging received data and policy outputs seems harmless until accumulated logs must be written to storage. If the main control loop performs that write, it can stop controlling the robot while storage catches up. Garg reports a 30 ms robot freeze on a Raspberry Pi using an SD card when logging wrote to storage. The specific board, card and workload are not given.</p>
+<p>His remedy is to assign asynchronous logging to another CPU core, described in the architecture as a third CPU. The design progressively separates work: policy execution, communication and now logging each have different timing needs. Keeping storage work away from the control path protects the deadline the robot is trying to meet.</p>
+<p>A microcontroller can suffer a related failure without a disk or filesystem. Its logs may go directly to a peripheral such as UART, where transmission can take milliseconds depending on the amount logged. A diagnostic message can then create the very error it reports:</p>
+<p>1. A packet is dropped.
+2. The system logs the dropped packet.
+3. Sending that log takes enough time to miss the next packet.
+4. The next drop triggers another log, repeating the cycle.</p>
+<p>The result can be a complete CAN data blackout while diagnostic logs continue. That combination is especially misleading: the system is visibly reporting errors, but reporting them is sustaining the failure. <strong>Observability work must fit within the system’s timing budget too.</strong></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/cbc2cb5353206a5c2fdfe8536eaf302bd1129a8d8bde7d9121ceccf3228d8189" alt="Logging slide describing disk synchronization delays, up to 30 milliseconds on a Raspberry Pi with an SD card, and asynchronous logging on another CPU core. A second panel shows a Message Drop and Log feedback cycle." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Logging delays and the case for asynchronous logging on a different CPU core.</figcaption></figure>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="670">▶ 11:10</button></div>
+      <h3>让整个接收路径跑完</h3>
+      <p>The final failure lies below the application. Received data passes through interrupt handling and kernel work before reaching a user process. Raising the robot application’s priority too aggressively can starve schedulable receive-path work that the application itself needs. The process urgently waiting for data prevents the work that would deliver it.</p>
+<p>Garg calls this priority inversion and describes receive dropouts approaching seconds at a time. More precisely, the example concerns starvation of required receive-path work; it does not mean a user process can block every kind of kernel or interrupt execution. The remedy is to identify the participants in the complete pipeline and assign priorities that let all necessary work progress.</p>
+<p>That brings the toy robot back to its original diagnostic question. Hardware, profiling and software scheduling must be considered together: overlap communication to reduce cycle time, synchronize handoffs to prevent jitter, keep logging from blocking control, and preserve the priorities needed to deliver data. These are foundational design concerns, but they determine whether a carefully constructed policy can actually control a physical robot.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/bf0f2b980d0f85219201579ffb4058b10ff1c0bdabee09291874e58c52852cd7" alt="Recap slide listing pipelining for lower cycle time, synchronization for jitter, logging strategies, and priority to avoid starvation." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Recap: pipelining, synchronization, logging strategies and priority.</figcaption></figure>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/linux-can/can-utils" target="_blank" rel="noopener">can-utils: capture and inspect CAN traffic</a> — Linux CAN utilities including candump for displaying, filtering, and recording traffic, plus tools for replay and bus-load analysis.</li><li><a href="https://docs.kernel.org/networking/can.html" target="_blank" rel="noopener">SocketCAN documentation</a> — Linux CAN networking interfaces, frame reception, filtering, and timestamps.</li><li><a href="https://www.can-cia.org/can-knowledge/can-cc" target="_blank" rel="noopener">Classical CAN frame formats and arbitration</a> — CAN in Automation explains frame structure, arbitration, bit stuffing, inter-frame spacing, and error handling.</li><li><a href="https://cdn.kernel.org/doc/html/latest/core-api/real-time/theory.html" target="_blank" rel="noopener">How PREEMPT_RT scheduling works</a> — Kernel documentation covering real-time scheduling, priority inheritance, and threaded interrupt handlers.</li><li><a href="https://www.freertos.org/media/2018/FreeRTOS_Reference_Manual_V10.0.0.pdf" target="_blank" rel="noopener">FreeRTOS 10.0.0 Reference Manual</a> — Historical reference for embedded task scheduling, binary semaphores, mutexes, and interrupt-to-task synchronization.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Right.</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">Good afternoon, everyone. And really excited to be here today. Really exciting stuff so far. So many models, so many new ideas. And today, I wanna talk about what happens between the controller and the wire.</span></div><div class="tline" data-t="27"><span class="ts">0:27</span><span class="tx">Now, we have seen so many policies that work that control robots, but again, with that, we need to get that data to the actuators. We need to get that data from sensors and feed the whole system.</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">And what happens if your carefully crafted policy does not work as expected? Like, is this issue in the policy, or is it in the software system? So today, we look at a lot of instances where the issue will look like it's the policy, but it's actually the software system.</span></div><div class="tline" data-t="51"><span class="ts">0:51</span><span class="tx">And along the way, we'll try to design a very, uh, small toy robotics robot.</span></div><div class="tline" data-t="56"><span class="ts">0:56</span><span class="tx">So why this talk? Again, well, robots are complex, so many systems, so many different software components, and yet we're focused on, like, one big question. When things go wrong on the robot, when you don't see that motor move, what's the root cause?</span></div><div class="tline" data-t="70"><span class="ts">1:10</span><span class="tx">Is the policy that is not giving the command, or is it the software system? And this is a question that I grapple almost every day, and so I wanna talk about what I've seen so far, and how to diagnose these issues on the robot.</span></div><div class="tline" data-t="83"><span class="ts">1:23</span><span class="tx">So let's go to the buildup. Let's try build a very small, uh, toy robotics general architecture, right? Like, this is what a general robot would look like. You'd have some actuators, a CPU, maybe a hardware accelerator, and then a sensor.</span></div><div class="tline" data-t="94"><span class="ts">1:34</span><span class="tx">Perfect. Now, one of the most critical aspects is the communication protocol. So for our, our talk, we'll use CAN. CAN is great. CAN is open source. Everyone can use CAN.</span></div><div class="tline" data-t="104"><span class="ts">1:44</span><span class="tx">It's cheap, it's affordable, and it has enough data rate and enough compatibility for a lot of components out there. So we'll stick to CAN, and, uh, we'll see how that influence a lot of the design, design decisions down the line.</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">All right. So let's also start simple with the code. We'll start with receiving the data, giving that to the policy, and basically sending it back out. Nothing, nothing happening, nothing fancy, right?</span></div><div class="tline" data-t="128"><span class="ts">2:08</span><span class="tx">And let's assume that we have approximately two milliseconds for our policy, and this is what we should expect to see, right? Our loop's running every two millisecond, we are able to see our policy output.</span></div><div class="tline" data-t="140"><span class="ts">2:20</span><span class="tx">We read data, we send it out. Standard. But as soon as we deployed on the robot, this is what happens. There's a gap. Every two milliseconds, there's a gap.</span></div><div class="tline" data-t="150"><span class="ts">2:30</span><span class="tx">Wait, what's going on? Well, let's look at the loop again. So at the edge of the loop, we have question marks. We see that we are transmitting and receiving CAN data.</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">So let's look at the CAN bus. Maybe we'll find some hints there.</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">Okay, so let's say we have a hundred bits per message, and we have about ten messages, five to be sent out, five to be received. That gives us a total of thousand bits.</span></div><div class="tline" data-t="172"><span class="ts">2:52</span><span class="tx">And for a CAN bus that's operating at one megabit per second, that's about point one milliseconds per message or one milliseconds for ten message. You can see, like, how even a small number of messages are saturating the CAN bus to the point that the s- loop time, the how much our system takes to run, is on the</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">same order as the transmission time. And this explains the one millisecond gap. So great. But then what to do about it? It's like, it's almost unavoidable, right? Like, we cannot go around this one millisecond gap.</span></div><div class="tline" data-t="200"><span class="ts">3:20</span><span class="tx">Well, that's solution number one. You just accept the delay. Hopefully, it's three milliseconds, and that's not too bad. But again, a system would not be high performance if we let that stop us.</span></div><div class="tline" data-t="210"><span class="ts">3:30</span><span class="tx">So we'll multithread, and we'll pipeline. We'll try to figure out how we can work around that one milliseconds, and see how we can sort of organize our tasks differently to still get that two millisecond loop time.</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">So here, we'll take a, take a moment to pause and see that, you know, the loop, it has multiple components broken down into three now: TX, RX, and the policy, and we're running the communication in a different thread and the policy in a different thread.</span></div><div class="tline" data-t="234"><span class="ts">3:54</span><span class="tx">And now we'll see how we'll take this simple building block and stagger it so that we can actually achieve faster loop times.</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">And this is it. So what we do, we seed the policy the first time. We get some data, we feed it to the policy. But before we conclude the policy, we start receiving the next set of data, and that's for the next iteration.</span></div><div class="tline" data-t="253"><span class="ts">4:13</span><span class="tx">When the next iteration starts, we tr- transmit the data from the last policy, and we continue resuming the ne- this iteration of this policy. Essentially, we have parallelized our RX and TX, but we're still receiving data for the same policy at the same cadence.</span></div><div class="tline" data-t="268"><span class="ts">4:28</span><span class="tx">So this is great. We might have solved our problems.</span></div><div class="tline" data-t="272"><span class="ts">4:32</span><span class="tx">Let's move on. So we deployed the system on the robot, and now we see new problems. Our system is stuttering. Our actuators are making j- sounds like catching up or like we are seeing weird motions on the actuator.</span></div><div class="tline" data-t="285"><span class="ts">4:45</span><span class="tx">This has to be policy. There's no way this can be software. Well, let's investigate more. Let's get some more data from the CAN bus.</span></div><div class="tline" data-t="292"><span class="ts">4:52</span><span class="tx">So again, like here, we have our CAN bus again, and we see our CPU, GPU, all our accelerators. And what we'll try to do is get an external transceiver.</span></div><div class="tline" data-t="302"><span class="ts">5:02</span><span class="tx">These are, again, very cheap, very open source products that you can get anywhere, and we connect it to the CAN bus, and we get data off the CAN bus.</span></div><div class="tline" data-t="310"><span class="ts">5:10</span><span class="tx">We take this data, we feed it to another host computer, let's say a laptop, and on there, we can run utilities like candump, which will actually give you a timestamp data of what message was seen at what time.</span></div><div class="tline" data-t="320"><span class="ts">5:20</span><span class="tx">So once we get this raw data off the bus, we can start plotting it. And this is what we should expect, that every two milliseconds, we have a message on the bus that is being sent out.</span></div><div class="tline" data-t="331"><span class="ts">5:31</span><span class="tx">Right? It should be very nicely spaced, and it should reach the actuators in time. And this, if we see this on the bus, we're really happy. Now, what happens a lot of the times in systems is you'll not see this, you'll see something like this.</span></div><div class="tline" data-t="345"><span class="ts">5:45</span><span class="tx">Here, we'll see, like between message number three and four, there's almost no gap. What happened there? And between two and three, there's four milliseconds of gap. It's almost like message number three was just late, and four was on time, and because of that, we had this weird, weird jitter where the actuator would try to catch up or</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">have tried to command, like try to follow two commands at the same time.</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">Okay, same thing happened with seven and eight. So let's take a deeper look, but first let's try plot this differently. So there's this plot called a cycle time plot, and where what we plot here is the time since last message.</span></div><div class="tline" data-t="381"><span class="ts">6:21</span><span class="tx">Time since last message is just a way to say like, &quot;Hey, last message came in at two milliseconds interval. This one should also come at two milliseconds, so we should see a straight line around the two millisecond mark.&quot;</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">But here we see some messages jump at four milliseconds, and the one after that comes to zero. This is expected because if a message is delayed, the cycle time for that would be late.</span></div><div class="tline" data-t="402"><span class="ts">6:42</span><span class="tx">But then for the next one, it would be much closer to zero because that one was not late, and the difference between the last message and the current one is basically nothing.</span></div><div class="tline" data-t="411"><span class="ts">6:51</span><span class="tx">Okay, so now we characterize the system, we know what's going on, and we can start solving it.</span></div><div class="tline" data-t="417"><span class="ts">6:57</span><span class="tx">But this is what's going on with the TX side. So let's see. So we missed sending the data and queued it. Why would that happen? Well, policies are not very real time.</span></div><div class="tline" data-t="427"><span class="ts">7:07</span><span class="tx">At times they can take longer, at times they can take shorter. And what happens if a policy takes longer? Well, you miss the time when you were supposed to send it out.</span></div><div class="tline" data-t="436"><span class="ts">7:16</span><span class="tx">So all you can do is just queue it somewhere, you can store it. But that cannot be sent out anymore. And when the next iteration comes around, that's when you send both the last message and the current message.</span></div><div class="tline" data-t="447"><span class="ts">7:27</span><span class="tx">So you'll see two messages just go on the bus at the same time. And this can also happen if our TX and RX threads start desynchronizing. But this is one of the issues that is very commonly seen with like a multi-threaded system, and it's very important to have, uh, synchronization in the systems.</span></div><div class="tline" data-t="461"><span class="ts">7:41</span><span class="tx">But let's say we do synchronize it, and we are able to fix our TX side. Well, we see some improvement. We don't see that like everything is solved, we see some improvement.</span></div><div class="tline" data-t="473"><span class="ts">7:53</span><span class="tx">Okay, but now this has to be policy. Our graphs are looking fine, everything is on the bus is fine. This has to be policy. There's no way this systems.</span></div><div class="tline" data-t="480"><span class="ts">8:00</span><span class="tx">Well, there's one last, one last issue that we have to check, and that is what happens if we desynchronize in the RX side. What happens if a thread is delayed?</span></div><div class="tline" data-t="490"><span class="ts">8:10</span><span class="tx">Well, now our policy will, will not get the new data and it will work with the last data. And because of that, the output will also be based on the last data.</span></div><div class="tline" data-t="498"><span class="ts">8:18</span><span class="tx">And so in policy number two or iteration number two, we'll actually have an old command still, like, which is relatively older. And in policy number three, we'll directly jump.</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">We'll skip one of the data processings. And because of that, we'll see a sort of skip of catching up behavior on the motors, which will sound like almost like a jitter.</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">Okay, so how do we resolve these two things? Well, there are synchronization primitives. Look, you can with condition variables, semaphores. These are like very low level system things that are widely used in robotics and should be used as well for this toy system.</span></div><div class="tline" data-t="531"><span class="ts">8:51</span><span class="tx">But again, if these are not available, which is sometimes the case, like we're not working with Linux-based system, we'll work with like a real-time OS or like a microcontroller where we may not have all these semaphores, we can just add padding.</span></div><div class="tline" data-t="543"><span class="ts">9:03</span><span class="tx">Just have some cushion, right? Like have some cushion so that if some desynchronization happens, you still have the same RX going into the right policy and coming out the other way in like, in a timely manner.</span></div><div class="tline" data-t="553"><span class="ts">9:13</span><span class="tx">We don't miss messages. Okay, perfect. So this, this, this makes our system fairly robust, fairly high-performing, but there are a few other relative problems which will happen with a system like this, which we should also talk about.</span></div><div class="tline" data-t="566"><span class="ts">9:26</span><span class="tx">So let's talk about logging. Logging is benign, right? We just log that, hey, that message is coming in. We wanna just log that this is the data that we got, this is the output.</span></div><div class="tline" data-t="575"><span class="ts">9:35</span><span class="tx">It's fine, right? But if we log too much, at some point, we have to send those logs to disk, and that is very costly. Imagine what happens if your main control loop starts logging and decides just one day that, &quot;Hey, I'm done.</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">I'll just start putting this on the, on the hard disk.&quot; Well, your robot would stay frozen for thirty milliseconds, as we saw on the Raspberry Pi with an SD card.</span></div><div class="tline" data-t="595"><span class="ts">9:55</span><span class="tx">So, well, that's bad. How do we fix that? Well, we just throw more CPU at it. We just add another CPU, and now all our logging is handled by that third CPU.</span></div><div class="tline" data-t="604"><span class="ts">10:04</span><span class="tx">Cool. Okay, so now we have like-- we're seeing how multi-threaded is slowly getting baked into the system, how the robot is operating in a real-time deadline guarantee, and how we are able to, like, avoid the pitfalls.</span></div><div class="tline" data-t="615"><span class="ts">10:15</span><span class="tx">Perfect. Let's talk about something a little more low level again, like microcontrollers. Microcontrollers are fairly simple, and their logging doesn't actually go through a whole disk and file system way.</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">They just log to some other peripheral. That takes time. In fact, for UART, it can be on the order of millisecond, depending on how much we are logging. So here's an interesting problem.</span></div><div class="tline" data-t="636"><span class="ts">10:36</span><span class="tx">Let's say we drop a me- packet and we log that, hey, we dropped a packet. Well, that log itself would take enough time that will drop the next packet, and then you will keep drop-- Because you drop the next packet, you log again.</span></div><div class="tline" data-t="648"><span class="ts">10:48</span><span class="tx">And so basically, just keep logging, and you see a complete blackout on the CAN bus. And it's very hard to debug, like, why am I getting logs and seeing packet drops but no data?</span></div><div class="tline" data-t="657"><span class="ts">10:57</span><span class="tx">So these are mysterious things that, and in my experience, like it's really good to, like, know about the pitfalls beforehand before we dive in the system and really figure out that, hey, this can also be a problem, just a log statement.</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">Finally, there's also priority inversion. So in the kernel, in the Linux kernel, there are ways in which data is received by the user process. It's not direct, like it takes a while between the interrupt, the kernel process handling, and then it goes to the user process.</span></div><div class="tline" data-t="683"><span class="ts">11:23</span><span class="tx">In robotics, we tend to just boost the priority of all our processes so high that we start just blocking the kernel almost. Like if the kernel doesn't run, we won't get the data, but we're trying to get the data, and we're blocking the very thing that will give us the data.</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">Well, this is inversion in action, and it will see your system again drop out for like seconds almost at a time.</span></div><div class="tline" data-t="704"><span class="ts">11:44</span><span class="tx">So again, this is something we, we fix by just making sure we know the parts of the pipeline, we fix the right priorities, and we make sure that our whole system as a whole, like it works together well.</span></div><div class="tline" data-t="714"><span class="ts">11:54</span><span class="tx">So this is how like software and s- robotics have to work together. We have to talk about hardware, the various profiling, the various priority stuff, and actually just take a recap from the top.</span></div><div class="tline" data-t="724"><span class="ts">12:04</span><span class="tx">So we went over pipeline. We saw how to reduce cycle time beat, how the communication delays. We saw how desynchronization can actually cause some unexpected jitter, which are hard to diagnose.</span></div><div class="tline" data-t="735"><span class="ts">12:15</span><span class="tx">Could be the policy, could be the system. So we wanna make sure that that doesn't happen. Logging strategies, so that we don't block the system while we're trying to tell the user that, &quot;Hey, this is happening.&quot;</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">And finally, priority inversion to avoid starvation. And that's how we start designing high-performance robotic systems, at least on a very basic level. And that's my talk for today, and thank you so much for being here listening. [clapping] [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

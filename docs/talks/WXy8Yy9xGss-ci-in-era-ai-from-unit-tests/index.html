@@ -1,0 +1,1238 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI 时代的 CI：从单元测试到随机性评测 | AI 工程师中文版</title>
+<meta name="description" content="Zed 的流式编辑器展示了宽泛的智能体评测如何暴露出失败，这些失败又变成聚焦的模型测试，并最终变成确定性的回归测试。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>AI 时代的 CI：从单元测试到随机性评测</h1>
+    <div class="orig-title">CI in the Era of AI: From Unit Tests to Stochastic Evals</div>
+    <div class="meta"><span class="speaker">Nathan Sobo</span> · AI Engineer World's Fair 2025 · 14:50</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=developer-workflows-and-testing">开发工作流与测试</a><a class="tag" href="../../index.html#topic=data-quality-and-curation">数据质量与筛选</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/WXy8Yy9xGss-ci-in-era-ai-from-unit-tests" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="WXy8Yy9xGss"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=WXy8Yy9xGss" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">如何测试一个替你编辑的编辑器？</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="15"><span class="ts">0:15</span><span>如何测试一个替你编辑的编辑器？</span></li><li data-t="177"><span class="ts">2:57</span><span>一个宽泛的失败变成了一个搜索测试</span></li><li data-t="304"><span class="ts">5:04</span><span>让编辑流式输出，再测试协议</span></li><li data-t="408"><span class="ts">6:48</span><span>可靠流式编辑底下的三个算法</span></li><li data-t="486"><span class="ts">8:06</span><span>提示词改进后仍有代码必须处理的情况</span></li><li data-t="580"><span class="ts">9:40</span><span>恢复一个缩进错误的编辑</span></li><li data-t="667"><span class="ts">11:07</span><span>转义问题止步于一次提示词修复</span></li><li data-t="735"><span class="ts">12:15</span><span>把每个已理解的失败移到更小的测试里</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 21 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Programmatic evaluation example" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Programmatic evaluation example</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example pins a Zed repository revision. The eval runner builds a headless copy of Zed, checks out a repo, runs the agent, and supports programmatic assertions about its actions.
+
+[3:08](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=188s) [Rust code defining an evaluation example and its metadata in Zed.](https://assets.ai.engineer/sites/aiecode2025/sha256/8d3452f25c75ebac2151819d60da903b11fb6bdeaeff999fbb2ff555065a64e4.webp)
+
+use std::path::Path;
+
+use agent_settings::AgentProfileId;
+use anyhow::Result;
+use async_trait::async_trait;
+
+use crate::example::{Example, ExampleContext, ExampleMetadata, JudgeAssertion, LanguageServer};
+
+pub struct AddArgToTraitMethod;
+
+#[async_trait(?Send)]
+impl Example for AddArgToTraitMethod {
+    fn meta(&amp;self) -&gt; ExampleMetadata {
+        ExampleMetadata {
+            name: &quot;add_arg_to_trait_method&quot;.to_string(),
+            url: &quot;https://github.com/zed-industries/zed.git&quot;.to_string(),
+            revision: &quot;f69aeb6311dde3c0b8979c293d019d66498d54f2&quot;.to_string(),
+            language_server: Some(LanguageServer {
+                file_extension: &quot;rs&quot;.to_string(),
+                allow_preexisting_diagnostics: false,
+            }),
+            max_assertions: None,
+            profile_id: AgentProfileId::default(),
+            [illegible]
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+00_intro.md
+01_deterministic_testing_at_zed.rs
+02_traditional_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_ba[illegible]
+worlds_fair_talk/slides/03_programmatic_eval_example.rs
+Nathan Sobo, 21 hours ago
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Programmatic evaluation assertions" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Programmatic evaluation assertions</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The eval checks each tool file for a window argument, then checks for the underscore prefix. Granular assertions help isolate failures in a larger evaluation.
+
+[3:52](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=232s) [Selected Rust code checks added window arguments and asserts the results.](https://assets.ai.engineer/sites/aiecode2025/sha256/55c589c1ba182701384b55993ba645dc3f1475d744acfb8142422d36f2a90da7.webp)
+
+let edits = cx.edits();
+
+for tool_name in add_ignored_window_paths {
+    let path_str = format!(&quot;crates/assistant_tools/src/{}.rs&quot;, tool_name);
+    let edits = edits.get(Path::new(&amp;path_str));
+
+let ignored = edits.map_or(false, |edits| {
+        edits.has_added_line(&quot;        _window: Option&lt;gpui::AnyWindowHandle&gt;,\n&quot;)
+    });
+    let uningored = edits.map_or(false, |edits| {
+        edits.has_added_line(&quot;        window: Option&lt;gpui::AnyWindowHandle&gt;,\n&quot;)
+    });
+
+cx.assert(ignored || uningored, format!(&quot;Argument: {}&quot;, tool_name))
+        .ok();
+
+cx.assert(ignored, format!(&quot;`_` prefix: {}&quot;, tool_name))
+        .ok();
+}
+
+[illegible] Adds unignored argument to `batch_tool`
+[illegible]
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+00_intro.md  01_deterministic_testing_at_zed.rs  02_traditional_eval.toml  03_programmatic_eval_example.rs  04_grep_tool_output_old.md  05_grep_tool_output_new.rs  06_streaming_edits.md  07_stochastic_unit_tests.rs  08_ba[illegible]
+worlds_fair_talk/slides/03_programmatic_eval_example.rs &gt; impl Example for AddArgToTraitMethod &gt; async fn conversation
+Nathan Sobo, 21 hours ago
+84:23 (12 lines, 475 characters)  Rust
+AIE  Microsoft  smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Original grep output" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Original grep output</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The original grep output cuts off the Tool::run signature after three arguments, leaving the model incomplete context for adding a window argument.
+
+[4:02](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=242s) [Zed displays a grep match with a partial Rust function signature.](https://assets.ai.engineer/sites/aiecode2025/sha256/ed092b99cca703bd40bd4c90efdd6c68198c3ac7ba3f147716a31ebb1c1eedf3.webp)
+
+Found 1 matches:
+
+**Matches in crates/assistant_tool/src/assistant_tool.rs**</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Lines 238-241" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Lines 238-241</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>```rs
+    }
+
+/// Runs the tool with the provided input.
+    fn run(
+        self: Arc&lt;Self&gt;,
+        input: serde_json::Value,
+        request: Arc&lt;LanguageModelRequest&gt;,
+```
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+00_intro.md
+01_deterministic_testing_at_zed.rs
+02_traditional_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_ba[illegible]
+worlds_fair_talk/slides/04_grep_tool_output_old.md
+Nathan Sobo, 21 hours ago
+1:1  Markdown
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Programmatic evaluation prompt" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Programmatic evaluation prompt</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The eval asks the model to add a window argument across a trait and its callers. The speaker uses the task to show how incomplete grep output can expose a failure and motivate a deterministic test.
+
+[4:14](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=254s) [Zed displays an evaluation prompt to add a window argument to a trait method and update its implementations and call sites.](https://assets.ai.engineer/sites/aiecode2025/sha256/c7a46c4cf38e13c0b08c34b15f1a85f97e3f408a4264259d5140bc4fab5784cd.webp)
+
+max_assertions: None,
+profile_id: AgentProfileId::default(),
+existing_thread_json: None,
+max_turns: None,
+    }
+}
+
+async fn conversation(&amp;self, cx: &amp;mut ExampleContext) -&gt; Result&lt;()&gt; {
+    const FILENAME: &amp;str = &quot;assistant_tool.rs&quot;;
+    cx.push_user_message(format!(
+        r#&quot;
+        Add a `window: Option&lt;gpui::AnyWindowHandle&gt;` argument to the `Tool::run` trait method in {FILENAME},
+        and update all the implementations of the trait and call sites accordingly.
+        &quot;#
+    ));
+
+let _ = cx.run_to_end().await?;
+
+// Adds ignored argument to all but `batch_tool`
+
+let add_ignored_window_paths = &amp;[
+        &quot;code_action_tool&quot;,
+        &quot;code_symbols_tool&quot;,
+        &quot;contents_tool&quot;,
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+00_intro.md  01_deterministic_testing_at_zed.rs  02_traditional_eval.toml  03_programmatic_eval_example.rs  04_grep_tool_output_old.md  05_grep_tool_output_new.rs  06_streaming_edits.md  07_stochastic_unit_tests.rs
+worlds_fair_talk/slides/03_programmatic_eval_example.rs &gt; impl Example for AddArgToTraitMethod &gt; async fn conversation
+33:95  Rust
+AIE  Microsoft  smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Grep test setup" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Grep test setup</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The deterministic test searches Rust files for fn run and checks the expected match. Tree-sitter expands the match to syntactic boundaries, giving the result a trait, function and line range.
+
+[4:32](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=272s) [Zed displays a Rust test that searches for a function and checks the expected grep result.](https://assets.ai.engineer/sites/aiecode2025/sha256/dab8b2ebc4c13b2651d5c5d1adf4e550f79ec5d6b64b2f067207d6da6e48e67d.webp)
+
+#[gpui::test]
+async fn test_grep_function_args_and_body(cx: &amp;mut TestAppContext) {
+    let project = setup_syntax_test(cx).await;
+
+// Test: Line with a function argument
+    let input = serde_json::to_value(GrepToolInput {
+        regex: &quot;fn run(&quot;.to_string(),
+        include_pattern: Some(&quot;**/*.rs&quot;.to_string()),
+        offset: 0,
+        case_sensitive: false,
+    })
+    .unwrap();
+
+let result = run_grep_tool(input, project.clone(), cx).await;
+    let expected = r#&quot;
+        Found 1 matches:
+
+## Matches in crates/assistant_tool/src/assistant_tool.rs
+
+### trait AssistantTool › fn run › L238-241
+
+[illegible]rs
+        [illegible] Runs the tool with the provided input.
+
+Interface text:
+AIE
+Zed Nightly
+zed ai-worlds-fair
+00_intro.md
+01_deterministic_testing_at_zed.rs
+02_traditional_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_ba[illegible]
+worlds_fair_talk/slides/05_grep_tool_output_new.rs › async fn test_grep_function_args_and_body
+Nathan Sobo, 21 hours ago
+7:26 (8 characters)
+Rust</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Testing grep output" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Testing grep output</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A deterministic test searches for fn run and checks that Tree-sitter expands the match to syntactic boundaries, including the function’s full argument list.
+
+[4:45](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=285s) [Zed displays the expected grep result with the Rust function's full argument list.](https://assets.ai.engineer/sites/aiecode2025/sha256/a69779c263ed5516a4d7ac67af7e8ac80b16de82151223a4b23c76483d8c967d.webp)
+
+let result = run_grep_tool(input, project.clone(), cx).await;
+let expected = r#&quot;
+    Found 1 matches:
+
+## Matches in crates/assistant_tool/src/assistant_tool.rs
+
+### trait AssistantTool › fn run › L238-241
+
+```rs
+    /// Runs the tool with the provided input.
+    fn run(
+        self: Arc&lt;Self&gt;,
+        input: serde_json::Value,
+        request: Arc&lt;LanguageModelRequest&gt;,
+        project: Entity&lt;Project&gt;,
+        action_log: Entity&lt;ActionLog&gt;,
+        model: Arc&lt;dyn LanguageModel&gt;,
+        window: Option&lt;AnyWindowHandle&gt;,
+        cx: &amp;mut App,
+    ) -&gt; ToolResult;
+    [illegible]
+[illegible]dent();
+
+Interface text:
+zed  ai-worlds-fair
+00_intro.md  01_deterministic_testing_at_zed.rs  02_traditional_eval.toml  03_programmatic_eval_example.rs  04_grep_tool_output_old.md  05_grep_tool_output_new.rs  06_streaming_edits.md  07_stochastic_unit_tests.rs  08_ba[illegible]
+worlds_fair_talk/slides/05_grep_tool_output_new.rs › async fn test_grep_function_args_and_body
+Nathan Sobo, 21 hours ago
+35:11 (13 lines, 416 characters)  Rust
+AIE  Microsoft  smol ai
+
+[5:00](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=300s) [Rust test sets up a search and shows the beginning of its expected result.](https://assets.ai.engineer/sites/aiecode2025/sha256/16ace851e217c28a25c2546a92fe74c7a76553acfab349470d335003b8128da8.webp)
+
+#[gpui::test]
+async fn test_grep_function_args_and_body(cx: &amp;mut TestAppContext) {
+    let project = setup_syntax_test(cx).await;
+
+// Test: Line with a function argument
+    let input = serde_json::to_value(GrepToolInput {
+        regex: &quot;fn run(&quot;.to_string(),
+        include_pattern: Some(&quot;**/*.rs&quot;.to_string()),
+        offset: 0,
+        case_sensitive: false,
+    })
+    .unwrap();
+
+let result = run_grep_tool(input, project.clone(), cx).await;
+    let expected = r#&quot;
+        Found 1 matches:
+
+## Matches in crates/assistant_tool/src/assistant_tool.rs
+
+### trait AssistantTool › fn run › L238-241
+
+[illegible]rs
+        [illegible] Runs the tool with the provided input.
+
+Interface text:
+zed  ai-worlds-fair
+00_intro.md  01_deterministic_testing_at_zed.rs  02_traditional_eval.toml  03_programmatic_eval_example.rs  04_grep_tool_output_old.md  05_grep_tool_output_new.rs  06_streaming_edits.md  07_stochastic_unit_tests.rs  08_ba[illegible]
+worlds_fair_talk/slides/05_grep_tool_output_new.rs › async fn test_grep_function_args_and_body
+Nathan Sobo, 21 hours ago
+16:25  Rust
+AIE  Microsoft  smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Streaming edits" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Streaming edits</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Zed describes an edit in a tool call, then asks the model to stream old and new text. The stream needs incremental parsing and must handle malformed tags and inconsistent whitespace.
+
+[5:04](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=304s) [Slide lists challenges with tool-call streaming, incremental parsing, and imperfect model behavior.](https://assets.ai.engineer/sites/aiecode2025/sha256/254b0c95734b27e82bf6e1e1049078b2173979434e0849b7c6cd5e0e38d11d23.webp)
+
+# Streaming Edits
+
+Show the model edits as they happen, token by token.
+
+**Challenges**
+
+1. Tool calling doesn't stream
+   - JSON values must be complete before they are streamed
+   - We can't use tool calling alone if we want to see streaming text
+   - We ask it to stream `&lt;old_text&gt;` and `&lt;new_text&gt;` blocks
+
+2. Parsing Complexity: XML tags arrive in random chunks
+   - `&lt;/old_te` + `xt&gt;` (split across network packets)
+   - Must buffer and parse incrementally
+
+3. Imperfect Model Behavior: Models don't follow instructions perfectly
+   - Wrong closing tags: `&lt;old_text&gt;...&lt;/new_text&gt;`
+   - Inconsistent indentation and whitespace
+   - Escaping
+
+Interface text:
+zed  ai-worlds-fair
+00_intro.md  01_deterministic_testing_at_zed.rs  02_traditional_eval.toml  03_programmatic_eval_example.rs  04_grep_tool_output_old.md  05_grep_tool_output_new.rs  06_streaming_edits.md  07_stochastic_unit_tests.rs
+worlds_fair_talk/slides/06_streaming_edits.md › # Streaming Edits
+Nathan Sobo, Yesterday
+1:1  Markdown
+AIE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Stochastic unit test example" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Stochastic unit test example</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The test runs an edit evaluation 200 times and requires every run to pass. An LLM judges the resulting diff to check whether the documentation comments were translated to Italian.
+
+[5:46](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=346s) [Rust test configures repeated evaluation of an edit that translates documentation comments.](https://assets.ai.engineer/sites/aiecode2025/sha256/151a9c3779b0a09ff45b708dba6957e5bdd063157ff6bda07828be1897f9767d.webp)
+
+// When AI enters the equation, we need a new approach
+// We test AI features by sampling their behavior:
+
+#[test]
+fn eval_translate_doc_comments() {
+    let input_file_path = &quot;root/canvas.rs&quot;;
+    let input_file_content = include_str!(&quot;evals/fixtures/translate_doc_comments/before.rs&quot;);
+    let edit_description = &quot;Translate all doc comments to Italian&quot;;
+    eval(
+        200,
+        1.,
+        EvalInput::from_conversation(
+            vec![
+                message(
+                    User,
+                    [text(formatdoc! {&quot;
+                        Read the {input_file_path} file and edit it (without overwriting it),
+                        translating all the doc comments to italian.
+                    &quot;})],
+                ),
+                message(
+                    Assistant,
+                    [tool_use(
+
+Interface text:
+zed  ai-worlds-fair
+00_intro.md  01_deterministic_testing_at_zed.rs  02_traditional_eval.toml  03_programmatic_eval_example.rs  04_grep_tool_output_old.md  05_grep_tool_output_new.rs  06_streaming_edits.md  07_stochastic_unit_tests.rs  08_ba
+worlds_fair_talk/slides/07_stochastic_unit_tests.rs
+Nathan Sobo, Yesterday
+4:1 (7 characters)  Rust
+AIE  Microsoft  smol ai
+
+[6:21](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=381s) [Code shows an edit tool call followed by an assertion judging whether documentation comments were translated to Italian.](https://assets.ai.engineer/sites/aiecode2025/sha256/9cb2371e900f236eaf88799ca6687251332c20f1d962455dcc013d461567f638.webp)
+
+[tool_result(&quot;tool_1&quot;, &quot;read_file&quot;, input_file_content)],
+                ),
+                message(
+                    Assistant,
+                    [tool_use(
+                        &quot;tool_2&quot;,
+                        &quot;edit_file&quot;,
+                        EditFileToolInput {
+                            display_description: edit_description.into(),
+                            path: input_file_path.into(),
+                            mode: EditFileMode::Edit,
+                        },
+                    )],
+                ),
+            ],
+            Some(input_file_content.into()),
+            EvalAssertion::judge_diff(&quot;Doc comments were translated to Italian&quot;),
+        ),
+    );
+}
+
+Interface text:
+zed  ai-worlds-fair
+00_intro.md  01_deterministic_testing_at_zed.rs  02_traditional_eval.toml  03_programmatic_eval_example.rs  04_grep_tool_output_old.md  05_grep_tool_output_new.rs  06_streaming_edits.md  07_stochastic_unit_tests.rs  08_ba
+worlds_fair_talk/slides/07_stochastic_unit_tests.rs &gt; fn eval_translate_doc_comments
+Nathan Sobo, Yesterday
+51:81 (62 characters)  Rust
+AIE  Microsoft  smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Stochastic test setup" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Stochastic test setup</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The test samples an assistant asked to translate Rust documentation comments into Italian. The speaker uses an LLM as judge to check the result.
+
+[6:41](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=401s) [Code sets up a sampled evaluation asking an assistant to translate documentation comments to Italian.](https://assets.ai.engineer/sites/aiecode2025/sha256/c172a57b0a8cfd46cd8026f828d1413fb69225d9f302a44d72805fd37b4dc69c.webp)
+
+// When AI enters the equation, we need a new approach
+// We test AI features by sampling their behavior:
+
+#[test]
+fn eval_translate_doc_comments() {
+    let input_file_path = &quot;root/canvas.rs&quot;;
+    let input_file_content = include_str!(&quot;evals/fixtures/translate_doc_comments/before.rs&quot;);
+    let edit_description = &quot;Translate all doc comments to Italian&quot;;
+    eval(
+        200,
+        1.,
+        EvalInput::from_conversation(
+            vec![
+                message(
+                    User,
+                    [text(formatdoc! {&quot;
+                        Read the {input_file_path} file and edit it (without overwriting it),
+                        translating all the doc comments to italian.
+                    &quot;})],
+                ),
+                message(
+                    Assistant,
+                    [tool_use(
+                        [illegible]
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+[illegible]stic_testing_at_zed.rs
+02_traditional_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+worlds_fair_talk/slides/07_stochastic_unit_tests.rs &gt; fn eval_translate_doc_comments
+Nathan Sobo, Yesterday
+10:13  Rust
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Testing random parser chunks" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Testing random parser chunks</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The test runs 100 iterations, splitting the input at random boundaries and feeding each chunk to the edit parser to check that it handles arbitrary chunking.
+
+[6:46](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=406s) [A test generates random chunk boundaries and feeds the chunks to an edit parser.](https://assets.ai.engineer/sites/aiecode2025/sha256/52a27dac171390397ac54e3528a9d57999b1ae4684584dd518387534e1d76d28.webp)
+
+// Some streaming edit problems can be tested the old-fashioned way!
+
+// 1. Parser must handle chunks split ANYWHERE
+#[gpui::test(iterations = 100)]
+fn test_parser_random_chunks(mut rng: StdRng) {
+    let input = &quot;&lt;old_text&gt;hello world&lt;/old_text&gt;&lt;new_text&gt;goodbye&lt;/new_text&gt;&quot;;
+
+// Generate random chunk boundaries
+    let mut chunks = vec![];
+    let mut pos = 0;
+    while pos &lt; input.len() {
+        let chunk_size = rng.gen_range(1..=10);
+        let end = (pos + chunk_size).min(input.len());
+        chunks.push(&amp;input[pos..end]);
+        pos = end;
+    }
+
+// Parser MUST handle any chunking
+    let mut parser = EditParser::new();
+    let events: Vec&lt;_&gt; = chunks.iter().flat_map(|chunk| parser.push(chunk)).collect();
+
+[illegible]t_eq!(
+        events,
+        [illegible]
+
+AIE
+aws
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+[illegible]tic_testing_at_zed.rs
+02_traditional_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+worlds_fair_talk/slides/08_basic_streaming_edits_unit_tests.rs › fn test_parser_random_chunks
+Nathan Sobo, 2 days ago
+Update Zed
+6:56  Rust</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Checking parser events" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Checking parser events</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Across 100 iterations, the test splits input at random boundaries and checks that the parser emits the expected old-text and new-text events.
+
+[7:07](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=427s) [The parser test asserts that randomly chunked input produces old-text and new-text events.](https://assets.ai.engineer/sites/aiecode2025/sha256/cb9235fd97f0d501c2b1a62c051ee23710c5d6dc11832e8fe7a6e759c6280173.webp)
+
+// Generate random chunk boundaries
+let mut chunks = vec![];
+let mut pos = 0;
+while pos &lt; input.len() {
+    let chunk_size = rng.gen_range(1..=10);
+    let end = (pos + chunk_size).min(input.len());
+    chunks.push(&amp;input[pos..end]);
+    pos = end;
+}
+
+// Parser MUST handle any chunking
+let mut parser = EditParser::new();
+let events: Vec&lt;_&gt; = chunks.iter().flat_map(|chunk| parser.push(chunk)).collect();
+
+assert_eq!(
+    events,
+    vec![Event::OldText(&quot;hello world&quot;), Event::NewText(&quot;goodbye&quot;)]
+);
+}
+
+// 2. Fuzzy matcher algorithm (without LLM input)
+[illegible]uzzy_match_algorithm() {
+[illegible]uffer = &quot;fn calculate_price() {\n    // TODO\n}&quot;;
+
+Interface text:
+AIE
+Zed Nightly
+zed  ai-worlds-fair
+[illegible]tic_testing_at_zed.rs
+02_traditional_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+worlds_fair_talk/slides/08_basic_streaming_edits_unit_tests.rs &gt; fn test_parser_random_chunks
+Update Zed
+6:56  Rust</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Fuzzy matching test" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fuzzy matching test</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The fuzzy matcher test finds code despite extra whitespace. The speaker says approximate matching reduced tool-calling failures when model output was slightly wrong.
+
+[7:18](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=438s) [A code editor shows a test that finds a match despite extra whitespace.](https://assets.ai.engineer/sites/aiecode2025/sha256/a5402db92872e23aa83657ff3fbdc89dc8c74d9a6f7fddcd197dae0d7ffe58e3.webp)
+
+let mut parser = EditParser::new();
+    let events: Vec&lt;_&gt; = chunks.iter().flat_map(|chunk| parser.push(chunk)).collect();
+
+assert_eq!(
+        events,
+        vec![Event::OldText(&quot;hello world&quot;), Event::NewText(&quot;goodbye&quot;)]
+    );
+}
+
+// 2. Fuzzy matcher algorithm (without LLM input)
+#[test]
+fn test_fuzzy_match_algorithm() {
+    let buffer = &quot;fn calculate_price() {\n    // TODO\n}&quot;;
+    let query = &quot;fn  calculate_price()  {&quot;; // Extra spaces
+
+let matcher = FuzzyMatcher::new(buffer);
+    let range = matcher.find(query);
+
+assert_eq!(range, Some(0..24)); // Found despite whitespace
+}
+
+[illegible]eaming diff computes edits incrementally
+[illegible]treaming_diff() {
+
+Interface text:
+AIE
+zed ai-worlds-fair
+[illegible]ic_testing_at_zed.rs
+02_traditional_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+worlds_fair_talk/slides/08_basic_streaming_edits_unit_tests.rs › fn test_fuzzy_match_algorithm
+Nathan Sobo, 2 days ago
+Update Zed
+31:22 Rust
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Streaming diff test" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Streaming diff test</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The test feeds new text to a streaming diff in chunks and checks the first keep operation. The diff must distinguish deleted old text from text the model has yet to emit.
+
+[7:37](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=457s) [A code editor shows a streaming-diff test that processes new text in chunks.](https://assets.ai.engineer/sites/aiecode2025/sha256/e9b2bbe2d16b10395393c9f30405ed8c616a1937a5488d6977f8ac0d0d53a8aa.webp)
+
+let range = matcher.find(query);
+
+assert_eq!(range, Some(0..24)); // Found despite whitespace
+}
+
+// 3. Streaming diff computes edits incrementally
+#[test]
+fn test_streaming_diff() {
+    let old_text = &quot;fn calculate() {\n    todo!()\n}&quot;;
+    let mut diff = StreamingDiff::new(old_text);
+
+// Simulate new text arriving in chunks
+    let ops1 = diff.push_new(&quot;fn calc&quot;);
+    assert_eq!(
+        ops1,
+        vec![
+            CharOp::Keep(7),  // &quot;fn calc&quot;
+        ]
+    );
+
+let ops2 = diff.push_new(&quot;ulate_total(&quot;);
+    [illegible]t_eq!(
+        [illegible]ps2,
+        [illegible]
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+[illegible]tic_testing_at_zed.rs
+02_traditional_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+worlds_fair_talk/slides/08_basic_streaming_edits_unit_tests.rs › fn test_streaming_diff
+Nathan Sobo, Yesterday
+Update Zed
+48:16  Rust
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Streaming diff operations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Streaming diff operations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The test checks insert, keep and delete operations as new text arrives. The diff must distinguish text that was deleted from text that has not streamed yet.
+
+[8:01](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=481s) [A code editor shows later streaming-diff assertions with insert, keep and delete operations.](https://assets.ai.engineer/sites/aiecode2025/sha256/21a0b0801181fc8241e5d7e926af23e9a5683c390fd555fce4375229980e9629.webp)
+
+[illegible]
+]
+);
+
+let ops2 = diff.push_new(&quot;ulate_total(&quot;);
+assert_eq!(
+    ops2,
+    vec![
+        CharOp::Insert(&quot;_total&quot;), // Insert: &quot;_total&quot;
+        CharOp::Keep(5),          // &quot;ulate&quot;
+        CharOp::Delete(2),        // Remove: &quot;()&quot;
+        CharOp::Keep(1),          // &quot;(&quot;
+    ]
+);
+
+let ops3 = diff.push_new(&quot;items: &amp;[Item]) {\n    items.iter().sum()\n}&quot;);
+assert_eq!(
+    ops3,
+    vec![
+        CharOp::Insert(&quot;items: &amp;[Item]&quot;),
+        CharOp::Keep(4),    // &quot;) {\n&quot;
+        CharOp::Delete(10), // Remove &quot;    todo!()&quot;
+        CharOp::Insert(&quot;    items.iter().sum()&quot;),
+        CharOp::Keep(2), // &quot;\n}&quot;
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+02_traditional_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+worlds_fair_talk/slides/08_basic_streaming_edits_unit_tests.rs › fn test_streaming_diff
+Nathan Sobo, Yesterday
+70:28 (17 lines, 462 characters)
+Rust
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Handling empty old text" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Handling empty old text</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The model sometimes emitted empty old text when inserting at document edges. A prompt improved the eval, but the problem still occurred 1–2% of the time, so a deterministic test covers the edge case.
+
+[8:09](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=489s) [Code comments describe a prompt change and a deterministic test for empty old text.](https://assets.ai.engineer/sites/aiecode2025/sha256/ad576ab4724171b5c6fd16771540ddcd9d407d7f02986eb2de4eccba64d010a6.webp)
+
+// As we run the unit eval, we discover problems
+// Some of which can be solved alorithmically and tested deterministically
+
+// This prompt change helped:
+//
+// - `&lt;old_text&gt;` cannot be empty
+
+// But the model still wasn't perfect: So we then wrote a deterministic test to
+// gracefully handle the edge case:
+#[gpui::test(iterations = 100)]
+async fn test_empty_old_text(cx: &amp;mut TestAppContext, mut rng: StdRng) {
+    let agent = init_test(cx).await;
+    let buffer = cx.new(|cx| {
+        Buffer::local(
+            indoc! {&quot;
+                abc
+                def
+                ghi
+            &quot;},
+            cx,
+        )
+[illegible]apply, _events) = agent.edit(
+
+Interface text:
+AIE
+Zed Nightly
+zed  ai-worlds-fair
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+09_empty_old_text_problem.rs
+worlds_fair_talk/slides/09_empty_old_text_problem.rs
+3:1 (1 character)
+Rust</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Empty old text revisited" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Empty old text revisited</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A prompt rule improved the eval, but empty old-text tags still appeared 1–2% of the time. The team added a deterministic test to handle the edge case.
+
+[8:16](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=496s) [The editor highlights the instruction that old text cannot be empty.](https://assets.ai.engineer/sites/aiecode2025/sha256/c0fc78e6ae0ae09b88c2b8388c7ad366159b304b7330930e5a4f95196ad0e448.webp)
+
+// As we run the unit eval, we discover problems
+// Some of which can be solved alorithmically and tested deterministically
+
+// This prompt change helped:
+//
+// - `&lt;old_text&gt;` cannot be empty
+
+// But the model still wasn't perfect: So we then wrote a deterministic test to
+// gracefully handle the edge case:
+#[gpui::test(iterations = 100)]
+async fn test_empty_old_text(cx: &amp;mut TestAppContext, mut rng: StdRng) {
+    let agent = init_test(cx).await;
+    let buffer = cx.new(|cx| {
+        Buffer::local(
+            indoc! {&quot;
+                abc
+                def
+                ghi
+            &quot;},
+            cx,
+        )
+[illegible]apply, _events) = agent.edit(
+
+Interface text:
+zed  ai-worlds-fair
+[illegible]nal_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+09_empty_old_text_problem.rs
+worlds_fair_talk/slides/09_empty_old_text_problem.rs
+Nathan Sobo, Yesterday
+6:17 (10 characters)  Rust
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Simulating an empty old-text tag" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Simulating an empty old-text tag</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The test simulates an empty old-text tag followed by a second edit. The speaker says the model still produced empty tags 1–2% of the time after a prompt change, so the test checks that the case can be handled.
+
+[8:53](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=533s) [A test simulates model output containing an empty old-text tag followed by another edit.](https://assets.ai.engineer/sites/aiecode2025/sha256/ca9d9c95802af766a8a44a51666bc1dd2a5f1a1011390767da9754d8eb44b199.webp)
+
+buffer.clone(),
+        String::new(),
+        &amp;LanguageModelRequest::default(),
+        &amp;mut cx.to_async(),
+    );
+    cx.run_until_parked();
+
+simulate_llm_output(
+        &amp;agent,
+        indoc! {&quot;
+            &lt;old_text&gt;&lt;/old_text&gt;
+            &lt;new_text&gt;jkl&lt;/new_text&gt;
+            &lt;old_text&gt;def&lt;/old_text&gt;
+            &lt;new_text&gt;DEF&lt;/new_text&gt;
+        &quot;},
+        &amp;mut rng,
+        cx,
+    );
+    apply.await.unwrap();
+
+pretty_assertions::assert_eq!(
+        [illegible]uffer.read_with(cx, |buffer, _| buffer.snapshot().text()),
+        [illegible]ndoc! {&quot;
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+[illegible]nal_eval.toml
+03_programmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+09_empty_old_text_problem.rs
+worlds_fair_talk/slides/09_empty_old_text_problem.rs › async fn test_empty_old_text
+Nathan Sobo, Yesterday
+42:26 (12 lines, 273 characters)
+Rust
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Handling mismatched XML tags" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Handling mismatched XML tags</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A prompt raised the pass rate from 60% to 95%, but mismatched tags persisted. The parser test uses a reduced Sonnet 3.7 output that closes an &lt;old_text&gt; block with &lt;/new_text&gt;.
+
+[8:57](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=537s) [Code comments report pass rates before and after a prompt change and introduce a forgiving parser test.](https://assets.ai.engineer/sites/aiecode2025/sha256/515714ee1324d052ce8d683630b8e5f3942ef24058016aac2ad8cad67426b330.webp)
+
+// Another tricky case with XML: Tag mismatches
+
+// Initial pass rate: 60%
+
+// PROMPT FIX:
+// Added: &quot;Always close all tags properly&quot;
+
+// After prompt fix: 95% pass rate
+// That last 5% wouldn't budge, so we made the parser forgiving:
+
+#[gpui::test(iterations = 1000)]
+fn test_mismatched_tags(mut rng: StdRng) {
+    let mut parser = EditParser::new();
+    assert_eq!(
+        parse_random_chunks(
+            // Reduced from an actual Sonnet 3.7 output
+            indoc! {&quot;
+                &lt;old_text&gt;
+                a
+                b
+                c
+                &lt;/new_text&gt;
+                &lt;new_text&gt;
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+[illegible]mmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+09_empty_old_text_problem.rs
+10_mismatched_tags.rs
+worlds_fair_talk/slides/10_mismatched_tags.rs
+Nathan Sobo, Yesterday
+AIE
+Microsoft
+smol ai
+
+[9:14](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=554s) [Code editor shows an XML tag mismatch test and notes on improving the parser.](https://assets.ai.engineer/sites/aiecode2025/sha256/3dffcaf017d786a7964a067133e241e95ad43058c261db1073923cf9bf483774.webp)
+
+// Another tricky case with XML: Tag mismatches
+
+// Initial pass rate: 60%
+
+// PROMPT FIX:
+// Added: &quot;Always close all tags properly&quot;
+
+// After prompt fix: 95% pass rate
+// That last 5% wouldn't budge, so we made the parser forgiving:
+
+#[gpui::test(iterations = 1000)]
+fn test_mismatched_tags(mut rng: StdRng) {
+    let mut parser = EditParser::new();
+    assert_eq!(
+        parse_random_chunks(
+            // Reduced from an actual Sonnet 3.7 output
+            indoc! {&quot;
+                &lt;old_text&gt;
+                a
+                b
+                c
+                &lt;/new_text&gt;
+                &lt;new_text&gt;
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+[illegible]mmatic_eval_example.rs
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+09_empty_old_text_problem.rs
+10_mismatched_tags.rs
+worlds_fair_talk/slides/10_mismatched_tags.rs
+Nathan Sobo, Yesterday
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Evaluating indented code edits" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evaluating indented code edits</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The eval asks an agent to replace a todo inside a nested function. The speaker says models sometimes flattened the indentation, breaking the edit.
+
+[9:49](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=589s) [Code editor shows a nested function and an evaluation asking an agent to replace a todo with return 42.](https://assets.ai.engineer/sites/aiecode2025/sha256/98f39d900a81a3f77fd3fe8260566eccf393b008217041172bd11aea976a5ea1.webp)
+
+// EVAL 3: Models stripped indentation, breaking everything
+
+#[test]
+fn eval_indented_code_editing() {
+    eval(100, 0.95, &quot;Edit nested function&quot;, || async {
+        let buffer = Buffer::local(
+            indoc! {&quot;
+                fn outer() {
+                    fn inner() {
+                        todo!()
+                    }
+                }&quot;
+            }
+        );
+
+// Ask to modify the inner function
+        agent.edit(
+            buffer.clone(),
+            &quot;Replace todo with return 42&quot;,
+            &amp;conversation,
+        ).0.await;
+
+// Models sent:
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+09_empty_old_text_problem.rs
+10_mismatched_tags.rs
+11_indentation.rs
+worlds_fair_talk/slides/11_indentation.rs › fn eval_indented_code_editing
+Nathan Sobo, Yesterday
+Update Zed
+5:5  Rust
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="The nested function's edit target" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The nested function's edit target</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The eval asks an agent to replace a todo inside a nested function with return 42. The speaker says models sometimes flattened the indentation in their edits.
+
+[9:58](https://www.youtube.com/watch?v=WXy8Yy9xGss&amp;t=598s) [Code editor highlights the todo inside a nested function.](https://assets.ai.engineer/sites/aiecode2025/sha256/b9df34577df35319097f79a91e6f48535e2f5194e026cefbb66ea07da8306b1f.webp)
+
+// EVAL 3: Models stripped indentation, breaking everything
+
+#[test]
+fn eval_indented_code_editing() {
+    eval(100, 0.95, &quot;Edit nested function&quot;, || async {
+        let buffer = Buffer::local(
+            indoc! {&quot;
+                fn outer() {
+                    fn inner() {
+                        todo!()
+                    }
+                }&quot;
+            }
+        );
+
+// Ask to modify the inner function
+        agent.edit(
+            buffer.clone(),
+            &quot;Replace todo with return 42&quot;,
+            &amp;conversation,
+        ).0.await;
+
+// Models sent:
+
+Interface text:
+Zed Nightly
+zed  ai-worlds-fair
+04_grep_tool_output_old.md
+05_grep_tool_output_new.rs
+06_streaming_edits.md
+07_stochastic_unit_tests.rs
+08_basic_streaming_edits_unit_tests.rs
+09_empty_old_text_problem.rs
+10_mismatched_tags.rs
+11_indentation.rs
+worlds_fair_talk/slides/11_indentation.rs › fn eval_indented_code_editing
+Nathan Sobo, Yesterday
+Update Zed
+10:32 (7 characters)
+Rust
+AIE
+aws</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">如何测试一个替你编辑的编辑器？</a></li><li><a href="#sec-2">一个宽泛的失败变成了一个搜索测试</a></li><li><a href="#sec-3">让编辑流式输出，再测试协议</a></li><li><a href="#sec-4">可靠流式编辑底下的三个算法</a></li><li><a href="#sec-5">提示词改进后仍有代码必须处理的情况</a></li><li><a href="#sec-6">恢复一个缩进错误的编辑</a></li><li><a href="#sec-7">转义问题止步于一次提示词修复</a></li><li><a href="#sec-8">把每个已理解的失败移到更小的测试里</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">AI 时代的 CI：从单元测试到随机性评测</h2>
+      <div class="lede"><p>Zed 的流式编辑器展示了宽泛的智能体评测如何暴露出失败，这些失败又变成聚焦的模型测试，并最终变成确定性的回归测试。</p><p>熟悉自动化测试、LLM 工具调用和基本的 Rust 语法，有助于理解代码示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="15">▶ 0:15</button></div>
+      <h3>如何测试一个替你编辑的编辑器？</h3>
+      <p>An agent that searches a repository and edits its files adds a new reliability problem to a code editor: the editor must work correctly even when the model produces unexpected output. Nathan Sobo introduces that problem with a massively sped-up recording of agentic editing in <a href="https://zed.dev/blog/fastest-ai-code-editor" target="_blank" rel="noopener">Zed</a>. Built from scratch in Rust rather than forked from VS Code, Zed organizes its rendering around the GPU, much like a video game. Sobo describes roughly 1,200 lines of shader code and a rendering target of 120 frames per second. Making generated edits dependable requires the same empirical attention as making the editor itself responsive.</p>
+<p>Zed already has an extensive testing culture. Sobo estimates tens of thousands of tests; his joke that the editor would otherwise crash every eight seconds conveys how much the product depends on them. One collaborative editing test starts a server and two clients, passing in a simulated scheduler to control concurrent activity. The shown test runs 50 randomized iterations.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/5fdf658a9e597601cb515a6388dd58b73490343a009f5bf716c4c1d12b23f33c" alt="Rust test code in Zed showing a server, two clients, a shared project, buffer setup, and concurrent edits." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A collaborative editing test creates two clients, shares a project, and performs concurrent edits.</figcaption></figure>
+<p>The scheduler makes failures reproducible. If a particular interleaving of network packets breaks the system, the team can replay that interleaving, freeze it, and investigate it under full control. Sobo’s reference to a failure on a hypothetical 375,000th iteration illustrates why replay matters; it is not the run count of the displayed test. Until the AI features arrived, he reports that this control let Zed keep even concurrency tests deterministic and avoid flaky CI tests.</p>
+<p>An LLM changes that arrangement. Even if the team controlled sampling directly, changing an input token could change the generated output. <strong>A reproducible software harness does not make model behavior stable across changed inputs.</strong> Zed therefore needed to embrace stochastic behavior. Its first major agent evaluation resembled <a href="https://arxiv.org/abs/2310.06770" target="_blank" rel="noopener">SWE-bench</a>: a broad task that asks an agent to make a repository change.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="177">▶ 2:57</button></div>
+      <h3>一个宽泛的失败变成了一个搜索测试</h3>
+      <p>A data-driven evaluation starts with inputs and examines outputs. A conventional software test usually expresses a more specific contract through pass/fail assertions. Zed brought those approaches together: its evaluation program compiles a headless copy of the editor, checks out a repository, and runs the agent. The conversation itself can be a function, allowing test code to drive the interaction and make granular assertions about what the agent did.</p>
+<p>That granularity matters when a large task fails. There are many possible causes, and an overall failure gives little guidance about which one to repair. In the demonstrated task, the agent must add a <code>window</code> argument to a tool’s <code>run</code> trait method in a specified file. The original grep tool returned too little useful context around the match. The problem lay partly in what the model could see.</p>
+<p>The repair became a deterministic search test: set up the project, search for <code>fn run</code>, and check the returned context. Zed uses <a href="https://tree-sitter.github.io/tree-sitter/" target="_blank" rel="noopener">Tree-sitter</a> to expand matches to syntactic boundaries. The displayed expected result includes the full function signature through its return type, giving the agent a coherent unit of code to inspect. Sobo reports a substantial improvement in agent behavior from this change, without supplying a numerical score. A stochastic evaluation had exposed an ordinary algorithmic defect.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/2f8291bab3bab1265431da4d597e57ce0dd0f2f63cb68153baca7fdf826d3904" alt="Zed editor displaying expected grep output with the run function signature highlighted, including its window argument and return type." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The grep test’s expected output includes the full function signature.</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="304">▶ 5:04</button></div>
+      <h3>让编辑流式输出，再测试协议</h3>
+      <p>Editing initially happened through tool calls. In the implementation Sobo describes, their key/value content arrived together rather than streaming usefully into the editor; this is a limitation of that implementation, not a claim about every tool-calling API. Zed changed the interaction to a two-step protocol:</p>
+<p>1. Make a small tool call describing the edits.
+2. Request old-text/new-text blocks that can stream back incrementally.</p>
+<p>At this stage, Zed reused the same model for the second request because the context was already in its cache. The tradeoff was a new parsing responsibility: the editor now had to interpret streamed text and tolerate irregular model output.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/aba0e8836e2949359da4c1c30d9fbc0544c5cfd7f2eecba4e65a86f053aa6938" alt="Streaming Edits notes listing tool-calling limitations, XML chunks split across packets, and imperfect model behavior." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Streaming edits face tool-calling, incremental parsing, and model-output challenges.</figcaption></figure>
+<p>The team added an evaluation function to its ordinary test suite. In the shown evaluation, Sobo requests 200 runs and says the eventual build gate requires all 200 to pass. That was a threshold the team reached over time, not its starting point. The test loads a conversation with the model and uses an LLM judge to assess the result; other cases use programmatic assertions. Repeated evaluation establishes a measurable acceptance condition, while failures identify smaller problems to investigate.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="408">▶ 6:48</button></div>
+      <h3>可靠流式编辑底下的三个算法</h3>
+      <p>Much of the work underneath the model is conventional software engineering. The input may vary, but the implementation can still have precise, testable behavior:</p>
+<p>- <strong>Incremental parsing.</strong> The demonstrated parser test runs 100 iterations, randomly splitting the input at arbitrary chunk boundaries. A packet boundary must not change how the completed text is interpreted.
+- <strong>Approximate matching.</strong> A dynamic programming algorithm finds an approximate match when model-generated old text differs slightly from the buffer. Sobo credits this tolerance with preventing many tool-call failures. The matching algorithm itself can be tested deterministically.
+- <strong>Streaming diffs.</strong> As new text arrives, the editor compares it with the old text. If an old passage is absent from the current output, the editor must distinguish a deletion from text that has not arrived yet. That decision is another deterministic part of the system.</p>
+<p>These tests isolate the machinery that turns model output into edits. Live-model evaluations remain useful, but they need not carry the entire burden of validating parsing, matching, and diff behavior.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="486">▶ 8:06</button></div>
+      <h3>提示词改进后仍有代码必须处理的情况</h3>
+      <p>Insertions at the beginning or end of a document revealed a weakness in the old-text/new-text protocol. The model sometimes supplied an empty old-text tag. Without old text, the matching algorithm has no useful anchor for locating the change. A prompt instruction improved the behavior, but Sobo reports that empty old-text tags still appeared roughly 1–2% of the time after the prompt change. The team therefore also simulated that output in tests to exercise robust handling of the case.</p>
+<p>Another failure crossed XML tag names: an old-text block would close with a new-text tag. Sobo reports that mismatched tags initially caused failures about 40% of the time; adding “Always close all tags properly” brought success to about 95%, leaving roughly 5% to handle. These figures concern the described tag-handling case, with no model version, sample size, or sampling settings specified. The remaining malformed output became input to a deterministic robustness test. <strong>Prompting reduced the frequency of a failure; parser behavior determined what happened when it still occurred.</strong></p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="580">▶ 9:40</button></div>
+      <h3>恢复一个缩进错误的编辑</h3>
+      <p>Indentation exposed a different kind of near miss. The evaluation places an inner function inside an outer function and asks the model to replace <code>todo!()</code> with <code>return 42</code>. A minimal Rust version of that starting shape is:</p>
+<p>```rust
+fn outer() -&gt; i32 {
+    fn inner() -&gt; i32 {
+        todo!()
+    }</p>
+<p>inner()
+}
+```</p>
+<p>The model could identify the right function and the right replacement while flattening its indentation. Its old text might start with <code>fn inner</code> at the left margin, even though the buffer contains leading spaces. Rejecting the edit solely for that difference would discard otherwise useful output.</p>
+<p>Zed handles this by detecting an <strong>indentation delta</strong> between the matched buffer text and the model’s text, then normalizing the edit. For the Rust example, a flattened replacement such as:</p>
+<p>``<code>rust
+fn inner() -&gt; i32 {
+    return 42;
+}
+</code>``</p>
+<p>needs to retain its relative indentation while moving into the outer function’s indentation level. The resulting buffer should be:</p>
+<p>```rust
+fn outer() -&gt; i32 {
+    fn inner() -&gt; i32 {
+        return 42;
+    }</p>
+<p>inner()
+}
+```</p>
+<p>The important operation is to reconcile the model’s indentation with the existing buffer, rather than treating every whitespace difference as a failed match. Sobo then drives that behavior into a deterministic fixture using <code>lorem ipsum dolor sit</code> with an unusual indentation pattern. An outdented replacement changes <code>ipsum dolor sit</code> to <code>ipsum dolor sit amet</code>; indentation normalization lets the test handle it correctly.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="667">▶ 11:07</button></div>
+      <h3>转义问题止步于一次提示词修复</h3>
+      <p>Rust raw strings introduced another failure mode. Their syntax can preserve quotation marks inside the string, but a simple request to tweak the content sometimes prompted the model to transform the escaping as well. Sobo particularly observed <strong>Gemini</strong> producing HTML escape codes, adding backslashes, and double-escaping newlines. Those transformations could change text that the edit was supposed to preserve.</p>
+<p>For this case, the team used a prompt fix. At the time of the talk, it had not added further algorithmic detection or repair for the escaping behavior. That marks the actual boundary of the implementation: indentation had a normalization algorithm backed by deterministic tests, while the escaping problem remained addressed through model instructions.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="735">▶ 12:15</button></div>
+      <h3>把每个已理解的失败移到更小的测试里</h3>
+      <p>Rigorous testing still supplies the foundation. What changes is the need to run model interactions repeatedly and define a pass/fail threshold. The search and streaming-edit examples show that many failures arise in familiar software concerns: the context a tool returns, the boundaries a parser accepts, or the way text is matched and transformed.</p>
+<p>The development process moves through three levels:</p>
+<p>| Test level | What it exercises | What a failure reveals |
+| --- | --- | --- |
+| Broad agent eval | A complete repository task | A broken user experience |
+| Focused stochastic test | One behavior with a live model | A recurring model-output problem |
+| Deterministic regression test | A specific algorithm or captured case | A reproducible implementation defect |</p>
+<p>The narrower test does not replace the broader one. It makes an understood failure cheaper to reproduce and more precise to diagnose. At the time of the talk, Zed ran these evaluations in its existing test suite and infrastructure, without a special external evaluation framework. The empirical method and much of the engineering skill remained the same; model variability became another input the system had to accommodate.</p>
+<p>Sobo closes by inviting contributions to the <a href="https://github.com/zed-industries/zed" target="_blank" rel="noopener">Zed source repository</a>, describing the editor as open source under the GPL. His practical outcome is personal: with the <strong>Claude 4</strong> models, he reports finally being able to write Rust agentically with high efficiency. The parser fixes, matching behavior, focused evaluations, and ordinary regression tests are the work that made that experience possible.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/zed-industries/zed" target="_blank" rel="noopener">Zed source repository</a> — Zed's source code, build instructions, contribution guidance, and component licensing.</li><li><a href="https://zed.dev/blog/fastest-ai-code-editor" target="_blank" rel="noopener">Zed's agentic editing launch</a> — The May 2025 launch announcement introduces the Agent Panel and demonstrates agentic editing in Zed.</li><li><a href="https://tree-sitter.github.io/tree-sitter/" target="_blank" rel="noopener">Tree-sitter documentation</a> — Documentation for generating parsers and maintaining syntax trees incrementally as source code changes.</li><li><a href="https://arxiv.org/abs/2310.06770" target="_blank" rel="noopener">SWE-bench: Can Language Models Resolve Real-World GitHub Issues?</a> — The original benchmark paper evaluates models on editing repositories to resolve real GitHub issues.</li><li><a href="https://zed.dev/blog/120fps" target="_blank" rel="noopener">Maintaining 120 FPS in GPUI</a> — A technical account of Metal rendering, buffering, and macOS display synchronization problems behind smooth scrolling.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Hey, everybody.</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">Thanks for coming to my talk. Uh, I'm Nathan Sobo. I'm the co-founder of Zed. We are an AI-enabled code editor, and what sets us apart is we are not a fork of VS Code.</span></div><div class="tline" data-t="27"><span class="ts">0:27</span><span class="tx">We are implemented from scratch. [laughs] [clapping] Uh, implemented from scratch in Rust. We literally engineered the entire system like a video game around about 1,200 lines of shader program that run on the GPU, and the rest of the system is organized to deliver frames at 120 frames per second really quickly.</span></div><div class="tline" data-t="47"><span class="ts">0:47</span><span class="tx">And recently, I recorded a video because time is short, and I-- this is obviously sped up massively, but we launched agentic editing in Zed, and I wanted to talk about the approach that we took to test this, um, and be empirical ab-- and deliver a reliable product that does this effectively.</span></div><div class="tline" data-t="64"><span class="ts">1:04</span><span class="tx">So here's what we're gonna be talking about. The rest of the talk is gonna be looking at code and just talking about our experience. Um, so</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">testing, evaluation, what's the difference? Um, first, I just wanna start by saying, like, without an empirical approach to the software that we've been building since twenty-eighteen, twenty twenty-one, depends on how long you measure it, Zed would crash every eight seconds.</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">Like, uh, we have probably tens of thousands of tests at this point. And here's an example of the extreme to which we take empirical software development. We literally are starting a server, creating two clients, and we have a simulated scheduler that gets passed in here, and we run fifty different iterations of this with every random interleaving of</span></div><div class="tline" data-t="108"><span class="ts">1:48</span><span class="tx">anything that could possibly be concurrent. Um, so that if the three hundred and seventy-fifth thousandth, and this is only fifty, but, uh, iteration of this particular interleaving of network packets, um, goes wrong, we can replay that over and over again, freeze it, and have full control.</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">So we're very hardcore about testing and being empirical at Zed. But up until very recently, until shipping some of these AI-related features, we've been able to be fully deterministic.</span></div><div class="tline" data-t="137"><span class="ts">2:17</span><span class="tx">Even with sort of non-deterministic things, we've been able to really lock things down and never have flaky tests on CI. But as soon as an LLM enters the picture, that's all out the window, right?</span></div><div class="tline" data-t="148"><span class="ts">2:28</span><span class="tx">Because we could like, you know, assuming that [chuckles] we're using, you know, uh, frontier models, but s- even if we were to use our own model and to, like, control the sampling off the logits, you change one token in the input, and you're gonna get a completely different output.</span></div><div class="tline" data-t="163"><span class="ts">2:43</span><span class="tx">So it's just a fundamentally different problem where we have to embrace stochastic behavior. And so as we built this system, our first eval that we really hammered on was something that if you've seen something like SWE-bench probably looks pretty familiar.</span></div><div class="tline" data-t="177"><span class="ts">2:57</span><span class="tx">It's very data-driven, and it seems like in the machine learning world, like this is what an eval is, input, output. But in the programmatic software world, an eval is more like a test that passes or fails.</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">Like, we come from this very different perspective of automated testing. And so right away, you know, we had this traditional data-driven eval, and then backing that, you know, in the same program we als-- uh, that runs all these evals basically compiles a headless copy of Zed, checks out a repo, runs the agent, tries to make it do</span></div><div class="tline" data-t="210"><span class="ts">3:30</span><span class="tx">things. Um, we right away got into, like, making the e- eval more programmatic. So you can see here the conversation is literally a function. And then our ability to sort of come in here and write code that performs assertions about what the agent did, even, you know, getting, uh, quite a bit more granular.</span></div><div class="tline" data-t="229"><span class="ts">3:49</span><span class="tx">'Cause the problem is when that big eval fails, it's like, what do we do? [chuckles] There's a million ways that that thing could go wrong. And so when we wrote this eval, we were able to drive out, uh, one really simple failure mode, which is when we run the grep tool, this is what our original, like, dumb implementation</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">of the grep tool looked like. So you can see in this case, we're saying we wanna add, uh, a window argument to this tool run trait method in this particular file name, right?</span></div><div class="tline" data-t="257"><span class="ts">4:17</span><span class="tx">But if this is what the model sees, then we're in trouble, right? And so what we ended up, you know, driving from this stochastic test here is a more deterministic test, right?</span></div><div class="tline" data-t="271"><span class="ts">4:31</span><span class="tx">Where I'm gonna go ahead and set up the project, uh, perform this search for fn run, and then, uh, we use Tree-sitter, which is, um, Max's parsing, uh, parser generator framework, to actually expand out the match to the syntactic boundaries.</span></div><div class="tline" data-t="288"><span class="ts">4:48</span><span class="tx">Um, and so that was able to, you know, drive a sub-- a substantial improvement in the behavior of the agent. So right there, like, that was an interesting discovery of just being empirical and driving out what was ultimately an algorithmic problem with a stochastic test.</span></div><div class="tline" data-t="304"><span class="ts">5:04</span><span class="tx">But then we g- moved on to the editing, and when we first implemented editing, it was just done with tool calls. But the problem with tool calls, if anybody's worked with them, is they don't really stream very well.</span></div><div class="tline" data-t="314"><span class="ts">5:14</span><span class="tx">Like, you get key, value, key, value, and it all comes back at once. So we, what we ended up doing is deciding instead we perform a small tool call that just describes the edits, then we loop back around for the moment to just the same model because it has everything already loaded in its cache and ask it</span></div><div class="tline" data-t="333"><span class="ts">5:33</span><span class="tx">to emit these old text, new text blocks. Um, but there's some challenges there. Like, now we have to parse that data is coming back and all kinds of weird stuff that the model's gonna be doing.</span></div><div class="tline" data-t="345"><span class="ts">5:45</span><span class="tx">So I'll just dive in and show you, um, some of the examples. So here's like--</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">uh, there are a bunch of different, uh, tests. Like, these are part of our main regular old test suite, and we just added this eval function, and we say, &quot;I wanna run this eval two hundred times.&quot;</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">And in this particular case-</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">Didn't start this way, [chuckles] but eventually we got this way. We want 100% of these 200 examples to pass, or this test should, like, literally fail to build. So we kind of set a watermark that way, and then here you can see I'm just, like, loading in a conversation with the LLM, um, and then ultimately, uh, in this</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">case, I'm using, uh, LLM as judge. But there are some cases you saw earlier where we do things more programmatically. This case, we're just, like, verifying this thing worked correctly.</span></div><div class="tline" data-t="394"><span class="ts">6:34</span><span class="tx">Um, and so we go from a test like this, a stochastic test, into the particular problems, um, that drive this. So I mean... But it's funny, a lot of the things that went wrong here were really just, like, basic things, right?</span></div><div class="tline" data-t="408"><span class="ts">6:48</span><span class="tx">Like, and so again, these are things that we can-- they're non-deterministic, but the non-determinism is b- non-determinism is sort of bounded. So in this case, we're gonna run 100 iterations of this very simple parsing test, where we're randomly chunking up the input into arbitrary boundaries and just making sure that the parser for this data, um, you know,</span></div><div class="tline" data-t="432"><span class="ts">7:12</span><span class="tx">can handle arbitrary chunking o- of the text. Similarly here, fuzzy matching algorithm, that's a critical piece of, you know, if the model's fuzzy or, uh, generates something slightly wrong, being able to do this dynamic programming that gets us an, a, a, an approximate match really saved a lot of the tool calling failures for us.</span></div><div class="tline" data-t="454"><span class="ts">7:34</span><span class="tx">But again, something that could be deterministically tested. And then finally, there's this idea of a streaming diff that as the model is emitting new text, we need to be care- comparing the new text it's emitting with the old text and then making a dynamic decision i- of if I don't see some text, is that in-- that was</span></div><div class="tline" data-t="473"><span class="ts">7:53</span><span class="tx">present in the old text, is that because it was deleted or it just hasn't been streamed out yet? So that's another, you know, completely, uh, deterministic thing that still was critical to making this system work correctly.</span></div><div class="tline" data-t="486"><span class="ts">8:06</span><span class="tx">So yet another, like, deterministic test. Um, but then we get into some of the fun stuff with, uh, uh, the behavior of the model itself. So one thing that we noticed right away was, um, the model when it was trying to insert at the top or the end of the document in some cases would just have an</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">empty old text tag, which like if you're doing old text, new text matching is not very useful. And so we found that we were able to just add this, you know, simple thing to the prompt and improve the eval.</span></div><div class="tline" data-t="519"><span class="ts">8:39</span><span class="tx">But again, [chuckles] it would still do it, you know, one or two percent of the time. And so just being able to test that, uh, you know, we can handle that case robustly, um, you know, ended up being really helpful.</span></div><div class="tline" data-t="532"><span class="ts">8:52</span><span class="tx">And this is just like, again, I'm in this case simulating the output of the LLM. Um,</span></div><div class="tline" data-t="539"><span class="ts">8:59</span><span class="tx">uh, another case that we encountered a lot was that it would mismatch the XML tags, and so we would have old text, and then it would end like this with new text.</span></div><div class="tline" data-t="550"><span class="ts">9:10</span><span class="tx">Um, and so again, we were able to get a certain distance with the prompt. We initially were sort of 40% of the time we were getting this mismatch and blowing up.</span></div><div class="tline" data-t="560"><span class="ts">9:20</span><span class="tx">We were able to move that by saying, &quot;Always close all tags properly,&quot; to like 95%, but we still have that last like five percent. What do we do with that?</span></div><div class="tline" data-t="570"><span class="ts">9:30</span><span class="tx">And so again, it's just like driving it into a deterministic test where we have old text, new text, you know, and we need to just assert that even though we got...</span></div><div class="tline" data-t="580"><span class="ts">9:40</span><span class="tx">You know, we just need to be robust and accept crazy stuff from the LLM, like, uh, in its output. Um, another interesting case was indentation. So here's an eval that, uh, that we wrote, which was this idea of having an outer function, and then inside here there's an inner function, and we have this todo macro here.</span></div><div class="tline" data-t="602"><span class="ts">10:02</span><span class="tx">And we wanna say, &quot;Replace this todo with return 42,&quot; and we would see the model doing things like this, right? Where the indentation level was completely flattened out, right?</span></div><div class="tline" data-t="613"><span class="ts">10:13</span><span class="tx">It says, &quot;Replace fn inner,&quot; but fn inner has like all this leading indentation on the front of it. Um, but otherwise, like it's perfectly fine. And so in this case, what we did is this strategy of like detecting this indent delta.</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">So we figure out basically sort of re-normalize the indent, if that makes sense. So if the text in the buffer is indented by a certain amount but we otherwise match, then we also detect the text in the, that the LLM emitted and compute this delta, and then again, driving it back to a deterministic test of, um, here</span></div><div class="tline" data-t="651"><span class="ts">10:51</span><span class="tx">we build, uh, a buffer with lorem ipsum dolor sit with this very interesting indentation pattern. And then you can see here, we wanna replace ipsum dolor sit with ipsum dolor sit amet where it's out dented, right?</span></div><div class="tline" data-t="667"><span class="ts">11:07</span><span class="tx">And you can see that when we actually do our, uh, indentation normalization, we're able to handle that correctly. Um, another tricky thing that we ran into was this weird escaping behavior where in these certain cases where we have weird constructs, like this is a Rust, um, sort of a raw string basically that can include, uh, things like</span></div><div class="tline" data-t="690"><span class="ts">11:30</span><span class="tx">quotes inside of it due to this interesting escaping syntax. And doing something as simple as saying, just like, &quot;Tweak this,&quot; we would notice this is the behavior we want.</span></div><div class="tline" data-t="700"><span class="ts">11:40</span><span class="tx">We would notice, especially Gemini doing all kinds of crazy stuff like doing HTML escape codes, um, doing this sort of backslash escaping. Yeah, e- with new lines and stuff, we would see like, you know, uh, crazy escaping that it would do, [chuckles] uh, double escaping the new lines.</span></div><div class="tline" data-t="719"><span class="ts">11:59</span><span class="tx">Um, and so in this case, like we-- that was just a pure prompt fix and didn't really... We didn't try yet, at least, to kind of detect- any of this escaping any further, although obviously, like, that's an opportunity, yeah, to keep going even further.</span></div><div class="tline" data-t="735"><span class="ts">12:15</span><span class="tx">Um, so yeah, I mean from, from my perspective, like, the lessons we learned from this entire experience is that, like,</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">rigorous testing is fundamental to building reliable software, period. Uh, we have this new fancy parlance of, like, an eval, which comes, I think, out of the machine learning field of kind of input/output and having lots of examples of that.</span></div><div class="tline" data-t="758"><span class="ts">12:38</span><span class="tx">But I think a lot of the techniques of just traditional, good old-fashioned software engineering are still really applicable. But we have to embrace this more statistical approach, where we're running it 100 times, 200 times, and asserting a threshold of pass versus fail.</span></div><div class="tline" data-t="774"><span class="ts">12:54</span><span class="tx">Um, but I think, I mean, this is a real-world example of just the stuff that we saw trying to implement streaming edits or an agent that can go search and edit.</span></div><div class="tline" data-t="784"><span class="ts">13:04</span><span class="tx">A lot of those problems are not, I don't know, they're not advanced [laughs] machine learning problems or anything. It's just stupid things that the model will try to do that we need to account for.</span></div><div class="tline" data-t="795"><span class="ts">13:15</span><span class="tx">Um, and so this, I, I think this motion of sort of starting with the zoomed-out eval, then zooming into a sort of stochastic unit test that's still random and interacting with the model but is more focused in on a particular aspect of the experience, and then finally, like driving that even further to an actual good old-fashioned test,</span></div><div class="tline" data-t="815"><span class="ts">13:35</span><span class="tx">that's been the process that we've discovered. But we so far haven't needed to use, like, special external tools, um, or eval frameworks or anything of like that. It's just in our test suite so far, and kind of using the same underlying infrastructure that's used to do any other kind of software testing.</span></div><div class="tline" data-t="834"><span class="ts">13:54</span><span class="tx">And honestly, using just a lot of those same skills. Um, so for us, it was like just be empirical, just like we've always been, but it's this new X factor of the LLM doing all these crazy things.</span></div><div class="tline" data-t="849"><span class="ts">14:09</span><span class="tx">Um, yeah, so that's, that's a little story of how we ... And this is all open source, so you can check it out. Uh, Zed is under the GPL license.</span></div><div class="tline" data-t="858"><span class="ts">14:18</span><span class="tx">I'd love help improving it all, actually. Um, maybe some of you are like, &quot;What are you doing? You could do better in the following five ways.&quot; I'd love, uh, contributions, if that's interesting to folks.</span></div><div class="tline" data-t="868"><span class="ts">14:28</span><span class="tx">And, um, yeah, it's working. I'm, uh, with the Claude 4 models, I'm finally able to write Rust agentically really efficiently, and I'm just loving it. So, um, that's how we got there.</span></div><div class="tline" data-t="882"><span class="ts">14:42</span><span class="tx">I appreciate your attention. [audience applauds] [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>用面向 GPU 的持续性能剖析最大化 GPU 效率 | AI 工程师中文版</title>
+<meta name="description" content="Matthias Loibl 从采样的 CPU 调用栈讲到 GPU 遥测和 GPU 时间剖析，展示了如何调查闲置的加速器，并把设备上的工作追溯到它的调用方。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>用面向 GPU 的持续性能剖析最大化 GPU 效率</h1>
+    <div class="orig-title">Maximize GPU Efficiency with Continuous Profiling for GPUs</div>
+    <div class="meta"><span class="speaker">Matthias Loibl</span> · AI Engineer World's Fair 2025 · 11:31</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=local-inference">本地推理</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/wt8gzWR6auQ-maximize-gpu-efficiency-continuous-profiling-gpus" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="wt8gzWR6auQ"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=wt8gzWR6auQ" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">机器把时间花在了哪里？</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="17"><span class="ts">0:17</span><span>机器把时间花在了哪里？</span></li><li data-t="92"><span class="ts">1:32</span><span>用事件完整性换取持续观测</span></li><li data-t="204"><span class="ts">3:24</span><span>观测生产环境</span></li><li data-t="266"><span class="ts">4:26</span><span>用 GPU 指标选择调查方向</span></li><li data-t="384"><span class="ts">6:24</span><span>找出 GPU 等待时 CPU 在干什么</span></li><li data-t="493"><span class="ts">8:13</span><span>把 GPU 执行时间归属到调用方</span></li><li data-t="577"><span class="ts">9:37</span><span>分别读取宽度、叶子节点和颜色</span></li><li data-t="621"><span class="ts">10:21</span><span>部署采集器</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 15 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Profiling is as old as programming" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Profiling is as old as programming</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker describes profiling as nearly as old as programming and tentatively dates early attempts to the 1970s.
+
+[0:23](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=23s) [Slide says profiling is as old as programming.](https://assets.ai.engineer/sites/aiecode2025/sha256/bd1d25df7dc92d1173085ed873ae4cfddb48e2424fbed94e20b4bdd2b2fd1bf1.webp)
+
+Profiling
+
+As old as programming
+
+Polar Signals
+
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="What is profiling?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is profiling?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Profiling uses dynamic program analysis to measure resource consumption, including memory, CPU and GPU time, instruction usage, and the frequency and duration of function calls.
+
+[0:43](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=43s) [Profiling measures resource consumption, including memory, CPU and GPU time, instruction usage, and function call frequency and duration.](https://assets.ai.engineer/sites/aiecode2025/sha256/f03d1ec8022b3637a9cd94ffa1405ea5e0c3874b314f65996d20902ec0fd6377.webp)
+
+What?
+
+Profiling is a form of dynamic program analysis that measures resource consumption, for example:
+
+• the space (memory)
+• time complexity of a program (CPU and GPU),
+• usage of instructions,
+• frequency and duration of function calls
+
+https://en.wikipedia.org/wiki/Profiling_(computer_programming)
+
+AIE
+Polar Signals</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Why?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Profiling can improve performance and save money. The speaker suggests that a 10% software improvement might let a team turn off 10% of its servers.
+
+[1:14](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=74s) [A slide with the word “Why?” in purple.](https://assets.ai.engineer/sites/aiecode2025/sha256/e5caa8f24382120566bf3f52f0c5bc1b51fc7c8e0dc0ee1270c87bf560c747d4.webp)
+
+Why?
+
+Polar Signals
+
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Tracing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tracing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Tracing records every event continuously, giving a detailed view of the system but generating lots of data at high cost. That makes it hard to use continuously.
+
+[1:36](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=96s) [Tracing records every event constantly and has high costs.](https://assets.ai.engineer/sites/aiecode2025/sha256/dcbed45e74c345a2b47a4f7dcbcbd4a101a6169bc354f90f7cba4a36f4757bb1.webp)
+
+Tracing
+
+• Recording each and every event constantly
+• High costs
+
+Polar Signals
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Sampling" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Sampling</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Sampling periodically observes call stacks, trading missed events for low overhead. The slide cites &lt;0.5% CPU and ~4MB memory overhead.
+
+[2:02](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=122s) [Sampling periodically observes call stacks for a set duration, with examples of sampling frequency and low overhead.](https://assets.ai.engineer/sites/aiecode2025/sha256/56cdd9330938d716ddb002324ffec75f6dfe4c0fff57898f3d4791248e42170d.webp)
+
+Sampling
+
+• Sample for a certain duration
+  ◦ Eg. 10 seconds
+• Periodically observe function call stack
+  ◦ Eg. 100x per second
+• Low overhead*
+  ◦ &lt;0.5% CPU
+  ◦ ~4MB memory
+
+*[illegible]s://cloud.google.com/blog/products/management-to
+[illegible]-tests-cloud-profiler-adds-negligible-overhead
+
+Polar Signals
+
+Interface text:
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="What is profiling?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is profiling?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The colored columns depict function call stacks. Sampling records which stack is executing on the CPU or allocating, such as 20 or 100 times per second.
+
+[3:06](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=186s) [A diagram shows sampled function call stacks as colored blocks, with a legend for one stack.](https://assets.ai.engineer/sites/aiecode2025/sha256/fd32154a7d51f38a8e9ede37029b5aef8e4418a70123b211b964eb7e57aef7ac.webp)
+
+What is profiling?
+
+a()
+c()
+g()
+f()
+
+Polar Signals
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="What is profiling?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is profiling?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Profiling samples call stacks 20 or 100 times per second, recording which functions are executing on the CPU or allocating.
+
+[3:13](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=193s) [A colored call-stack sampling diagram highlights another stack with a different function legend.](https://assets.ai.engineer/sites/aiecode2025/sha256/0847ef9870eb427ab701971cb2c9a8d18955b76dc52ceb2a6d31b58ec5e96e86.webp)
+
+What is profiling?
+
+a()
+c()
+b()
+
+Polar Signals
+
+Interface text:
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="What is profiling?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is profiling?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Linux eBPF enables always-on profiling in production with low overhead. The speaker says one profiler can cover applications without requiring code changes.
+
+[3:22](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=202s) [Profiling is always on, runs in production, has low overhead, and requires zero configuration.](https://assets.ai.engineer/sites/aiecode2025/sha256/28a96287b4f7fecf83393ff5d1f1f1cf03756ee427c212165a50cdfb876ac73c.webp)
+
+What is profiling?
+
+• Always on
+• In production
+• Low Overhead
+• Zero configuration
+
+Polar Signals
+
+Interface text:
+AIE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="About me" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>About me</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Matthias Loibl directs Polar Signals Cloud and maintains open-source projects including Prometheus, Prometheus Operator, Parca, and Pyrra.
+
+[4:04](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=244s) [Speaker introduction listing a Polar Signals Cloud role and open-source projects.](https://assets.ai.engineer/sites/aiecode2025/sha256/b8bf871e2719d2a30ecd3c25a34dc273e93d0ee2c7a0e8321d5ad0f1e2c8a47b.webp)
+
+About me
+
+• Director of Polar Signals Cloud
+• Open Source Maintainer
+  ◦ Prometheus
+  ◦ Prometheus Operator
+  ◦ Parca
+  ◦ Pyrra
+
+@metalmatze
+
+Polar Signals
+
+Interface text:
+AIE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Get the right metrics to maximize GPU utilization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Get the right metrics to maximize GPU utilization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Power stays below its dashed limit while temperature rises and then falls. PCIe throughput shows traffic in both directions: negative values represent receiving and positive values sending.
+
+[5:41](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=341s) [GPU dashboard charts show power, temperature, and PCIe throughput over time.](https://assets.ai.engineer/sites/aiecode2025/sha256/eba2b37f37a9b71cd9e361807204bbab03caa9830e79b06451befae9b75b2c65.webp)
+
+Get the right metrics to maximize GPU utilization
+
+See at a glance when a GPU is not utilized the way you expect using high resolution GPU hardware metrics.
+
+Partial chart:
+Y-axis tick: 500 MHz
+Timeline: 17:20, 17:21, 17:22, 17:23, 17:24, 17:25
+X-axis: Time
+
+Power
+Y-axis ticks: 20 W, 40 W, 60 W
+Timeline: 17:20, 17:21, 17:22, 17:23, 17:24, 17:25
+X-axis: Time
+
+Temperature
+Y-axis ticks: 50 °C, 55 °C, 60 °C
+Timeline: 17:20, 17:21, 17:22, 17:23, 17:24, 17:25
+X-axis: Time
+
+PCIe Throughput
+Y-axis ticks: -30 MB/s, -20 MB/s, -10 MB/s, 0 Bytes/s, 10 MB/s
+Timeline: 17:20, 17:21, 17:22, 17:23, 17:24, 17:25
+X-axis: Time
+
+Interface text:
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Correlate CPU usage with CPU strips" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Correlate CPU usage with CPU strips</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Temperature and PCIe throughput charts sit above CPU activity strips. The speaker describes selecting a time range on CPU 0 to inspect its stack in a flame chart.
+
+[6:22](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=382s) [Temperature and PCIe throughput charts appear above colored CPU activity strips.](https://assets.ai.engineer/sites/aiecode2025/sha256/85eafa50b3b2fe3617ffb416bcd942a7fcbc7a4172b2ac0b2fdf3fdfd86948b8.webp)
+
+Correlate CPU Usage with CPU strips
+
+Understand down to the nanoseconds when the CPU was active and when not.
+
+[Partially visible chart]
+Y-axis tick: 20 W
+Timeline: 17:20, 17:21, 17:22, 17:23, 17:24, 17:25
+Time
+
+Temperature
+Y-axis ticks: 50 °C, 55 °C, 60 °C
+Timeline: 17:20, 17:21, 17:22, 17:23, 17:24, 17:25
+Time
+
+PCIe Throughput
+Y-axis ticks: 10 MB/s, 0 Bytes/s, -10 MB/s, -20 MB/s, -30 MB/s
+Timeline: 17:20, 17:21, 17:22, 17:23, 17:24, 17:25
+Time
+
+CPU activity strips
+Timeline: 1.25m, 2.5m, 3.75m, 5[illegible]
+{cpu: 0}
+{cpu: 1}
+{cpu: 2}
+{cpu: 3}
+
+Interface text:
+© 2025 Polar Signals. All rights reserved.
+Support  Status  Pricing  Contact Sales
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Visualize with flame charts" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Visualize with flame charts</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After selecting a CPU time range, the flame chart shows a Python call stack while the GPU is not fully utilized. The speaker traces the calls toward CUDA functions.
+
+[6:56](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=416s) [A flame chart displays a Python call stack and a function detail popup.](https://assets.ai.engineer/sites/aiecode2025/sha256/8881f334ae58739eb491756e6bcc42942e22a723176f5db0165711abfb0e9e2d.webp)
+
+Visualize with flame charts
+
+If the GPU wasn't fully utilized, what was the CPU doing that wasn't making the GPU do work?
+
+Timeline: 68.64ms, 137.27ms, 205.91ms, 274.55ms, 343.18ms, 411.82ms, 480.45ms, 549.09ms, 617.73ms, 686.36ms
+
+Selected function: _PyObject_VectorcallTstate
+Cumulative: 52.63 ms (100.00%)
+Flat: 0 ns (0.00%)
+Timestamp: 2025:06:03T17:21:15.428 (UTC)
+File: ...de/internal/pycore_call.h +92
+Address: 0x54cd31
+Inlined: yes
+Binary: python3.12
+Build Id: 37451b37c71cb46f8ccb27cb3cdb...
+
+Call stack labels: __GI__[illegible], start_thre[illegible], pythread_[illegible], thread_run[illegible], method_vec[illegible], _PyObject_[illegible], _PyEval_Ev[illegible], &lt;interpret[illegible], Thread._b[illegible], Thread.run[illegible], _pin_memor[illegible], tupledeall[illegible], Py_XDECREF, Py_DECREF, list_deall[illegible], THPVariabl[illegible]
+
+Showing 52,631,578 values.
+
+Interface text:
+Group by
+Function Name
+More
+Contains
+Filter by function
+Share
+Right click to show context menu
+© 2025 Polar Signals. All rights reserved.
+Support
+Status
+Pricing
+Contact Sales
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Languages we can see in stacks" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Languages we can see in stacks</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Stack traces can include compiled languages such as Rust and interpreted languages such as Python and Ruby. The slide pairs language logos with CUDA and PyTorch.
+
+[7:33](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=453s) [Logos for programming languages and GPU tools shown as examples of stacks.](https://assets.ai.engineer/sites/aiecode2025/sha256/9b7d0b8d3f894d97902019b1ad0e3ba548d21f27575300fda5780cd34f1fb698.webp)
+
+Languages we can see in stacks
+
+NVIDIA
+CUDA
+PyTorch
+
+GO
+C++
+C
+R
+
+Polar Signals
+
+Interface text:
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="GPU-time profiling: CUDA example" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>GPU-time profiling: CUDA example</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The CUDA example branches into matrix multiplication and random matrix generation. The profiler uses function start and kernel termination times to calculate GPU duration.
+
+[8:22](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=502s) [A stack chart splits into matrix multiplication and random matrix generation functions.](https://assets.ai.engineer/sites/aiecode2025/sha256/2da675d07ac94dfe3cc658f0edb697630708242dcaed65c9c2354fb7bc2f836c.webp)
+
+GPU-time profiling
+
+root
+_start
+__libc_start_main_impl
+__libc_start_call_main
+main
+x
+matmul_naive
+__device_stub__Z12matmul_naivePKfS0_Pf
+generate_random_matrix
+__device_stub__Z22generate_random_matrixPfm
+
+Showing 890,432,142,752 values.
+
+Polar Signals
+
+Interface text:
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="How to get started" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How to get started</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Polar Signals runs on Linux using eBPF. Deploy its Kubernetes DaemonSet with a tokenized manifest, or run the binary using systemd or Docker.
+
+[10:20](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=620s) [Getting-started slide describes a Kubernetes installation command and mentions Docker, systemd, and a binary.](https://assets.ai.engineer/sites/aiecode2025/sha256/73763e26f19bfc3741f5d42b782b2cdbc0e1fde572d4ed95312809cae8eca4ad.webp)
+
+How to get started
+
+With just one command and the easiest onboarding guide you’ll ever see, you can start saving costs and optimizing performance in your infrastructure.
+
+All it takes is a single command.
+
+$ kubectl apply -f https://api.polarsignals.com/api/manifests.yaml?token=&lt;your-token-here&gt;
+
+Also Docker, sytemd, and binary
+
+Polar Signals
+
+Interface text:
+AIE
+Microsoft
+smol ai
+
+[10:28](https://www.youtube.com/watch?v=wt8gzWR6auQ&amp;t=628s) [Polar Signals onboarding slide showing a Kubernetes installation command and listing Docker, systemd, and a binary as alternatives.](https://assets.ai.engineer/sites/aiecode2025/sha256/333a6162fede442daa4f01f7c1b0adaf3b9a6dde4d8fb20c2d33b204cdad9d5a.webp)
+
+How to get started
+
+With just one command and the easiest onboarding guide you’ll ever see, you can start saving costs and optimizing performance in your infrastructure.
+
+All it takes is a single command.
+
+$ kubectl apply -f https://api.polarsignals.com/api/manifests.yaml?token=&lt;your-token-here&gt;
+
+Also Docker, sytemd, and binary
+
+Polar Signals
+
+Interface text:
+AIE
+aws</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">机器把时间花在了哪里？</a></li><li><a href="#sec-2">用事件完整性换取持续观测</a></li><li><a href="#sec-3">观测生产环境</a></li><li><a href="#sec-4">用 GPU 指标选择调查方向</a></li><li><a href="#sec-5">找出 GPU 等待时 CPU 在干什么</a></li><li><a href="#sec-6">把 GPU 执行时间归属到调用方</a></li><li><a href="#sec-7">分别读取宽度、叶子节点和颜色</a></li><li><a href="#sec-8">部署采集器</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">用持续性能剖析找出 GPU 时间花在了哪里</h2>
+      <div class="lede"><p>Matthias Loibl 从采样的 CPU 调用栈讲到 GPU 遥测和 GPU 时间剖析，展示了如何调查闲置的加速器，并把设备上的工作追溯到它的调用方。</p><p>熟悉函数调用栈、CPU–GPU 工作负载和基本的 Linux 部署概念，有助于理解性能剖析示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="17">▶ 0:17</button></div>
+      <h3>机器把时间花在了哪里？</h3>
+      <p>Where does a program spend its time—and which work could you remove or make cheaper? <strong>Profiling</strong> supplies the measurements needed to answer that question. Matthias Loibl tentatively traces its history to IBM work in the 1970s, but the practical questions remain familiar: how much memory does a program use, where does CPU or GPU time go, which instructions execute, and how frequently and for how long do functions run?</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/28f8068967eac30334dc671a74f69fc32e48d6ce573396d5d68cea876a6b0bc2" alt="Slide titled “What?” defines profiling and lists space, time complexity, instruction usage, and frequency and duration of function calls." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Profiling measures memory, CPU and GPU time, instruction usage, and function calls.</figcaption></figure>
+<p>Those measurements connect performance engineering to infrastructure cost. Loibl offers a hypothetical: a 10% software performance improvement might let an operator turn off 10% of its servers. The point is the possibility of reducing the capacity needed for a workload, not a guaranteed conversion from faster software to a smaller bill.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="92">▶ 1:32</button></div>
+      <h3>用事件完整性换取持续观测</h3>
+      <p>A profiler can record every event, or periodically observe what is happening. Recording everything provides detail, but collection cost and data volume make that approach difficult to sustain continuously.</p>
+<p>| Approach | What it records | Tradeoff |
+|---|---|---|
+| Tracing | Every event | Detailed history; high cost and data volume |
+| Sampling | Observations at selected intervals | Lower collection volume; individual events can be missed |</p>
+<p>Loibl's sampling example uses a ten-second window with an adjustable rate, such as 20 or 100 samples per second. The rate controls how often the profiler looks, rather than how often the application performs work.</p>
+<p>Loibl associates 100 samples per second with less than 1% CPU overhead and cites approximately 4 MB of memory overhead. He does not supply the workload, hardware, or measurement conditions for those figures. The broader tradeoff is clear: sampling will miss events, but collecting continuously gives recurring work more opportunities to appear. A stack that executes only once matters less to this view than work that repeatedly consumes resources.</p>
+<p>Each observation captures a <strong>call stack</strong>: the chain of functions calling one another at that moment. For CPU profiling, that means recording the stack executing on the CPU; for allocation profiling, it can mean recording the stack responsible for allocating memory. Repeated observations build a picture of where the application spends its resources without requiring a complete event history.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="204">▶ 3:24</button></div>
+      <h3>观测生产环境</h3>
+      <p><strong>The useful profile is the one from the environment running the workload.</strong> A developer's machine does not reproduce production, so low overhead matters partly because it makes production observation practical. Loibl's collector uses Linux <strong>eBPF</strong>, drawing on kernel facilities to gather profiles. He describes starting one collector to profile applications without changing or individually instrumenting them.</p>
+<p>Loibl introduces himself as the Berlin-based director of <a href="https://www.polarsignals.com/" target="_blank" rel="noopener">Polar Signals Cloud</a> and a maintainer of Prometheus, Prometheus Operator, and <a href="https://github.com/parca-dev/parca" target="_blank" rel="noopener">Parca</a>. He presents Parca as the open-source counterpart to the profiling work, before turning from established CPU and memory collection to the GPU preview.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="266">▶ 4:26</button></div>
+      <h3>用 GPU 指标选择调查方向</h3>
+      <p>After three or four years working on CPU and memory profiling, the team began a GPU profiling preview earlier in the year of the talk. The first view uses the <a href="https://developer.nvidia.com/management-library-nvml" target="_blank" rel="noopener">NVIDIA Management Library, NVML</a>, to collect GPU metrics. In the demonstration, the blue utilization line represents the overall node, while the orange line represents one GPU process, identified by its process ID. Memory utilization and clock speed appear alongside those signals. A utilization drop identifies a time interval worth investigating: what stopped the GPU from staying busy?</p>
+<p>The next metrics help distinguish possible constraints:</p>
+<p>- <strong>Power:</strong> Compare measured power usage with the dashed power-limit line.
+- <strong>Temperature:</strong> Look for heat that could lead to throttling. Loibl warns about sustained temperatures around 80°C; that is an approximate warning, not a threshold shared by every GPU.
+- <strong>PCIe throughput:</strong> Investigate whether transfers between CPU and GPU are limiting the workload. In the displayed convention, negative values represent receiving and positive values represent sending; Loibl points to an example of sending 10 MB/s.</p>
+<p>These signals narrow the question from “Why is utilization low?” to a more specific investigation of power, cooling, or data movement.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="384">▶ 6:24</button></div>
+      <h3>找出 GPU 等待时 CPU 在干什么</h3>
+      <p>GPU telemetry becomes more useful when it shares a time axis with stored CPU profiles. The collector already captures CPU stacks with eBPF, so an interval of interest in the GPU metrics can lead directly into host-side execution.</p>
+<p>1. Find a time interval worth investigating in the metrics.
+2. Inspect the corresponding CPU activity. Loibl selects activity on CPU zero near the end of the example.
+3. Drag over that time range to open a flame chart.
+4. Follow the call stack to see what the CPU was executing while the GPU was not fully utilized.</p>
+<p>In the selected profile, Python eventually calls into CUDA functions. The chart supplies the calling context that the utilization curve alone cannot show.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/fb532d13d9e98c7b968f5c680ffeee08e8003bd498813f8ee6cb0c15ca0dec87" alt="Slide titled “Visualize with flame charts” shows a vertical colored call stack with a function-details tooltip." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A CPU flame chart helps investigate what happens while the GPU is not fully utilized.</figcaption></figure>
+<p>A common explanation is that the CPU is busy loading data and fails to keep the GPU supplied with work. The host can therefore be active while the accelerator remains underutilized. This is why looking only at GPU utilization leaves an important part of the workload unexplained.</p>
+<p>The same investigation is not limited to Python. Loibl names Rust calling CUDA, compiled-language stacks generally, and runtime support including Python, Ruby, and the JVM. The underlying profiling approach also applies beyond accelerator workloads—to web servers, databases, and vector databases whose performance depends on where execution time goes.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="493">▶ 8:13</button></div>
+      <h3>把 GPU 执行时间归属到调用方</h3>
+      <p>CPU profiles explain host activity, but they do not directly answer how much GPU time a calling function causes. Loibl next introduces <strong>GPU-time profiling</strong>, a new preview demonstrated that morning, distinct from the earlier GPU metrics preview. The small example shows branches for <code>matmul_naive</code> and <code>generate_random_matrix</code>: matrix multiplication and random-matrix generation become identifiable work in a profile.</p>
+<p>Loibl describes obtaining a start timestamp when a CUDA call stack appears on the CPU and a termination timestamp for the GPU kernel, then using the interval to determine the kernel's GPU duration. Once matching device-execution timestamps are available, the duration calculation is straightforward:</p>
+<p>``<code>python
+def gpu_duration_ns(start_ns: int, end_ns: int) -&gt; int:
+    if end_ns &lt; start_ns:
+        raise ValueError(&quot;Kernel end precedes kernel start&quot;)
+    return end_ns - start_ns
+</code>``</p>
+<p>The difficult part is obtaining and matching the right events. CUDA launches are asynchronous, and the talk does not specify the launch-to-completion correlation mechanism; timing only a host launch call would not establish device execution time.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/effbac0ee1a9434d8f870bd8745600c281281e7650ea72d29fb985898a776f43" alt="Slide titled “GPU-time profiling” shows horizontal colored stack bars branching into matmul_naive and generate_random_matrix." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A small GPU-time profile shows branches for matrix multiplication and random-matrix generation.</figcaption></figure>
+<p>The resulting view attributes GPU time to individual functions. Loibl then moves from the small CUDA example to a larger profile, following a Python main function down through the calling stack into <code>libcuda</code>. The host call path provides the context for the device work.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="577">▶ 9:37</button></div>
+      <h3>分别读取宽度、叶子节点和颜色</h3>
+      <p>The larger chart prompts a useful question: does it show CPU time, GPU time, or both? <strong>Its calling path comes from the CPU, while its width represents attributed GPU time.</strong> Loibl explains that each stack's leaf is the function consuming time on the GPU. The chart connects the host's chain of calls to device execution rather than simply combining two unrelated timing measurements.</p>
+<p>A second question concerns the colors. They distinguish binaries, not timing categories. Blue identifies Python in this example; Loibl tentatively identifies one of the lower binaries as CUDA.</p>
+<p>| Chart feature | Meaning |
+|---|---|
+| Width | Attributed GPU time |
+| Path to the leaf | CPU calling stack |
+| Leaf | Function consuming GPU time |
+| Color | Binary associated with the frame |</p>
+<p>Keeping those meanings separate lets the reader follow which application code led to device work without mistaking a color for a measure of expense.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b930191a636ce586f7a7e0cd25432bbd8a3df32c5ebf3f69ce7cc50c94763b99" alt="GPU-time profiling slide with a branching chart of purple, blue, green, and cyan horizontal bars." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The larger GPU-time profile contains colored branches of varying widths and depths.</figcaption></figure>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="621">▶ 10:21</button></div>
+      <h3>部署采集器</h3>
+      <p>The deployment described in the talk starts with a Linux host and eBPF. The collector can run as a binary managed by <code>systemd</code>, in Docker, or as a Kubernetes <code>DaemonSet</code>. For Kubernetes, Loibl describes obtaining the manifest YAML, supplying a token, and deploying it. This is the talk's collector setup: the <a href="https://www.polarsignals.com/blog/posts/2025/10/22/gpu-profiling" target="_blank" rel="noopener">later CUDA profiling release</a> additionally documents a GPU-process injection library and agent configuration, so the preview's setup should not be treated as a complete current CUDA installation procedure.</p>
+<p>Existing CPU and memory profiling customers were beginning to integrate GPU profiling into their platforms. Loibl names Turbopuffer as interested in improving its vector engine's performance, without reporting a quantified GPU improvement.</p>
+<p>The presentation closes with a booth invitation and an event-specific offer: two free consultation hours for the first ten people to sign up, plus discounts for seed and Series A startups.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://www.polarsignals.com/blog/posts/2025/06/04/latest-in-continuous-profiling-for-gpus" target="_blank" rel="noopener">Latest in Continuous Profiling for GPUs</a> — Loibl and Vincent's conference companion covers GPU metrics, per-process utilization, and a preview of GPU-time flame graphs.</li><li><a href="https://developer.nvidia.com/management-library-nvml" target="_blank" rel="noopener">NVIDIA Management Library</a> — NVIDIA's interface for monitoring GPU utilization, memory, temperature, power, clocks, and active processes.</li><li><a href="https://github.com/parca-dev/parca" target="_blank" rel="noopener">Parca</a> — Open-source continuous profiling with eBPF collection, profile storage, querying, and local build instructions.</li><li><a href="https://www.polarsignals.com/blog/posts/2025/10/22/gpu-profiling" target="_blank" rel="noopener">Continuous NVIDIA CUDA Profiling In Production</a> — The later CUDA profiler release explains how CUPTI execution records connect GPU durations to CPU launch stacks through USDT probes and eBPF.</li><li><a href="https://developer.nvidia.com/docs/drive/drive-os/7.0.3/public/drive-os-tensorrt-developer-guide/best-practices.html" target="_blank" rel="noopener">NVIDIA TensorRT Performance Best Practices</a> — Versioned guidance for inference performance measurement, including GPU clocks, cooling, and thermal throttling.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Great. Uh, thank you for, for coming.</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">Um, I'm gonna talk about maximizing GPU efficiency with continuous profiling for GPUs. Um, so what is profiling? Profiling is pretty much as old as programming. I think it was, like, firstly-- uh, first done in, like, the 1970s.</span></div><div class="tline" data-t="32"><span class="ts">0:32</span><span class="tx">I think some IBM folks were, were trying to figure out what was happening on their computers back then. So it's been around basically forever in computer science. And, uh, what are we doing with profiling?</span></div><div class="tline" data-t="46"><span class="ts">0:46</span><span class="tx">We are profiling, um, basically, uh, anything that, that we can to, [chuckles] to inform our, um, view of the world. We wanna see, like, the memory or CPU and GPU, um, time spent.</span></div><div class="tline" data-t="59"><span class="ts">0:59</span><span class="tx">We want to see the usage of the individual instructions and the frequency and duration of these function calls. So, um, yeah, a lot of different approaches to profiling, but, um, yeah, it's generally speaking, super, super important to, to performance engineering.</span></div><div class="tline" data-t="76"><span class="ts">1:16</span><span class="tx">So why would we do this? Uh, obviously to improve performance, and also we can save money. So if we, um, improve our, um, software by, like, ten percent, we might be able to just, like, turn off ten percent of our, like, servers and save a bunch of money, right?</span></div><div class="tline" data-t="92"><span class="ts">1:32</span><span class="tx">Um, so that would be great. And, um, there are two different kinds of, of profiling typically, um, that, that we're seeing these days. So one is tracing profiling, um, and that is you record each and every e-event all the time constantly.</span></div><div class="tline" data-t="108"><span class="ts">1:48</span><span class="tx">But, um, obviously, that's great for, like, getting, like, the best, uh, possible, uh, view onto the system, but it's, like, pretty high cost, um, and generates a lot of data, so it's, like, hard to, to do, uh, continuously.</span></div><div class="tline" data-t="125"><span class="ts">2:05</span><span class="tx">And that is why we're, uh, doing sampled, uh, profiling. So what we do is basically we sample for a certain duration, like ten seconds, and we, uh, only sample a hundred times per second or, like, twenty times per second, et cetera.</span></div><div class="tline" data-t="139"><span class="ts">2:19</span><span class="tx">Uh, you can tweak that, uh, how often do you wanna profile, um, and, and, and sample. So, like, a hundred times per second isn't that much for a CPU, and that's why you get, like, less than, like a percent overhead on, on the CPU and, like, only like four megabytes of overhead, uh, for the memory profiling.</span></div><div class="tline" data-t="158"><span class="ts">2:38</span><span class="tx">Um, you will most definitely miss things, but if you do it always on, um, you will eventually see most of the relevant things, right? Like, one stack that executed once isn't, like, relevant to us anyway.</span></div><div class="tline" data-t="173"><span class="ts">2:53</span><span class="tx">Like, we wanna see the, the big picture.</span></div><div class="tline" data-t="177"><span class="ts">2:57</span><span class="tx">Um, so yeah, this is basically what we're, what, what we're doing. We, we see, like, the stacks on the left-hand side executing, and these are, like, the functions that are calling each other, and we are just, um, like twenty times per second or a hundred times per second, taking, taking note, um, on what exact, uh, stack we're</span></div><div class="tline" data-t="196"><span class="ts">3:16</span><span class="tx">seeing on the CPU, um, or which stack is, like, allocating, uh, et cetera.</span></div><div class="tline" data-t="204"><span class="ts">3:24</span><span class="tx">Yeah, and that allows us to, like, do it always on, do it in production. Um, your machine is not the production environment, so it is pretty important to be able to do this in production and actually see what's happening, uh, out there in the real world and do it with lo-- uh, low overhead.</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">And we are actually using, uh, Linux eBPF.</span></div><div class="tline" data-t="226"><span class="ts">3:46</span><span class="tx">And because we're u-using something, um, that the kernel is doing, we, we don't even have to, uh, change any of your, uh, applications. That means, um, you start one thing and it will start, um, profiling all of your applications.</span></div><div class="tline" data-t="242"><span class="ts">4:02</span><span class="tx">So you don't really have to instrument. Quickly about me. I'm Matthias Loibl, flew in from, uh, Berlin, Germany, and I'm the director of Polar Signals Cloud, and I'm also a maintainer of Prometheus, Prometheus Operator, Parca as the open source, uh, version of all of what I'm talking about today, and some other projects.</span></div><div class="tline" data-t="266"><span class="ts">4:26</span><span class="tx">So, um, we are basically here for, like, GPUs, right? And we just earlier this year, uh, after, like, working on CPU and memory profiling for the last three or four years, um, started, um, a preview on GPU profiling.</span></div><div class="tline" data-t="283"><span class="ts">4:43</span><span class="tx">So I'm gonna talk about this today and, uh, why, why we think it's pretty, pretty great. Um, as you can see in this, uh, screenshot, um, we're talking to NVIDIA NVML to get these metrics out of, uh, your GPU.</span></div><div class="tline" data-t="298"><span class="ts">4:58</span><span class="tx">So we can see in the blue ch-- the blue line on top, we can see the overall utilization of the node, and then the orange, uh, line is one particular process on the GPU.</span></div><div class="tline" data-t="311"><span class="ts">5:11</span><span class="tx">Um, so we can see-- Over here, we can see the process ID. So we see individual processes, but we also see the overall, uh, nodes utilization, um, further down the memory utilization and the clock speed, et cetera.</span></div><div class="tline" data-t="326"><span class="ts">5:26</span><span class="tx">And that will kind of inform, um, where we wanna look at, um, the performance of our system, right? So sometimes we can see the utilization drop down, and that might be something that we wanna investigate to really make sure that we are using, uh, our GPUs to the fullest.</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">Uh, just couple of more metrics we are collecting. So there's, like, the power utilization, and the dashed line is the power limit, and then the temperature. Temperature sometimes is important because, like, eventually, if you're, like, always at, like, eighty degrees Celsius, you're, you're gonna get throttled, um, by the GPU, um, quite significantly.</span></div><div class="tline" data-t="363"><span class="ts">6:03</span><span class="tx">And then obviously PCIe throughput Um, it's interesting, are you bound by the data you are transferring between CPU and GPU? Perfect. Yeah, so, uh, just to repeat, like, um, the negative one is, uh, receiving whereas the, um, positive ones are sending 10 megabytes per second, uh, through PCIe.</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">And then we can, uh, use all of those metrics to correlate from the CPU prof- uh, from the s- uh, GPU metrics to the CPU, um, profiles that we're storing.</span></div><div class="tline" data-t="394"><span class="ts">6:34</span><span class="tx">So we're, like, collecting, like we have done the last f- three or four years, uh, using eBPF, those, uh, CPU stacks. Um, and we wanna, like, see what is happening on the CPU.</span></div><div class="tline" data-t="406"><span class="ts">6:46</span><span class="tx">So in this case we might wanna look at a particular stack on, uh, CPU zero, um, right before the end because there was some activity, for example. So we can drag and drop and select a particular, uh, time range, and then we are presented vis- with a flame chart.</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">Um, and in the flame charts we can see what the CPU is doing while the GPU is not fully utilized. So in, in this case we're, we, we can see that, uh, Python is actually calling, um, eventually the, the CUDA, uh, functions further down.</span></div><div class="tline" data-t="441"><span class="ts">7:21</span><span class="tx">Um, but oftentimes you, you will see that, like, the CPU is, um, pretty actively, uh, trying to load data and being busy that way and not, not, uh, keeping the GPU busy.</span></div><div class="tline" data-t="454"><span class="ts">7:34</span><span class="tx">Um, if you are, um, using Python we can see it. If you're using Rust to integrate, uh, with CUDA, for example, um, that also works, but any compiled language is going to show up, uh, in those stack traces, and even some of the interpreted languages are going to show up, uh, like Ruby, Python, um, uh, JVM, et</span></div><div class="tline" data-t="473"><span class="ts">7:53</span><span class="tx">cetera. So while there's a focus at this conference, um, that we're talking about GPUs here, it really works with, like, any language and, and any application. So web servers, databases, and vector databases for example, um, also are interested in improving their performance obviously.</span></div><div class="tline" data-t="493"><span class="ts">8:13</span><span class="tx">Uh, something super exciting that we first, uh, uh, introduced this morning, so this is, like, um, super fresh, uh, and hot off the press, is GPU time profiling. So, um, as you heard, like, I, I was talking about, like, these CPU profiles, and we, we look how, how much, uh, time is spent on, uh, individual functions on</span></div><div class="tline" data-t="515"><span class="ts">8:35</span><span class="tx">the CPU. But we are, like, more in- interested in, uh, GPU time spent, uh, by these functions. So here's, like, a small example of CUDA functions, and basically what we do is we tell the Linux kernel to, um...</span></div><div class="tline" data-t="532"><span class="ts">8:52</span><span class="tx">Whenever there's a CUDA stack getting put on the, on the CPU, to tell us the start time of that, uh, function, and then eventually tell us the s- uh, time when that, uh, kernel terminates, and then we know the duration of how much time, uh, that particular kernel was spending on, on the GPU.</span></div><div class="tline" data-t="551"><span class="ts">9:11</span><span class="tx">Um, and, and that's super interesting obviously because now we can actually see how much, uh, GPU time these individual, um, functions are taking on the GPU. And here's a bit m- more of a real [chuckles] world example.</span></div><div class="tline" data-t="566"><span class="ts">9:26</span><span class="tx">So, um, at the top we can see, uh, uh, on the... Yeah, on the right-hand side we can see, like, the main function in Python, and then calling down into, uh, libcuda down here.</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">And the width of these, um, stacks that we're seeing is, like, the actual time that we had these functions, uh, take up in, in the GPU. So this is showing CPU and GPU?</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">Yeah, so this is, like, basically, um, the stack on the CPU- Like- ... down to here, and then the leaf of each stack is the function that was taking time on the GPU.</span></div><div class="tline" data-t="603"><span class="ts">10:03</span><span class="tx">Okay. W- what do the colors mean? Uh, the colors are different, um,</span></div><div class="tline" data-t="609"><span class="ts">10:09</span><span class="tx">binaries in this case that are running on your machine. So that's why, like, blue up here for example is, is Python, and then there's, like, some, some I think CUDA, uh, down here.</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">Yeah, great question. Uh, how do you get started? Because we, um, we run, uh, on Linux using eBPF. You have a binary that you can, that you can run, uh, using systemd or Docker works as well, but we also have a DaemonSet for Kubernetes.</span></div><div class="tline" data-t="639"><span class="ts">10:39</span><span class="tx">Um, and you deploy that, you get the m- manifest YAML and give it a token. Um, and then some of our customers are already using it for CPU and memory profiling, and they're starting to also integrate, um, their platforms with our GPU profiling.</span></div><div class="tline" data-t="655"><span class="ts">10:55</span><span class="tx">Uh, especially like Turbopuffer, um, are, are interested in, in improving their performance of their, uh, vector engine, right?</span></div><div class="tline" data-t="666"><span class="ts">11:06</span><span class="tx">And that's really it. Um, please visit, visit our booth. Um, um, you get, um... The first 10 people get, like, to sign up for a consultation get two hours for free if you want to, and we can also do discounts for seed and Series A startups.</span></div><div class="tline" data-t="682"><span class="ts">11:22</span><span class="tx">And that's really it. Thank you so much. [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

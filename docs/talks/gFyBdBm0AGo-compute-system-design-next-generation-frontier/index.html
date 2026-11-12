@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>面向下一代前沿模型的算力与系统设计 | AI 工程师中文版</title>
+<meta name="description" content="更大的模型需要的不只是更快的 GPU：经济的推理取决于批处理、工作负载隔离和缓存复用，而前沿训练则会在巨大规模上暴露出故障和拖后腿的节点。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>面向下一代前沿模型的算力与系统设计</h1>
+    <div class="orig-title">Compute &amp; System Design for Next Generation Frontier Models</div>
+    <div class="meta"><span class="speaker">Dylan Patel</span> · AI Engineer World's Fair 2024 · 18:29</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=ai-platform-engineering">AI 平台工程</a><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=local-inference">本地推理</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/gFyBdBm0AGo-compute-system-design-next-generation-frontier" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="gFyBdBm0AGo"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=gFyBdBm0AGo" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">为什么更好的模型仍让人感觉停滞不前</div></div>
+      <div class="label row">章节跳转 <span>共 10 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="0"><span class="ts">0:00</span><span>为什么更好的模型仍让人感觉停滞不前</span></li><li data-t="87"><span class="ts">1:27</span><span>一个请求，两个资源瓶颈</span></li><li data-t="236"><span class="ts">3:56</span><span>在已有请求继续运行的同时接纳新请求</span></li><li data-t="341"><span class="ts">5:41</span><span>把提示词处理与 token 生成分开</span></li><li data-t="546"><span class="ts">9:06</span><span>复用一份文档，而不是反复花钱处理它</span></li><li data-t="726"><span class="ts">12:06</span><span>超越 GPT-4 这一代的训练</span></li><li data-t="806"><span class="ts">13:26</span><span>前沿算力的物理足迹</span></li><li data-t="848"><span class="ts">14:08</span><span>大型集群必须在组件故障时继续训练</span></li><li data-t="938"><span class="ts">15:38</span><span>一块能工作的 GPU 仍可能拖慢整个任务</span></li><li data-t="1031"><span class="ts">17:11</span><span>为这些系统可能催生的模型而构建</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 14 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Inference Requirements - Prefill" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference Requirements - Prefill</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Prefill processes prompt tokens in parallel, making it compute-bound and affecting time to first token. The slide estimates over 1 petaflop for a 2k GPT-4 prompt and nearly 20 petaflops for 32k.
+
+[1:17](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=77s) [Slide explains parallel processing of input tokens and prefill compute requirements, with a model flow and resource chart.](https://assets.ai.engineer/sites/aiecode2025/sha256/c1bd866a486f0ad3b5b9bad85d44feec2778977715167cbaea043fdd2d81d9c6.webp)
+
+Inference Requirements - Prefill
+
+Prefill = Processing Input Tokens in Parallel
+Needs to be fast to reduce time to first token for user
+On GPT-4, a 2k prompt length would require over 1 petaflops. A 32k prompt requires nearly 20 petaflop
+
+LLMs (Inference - Prefill)
+Input context (history + current prompt), ~10k tokens → Transformer Model, 10s of GBs → KV cache
+Prefill processes many tokens in parallel → compute bound
+Time to first token &lt;= few sec
+
+Chart axes: Compute (10PF to 1st token); Memory bandwidth; Memory capacity; Network Bandwidth; Latency Sensitivity (ms); Scale (10s of nodes); Model Size (10s of B)
+Legend: LLM Training; LLM Inf Prefill; LLM Inf Decode; R&amp;R Training; R&amp;R Inference
+Meta
+Source: Meta
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+3</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Inference Requirements - Decode" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference Requirements - Decode</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Decode generates tokens iteratively, loading model weights at each step. Batching spreads that cost across users; the slide estimates &gt;60TB/s of bandwidth for 64 GPT-4 users at 30 tokens per second each.
+
+[2:21](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=141s) [Slide explains decoding bandwidth requirements and batching, with a model flow and resource chart.](https://assets.ai.engineer/sites/aiecode2025/sha256/bd5b07a7d976a98b3be671207d85614fc64152276ff362267c20af00ed06d1cb.webp)
+
+Inference Requirements - Decode
+
+• Decoding is memory bandwidth intensive
+• Need to load the entire model weights from HBM for each decode step
+• Can amortize the cost of loading model weights from HBM by doing big batch size
+• On GPT-4, to serve 64 users concurrently at 30 tokens per second requires a system that can sustain &gt;60TB/s and only 1 petaflop of compute
+
+LLMs (Inference - Decode)
+KV cache → The same Transformer Model → Output token
+Decoding processes one output token at a time in autoregressive manner
+Time per output token &lt;= 100s of ms
+
+Chart axes: Compute (GF); Memory bandwidth; Memory capacity; Network Bandwidth; Latency Sensitivity (~100us); Scale (10s of nodes); Model Size (10s of B)
+Legend: LLM Training; LLM Inf Prefill; LLM Inf Decode; R&amp;R Training; R&amp;R Inference
+Meta
+Source: Meta
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+4</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Inference Requirements – Continuous Batching" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference Requirements – Continuous Batching</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each illustrated batch combines a new prompt with completions from earlier sequences. Highlighted cells trace one sequence across batches, allowing requests that arrive at different times to share inference iterations.
+
+[4:00](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=240s) [Slide describes simultaneous prefill and decoding, illustrated by a grid of input and output tokens across batches.](https://assets.ai.engineer/sites/aiecode2025/sha256/372c350de9386ef0d807c0491300374acbde74e1250f7162227e32f66c586af3.webp)
+
+Inference Requirements – Continuous Batching
+
+Computing input prefill at the same time as computing decoding to balance between compute bound of prefill and memory bound of decoding at low batch size
+
+Continuous batching of prompts and completions
+Four input tokens + four output tokens per sequence
+Each color is a different, independent sequence
+
+Batch 1 | Batch 2 | Batch 3 | Batch 4 | Batch 5 | Batch 6 | Batch 7 | Batch 8
+New User’s Prompt:
+Input 1 | Input 1 | Input 1 | Input 1 | Input 1 | Input 1 | Input 1 | Input 1
+Input 2 | Input 2 | Input 2 | Input 2 | Input 2 | Input 2 | Input 2 | Input 2
+Input 3 | Input 3 | Input 3 | Input 3 | Input 3 | Input 3 | Input 3 | Input 3
+Input 4 | Input 4 | Input 4 | Input 4 | Input 4 | Input 4 | Input 4 | Input 4
+Other Completions:
+Output 5 | Output 5 | Output 5 | Output 5 | Output 5 | Output 5 | Output 5 | Output 5
+Output 6 | Output 6 | Output 6 | Output 6 | Output 6 | Output 6 | Output 6 | Output 6
+Output 7 | Output 7 | Output 7 | Output 7 | Output 7 | Output 7 | Output 7 | Output 7
+
+Source: EtchedAI
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+5</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Inference Requirements – Disaggregated Batching" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference Requirements – Disaggregated Batching</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Separate accelerators handle prefill and decoding, preventing long inputs from slowing everyone’s decoding. The tradeoff is extra communication to transfer the KV cache between instances.
+
+[5:54](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=354s) [Slide describing separate prefill and decoding accelerators, with a diagram of KV cache transfer between instances.](https://assets.ai.engineer/sites/aiecode2025/sha256/31e413ee09164ed871d91ad61cab976de17920027c175b3e06986a0e63c92294.webp)
+
+Inference Requirements – Disaggregated Batching
+
+• One set of accelerators are used to process prefill while another set of accelerators are used for decoding
+• More efficient batching and doesn’t have a noise neighbor situation where someone submits a lot of input tokens and slows down decoding for everyone
+• Additional communication volume is needed to transfer the KV cache from the prefill instances to the decoding instances
+
+Requests
+Controller
+
+Prefill Instance
+LLM Model
+GPU  GPU
+GPU  GPU
+Parallel Runtime
+
+KV Cache Transfer
+
+Decoding Instance
+LLM Model
+GPU  GPU
+GPU  GPU
+Parallel Runtime
+
+Source: DistServe
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+6</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Inference Requirements – Context Caching" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference Requirements – Context Caching</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Context caching reuses a large document across questions. For prompts up to 128K tokens, the example prices cached input at $0.0875 per million tokens, plus $1 per million tokens per hour for storage.
+
+[9:10](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=550s) [Slide explaining reuse of cached inputs for large documents alongside an example pricing table.](https://assets.ai.engineer/sites/aiecode2025/sha256/4a00e64b7ef08f676cf960abb76884b5d6c746d7e0e28561b0e8589e729efe7f.webp)
+
+Inference Requirements – Context Caching
+
+Caches inputs that can be reused multiple times and can be shared between users in CPU memory/NVMe storage
+
+Use case for answering questions about large documents
+
+Each questions/answer is small quantity of tokens relative to the large quantity of tokens in a document
+
+The price for storing context cache for a persistent amount of time is way cheaper than having to process the large document each time you want to ask a question
+
+Pay-as-you-go (prices in USD)***
+
+Rate Limits**
+1000 RPM (requests per minute)
+2 million TPM (tokens per minute)
+
+Price (input)
+$0.35 / 1 million tokens (for prompts up to 128K tokens)
+$0.70 / 1 million tokens (for prompts longer than 128K)
+
+Context caching
+$0.0875 / 1 million tokens (for prompts up to 128K tokens)
+$0.175 / 1 million tokens (for prompts longer than 128K)
+$1.00 / 1 million tokens per hour (storage)
+Learn more
+
+Price (output)
+$1.05 / 1 million tokens (for prompts up to 128K tokens)
+$2.10 / 1 million tokens (for prompts longer than 128K)
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+7</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Training Requirements" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Training Requirements</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide estimates GPT-4 training used 20,000 A100s for 90–100 days and 38.8 GWh; it projects that 100,000 H100s could train it in 3.14 days.
+
+[12:09](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=729s) [Slide listing estimates for GPT-4 training resources and showing photographs of server racks.](https://assets.ai.engineer/sites/aiecode2025/sha256/7f599b649d5efff1ec83f6a35ae6568537fb893f66ba4ae9f7c6c2b5047d8c73.webp)
+
+Training Requirements
+
+GPT-4 Required 20,000 A100s for 90-100 days
+Training GPT-4 used 38.8GWh
+With 100,000 H100s, it would just require 3.14 days to train
+
+Source: NVIDIA
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+8</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="FLOPs vs GB/s" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>FLOPs vs GB/s</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The operator fusion sketch combines a chain of operations between memory accesses. In the PyTorch table, normalization and element-wise operations account for 0.20% of FLOPs and 39% of runtime.
+
+[12:30](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=750s) [Slide illustrating operator fusion and comparing the share of FLOPs and runtime across PyTorch operator classes.](https://assets.ai.engineer/sites/aiecode2025/sha256/1967aa7b3842c8f4c4e11258af2f8cfcf749bc855c18ed006cd22ac3aab7a2dc.webp)
+
+FLOPs vs GB/s
+
+Normalization and pointwise ops: 700x fewer FLOPS than matrix muls, yet taking up 40% of the wall clock time!
+
+Memory | Compute
+Memory | Compute
+Operator Fusion Simplified
+
+Proportions of Operator Classes in PyTorch
+Operator Class | % of FLOPS | % of Runtime
+Tensor contraction | 99.80% | 61%
+Stat. Normalization | 0.17% | 25.50%
+Element-wise | 0.03% | 13.50%
+
+Source: SemiAnalysis
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+9</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="What is a Modern System Capable Of?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is a Modern System Capable Of?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The table projects GB200 NVL72 at 8,000 GB/s of memory bandwidth and 10,000 dense FP4 TFLOPS, versus H100’s 3,352 GB/s and 1,979 TFLOPS. GPU power rises from 700 to 1,200 watts.
+
+[12:44](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=764s) [Slide comparing Hopper and Blackwell accelerator specifications, including power, memory bandwidth and compute throughput.](https://assets.ai.engineer/sites/aiecode2025/sha256/75b162182a9cfcbe67d2358f1b902d18b8700f8bb8c1ca2044f281dd295283a2.webp)
+
+What is a Modern System Capable Of?
+
+Blackwell vs Hopper Basic Specifications
+
+Columns: H100 | H200 | B100 | B200 | GB200 NVL72
+Price¹: $24,000 | $24,000 | $30,000 | — | —
+Watts Per GPU: 700 | 700 | 700 | 1,000 | 1,200
+All-in System Watts Per GPU: 1,275 | 1,275 | 1,275 | 1,788 | 1,667
+NVLink Bandwidth (Unidirectional - GB/s): 450 | 450 | 900 | 900 | 900
+Memory Capacity (GB): 80GB | 141GB | Up to 192GB³ | Up to 192GB | 192GB
+Memory Bandwidth (GB/s): 3,352 | 4,800 | Up to 8000³ | Up To 8,000 | 8,000
+Memory Bandwidth Improvement: 0% | 43% | 79% | 139% | 139%
+TF32 TFLOPS²: 495 | 495 | 900 | 1,100 | 1,250
+TF32 Improvement: 0% | 0% | 77% | 127% | 153%
+FP16/BF16 TFLOPS²: 989 | 989 | 1,750 | 2,250 | 2,500
+FP16/BF16 Improvement: 0% | 0% | 77% | 127% | 153%
+FP8 / FP6 / Int8 TFLOPS²: 1,979 | 1,979 | 3,500 | 4,500 | 5,000
+FP8 / FP6 / Int8 Improvement: 0% | 0% | 77% | 127% | 153%
+FP4 TFLOPS²: 1,979 | 1,979 | 7,000 | 9,000 | 10,000
+FP4 Improvement: 0% | 0% | 254% | 355% | 405%
+
+1. Full ASP and volume details available in Accelerator Model
+2. All FLOPS are dense
+3. B100 memory specs to be finalized - we assume 168GB and 6,000 GB/s
+
+Source: SemiAnalysis, Nvidia
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+13</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Next Generation Models" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Next Generation Models</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Next-generation models could reach 20 trillion parameters, requiring 100,000+ GPU clusters for training and 200 TB/s of bandwidth for inference at MX4.
+
+[12:50](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=770s) [Slide outlining projected model size, training compute, GPU cluster size and inference bandwidth.](https://assets.ai.engineer/sites/aiecode2025/sha256/e280d3fc22ae551007fa10f4134147fcaa167cc42caca89064b41e8365d40984.webp)
+
+Next Generation Models
+
+• Next generation could be 20 Trillion Parameters
+• 10²⁶ – 10²⁷ training flops
+• Will require 100,000+ GPU clusters to train
+• 200 TB/s of bandwidth to inference at MX4¹
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+14</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Future Power Requirements" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Future Power Requirements</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At PUE 1.2, 90% utilization and 8.7¢/kWh, estimated electricity costs range from $123.5M/year for 100k H100s to $498M/year for 300k GB200 NVL36s. Beyond 200 MW, clusters may need links between campuses in the same region.
+
+[13:29](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=809s) [Slide on cluster power and electricity costs, with an aerial data center image and a requirements table.](https://assets.ai.engineer/sites/aiecode2025/sha256/1bbb4f4d71d62eadb324c883c2c22fa913265618c58ef35edb0d08018cc251e9.webp)
+
+Future Power Requirements
+
+A 150MW cluster will require high speed interconnects between buildings on a single campus
+100k H100 cluster will cost $124M/year in electricity
+300k B200 cluster will cost $500M/year in electricity
+Beyond 200MW may require many interconnects between multiple campus within the same region
+
+Source: SemiAnalysis
+
+Cluster Power Requirements
+
+Cluster Size (Number of GPUs) | All In Critical IT Power (MW) (Including Switches, Storage, CPUs) | Electricity Cost Per Year (Million) (PUE of 1.2, 90% utilization, 8.7cent/kWh US Average)
+10k H100 | 13.75 | 11.3
+20k H100 | 27.5 | 22.6
+50k H100 | 68.75 | 56.6
+100k H100 | 150 | 123.5
+50k GB200 NVL36 | 100.8 | 83.0
+100k GB200 NVL36 | 201.7 | 166.0
+300k GB200 NVL36 | 605.0 | 498.0
+500k GB200 NVL36 | 1008.3 | 829.9
+
+Source: SemiAnalysis
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+16</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Scaling Beyond One Datacenter" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Scaling Beyond One Datacenter</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Google’s diagram connects TPU pods across buildings and regions, with JAX+Pathways driving training from one Python process. The slide says other firms use frontend networks to span campuses.
+
+[14:25](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=865s) [Slide describing distributed training across data centers, with a diagram of connected buildings and regions.](https://assets.ai.engineer/sites/aiecode2025/sha256/89d1e9b371ea22c4d65157e49d0b055806b58995a9711d14fe7dbd37e27aabb4.webp)
+
+Scaling Beyond One Datacenter
+
+• Scaling beyond one datacenter training on the same job
+• Google has figured this out somewhat, TPU pods in different regions in the same training workload
+• Other firms have figured this out too by using their frontend network to scale beyond one datacenter campus
+
+Learning at Large Scale
+Client
+With JAX+Pathways, entire training process driven by a single Python process on one host
+Region A
+Building 1
+Building 2
+Region B
+Building 1
+…
+
+Source: Jeff Dean (Google) @MLYSys2024
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Fault Tolerance" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fault Tolerance</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>As GPU clusters grow, failures compound. The slide estimates one failure every 5.26 minutes for 500,000 GPUs when each link averages five years to failure, making rapid recovery essential.
+
+[14:47](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=887s) [Slide on GPU cluster failure rates, with a failure-time chart and a table of estimated time to first job failure.](https://assets.ai.engineer/sites/aiecode2025/sha256/50c630ec340a78fff4340afe7b19e269c740fc935371037f9f59d58d7373faeb.webp)
+
+Fault Tolerance
+
+• Failure rates in large GPU clusters compound cluster failures
+• If each link has a failure rate of once every 5 years, in a 500k GPU cluster, you’d have a failure every 5.26 minutes
+• You need fault-tolerant strategies to rebuild and resume training jobs quickly
+• RoCE and InfiniBand transceiver links fail constantly
+
+Chart:
+Y-axis: MEAN TIME BEFORE FAILURE (HOURS)
+Y-axis ticks: 5, 10, 15
+X-axis: GANG SIZE (GPUs)
+X-axis ticks: 10000, 20000, 30000, 40000, 50000, 60000
+Source: Meta
+
+Estimated Time to First Job Failure (Minutes)
+Mean Time to Failure Per Link (Years): 3 | 4 | 5 | 10
+Number of GPUs:
+10,000 | 157.68 | 210.24 | 262.80 | 525.60
+20,000 | 78.84 | 105.12 | 131.40 | 262.80
+50,000 | 31.54 | 42.05 | 52.56 | 105.12
+100,000 | 15.77 | 21.02 | 26.28 | 52.56
+300,000 | 5.26 | 7.01 | 8.76 | 17.52
+500,000 | 3.15 | 4.20 | 5.26 | 10.51
+Source: SemiAnalysis
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+18</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Straggler" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Straggler</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In synchronous SGD, slow processors hold up global synchronization. Hierarchical SGD synchronizes groups of four before a global sync. ByteDance saw a 25% decrease in throughput due to stragglers.
+
+[15:37](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=937s) [Slide describing slow chips in synchronous training, with diagrams comparing synchronous and hierarchical synchronization.](https://assets.ai.engineer/sites/aiecode2025/sha256/b50aa33317da38f5b44917159b77cd79531ce33831140cdffb0abc4627f371a3.webp)
+
+Straggler
+
+If only one chip out of 500,000 chips are 10% slower, the entire cluster is 10% slower. There needs to be a strategy to detect and remove stragglers
+
+Holistic Analysis is needed to detect stragglers and remove them
+
+Bytedance saw a 25% decrease in throughput due to stragglers
+
+Sync SGD
+Step 1, Step 2, Step 3, Step 4
+Proc 1, Proc 2, Proc 3, Proc 4, Proc 5, Proc 6, Proc 7, Proc 8
+straggler
+Global Sync
+
+Hierarchical SGD
+Steps 1-2, Steps 3-4
+Proc 1, Proc 2, Proc 3, Proc 4, Proc 5, Proc 6, Proc 7, Proc 8
+straggler
+4-Proc Sync
+Global Sync
+
+Source: Meta &amp; Cruise
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+19</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Straggler performance impact" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Straggler performance impact</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>ByteDance’s 20,000-GPU training run shows MFU falling before a sharp recovery. The speaker attributes the uplift to removing a slow GPU; the slide reports a 25% throughput decrease from stragglers.
+
+[16:48](https://www.youtube.com/watch?v=gFyBdBm0AGo&amp;t=1008s) [Slide describing cluster stragglers and showing ByteDance training utilization across steps.](https://assets.ai.engineer/sites/aiecode2025/sha256/8f93af58e19181887a936d8b2122e7bcf7ee75c18bf778c08fff6e24a6216f55.webp)
+
+Straggler
+
+If only one chip out of 500,000 chips are 10% slower, the entire cluster is 10% slower. There needs to be a strategy to detect and remove stragglers
+Holistic Analysis is needed to detect stragglers and remove them
+Bytedance saw a 25% decrease in throughput due to stragglers
+
+Y-axis: MFU
+Y-axis ticks: 0.0, 0.2, 0.4, 0.6
+X-axis: step
+X-axis ticks: 0, 5000, 10000, 15000, 20000, 25000, 30000
+
+Source: Bytedance
+
+SemiAnalysis
+The information contained in this document is strictly proprietary and confidential.
+20</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">为什么更好的模型仍让人感觉停滞不前</a></li><li><a href="#sec-2">一个请求，两个资源瓶颈</a></li><li><a href="#sec-3">在已有请求继续运行的同时接纳新请求</a></li><li><a href="#sec-4">把提示词处理与 token 生成分开</a></li><li><a href="#sec-5">复用一份文档，而不是反复花钱处理它</a></li><li><a href="#sec-6">超越 GPT-4 这一代的训练</a></li><li><a href="#sec-7">前沿算力的物理足迹</a></li><li><a href="#sec-8">大型集群必须在组件故障时继续训练</a></li><li><a href="#sec-9">一块能工作的 GPU 仍可能拖慢整个任务</a></li><li><a href="#sec-10">为这些系统可能催生的模型而构建</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">面向下一代前沿模型的算力与系统设计</h2>
+      <div class="lede"><p>更大的模型需要的不只是更快的 GPU：经济的推理取决于批处理、工作负载隔离和缓存复用，而前沿训练则会在巨大规模上暴露出故障和拖后腿的节点。</p><p>熟悉 token、模型权重、GPU 显存以及训练与推理的区别会有帮助；推理服务机制会在出现时讲解。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="0">▶ 0:00</button></div>
+      <h3>为什么更好的模型仍让人感觉停滞不前</h3>
+      <p>Why can models keep improving without delivering an obvious leap in capability? Dylan Patel opens with a distinction between improving an existing model generation and deploying a substantially larger one. He characterizes <strong>GPT-4 Turbo</strong> and <strong>GPT-4o</strong> as smaller models trained longer, extending the generation represented by <strong>GPT-4</strong>. He makes the same comparison between <strong><a href="https://www.anthropic.com/news/claude-3-5-sonnet" target="_blank" rel="noopener">Claude 3.5 Sonnet</a></strong> and <strong>Claude 3 Opus</strong>: a smaller model can become better through more training. These are Patel’s explanations of proprietary model development; their parameter counts and training histories are not publicly established by the launch material.</p>
+<p>The deployment implications become clearer with his GPT-4 estimates. Patel estimates GPT-4 at 1.8 trillion parameters and almost 600 GFLOP of computation per token. He also mentions 200 billion parameters without explaining its relationship to the larger figure. The practical question for this audience is how to run the next generation: most application builders will not train a frontier model, but they may need to serve one.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/7fb55a3d5345ef029a1b660729b229864b34ee0584e3e064fa46c1571239ce40" alt="Frontier Models slide with three bullets about training requirements and GPT-4, above a scatter plot of training compute by model publication date." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Frontier model scale and training compute.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="87">▶ 1:27</button></div>
+      <h3>一个请求，两个资源瓶颈</h3>
+      <p>Inference begins with <strong>prefill</strong>, which processes the prompt. Patel estimates roughly one petaFLOP of work for a 2,000-token GPT prompt and 20 petaFLOP for a 32,000-token prompt. These quantities describe computation performed, not a processing rate. Before the user receives an answer, the system may already have done substantial arithmetic.</p>
+<p>Then comes <strong>decode</strong>: generate a token, feed it back into the model, and repeat. This sequential process has a different bottleneck.</p>
+<p>| Phase | Work | Dominant pressure in Patel’s account |
+|---|---|---|
+| Prefill | Process input tokens | Compute throughput |
+| Decode | Generate successive tokens | Memory bandwidth |</p>
+<p>During decode, the accelerators must read model weights from memory. In Patel’s mixture-of-experts example, a sufficiently large batch activates all experts across its requests, requiring the full weight set to be read for each generation step. That is a claim about the batch collectively; it does not mean every individual token uses every expert.</p>
+<p>Patel’s serving example requires approximately 60 TB/s of memory bandwidth for 64 users receiving 30 tokens/s each, compared with approximately 3 TB/s for an H100. He treats 30 tokens/s per user as a minimum practical target, while some users want hundreds. The estimate illustrates the bandwidth gap; its exact derivation depends on weight precision, expert activation, cache traffic, and the H100 variant, which he does not specify.</p>
+<p>This helps explain why relatively little arithmetic does not make output tokens cheap. Patel describes input prices at roughly one-third or one-quarter of output prices and uses $5 per million input tokens versus $15 per million output tokens as a contemporary example. He groups GPT-4o and Claude 3.5 Sonnet together, but Sonnet’s launch pricing was $3 per million input tokens and $15 per million output tokens. These are historical prices, not current API rates. The next deployment challenge he introduces is the then-upcoming <strong>Llama 3 405B</strong>, bringing a much larger model within reach of open-model builders.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="236">▶ 3:56</button></div>
+      <h3>在已有请求继续运行的同时接纳新请求</h3>
+      <p>Access to model weights does not automatically produce an economical service. Patel contrasts a straightforward <code>llama.cpp</code> deployment with serving engines such as <strong><a href="https://github.com/NVIDIA/TensorRT-LLM" target="_blank" rel="noopener">TensorRT-LLM</a></strong> and <strong><a href="https://github.com/vllm-project/vllm" target="_blank" rel="noopener">vLLM</a></strong>. TensorRT-LLM targets NVIDIA GPUs; vLLM is his example of an open-source engine spanning AMD and Intel hardware as well. One correction matters here: although he calls TensorRT-LLM closed source, NVIDIA’s <a href="https://developer.nvidia.com/blog/optimizing-inference-on-llms-with-tensorrt-llm-now-publicly-available/" target="_blank" rel="noopener">public-release announcement</a> already described it as open source.</p>
+<p>The first essential serving mechanism is <strong>continuous batching</strong>. Running one request at a time can be reasonable on a personal device, but rented cloud GPUs change the economics. Patel estimates that batch-size-one cloud inference can cost 10–100 times as much as serving at high batch sizes. He supplies no workload, hardware configuration, or latency target for that range; the useful engineering point is that multiple concurrent requests can share expensive model-weight reads.</p>
+<p>Here, batch size means the number of concurrent users being served. Requests do not arrive together or finish together, so a useful scheduler must admit work between iterations:</p>
+<p>1. A first user submits a request, and the model starts generating its answer.
+2. Five seconds later, a second request arrives while the first remains unfinished.
+3. The scheduler brings the second request into ongoing inference rather than waiting for the first answer to finish.</p>
+<p>Patel urges builders to implement this capability or contribute to an engine that provides it. His criticism of <code>llama.cpp</code> describes the talk’s deployment context; the <a href="https://github.com/ggml-org/llama.cpp/tree/master/tools/server" target="_blank" rel="noopener">current server documentation</a> explicitly supports continuous batching, enabled by default. That documentation does not establish when the capability appeared.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="341">▶ 5:41</button></div>
+      <h3>把提示词处理与 token 生成分开</h3>
+      <p>At higher volumes, <strong>disaggregated prefill</strong>, also called disaggregated batching in the talk, separates the two inference phases into accelerator pools. The user still experiences one operation—submit input, receive tokens—but the infrastructure can schedule compute-intensive prompt processing separately from bandwidth-intensive generation. Patel says Google had publicly discussed doing this; he describes OpenAI and Anthropic deployments as his belief, and Together and Fireworks as having hinted at the approach.</p>
+<p>Consider his hypothetical Llama 405B worker occupying four chips. Scaling the service need not mean repeatedly adding complete four-chip replicas. Instead, one pool can process prompts and hand the resulting request state to another pool for decoding. Separation does not require different chip models: Patel describes deployments using the same accelerator type for both roles, primarily H100s, while also mentioning A100s and L40s. The distinction is the work assigned to each pool.</p>
+<p>The immediate benefit is protection from <strong>noisy neighbors</strong>. Patel warns that certain query patterns can slow shared inference services, including deliberately disruptive traffic. Users experience the interference through time to first token and uneven generation speed. His example of output jumping from 100 to 30 and back to 100 tokens/s illustrates why average throughput alone does not describe a usable service. Predictable latency and output pacing belong in the service guarantee.</p>
+<p>The disruptive customer need not be malicious. A legitimate customer might submit LLM queries for every row in a database, sending 10,000 rows at once. That burst can harm other users sharing the service. Disaggregated prefill is one technique for containing interference while still serving the bulk customer. Patel argues against relying on annoying rate limits as the answer: once a service is public, it must handle demand that its operator does not control. Separation is a scheduling and isolation tool, not a claim that the incoming work disappears.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="546">▶ 9:06</button></div>
+      <h3>复用一份文档，而不是反复花钱处理它</h3>
+      <p>Another way to make strong models useful is to avoid retraining them. Patel describes fine-tuning Claude 3.5 Sonnet as unavailable in the talk’s context and estimates that fine-tuning Llama 405B would require dozens of GPUs. He introduces <strong>context caching</strong>, then newly offered by Google, as a way to supply application data to a powerful model without changing its weights. He describes Google as the only provider offering it at that point.</p>
+<p><strong><a href="https://developers.googleblog.com/en/new-features-for-the-gemini-api-and-google-ai-studio/" target="_blank" rel="noopener">Gemini 1.5 Pro</a></strong> provides his concrete example: put the relevant data into its two-million-token context rather than fine-tuning a smaller model. Google’s June 2024 announcement documents expanded access to that context window and caching for both Pro and <strong>Gemini 1.5 Flash</strong>. Patel contrasts this route with more accessible fine-tuning targets—<strong>Llama 7B</strong>, <strong>Mixtral</strong>, and <strong>Llama 70B</strong>—whose capabilities he regards as below the strongest closed models. Supplying context and changing weights are different operations, but context can meet the application’s need to make its data available to the model.</p>
+<p>The economic obstacle is repeatedly processing the same long input. Under Patel’s illustrative $5-per-million-input and $15-per-million-output rates, a million-token document costs $5 in input processing before any answer is generated. If the answer is short, input dominates the bill. A small calculator makes that asymmetry explicit:</p>
+<p>```python
+def request_cost(input_tokens: int, output_tokens: int) -&gt; dict[str, float]:
+    input_cost = input_tokens * 5 / 1_000_000
+    output_cost = output_tokens * 15 / 1_000_000
+    return {
+        &quot;input_usd&quot;: input_cost,
+        &quot;output_usd&quot;: output_cost,
+        &quot;total_usd&quot;: input_cost + output_cost,
+    }</p>
+<p># A million-token document and an illustrative short answer.
+print(request_cost(input_tokens=1_000_000, output_tokens=200))
+```</p>
+<p>Legal research, contract review, and other enterprise document queries often have exactly this shape: a large source document followed by a small answer. Reusing the source context therefore targets the dominant recurring expense. Patel expects longer-context open models and broader caching deployment to make this option more widely available.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/52ed24b952a433ddd94beb8321d2a68d1b9108d6e7254f5906eab9919679fa79" alt="Inference Requirements – Context Caching slide with four bullets on reusable inputs and document queries, beside a dark pricing panel." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Context caching reuses document inputs, with pricing shown alongside.</figcaption></figure>
+<p>The mechanism is to retain the <strong>KV cache</strong>, the attention keys and values computed for the reusable context, instead of recomputing them on every request. That creates a storage tradeoff: long contexts produce large caches. Patel proposes keeping persistent caches in CPU memory or storage rather than occupying GPU memory continuously, then making the state available when needed. This describes the proposed serving mechanism, not a disclosure of Google’s physical cache placement.</p>
+<p>Patel points to vLLM as building this capability and invites contributions or following the project. He contrasts the anticipated long-context models with then-common open-model windows of 4K, 8K, and 32K tokens. As reusable inputs grow, avoiding repeated prefill becomes more valuable—but the system must also accommodate the larger stored state.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="726">▶ 12:06</button></div>
+      <h3>超越 GPT-4 这一代的训练</h3>
+      <p>The talk now moves from serving techniques to forecasts about frontier infrastructure. Patel estimates GPT-4 training used 20,000 chips for 90–100 days and consumed 38 GWh. He names OpenAI, xAI, and Anthropic among the organizations building 100,000-chip clusters, and estimates that a newer cluster of that scale could train GPT-4 in three days. These are his infrastructure estimates, rather than a disclosed training-run comparison.</p>
+<p>The change is not just the number of chips. H100 improves on A100, and subsequent NVIDIA hardware adds another generation of capacity. Patel expects those larger systems to support models with tens of trillions of parameters. He places GPT-4 training at roughly 2 × 10²⁵ FLOP, then describes future training budgets as “ten e twenty-six” and “ten e twenty-seven.” His next inference-bandwidth estimate is “two hundred gigabytes or terabytes a second,” leaving the unit unresolved. The forecast is a substantial increase in both training work and serving demands; the spoken figures do not support a precise future hardware budget.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="806">▶ 13:26</button></div>
+      <h3>前沿算力的物理足迹</h3>
+      <p>Patel makes that scale tangible with a displayed image of Microsoft data centers in Arizona. He identifies the site as a GPT-5 training location with approximately 100,000 GPUs and 150 MW of power demand. His loose comparison to tens or hundreds of thousands of homes emphasizes that frontier training is also a power and facilities problem. The site identification and capacity figures are his account of the project.</p>
+<p>He then contrasts Musk’s then-current 100,000-GPU cluster construction with a discussed successor containing 300,000 GPUs. Patel estimates the proposed 300,000-GPU successor’s electricity cost at approximately $500 million per year. Power becomes a major recurring expense alongside the cost of building the cluster.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="848">▶ 14:08</button></div>
+      <h3>大型集群必须在组件故障时继续训练</h3>
+      <p>At smaller scales, it is convenient to think of a training cluster as a connected fabric in which every GPU can communicate with every other GPU at some available bandwidth. Patel argues that this picture becomes increasingly difficult to realize at extreme scale. The 100,000-GPU clusters he describes already span buildings, with plans for multiple such clusters the following year. Connecting them makes network topology and communication capacity central design constraints.</p>
+<p>Those connections involve electrical-to-optical conversion, fiber, and transceivers. A component that lasts years can still contribute to frequent failures when the fleet contains enormous numbers of components. Patel describes optical components with a roughly five-year failure timescale and estimates a failure somewhere every five minutes in clusters containing 100,000–500,000 GPUs. He does not derive that frequency or provide a recovery architecture. Instead, he poses the systems question: how does a long-running training job continue making progress when failures are routine?</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="938">▶ 15:38</button></div>
+      <h3>一块能工作的 GPU 仍可能拖慢整个任务</h3>
+      <p>Hardware does not have to fail outright to cause trouble. Nominally identical H100s can run at different speeds—the <strong>silicon lottery</strong>, familiar from gaming-GPU comparisons. In a large synchronous training job, variation matters because participants repeatedly process data, exchange gradients, and update weights together. A slower participant can leave the others waiting at synchronization points.</p>
+<p>Patel illustrates the bottleneck by saying that one participant running 10% slower can make the synchronized workload 10% slower. He then recounts an unnamed ByteDance paper in which one GPU was associated with a 25% slowdown in a 20,000-GPU cluster. In his account, the GPU technically worked and NVIDIA regarded it as acceptable, but it was still a training straggler. The slide compares Sync SGD with Hierarchical SGD and marks stragglers with orange arrows.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/042130c66cc758f9fc7ee91229e68357ce21163676dd9397ea7fb49674702144" alt="Straggler slide with three bullets and diagrams comparing Sync SGD and Hierarchical SGD, using orange arrows to mark stragglers." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Stragglers delay synchronized training steps.</figcaption></figure>
+<p>Removing the slow GPU substantially improved performance, Patel reports. The operational lesson is to measure participation in the distributed workload, not merely whether each device passes a basic health check. The exact paper behind his anecdote is not identified here; the related ByteDance and Peking University paper <a href="https://arxiv.org/html/2402.15627v1" target="_blank" rel="noopener">MegaScale</a> does not establish the complete single-GPU, 25%, 20,000-GPU account.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1031">▶ 17:11</button></div>
+      <h3>为这些系统可能催生的模型而构建</h3>
+      <p>These infrastructure questions eventually return to application design. Much of today’s LLM scaffolding compensates for hallucinations and other capability limits. Patel describes the hope among AGI proponents that increasing compute by 100 times will reduce those problems and enable new applications. His closing scale example combines a cluster costing more than $10 billion with roughly $500 million in annual electricity. The expected improvement in hallucinations is a motivation for that spending, not a demonstrated result in the talk.</p>
+<p>The immediate work remains concrete: make models at the Llama 405B scale economical and reliable to serve through capabilities that Patel sees at frontier labs but not yet broadly implemented in open-source systems. At the same time, those labs are building beyond that capability level. Application builders therefore face two moving targets: the serving machinery needed to use the next available model, and the product assumptions that may change when a substantially stronger model arrives.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/NVIDIA/TensorRT-LLM" target="_blank" rel="noopener">TensorRT-LLM</a> — NVIDIA's library for optimizing and serving large language models on NVIDIA GPUs.</li><li><a href="https://github.com/vllm-project/vllm" target="_blank" rel="noopener">vLLM</a> — An open-source inference and serving engine for large language models.</li><li><a href="https://github.com/ggml-org/llama.cpp/tree/master/tools/server" target="_blank" rel="noopener">llama.cpp server documentation</a> — Current server instructions covering multi-user decoding and continuous batching.</li><li><a href="https://developers.googleblog.com/en/new-features-for-the-gemini-api-and-google-ai-studio/" target="_blank" rel="noopener">Gemini's two-million-token context and context caching</a> — Google's June 2024 announcement of expanded Gemini 1.5 Pro context access and reusable context caching.</li><li><a href="https://arxiv.org/html/2402.15627v1" target="_blank" rel="noopener">MegaScale</a> — ByteDance and Peking University research on large-scale LLM training, fault recovery, observability and straggler diagnosis.</li><li><a href="https://www.anthropic.com/news/claude-3-5-sonnet" target="_blank" rel="noopener">Claude 3.5 Sonnet launch announcement</a> — Anthropic's historical announcement documenting Claude 3.5 Sonnet's pricing, context window and reported evaluations.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[on-hold electronic music] Couple different things, right? Like, you know, people have been talking about stagnation, um, and, uh, it's-- I, I don't think anyone else, anyone here sees that.</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">But a lot of people have been talking about stagnation of models, and a lot of the, a lot of that has to just do with the fact that we haven't seen a big capabilities leap, uh, in the last bit.</span></div><div class="tline" data-t="31"><span class="ts">0:31</span><span class="tx">Uh, but that, that comes really from, uh, models that we're using today are largely the same as the models that were trained in 2022, right? GPT-4, 4 Turbo, 4o, those are just smaller models that are trained for longer, so similar quality, right?</span></div><div class="tline" data-t="45"><span class="ts">0:45</span><span class="tx">Um, you know, 3.5 Sonnet came out recently, but again, that's actually smaller than Opus, but it's somehow better because they trained it for longer, right? But we haven't seen a extremely large model come out yet and, and but we will soon.</span></div><div class="tline" data-t="57"><span class="ts">0:57</span><span class="tx">Uh, but one interesting thing, right, is GPT-4 is like one point eight trillion parameters. It's crazy, crazy expensive to run, right? Uh, two hundred billion parameters. Uh, e-each token requires, you know, fif-- almost six hundred gigaflops.</span></div><div class="tline" data-t="70"><span class="ts">1:10</span><span class="tx">Uh, but that, that, that's almost gonna be considered a last generation model, right, in, in a year from now. Um, so there's a couple of things that I wanted to talk about regarding that, right?</span></div><div class="tline" data-t="79"><span class="ts">1:19</span><span class="tx">And, and mostly on the inference side, because I don't think, you know, anyone here is gonna try and train that kind of next generation model, but definitely we're-- we need to be able to run it.</span></div><div class="tline" data-t="87"><span class="ts">1:27</span><span class="tx">Um, and so, you know, a few things, right? So just, just gonna break down inference, uh, in detail, right? Uh, you know, uh, you know, there's two parts of inference, right?</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">There's prefill, there's decode. Prefill is the prompt processing, right? And the interesting thing is if you have a two K prompt, two K, uh, context length prompt, right, two thousand tokens you input into GPT, um, that's, that's a petaflop itself, right?</span></div><div class="tline" data-t="110"><span class="ts">1:50</span><span class="tx">Um, and then, you know, if you have thirty-two thousand prompt that you enter, it's twenty petaflops actually. So it's, uh, an incredible amount of compute, uh, that's required to just process the prompt.</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">Um, and, and, you know, while, while prefill is, is very compute intensive, right, it's actually the opposite of decode, right? Decode is actually generating each token iteratively, right? So you, you process the prompt, then you ge-generate a token, you feed it back in, and you keep going iteratively.</span></div><div class="tline" data-t="136"><span class="ts">2:16</span><span class="tx">Right? Um, and decode is extremely memory bandwidth intensive, right? Um, you have to load the whole model from the weights, the, the entire-- all the weights into the, uh, chip, right, or chips, uh, for decode.</span></div><div class="tline" data-t="149"><span class="ts">2:29</span><span class="tx">Um, and the big challenge here is that, you know, hey, if you have one point eight trillion parameters, if you're running at a reasonable batch size, you're activating all the experts, you need to re-- load all one point eight trillion parameters every single token generation, right?</span></div><div class="tline" data-t="164"><span class="ts">2:44</span><span class="tx">Even if you're serving multiple users at once, that means you're, uh, you, you need, you know, a one point eight, uh, you need terabytes a second of memory bandwidth.</span></div><div class="tline" data-t="172"><span class="ts">2:52</span><span class="tx">You wanna do thirty tokens per second. I think that's like a minimum bar for most people, right? Uh, a lot of people want hundreds of tokens per second. But even if you want thirty tokens per second per user, sixty-four users, you need sixty terabytes a second of memory bandwidth.</span></div><div class="tline" data-t="185"><span class="ts">3:05</span><span class="tx">Uh, if you, if-- Even if you look at an H100, it has like three, right? So this is a extremely challenging systems problem. Um, more, you know, decode, while it is very bandwidth intensive, it's actually quite cheap on the compute, which is why, uh, if you look at like OpenAI pricing or Claude pricing, you see a three</span></div><div class="tline" data-t="202"><span class="ts">3:22</span><span class="tx">or four-to-one ratio between prefill versus decode pricing, right? Uh, so the input tokens cost, you know, one-third that of the output tokens, um, or one-fourth that. So, so, you know, today the best models I think, uh, 4o and, and 3.5 Sonnet are, uh, I wanna say it's fifteen dollars per million tokens, and then it's five dollars per</span></div><div class="tline" data-t="223"><span class="ts">3:43</span><span class="tx">million tokens for input, uh, fifteen for output. Um, so five for prefill, fifteen for decode. Um, and, and soon we're gonna have, you know, in the, in the open source, you know, so what everyone here can touch is, is Llama 3, 405B, right?</span></div><div class="tline" data-t="236"><span class="ts">3:56</span><span class="tx">And that's, that's gonna be a real capability sort of unlock, um, for the, you know, the open source market as well as, you know, builders here, right? And I think, I think there's a couple things that, uh, people really need to be able to implement, right?</span></div><div class="tline" data-t="250"><span class="ts">4:10</span><span class="tx">Like, you can't just run llama.cpp on Llama 405B, right? Like, it's just not gonna work. Um, so there's a bunch of stuff that people have to work on, um, you know, whether it's using, you know, closed source libraries like TensorRT-LLM, uh, that only work on NVIDIA or like vLLM, which is an open source library that works, uh,</span></div><div class="tline" data-t="268"><span class="ts">4:28</span><span class="tx">on AMD and Intel and, and soon other people's chips as well. Um, you know, there's, there's a lot of stuff that people need to figure out. One, one of those is, is continuous batching, right?</span></div><div class="tline" data-t="277"><span class="ts">4:37</span><span class="tx">Uh, 'cause you're gonna get, you know, running inference at batch size one is horrendously expensive. Um, you know, it's great to run it on-- if you're running it on your own personal devices.</span></div><div class="tline" data-t="286"><span class="ts">4:46</span><span class="tx">But if you're running it in the cloud, right, you're renting GPUs, you're running batch size one, you're, you're gonna cost yourself ten X more. You know, ten X is a low bar, right?</span></div><div class="tline" data-t="295"><span class="ts">4:55</span><span class="tx">It's actually could be ten X to a hundred X more than running at a high batch, right? So you have to figure out how to run high batch sizes.</span></div><div class="tline" data-t="301"><span class="ts">5:01</span><span class="tx">Batch size is how many concurrent users you're serving. Um, and so one of those things that makes it difficult is that users' requests come in at different times, right?</span></div><div class="tline" data-t="310"><span class="ts">5:10</span><span class="tx">Uh, one person might send a request now, and then another person sends in a request five seconds later, uh, but the first person's request is not done. So you need to be able to do continuous batching, i.e., sub-- uh, be able to run through the model iteratively, uh, every time, right?</span></div><div class="tline" data-t="323"><span class="ts">5:23</span><span class="tx">Um, and, and bring in new users. So continuous batching is one of the things that you have to have to have support of, and, and a lot of software today like llama.cpp doesn't have support for that.</span></div><div class="tline" data-t="332"><span class="ts">5:32</span><span class="tx">So either you need to build it yourself or, um, you know, contribute to an open source project that, that builds this, um, to, to enable</span></div><div class="tline" data-t="341"><span class="ts">5:41</span><span class="tx">low cost inference, right, for, you know, models like Llama 405B, right? Um, another one of those is, is, uh, disaggregated, uh, prefill or disaggregated batching, right? Depends on what you call it.</span></div><div class="tline" data-t="354"><span class="ts">5:54</span><span class="tx">Um, but you know, if you go back to earlier, I was discussing, uh, prefill is very compute-intensive, decode is very, uh, bandwidth-intensive. These are two different workloads, but when you ser-- when you're serving a user, right, whether it's, uh, you know, in your own app or you're using an API, what have you, right?</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">Like, these users, uh, don't care that it's two different workloads, right? It's one workload to them. Uh, I get tokens out, right? I submit something to you, and I get tokens back.</span></div><div class="tline" data-t="379"><span class="ts">6:19</span><span class="tx">Uh, but, but for anyone running the infra themselves, uh, they need to, they need to be keenly aware that these are two different workloads. Um, so one thing that a lot of people have, uh, started to do, um, Google's publicly said they're doing it, I believe OpenAI and Anthropic are also doing it.</span></div><div class="tline" data-t="393"><span class="ts">6:33</span><span class="tx">Um, you know, uh, other firms like Together and Fireworks have hinted that they're doing this, uh, is, is disaggregated prefill, right? So once your inference volumes are high enough, you don't just run inference...</span></div><div class="tline" data-t="406"><span class="ts">6:46</span><span class="tx">You know, you don't just replicate the model across however many chips you have, right? Uh, say, say it takes four model-- four chips to serve Llama 405B, right, in the future.</span></div><div class="tline" data-t="414"><span class="ts">6:54</span><span class="tx">Um, you wouldn't just ha-- You know, if you have so many-- if you have enough users, you don't just go four and then eight, 16, whatever, right? You don't just replicate that across the world.</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">You actually do this thing called disaggregated prefill. You have one set of accelerators do the prefill, which is very compute-intensive, and then you hand it off to the other set of accelerators to do decode.</span></div><div class="tline" data-t="433"><span class="ts">7:13</span><span class="tx">Now, today, everyone just uses the same accelerator for that, right? H100 or A100 or, you know, maybe, maybe L40 or something, but mostly H100. Um,</span></div><div class="tline" data-t="443"><span class="ts">7:23</span><span class="tx">but there's a, there's a reason you do this, right? And, and, and that big reason is that you have a lot of noisy neighbors, right? Um, so if you've ever worked in like CPUs or on anything in cloud computing, noisy neighbors are a huge, huge issue.</span></div><div class="tline" data-t="455"><span class="ts">7:35</span><span class="tx">Um, and actually, like, there's-- it's very trivial to dramatically slow down most inference providers' services, uh, if you, if you just, uh, send queries in a certain way, like in a, in a sort of malicious way.</span></div><div class="tline" data-t="466"><span class="ts">7:46</span><span class="tx">Um, you can, you can just slow down people's, uh,</span></div><div class="tline" data-t="470"><span class="ts">7:50</span><span class="tx">service, right? Whether that's, you know... And, and that'll, that'll impact the user's time to first token, right? Um, and I think that's a huge issue, right? If time to first token is too long, people will just quit, right, using your service.</span></div><div class="tline" data-t="481"><span class="ts">8:01</span><span class="tx">Um, if, uh, you know, the tokens per second varies a lot, right? For a moment, you're getting a hundred tokens per second, and then it drops down to like 30, then it drops-- it goes back up to a hundred.</span></div><div class="tline" data-t="491"><span class="ts">8:11</span><span class="tx">That's gonna be really annoying to the user. So, so there's a lot of things around, you know, SLA and, and reliability and all these things that you have to guarantee.</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">And so disaggregated prefill, uh, is, is one of the techniques to do that, right? Um, and, and so you don't wanna have someone submit, you know, for example, &quot;Hey, I have a database, and I wanna sub-- I wanna run an LLM query across every single row in that database, and I'm just gonna submit it to you, my</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">service provider, because you have this cool model or what have you that's fine-tuned on some data set.&quot; And, well, whatever it is, right? If I submit ten thousand rows to you at once, that's gonna kill everyone else's performance, right?</span></div><div class="tline" data-t="527"><span class="ts">8:47</span><span class="tx">So, so this is one of the techniques that people have for, uh, making it so, you know, that, that person who you definitely wanna serve, uh, doesn't impact everyone else's usage.</span></div><div class="tline" data-t="537"><span class="ts">8:57</span><span class="tx">Uh, because once you open up your service to the real world, you're not gonna be able to control who's submitting what, and rate limits are the most annoying thing ever, so that's not the correct way to go about it.</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">Um, another thing is context caching, right? So Google launched this recently. Uh, they're the only one offering this today, but I think this is a really big deal, uh, 'cause when people talk about fine-tuning, right, of models, that's great.</span></div><div class="tline" data-t="559"><span class="ts">9:19</span><span class="tx">Uh, but in reality, the best models are really expensive to fine-tune or impossible to fine-tune, right? I can't go fine-tune 3.5 Sonnet, or fine-tuning Llama 405B is gonna take, you know, dozens and dozens of GPUs, right?</span></div><div class="tline" data-t="573"><span class="ts">9:33</span><span class="tx">So, so instead of that, the, the, uh... Or, you know, and, and in closed source models generally. So Google only does closed source models mostly for the big ones, right?</span></div><div class="tline" data-t="580"><span class="ts">9:40</span><span class="tx">So Gemini 1.5 Pro, they offered this-- they, they brought this recently, right? Which is context caching. So instead of, you know, fine-tuning your model, why not, you know, just fill out a context length of...</span></div><div class="tline" data-t="591"><span class="ts">9:51</span><span class="tx">You know, they, they offer, I think, two million now today, right? Two million context length. Um, why not fill it out with your data there, right? Um, you know, and, and there's a couple, you know, advantages to that.</span></div><div class="tline" data-t="602"><span class="ts">10:02</span><span class="tx">One is you can use the best models, right? In the case of fine-tuned models, you really are focused on like the Llama 7B or Mixtral or Llama S-- uh, you know, 70B.</span></div><div class="tline" data-t="611"><span class="ts">10:11</span><span class="tx">It's, it's kind of lo-- much lower quality models than what's available in the closed source world. Uh, so one of the things you can do is you can, um, implement what Google has called context caching.</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">In the, in the open source world, we'll, we'll have super long context models soon enough. But, uh, economically, right, you know, we talked about fifteen dollars token-- per million tokens output, um, and five dollars per to-- million tokens input.</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">If you were to have, uh, on, on, you know, the best o-- closed source models today, if you were to submit a prompt of like, you know, a million tokens, and, and most, most of the times you're looking at a document, you get a query back, right?</span></div><div class="tline" data-t="645"><span class="ts">10:45</span><span class="tx">You- your, your output is very small. Almost all of the cost is just se-sending them that document, right? So that's, that's gonna really, really hurt you. So for people, you know, targeting maybe like a legal AI or like, um, you know, some sort of other contract review AI, a lot of these enterprise use cases, uh, prefill is</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">gonna dominate your cost if you're using APIs. Um, and so Google has this context caching and, and open source will have it so models you can run yourself and, and others will deploy over time.</span></div><div class="tline" data-t="672"><span class="ts">11:12</span><span class="tx">Uh, but basically you don't recompute the KV cache, right, the, the context length every single time. Instead, you cache it. Uh, but the problem is to save, save that takes an, an incredible amount of memory.</span></div><div class="tline" data-t="685"><span class="ts">11:25</span><span class="tx">Um, so you don't save it in the g-GPU's memory, right? You save it on the CPU's memory or storage. Um, and so, uh, vLLM, uh, which is an open source library for inference, is contributing-- is building this currently.</span></div><div class="tline" data-t="699"><span class="ts">11:39</span><span class="tx">So if you're interested in contributing to that, uh, check that out. Um, or if you're interested in using it, just star the project, right? Um, because, you know- Well, most of the models we have in the open source today are like only like 32K or 8K or 4K context length.</span></div><div class="tline" data-t="712"><span class="ts">11:52</span><span class="tx">They're coming with longer, um, and being able to, you know, dramatically reduce your costs, um, by caching the context, um, is, is very-- is gonna, is gonna dramatically reduce cost, right?</span></div><div class="tline" data-t="726"><span class="ts">12:06</span><span class="tx">Um, so now I'm just gonna talk about like head-in-the-cloud stuff instead of like real usable things, which is, um, you know, what's coming down the pipeline, right? Which is, you know, GPT-4 was like twenty thousand chips for ninety to a hundred days, um, used, you know, thirty-eight gigawatt hours.</span></div><div class="tline" data-t="740"><span class="ts">12:20</span><span class="tx">Very, very expensive. Cool. Um, but, you know, what's-- what is, what are they building now, right? Uh, OpenAI, xAI, um, Anthropic, many others are building hundred thousand chip clusters, right?</span></div><div class="tline" data-t="751"><span class="ts">12:31</span><span class="tx">And it would train GPT-4 in three days, right? So it's kind of irrelevant. Um, you know, and, and, uh, I'll, I'll skip over this part, uh, because it's not really, uh, too relevant.</span></div><div class="tline" data-t="761"><span class="ts">12:41</span><span class="tx">Um, but, you know, what, what, what's a modern system capable of, right? Like H100 is, is pretty, uh, pretty fast relative to A100 and, and coming down the pipeline is these...</span></div><div class="tline" data-t="770"><span class="ts">12:50</span><span class="tx">the new NVIDIA chips. But what, what, what's come-- you know, what's coming down with these hundred thousand GPU clusters, right? Um, it's not gonna be a one point eight trillion parameter model.</span></div><div class="tline" data-t="778"><span class="ts">12:58</span><span class="tx">It's actually gonna be, you know, it could be in the tens of trillions of parameters. Um, you know, the, the training FLOPS, right? I talked about GPT-4 is it's roughly two e twenty-five FLOPS, right?</span></div><div class="tline" data-t="788"><span class="ts">13:08</span><span class="tx">Which is, uh, you know, a number that's not really relevant or two e twenty-five FLOP. Um, but with a hundred thousand GPU cluster, you can do ten e twenty-six, ten e twenty-seven FLOPS.</span></div><div class="tline" data-t="799"><span class="ts">13:19</span><span class="tx">Uh, and to run that model is gonna require two hundred gigabytes or terabytes a second of memory bandwidth, right? Um, but what does, what does that like-- what does that look like, right?</span></div><div class="tline" data-t="806"><span class="ts">13:26</span><span class="tx">So, so this is a... On the top right is an image of, uh, M-Microsoft's data centers in Arizona where they're making GPT-5, right? Um, they have about a hundred thousand GPUs here.</span></div><div class="tline" data-t="819"><span class="ts">13:39</span><span class="tx">Uh, it's a hundred and fifty megawatts, right? Like the average home does not consume... You know, that's like, that's like, like tens of thousands if not hundreds of thousands of homes of power consumption, right?</span></div><div class="tline" data-t="829"><span class="ts">13:49</span><span class="tx">It's, it's kind of insane. Um, Elon's talked about his next generation cluster. He's building a hundred thousand GPU cluster today, uh, but he's talked about his next generation cluster is three hundred thousand GPUs.</span></div><div class="tline" data-t="838"><span class="ts">13:58</span><span class="tx">That is kind of insane. But the, the power cost for that alone would be like five hundred million dollars a year, right? So it's like, you know, people are, people are kind of insane, but it's pretty cool.</span></div><div class="tline" data-t="848"><span class="ts">14:08</span><span class="tx">Um, but, you know, the, the, the interesting thing here is, you know, on training, we, we, you know, when, when you, when you try and train a model today, people just talk about fully connected clusters.</span></div><div class="tline" data-t="859"><span class="ts">14:19</span><span class="tx">Uh, every GPU is connected to every other GPU at some speed and you, you know, you have to do, you know, all your operations. But that's not really possible when you go to these super large clusters, right?</span></div><div class="tline" data-t="869"><span class="ts">14:29</span><span class="tx">Um, so the hundred thousand GPU clusters, those are being built this year, and then next year they're planning to build multiple hundred thousand GPU clusters. Already you can see that it exists across multiple buildings, right?</span></div><div class="tline" data-t="880"><span class="ts">14:40</span><span class="tx">Um, and so there's a lot of complicated networking, uh, going on, right, to connect these data centers together. Um, and, and one other thing I, that, that I think is just like kind of interesting to, again, head in the clouds just to think about is, um, when you connect these chips together, there's a lot of optics, right?</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">Uh, you know, you convert from electrical to optical, uh, and then, you know, over fiber optics to connect between chips, transceivers, et cetera, right? Uh, these are extremely unreliable, right?</span></div><div class="tline" data-t="907"><span class="ts">15:07</span><span class="tx">Uh, they tend to have a failure rate around five years. Um, and so what's interesting is if you're talking about a hundred thousand GPU cluster, um, or if you're talking about a five hundred thousand GPU cluster, you're gonna have something fail like every five minutes, right?</span></div><div class="tline" data-t="922"><span class="ts">15:22</span><span class="tx">Um, which is insane, right? How, how do you even deal with something in your cluster failing every five minutes when you're training a model, right? Um, so, you know, this is, this is again more of like a hardware-oriented thing but, uh, you know, the, the other thing that's interesting is like when you get chips, they're not all</span></div><div class="tline" data-t="938"><span class="ts">15:38</span><span class="tx">the same speed. You know, an H100 is not an H100. Um, there are stragglers. Uh, so if you get a large distribution of chips, um, what we call it in the industry is, is called the silicon lottery, um, in that like, you know, you, you can buy, for example, a, a gaming GPU and, and compare it to other</span></div><div class="tline" data-t="955"><span class="ts">15:55</span><span class="tx">people's gaming GPUs on the forums, and they're actually like percentages difference in performance. But when you do a massive training cluster, um, you end up with... You know, training is a synchronous workload, right?</span></div><div class="tline" data-t="966"><span class="ts">16:06</span><span class="tx">You know, you, you, you update the weights, you then you pass the gradients around, right? Um, and then you, you know, then you again run through a bunch of data, uh, update the weights or pass the gradients around, update the weights, right?</span></div><div class="tline" data-t="978"><span class="ts">16:18</span><span class="tx">Um, so it's, it's a synchronous workload. So if one of them is ten percent slower, then everything is ten percent slower. And ByteDance had a cool paper where actually they saw a twenty-five percent decrease in speed just because one random GPU they got, uh, while it did technically work, um, and NVIDIA...</span></div><div class="tline" data-t="993"><span class="ts">16:33</span><span class="tx">and, and, and according to NVIDIA it was fine, it was like twenty-five percent slower than, uh, what they wanted, right? So they're... You know, this is like, this is on like a twenty thousand GPU cluster even, right?</span></div><div class="tline" data-t="1003"><span class="ts">16:43</span><span class="tx">Um, so, so it's, uh, it's, it's quite interesting that, you know, that, that's... These are the problems people are running into at scale, right? So they pulled that GPU out, um, and then you, you can sort of see their performance dramatically uplifted, right, um, during, during training.</span></div><div class="tline" data-t="1019"><span class="ts">16:59</span><span class="tx">Um, and then again, this is ByteDance on a twenty thousand GPU cluster. So it's, it's, um, it's a, it's a big, big issue. Um, and I think, I think some of the other stuff in this presentation is not really relevant.</span></div><div class="tline" data-t="1031"><span class="ts">17:11</span><span class="tx">Uh, but I think, I think what do these next generation systems look like is a very, um, important question to ask yourself, right? Um, you know, and what, what do I, what do I, what do I do when I deal with that, right?</span></div><div class="tline" data-t="1044"><span class="ts">17:24</span><span class="tx">Like I think a lot of the scaffolding that people are building, uh, today for LLMs are dealing with, you know, is, is dealing with hallucinations and things like that.</span></div><div class="tline" data-t="1053"><span class="ts">17:33</span><span class="tx">And, and the hope that everyone has, or at least a lot of the AGI people have is that, you know, when I, when I hundred X the compute, um, you know, when I build a cluster that takes five hundred million dollars of electricity and I train a model with it, it's gonna make something that, uh, uh, you</span></div><div class="tline" data-t="1067"><span class="ts">17:47</span><span class="tx">know, yearly ele-electricity costs and make a model with it. And then the cluster itself costs over ten billion by the way, right? Uh, it's, it's gonna get rid of a lot of these, um, hallucinations.</span></div><div class="tline" data-t="1076"><span class="ts">17:56</span><span class="tx">It's gonna let us do a lot of interesting things. Um, yeah. So, so I think that's, that's basically all for the talk. I just wanted to, you know, uh, mention, you know, sort of a reasonable thing which is how do you run Llama 405B kind of some strategies that people need to implement that aren't necessarily implemented yet,</span></div><div class="tline" data-t="1092"><span class="ts">18:12</span><span class="tx">uh, in the open source that are implemented at the labs. Um, but then also like, you know, what are they doing, right? 'Cause they're not worried about, you know, Llama 405B capable models. [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

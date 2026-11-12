@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>在真实世界中有效的 LLM 评测 | AI 工程师中文版</title>
+<meta name="description" content="评估 LLM 应用内部的决策，把有解释的失败变成回归用例，并检验评判者的分数和模型基准是否衡量了你真正需要的行为。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>在真实世界中有效的 LLM 评测</h1>
+    <div class="orig-title">LLM Evals That Work IRL</div>
+    <div class="meta"><span class="speaker">Aparna Dhinakaran</span> · AI Engineer World's Fair 2024 · 18:49</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=enterprise-ai">企业 AI</a><a class="tag" href="../../index.html#topic=harness-engineering">框架工程</a><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/nbZzSC5A6hs-llm-evals-that-work-irl" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="nbZzSC5A6hs"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=nbZzSC5A6hs" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">是模型好，还是应用在起作用？</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="17"><span class="ts">0:17</span><span>是模型好，还是应用在起作用？</span></li><li data-t="135"><span class="ts">2:15</span><span>在评估回答之前先评估路由</span></li><li data-t="350"><span class="ts">5:50</span><span>一个促销请求走错了分支</span></li><li data-t="466"><span class="ts">7:46</span><span>把一次 trace 中的失败变成一个实验</span></li><li data-t="565"><span class="ts">9:25</span><span>让评估贯穿应用的生命周期</span></li><li data-t="682"><span class="ts">11:22</span><span>一个数值分数可能掩盖你需要的差异</span></li><li data-t="821"><span class="ts">13:41</span><span>检索取决于上下文长度和位置</span></li><li data-t="968"><span class="ts">16:08</span><span>找到事实只是第一项任务</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 8 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Simple Router Architecture: Chat to Purchase App" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Simple Router Architecture: Chat to Purchase App</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An LLM router determines customer intent, then sends purchase requests to item search and questions to Q/A. Each branch feeds an LLM response: a recommended item or an answer.
+
+[2:17](https://www.youtube.com/watch?v=nbZzSC5A6hs&amp;t=137s) [Customer input is classified by intent and routed to either an item search or a question-and-answer function, followed by an LLM response.](https://assets.ai.engineer/sites/aiecode2025/sha256/fb27367166bac0c82dfb22291d2ea276a825a3392f80d6589ff09060abe3bd19.webp)
+
+Simple Router Architecture: Chat to Purchase App
+
+Customer Input
+I need a new Kindle e-reader for my reading hobby. Are there any discounts currently?
+
+OpenAI
+Determining Customer Intent
+
+Purchase
+Classification: Purchase
+Item: Item
+Item Search Function Call → LLM Recommended Item
+
+Query
+Classification: Query
+Question: Question
+Q/A Function Call → LLM Query Response
+
+Key
+Code
+LLM
+
+Interface text:
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai
+aws
+© All Rights Reserved</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="What is a Function Call Eval?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What is a Function Call Eval?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A product search can select the right function yet fail parameter extraction: the laptop query uses the category “Office Supplies.” The slide reports function-call precision of 0.94, recall of 0.75, and F1 of 0.83.
+
+[5:01](https://www.youtube.com/watch?v=nbZzSC5A6hs&amp;t=301s) [Examples distinguish selecting the correct function from extracting correct parameters, alongside precision, recall, and F1 metrics.](https://assets.ai.engineer/sites/aiecode2025/sha256/0f9d6963dc1ba081f002e23147d5c38f9091a874e7fe98e23cde95d53c5321c4.webp)
+
+What is a Function Call Eval?
+
+• Function Call Eval – Catch problems on function calls
+• Parameter Extraction Eval – Did we extract the right parameters for the function
+
+QUESTION | FUNCTION CALL | FUNCTION CALL EVAL | PARAM EVAL
+
+Can you provide the specifications for the YZA890 product?
+product_details({
+  &quot;product_id&quot;: &quot;YZA890&quot;
+})
+Function call eval: Yes | Param eval: Yes
+
+What are the main differences between Product 123 and Product 456?
+product_details({
+  &quot;product_id&quot;: 123
+})
+Function call eval: No | Param eval: —
+
+Can you recommend a good laptop for graphic design for college?
+product_search({
+  &quot;query&quot;: &quot;laptop for graphic design&quot;,
+  &quot;category&quot;: &quot;Office Supplies&quot;,
+})
+Function call eval: Yes | Param eval: No
+
+FUNCTION CALL EVAL
+PRECISION: 0.94
+RECALL: 0.75
+F1: 0.83
+
+arize | We Make Models Work
+© All Rights Reserved</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Phoenix trace list" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Phoenix trace list</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Phoenix lists application traces with inputs, outputs, latency, and evaluation results. A Samsung promotion query is marked incorrect on both function-call and parameter-extraction evaluations.
+
+[6:05](https://www.youtube.com/watch?v=nbZzSC5A6hs&amp;t=365s) [Phoenix trace list with a promotion query marked incorrect on two evaluations.](https://assets.ai.engineer/sites/aiecode2025/sha256/59b166fcbc5d75cb255c492ce0603c029ef247dbaf3f785adb23c9772d2c206d.webp)
+
+projects &gt; default
+
+Total Traces: 51
+Total Tokens: 34,993
+Latency P50: 1.22s
+Latency P99: 22.44s
+Function Calls: 0.00
+Parameter Extraction JSON: 0.33
+Stream
+Last 7 Days
+
+Traces
+Spans
+filter condition (e.x. span_kind == 'LLM')
+Columns
+
+kind | name | input | output | evaluations | start time | latency | total tokens | status
+agent | AgentExecutor | it was the HP 14Y or another model. Can you help... | you please provide me with the tracking number for... | – | 6/26/2024, 10:44 PM | 0.73s | 565
+agent | AgentExecutor | Perhaps you could help me understand the advantages of your premium products over the regular ones? | Of course! To provide a detailed comparison, I can look up specific premium and regular products ... | – | 6/26/2024, 10:44 PM | 1.06s | 580
+agent | AgentExecutor | I was wondering if you could assist me with a query about my recent order, or maybe it's more of ... | Of course, I'd be happy to assist you with your order. Could you please provide some details abou... | – | 6/26/2024, 10:44 PM | 0.96s | 581
+agent | AgentExecutor | Can you help me decide whether to upgrade my current product or wait for a new one to arrive? | Of course! To help you make an informed decision, I can compare the features of your current prod... | – | 6/26/2024, 10:44 PM | 1.23s | 597
+agent | AgentExecutor | I'm not sure if I should request a refund or just track the delivery status of my order. What do ... | To provide the best recommendation, I need a bit more information: 1. **Current Status of Your O... | – | 6/26/2024, 10:44 PM | 2.12s | 674
+agent | AgentExecutor | Could you tell me if there are any current promotions for the Samsung 106i smartphone? | It looks like there are no current promotions or listings for the Samsung 106i smartphone at the ... | Function Calls incorrect; Parameter Extraction JS... incorrect | 6/26/2024, 10:44 PM | 1.46s | 1174
+agent | AgentExecutor | I need help with an issue related to an iPhone 16H I bought, but I'm not sure when I purchased it. | I can assist you with that. Since you are unsure about the purchase date, it would be helpful to ... | – | 6/26/2024, 10:44 PM | 1.27s | 607
+agent | AgentExecutor | Is there a way to check if the Samsung 15H adapter in my last order is still under warranty? | I can't directly check the warranty status of a specific product from your order history. However... | – | 6/26/2024, 10:44 PM | 1.30s | 610
+agent | AgentExecutor | I recently purchased a product, but I'm not sure if it was the Vizio 14Y TV [clipped] | Sure, I can help you track your package. Could you please provide the tracking number for the [clipped] | – | 6/26/2024, 10:44 PM | 0.73s | 565
+
+Interface text:
+Chrome File Edit View History Bookmarks Profiles Tab Window Help
+Thu Jun 27 2:28 PM
+Lessons from the Trenches: [illegible]
+Arize Phoenix | Phoenix
+Phoenix
+#1 Function Call Evals Experi...
+#2 Function Call Evals Experi...
+Phoenix
+[redacted]
+New Chrome available</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Incorrect function-call evaluation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Incorrect function-call evaluation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A promotions question is flagged incorrect for function calls and parameter extraction. The speaker says the agent used product search, which may not directly address promotions.
+
+[6:50](https://www.youtube.com/watch?v=nbZzSC5A6hs&amp;t=410s) [Enlarged trace list highlighting an incorrect function-call evaluation.](https://assets.ai.engineer/sites/aiecode2025/sha256/d108a8e54aafde5aa4691bd3e1abf92404674dcab108ff2f73732ebbb074361e.webp)
+
+Input | Output | Evaluations | Start time | latency
+
+I was wondering if you could assist me with a query about my recent order, or maybe it's more of ...
+Of course, I'd be happy to assist you with your order. Could you please provide some details abou...
+-- | 6/26/2024, 10:44 PM | 0.96s
+
+Can you help me decide whether to upgrade my current product or wait for a new one to arrive?
+Of course! To help you make an informed decision, I can compare the features of your current prod...
+-- | 6/26/2024, 10:44 PM | 1.23s
+
+I'm not sure if I should request a refund or just track the delivery status of my order. What do ...
+To provide the best recommendation, I need a bit more information: 1. **Current Status of Your O...
+-- | 6/26/2024, 10:44 PM | 2.12s
+
+Could you tell me if there are any current promotions for the Samsung 106i smartphone?
+It looks like there are no current promotions or listings for the Samsung 106i smartphone at the ...
+Function Calls incorrect
+Parameter Extraction JS... incorrect
+6/26/2024, 10:44 PM | 1.46s
+
+I need help with an issue related to an iPhone 16H I bought, but I'm not sure when I purchased it.
+I can assist you with that. Since you are unsure about the purchase date, it would be helpful to ...
+-- | 6/26/2024, 10:44 PM | 1.27s
+
+Is there a way to check if the Samsung 15H adapter in my last order is still under warranty?
+I can't directly check the warranty status of a specific product from your order history. However...
+-- | 6/26/2024, 10:44 PM | 1.30s
+
+I recently purchased a product, but I'm not sure...
+Sure, I can help you track your package. Could...
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+Thu Jun 27 2:29 PM
+Lessons from the Trenches: B... | Arize Phoenix | Phoenix | Phoenix | #1 Function Call Evals Experi... | #2 Function Call Evals Experi... | Phoenix
+ndasvyim1k86-496ff2e9c6d22116-6006-colab.googleusercontent.com/projects/UHJvamVjdDox
+New Chrome available
+Function Calls incorrect</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Return to trace details" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Return to trace details</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The trace shows a product_search call for a phone promotions question. Both evaluations mark the call incorrect, while the response says there are no current promotions or listings.
+
+[6:55](https://www.youtube.com/watch?v=nbZzSC5A6hs&amp;t=415s) [Trace details with the evaluations tab visible above the input and output.](https://assets.ai.engineer/sites/aiecode2025/sha256/15d2a768f52a91cd203408495e424231c1476ea74c4545a7dae41ee47abf464f.webp)
+
+Trace Details
+
+Total Traces: 51
+Trace Status: OK
+Latency: 1.46s
+Evaluations: Function Calls incorrect; Parameter Extraction JS... incorrect
+
+AgentExecutor — 1.46s
+  ChatOpenAI — 548 — 0.54s
+  product_search — 1.00ms
+  ChatOpenAI — 626 — 0.88s
+
+agent AgentExecutor — 1.46s
+Info
+Evaluations 2
+Attributes
+Events 0
+
+Input
+Could you tell me if there are any current promotions for the Samsung 106i smartphone?
+
+Output
+It looks like there are no current promotions or listings for the Samsung 106i smartphone at the moment. If you have any other products in mind or need assistance with something else, feel free to let me know!
+
+Interface text:
+Traces
+Add to Data[illegible]
+Chrome File Edit View History Bookmarks Profiles Tab Window Help
+Lessons from the Trenches: [illegible]
+Arize Phoenix | Phoenix
+Phoenix
+#1 Function Call Evals Experi[illegible]
+#2 Function Call Evals Experi[illegible]
+Phoenix
+[illegible]-colab.googleusercontent.com/projects/[illegible]/traces/[illegible]
+New Chrome available
+Thu Jun 27 2:29 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Function-call evaluation explanations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Function-call evaluation explanations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Both evaluations score product_search 0 for a promotions question. One says no promotion function is in the schema; the speaker says the application has one, but the agent did not call it.
+
+[7:00](https://www.youtube.com/watch?v=nbZzSC5A6hs&amp;t=420s) [Two incorrect evaluation results explain why a product search may not address a promotion query.](https://assets.ai.engineer/sites/aiecode2025/sha256/5039fd18a1c7f45d6e8a5975848e5d70a20f4895265c368d4086aead315f0bb3.webp)
+
+label | score | explanation
+incorrect | 0 | The user's question is about current promotions for the Samsung 106i smartphone. The generated function call is for a product search, which may not specifically address promotions. A more appropriate function might be one that directly queries promotions or discounts.
+incorrect | 0 | The generated function call is 'product_search' with the argument 'query' set to 'Samsung 106i smartphone'. The user's question is about current promotions for the Samsung 106i smartphone, which is not directly a product search but rather a query about promotions. The function 'product_search' does not directly address the user's question about promotions, and there is no function in the provided JSON schema that directly handles promotion queries. Therefore, the generated function call does not match the user's question exactly.
+
+Interface text:
+1.46s
+Add to Dataset
+2
+Attributes
+Events 0
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+Lessons from the Trenches: [illegible]
+Arize Phoenix | Phoenix
+Phoenix
+#1 Function Call Evals Experi[illegible]
+#2 Function Call Evals Experi[illegible]
+Phoenix
+[illegible].googleusercontent.com/projects/[illegible]/traces/[illegible]
+New Chrome available
+Thu Jun 27 2:29 PM
+
+[7:12](https://www.youtube.com/watch?v=nbZzSC5A6hs&amp;t=432s) [Two evaluations mark a product search incorrect for a promotions question.](https://assets.ai.engineer/sites/aiecode2025/sha256/a0ff5206bb5e41de2acf416ebad5f6ef91aace11064d1583d018e53ac576d95e.webp)
+
+label | score | explanation
+incorrect | 0 | The user's question is about current promotions for the Samsung 106i smartphone. The generated function call is for a product search, which may not specifically address promotions. A more appropriate function might be one that directly queries promotions or discounts.
+incorrect | 0 | The generated function call is 'product_search' with the argument 'query' set to 'Samsung 106i smartphone'. The user's question is about current promotions for the Samsung 106i smartphone, which is not directly a product search but rather a query about promotions. The function 'product_search' does not directly address the user's question about promotions, and there is no function in the provided JSON schema that directly handles promotion queries. Therefore, the generated function call does not match the user's question exactly.
+
+Interface text:
+1.46s
+Add to Dataset
+2
+Attributes
+Events 0
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+Lessons from the Trenches: [illegible]
+Arize Phoenix | Phoenix
+Phoenix
+#1 Function Call Evals Experi[illegible]
+#2 Function Call Evals Experi[illegible]
+Phoenix
+[illegible].googleusercontent.com/projects/[illegible]/traces/[illegible]
+New Chrome available
+Thu Jun 27 2:29 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Model span metadata" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Model span metadata</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The trace shows product_search between two ChatOpenAI spans. The speaker says the app had a promotions function, but the agent called product search instead, putting the later execution branch off course.
+
+[7:20](https://www.youtube.com/watch?v=nbZzSC5A6hs&amp;t=440s) [A trace displays model output metadata and token usage.](https://assets.ai.engineer/sites/aiecode2025/sha256/a11070bb3d8f528fb9f038936eec4c5405dcd595a14f7707a7d93285ad0952a8.webp)
+
+Trace Details
+
+Trace Status: OK
+Latency: 1.46s
+Evaluations: Function Calls incorrect; Parameter Extraction JS... incorrect
+
+AgentExecutor 1.46s
+  ChatOpenAI 548 0.54s
+  product_search 1.00ms
+  ChatOpenAI 626 0.88s
+
+ChatOpenAI 548 0.54s
+Info | Evaluations 0 | Attributes | Events 0
+
+&quot;token_usage&quot;: {
+  &quot;completion_tokens&quot;: 18,
+  &quot;prompt_tokens&quot;: 530,
+  &quot;total_tokens&quot;: 548
+},
+&quot;model_name&quot;: &quot;gpt-4o-2024-05-13&quot;,
+&quot;system_fingerprint&quot;: &quot;[illegible]&quot;,
+&quot;finish_reason&quot;: &quot;function_call&quot;,
+&quot;logprobs&quot;: null
+},
+&quot;type&quot;: &quot;ai&quot;,
+&quot;id&quot;: &quot;[illegible]&quot;,
+&quot;usage_metadata&quot;: {
+  &quot;input_tokens&quot;: 530,
+  &quot;output_tokens&quot;: 18,
+  &quot;total_tokens&quot;: 548
+},
+&quot;tool_calls&quot;: [],
+&quot;invalid_tool_calls&quot;: []
+}
+}
+}
+]
+},
+&quot;llm_output&quot;: {
+  &quot;token_usage&quot;: {
+    &quot;completion_tokens&quot;: 18,
+    &quot;prompt_tokens&quot;: 530,
+    &quot;total_tokens&quot;: 548
+  },
+  &quot;model_name&quot;: &quot;gpt-4o-2024-05-13&quot;,
+  &quot;system_fingerprint&quot;: &quot;[illegible]&quot;
+},
+&quot;run&quot;: null
+}
+
+Interface text:
+projects | Total Traces 51 | Traces | Add to Dataset
+Lessons from the Trenches: [illegible] | Arize Phoenix | Phoenix | #1 Function Call Evals Experi... | #2 Function Call Evals Experi... | Phoenix
+[illegible].googleusercontent.com/projects/[illegible]/traces/[illegible]?selectedSpanId=[illegible]
+New Chrome available
+AIE | AI Engineer World's Fair | Microsoft | smol ai | aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Product search trace" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Product search trace</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent calls product_search instead of the promotions function. The search returns no results, and the trace flags both evaluations as incorrect.
+
+[7:33](https://www.youtube.com/watch?v=nbZzSC5A6hs&amp;t=453s) [A product search span shows its input, empty results, and tool description.](https://assets.ai.engineer/sites/aiecode2025/sha256/05ec17671783e122ddd6f1298d77a1c01b68d84150ff3220869cde1926a1506f.webp)
+
+Trace Details
+Trace Status: OK
+Latency: 1.46s
+Evaluations: Function Calls incorrect; Parameter Extraction JS... incorrect
+
+AgentExecutor — 1.46s
+  ChatOpenAI — 548 — 0.54s
+  product_search — 1.00ms
+  ChatOpenAI — 626 — 0.88s
+
+product_search — 1.00ms
+Info | Evaluations 0 | Attributes | Events 0
+
+Input
+{'query': 'Samsung 106i smartphone'}
+
+Output
+{
+  &quot;output&quot;: {
+    &quot;results&quot;: [],
+    &quot;pagination&quot;: {
+      &quot;total&quot;: 0,
+      &quot;page&quot;: 1,
+      &quot;page_size&quot;: 20
+    }
+  }
+}
+
+Tool: product_search
+Description
+Search for products based on criteria. Parameters: query (str): The search query string. category (str, optional): The category to filter the search. Default is None. min_price (float, optional): The minimum price of the products to search. Default is 0. max_price (float, optional): The maximum price of the products to search. Default is None. page (int, optional): The page number for pagination. Default is 1. page_size (int, optional): The number of results per page. Default is 20. Returns: dict: A dictionary containing the search results and pagination info.
+
+Interface text:
+Lessons from the Trenches: [illegible] | Arize Phoenix | Phoenix | Phoenix | #1 Function Call Evals Experi... | #2 Function Call Evals Experi... | Phoenix
+[illegible].googleusercontent.com/projects/[illegible]/traces/[illegible]?selectedSpanId=[illegible]
+New Chrome available
+projects
+Total Traces 51
+Traces
+Add to Dataset
+AIE
+AI Engineer World's Fair
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">是模型好，还是应用在起作用？</a></li><li><a href="#sec-2">在评估回答之前先评估路由</a></li><li><a href="#sec-3">一个促销请求走错了分支</a></li><li><a href="#sec-4">把一次 trace 中的失败变成一个实验</a></li><li><a href="#sec-5">让评估贯穿应用的生命周期</a></li><li><a href="#sec-6">一个数值分数可能掩盖你需要的差异</a></li><li><a href="#sec-7">检索取决于上下文长度和位置</a></li><li><a href="#sec-8">找到事实只是第一项任务</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">在真实世界中有效的 LLM 评测</h2>
+      <div class="lede"><p>评估 LLM 应用内部的决策，把有解释的失败变成回归用例，并检验评判者的分数和模型基准是否衡量了你真正需要的行为。</p><p>熟悉 LLM 提示词、函数调用和检索增强生成，有助于理解示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="17">▶ 0:17</button></div>
+      <h3>是模型好，还是应用在起作用？</h3>
+      <p>What does it mean to evaluate an LLM application in the real world? A model can rank well on a benchmark while the application built around it still fails its users. Aparna Dhinakaran starts with this distinction: <strong>model evaluations help you choose a model; task evaluations tell you whether your application does its job.</strong></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/a0901083c5a83dd494c74853641b05dc8cad8bf5983e2cc890402b2448b1166f" alt="Model Evals vs Task Evals slide showing a leaderboard beside an AI observability interface, with a question beneath each." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Model evals ask which model to choose; task evals ask whether the LLM app is working.</figcaption></figure>
+<p>Model comparisons use tools such as the Open LLM Leaderboard, MMLU and needle-in-a-haystack tests to assess capabilities. Application builders need another layer of evidence: whether their particular workflow produces the intended result. The approaches include LLM judges, user feedback and heuristic checks. An <strong>LLM-as-a-judge</strong> evaluation takes an application response, optionally includes the context behind it, and supplies an evaluation prompt that tells another model what to assess. The resulting judgment is only useful if that prompt asks about the behavior the application actually needs.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="135">▶ 2:15</button></div>
+      <h3>在评估回答之前先评估路由</h3>
+      <p>Consider a chat-to-purchase application. A customer asks about buying a new Kindle. Before answering, an intent router decides which workflow should handle the request, commonly through function calling. If it sends a product recommendation request to customer support, the application has already made a consequential mistake before generating its final response. Dhinakaran describes routers as one of the most common agentic workflows she sees in production.</p>
+<p>The selected branch can contain more LLM calls, ordinary application calls, search and traditional machine learning models. Evaluation therefore needs to follow the structure of execution: assess the router’s choice, then assess the components within the branch. A single final-answer judgment may reveal that something failed without identifying which decision caused it.</p>
+<p>Function calling introduces two separate correctness questions:</p>
+<p>| Evaluation | Question |
+|---|---|
+| Function selection | Did the request reach the right function? |
+| Parameter extraction | Did that function receive the right arguments? |</p>
+<p>A product-details request should select the product-details function. But selecting that function is insufficient if the router extracts the wrong product identifier. <strong>Correct routing and correct arguments are separate requirements</strong>, and the evaluation should preserve that distinction.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/d22bebcb066e319c4706f6bd2d38ddc531d2109cb5a8ee4fc45c80d73cf2cf09" alt="Function call evaluation slide with two definitions, three example rows, separate function and parameter evaluation columns, and precision, recall and F1 results." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Function selection and parameter extraction receive separate evaluations.</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="350">▶ 5:50</button></div>
+      <h3>一个促销请求走错了分支</h3>
+      <p>The demonstration uses <a href="https://github.com/Arize-ai/phoenix" target="_blank" rel="noopener">Phoenix</a>, Arize’s open source observability and evaluation product. A trace exposes the user’s request, the application response and the calls made along the way. The customer asks whether there are current promotions for a Samsung phone. Among the recorded requests, Dhinakaran opens one flagged for an incorrect function call.</p>
+<p>The evaluator’s explanation makes the failure concrete: the request concerns promotions, but the generated call performs a product search. A function dedicated to promotions and discounts exists in the application, yet the router does not select it. The problem is not merely an imperfect answer. The first decision sends the rest of execution down a branch that does not specifically address the customer’s intent.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="466">▶ 7:46</button></div>
+      <h3>把一次 trace 中的失败变成一个实验</h3>
+      <p><strong>Traces, evaluations and explanations answer different debugging questions.</strong> The trace shows what happened. The evaluation identifies a failed requirement. The explanation connects that failure to a possible repair. For the promotions request, that connection points back to routing rather than requiring the team to inspect every downstream response.</p>
+<p>The improvement loop is straightforward:</p>
+<p>1. Add the failed request to an evaluation dataset.
+2. Change the relevant prompt or function description.
+3. Run an experiment against the accumulated cases.
+4. Compare results to see whether the change improves the targeted behavior.</p>
+<p>Dhinakaran shows experiments involving a modified prompt and identifies function descriptions as another possible source of error. Keeping evaluations attached to individual components helps the team decide where to make the next change.</p>
+<p>For a regression case with an explicit expected call, a small deterministic check can retain the distinction between function choice and arguments. This Python example represents the same Samsung promotions failure with illustrative function names and a simplified product argument:</p>
+<p>```python
+case = {
+    &quot;request&quot;: &quot;Are there current promotions for this Samsung phone?&quot;,
+    &quot;expected&quot;: {
+        &quot;name&quot;: &quot;get_promotions&quot;,
+        &quot;arguments&quot;: {&quot;product&quot;: &quot;Samsung phone&quot;},
+    },
+}
+observed = {
+    &quot;name&quot;: &quot;search_products&quot;,
+    &quot;arguments&quot;: {&quot;product&quot;: &quot;Samsung phone&quot;},
+}</p>
+<p>def evaluate_call(expected, actual):
+    function_correct = actual[&quot;name&quot;] == expected[&quot;name&quot;]
+    arguments_match = actual[&quot;arguments&quot;] == expected[&quot;arguments&quot;]
+    return {
+        &quot;function_correct&quot;: function_correct,
+        &quot;arguments_match&quot;: arguments_match,
+        &quot;call_correct&quot;: function_correct and arguments_match,
+    }</p>
+<p>result = evaluate_call(case[&quot;expected&quot;], observed)
+```</p>
+<p>Matching argument values cannot rescue the wrong function choice. The saved expectation also gives a subsequent prompt experiment a concrete target; it does not imply that the application has already been repaired.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="565">▶ 9:25</button></div>
+      <h3>让评估贯穿应用的生命周期</h3>
+      <p>A chatbot with multiple exchanges needs evaluations at more than one scope:</p>
+<p>- <strong>Session:</strong> assess the conversation across turns.
+- <strong>Trace:</strong> assess a particular request’s execution.
+- <strong>Span:</strong> assess an individual operation within that execution.</p>
+<p>These levels let a team move from an observed failure to the component responsible for it. The process begins by benchmarking evaluators during development, then refining evaluation templates alongside the application’s components. In production, evaluations can run as monitoring jobs. The templates develop with the system rather than appearing only after it is finished.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/29363528d77a883272e5a8a7f1ecd45c748cf1310c14cb73630f8094e5aecc3a" alt="Three-column lifecycle slide listing golden datasets and eval templates, evaluating experiments, and production evaluations and performance monitoring." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>LLM evaluations span benchmarking, development and production.</figcaption></figure>
+<p>Dhinakaran’s strongest recommendation from deployment experience is to <strong>run evaluations with explanations</strong>. A label such as <code>incorrect</code> identifies a problem but gives little direction about what to fix. An explanation that identifies a mismatch between promotions intent and product-search routing gives the team a specific place to investigate. Its practical value is the bridge from a judgment to a repair.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="682">▶ 11:22</button></div>
+      <h3>一个数值分数可能掩盖你需要的差异</h3>
+      <p>Evaluators can return numerical scores, categorical labels, multiple outputs or multiclass judgments. A number looks convenient for comparison, but its apparent precision does not establish that it tracks severity. Dhinakaran recommends against relying exclusively on numerical judge outputs, drawing on Arize’s <a href="https://arize.com/blog/numeric-evals-for-llm-as-a-judge/" target="_blank" rel="noopener">numeric-evaluation research</a>.</p>
+<p>The experiment corrupts documents with spelling errors and asks an LLM judge to assess how bad those errors are. In the spoken example, documents with approximately 80% and 11% spelling corruption both received a judge score of 10. A substantial difference in the input therefore disappears in the reported score.</p>
+<p>Across the tested foundational models, Dhinakaran reports scores concentrated near the extremes rather than spread smoothly across the scale. She singles out <strong>Mistral</strong> as comparatively better. As corruption increased, the score did not reliably increase with it. The lesson is specific: if you need a severity measure, test whether the judge distinguishes severity. These results support caution about numerical outputs, not a claim that every numerical evaluation fails.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="821">▶ 13:41</button></div>
+      <h3>检索取决于上下文长度和位置</h3>
+      <p>The final part of the talk turns from application debugging to model evaluation. A <a href="https://arize.com/blog/the-needle-in-a-haystack-test-evaluating-the-performance-of-llm-rag-systems/" target="_blank" rel="noopener">needle-in-a-haystack test</a> hides a fact inside a larger context and asks the model to retrieve it. Varying both context length and the fact’s insertion depth tests two different pressures. The illustrated placements put the fact near the first 5% of the context or around 90% of the way through it.</p>
+<p>For retrieval-augmented generation, this becomes a practical context-assembly question: does placing important information lower in the supplied document change the answer? The displayed comparison uses <strong>Claude 2.1</strong> and <strong>GPT-4</strong>. These are historical model results, not a ranking of current systems; newer Opus results are mentioned but not shown.</p>
+<p>Read the heatmaps with context size on the horizontal axis and insertion depth on the vertical axis. Green marks successful retrieval and red marks failure. Dhinakaran reports stronger retrieval from GPT-4 in this comparison, while highlighting difficulty retrieving facts placed earlier in longer contexts. The useful engineering conclusion is to test placement under your own context lengths and prompts. The displayed failure pattern does not establish a universally best position for every RAG application.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/76a6743248533a1279c7cd14a39ff4ae1ff0ae82184a29a72b32bf6d29b4fef7" alt="Two side-by-side red and green retrieval heatmaps labeled Claude 2.1 and GPT-4, with outlined regions highlighting different failure patterns." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Needle-in-a-haystack results for Claude 2.1 and GPT-4.</figcaption></figure>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="968">▶ 16:08</button></div>
+      <h3>找到事实只是第一项任务</h3>
+      <p>Retrieval success does not establish that a model can correctly use what it retrieved. The next experiments add generation tasks: rounding numbers from financial documents, mapping dates and concatenating strings. Each requires the model to find the relevant information and then transform it.</p>
+<p>The model ordering changes. Dhinakaran describes GPT-4 as performing almost four times worse despite its stronger retrieval. The <a href="https://arize.com/blog/research-techniques-for-better-retrieved-generation-rag/" target="_blank" rel="noopener">companion generation study</a> narrows that comparison: Claude 2.1 achieved nearly four times GPT-4’s initial success rate on date mapping. That is a result for a particular transformation task and initial prompt, not an aggregate advantage across all generation tasks.</p>
+<p>The intervention changes the instruction: ask the model to explain itself before answering. Dhinakaran attributes Claude’s initial advantage to its more verbose responses, interpreting those intermediate explanations as helping it work through the transformation. That is an interpretation of the observed behavior, rather than proof of an internal mechanism. When the team requests an explanation before the answer from GPT-4, its generation performance improves substantially. <strong>The prompt is part of the evaluated configuration:</strong> a retrieval benchmark alone cannot tell you whether a model will perform the subsequent transformation, or how that performance will change when you alter the instruction.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/Arize-ai/phoenix" target="_blank" rel="noopener">Phoenix repository</a> — Tools and installation instructions for tracing LLM applications, evaluating outputs, building datasets, and comparing experiments. The repository reflects current software.</li><li><a href="https://arize.com/blog/numeric-evals-for-llm-as-a-judge/" target="_blank" rel="noopener">Numeric judge scores under controlled corruption</a> — Arize's 2024 spelling and emotional-content experiments examine score calibration, prompt sensitivity, and variation across repeated judgments.</li><li><a href="https://arize.com/blog/the-needle-in-a-haystack-test-evaluating-the-performance-of-llm-rag-systems/" target="_blank" rel="noopener">Arize's needle-in-a-haystack experiments</a> — Explains context-length and insertion-depth testing, random-number retrieval, and the effects of changing prompts.</li><li><a href="https://arize.com/blog/research-techniques-for-better-retrieved-generation-rag/" target="_blank" rel="noopener">Testing generation after retrieval</a> — Experiments with date mapping, string concatenation, money formatting, and arithmetic show how transformation tasks respond to prompt changes.</li><li><a href="https://claude.com/blog/claude-2-1-prompting" target="_blank" rel="noopener">Anthropic's Claude 2.1 retrieval prompting experiment</a> — A historical account of how a relevant-sentence response prefix changed Claude 2.1's results on a long-context retrieval test.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] All right. Hey, everyone. My name's Aparna, one of the founders of Arize.</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">Uh, we do LLM evals and observability. Um, I wanted to do a session going really deep on this stuff because you guys all hear LLM-as-a-judge, and you're probably like, &quot;Yeah, yeah, yeah,&quot; but how does it actually work in the real world?</span></div><div class="tline" data-t="31"><span class="ts">0:31</span><span class="tx">Well, we work with some of the top companies in the space, um, who are all deploying LLM applications, and we've seen a lot go well and not go well in the real world.</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">And so even though you've probably seen this tweet from Greg a bunch, &quot;Evals are all you need,&quot; you're probably like, &quot;What does that actually mean when you're putting it in the real world?&quot;</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">And I'm gonna demystify a little bit of that and talk about some real examples today. So first off, there's a distinction between types of evals that we should, we should just clarify.</span></div><div class="tline" data-t="63"><span class="ts">1:03</span><span class="tx">First is there's model evals. If you're on Hugging Face, you're looking at the Open LLM Leaderboard, and you're like, &quot;Okay, Llama, 3B, whatever, 7B is better than this because of some MMLU metric,&quot; well, they're actually stacking and ranking different models against each other.</span></div><div class="tline" data-t="79"><span class="ts">1:19</span><span class="tx">And these are really helpful, um, when you see things like the needle-in-a-haystack test, um, to understand which model to actually use. But for most of you in the room who are probably building the applications, you probably care more about task evals.</span></div><div class="tline" data-t="92"><span class="ts">1:32</span><span class="tx">And what I mean by that is, is the LLM application actually working, and how do you define evals that actually help you figure that out? So let's talk about how task evals work in the real world.</span></div><div class="tline" data-t="105"><span class="ts">1:45</span><span class="tx">This is probably a review to most of you. Most of the industry is converging around a couple different options; LLM-as-a-judge, user feedback, heuristic-based approaches. Just as a overview for folks who don't know what LLM-as-a-judge is, it's basically when you're using AI to evaluate AI.</span></div><div class="tline" data-t="122"><span class="ts">2:02</span><span class="tx">I take inputs from-- I take the output of my response, I might take the context that it was given, pass it into an eval prompt template, and then I can actually have LLM-as-a-judge come back with an evaluation of how it works.</span></div><div class="tline" data-t="135"><span class="ts">2:15</span><span class="tx">Let's talk about how this works in a simple application. So this is a really common one we're seeing in the ecosystem. Uh, it's a chat-to-purchase type of application. E-commerce applications use this a lot.</span></div><div class="tline" data-t="146"><span class="ts">2:26</span><span class="tx">So the way it begins is the customer asks some kind of question, &quot;Hey, blah, blah, blah, I'm looking for a new Kindle.&quot; And there's first this component, call it like a router, that actually is deciding what the customer intent is.</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">A lot of folks actually use function calling for this, and so there's a function call that happens. It determines what the path to send a user down is, and then there's the actual workflow execution branch of what to happen.</span></div><div class="tline" data-t="174"><span class="ts">2:54</span><span class="tx">This is a really, really simple one. In the real world, the applications get a lot more complex. There's a real-- I see probably a couple of these at, you know, e-every week, where basically the user intent gets decided by an LLM call, and then it has to get the user intent correct.</span></div><div class="tline" data-t="194"><span class="ts">3:14</span><span class="tx">This is what they all care about because otherwise it sends users down the wrong path. It can send it down-- If a user's asking you a question about, &quot;Hey, recommend me some product to go buy,&quot; but then it sends me down something related to customer support, well, the issue actually you wanna catch is, did it get the</span></div><div class="tline" data-t="210"><span class="ts">3:30</span><span class="tx">function call of determining that user intent correctly? And so when you look at an application like this where there's a router, and routers are, you know, pr-probably the most common agentic type of workflows we're actually seeing in production today.</span></div><div class="tline" data-t="224"><span class="ts">3:44</span><span class="tx">There's a router call, then there's LLM calls, then there's application calls, and then there's maybe even calls to traditional ML models doing in the middle of where you're actually calling out to search.</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">How many of you guys have an application that looks like this or have seen app-- y-you know, have built one internally? Okay. Awesome. Awesome. Awesome. This is, this is kind of where we're seeing a lot of, um, we're seeing a lot of applications being built.</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">It's not just a simple API call and, and here's a response. It's actually built on top of levels. And so as your applications get more complex, your evals are gonna get more complex.</span></div><div class="tline" data-t="264"><span class="ts">4:24</span><span class="tx">And there's levels to this [laughs] is, is kind of the theme you'll hear today. If you're evaluating something like this, you want evals at different levels of your application. There's an eval, most importantly, at the router level to help you figure out what's the path that it should go down.</span></div><div class="tline" data-t="283"><span class="ts">4:43</span><span class="tx">Did it go down the right execution branch? And then within each execution branch, there's often component-level evals that are being done. I'm gonna actually give you guys a demo, so we can show you a real application, and we can show you where something goes wrong.</span></div><div class="tline" data-t="299"><span class="ts">4:59</span><span class="tx">But just to set some context, you will actually dive really deep today into this router eval in applications. Um, the key thing I think to take away is you'll see questions like this from the demo we're gonna give, but users ask, y-you know, questions in the applications, and typically you wanna figure out, well, did it go down</span></div><div class="tline" data-t="319"><span class="ts">5:19</span><span class="tx">the right function call? So in this case, did it go down something like the user asked about details of a product? Did it go down the product details function call?</span></div><div class="tline" data-t="328"><span class="ts">5:28</span><span class="tx">And then there's another kind of implicit one that's often done, which is, did we extract the right parameters for the function call, and do we give it the right parameters?</span></div><div class="tline" data-t="337"><span class="ts">5:37</span><span class="tx">'Cause if you don't give it the right parameters, then i-it doesn't matter if you pick the right function call, it's still not gonna get it right. So these are kind of the two ones I'm gonna actually walk through and show you guys, um, what it looks like.</span></div><div class="tline" data-t="350"><span class="ts">5:50</span><span class="tx">Um, uh-oh, let me make it big screen. Give me one second. Okay. Uh, I'm gonna actually show you guys Phoenix today. Phoenix is our open source product. You guys are welcome to try it out and download it.</span></div><div class="tline" data-t="363"><span class="ts">6:03</span><span class="tx">Uh, this is actually Phoenix live for my application that I was talking about. And right now, what you're actually looking at is a trace of the application, very simplified trace of the application.</span></div><div class="tline" data-t="375"><span class="ts">6:15</span><span class="tx">Um, this is what a user asked me, &quot;Could you tell me if there is any current promotions for Samsung whatever phone?&quot; And then this is actually the output that was responded from the application.</span></div><div class="tline" data-t="391"><span class="ts">6:31</span><span class="tx">Within this, um, and you can go and you can look through kind of all the different applications here, all the different kind of questions that users are asking, and you can actually see what, what kind of questions that users are asking here.</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">Each one of these, you'll actually see a full stack trace. What's most important here, and you kind of see the one I clicked on, is one where it actually says it got the function call wrong.</span></div><div class="tline" data-t="413"><span class="ts">6:53</span><span class="tx">So I'm gonna actually go dive into that one, and we can go look at it. You can go look at and see, okay, it says it got the function call wrong.</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">It says the user is actually asking about current promotions for this phone. The generated function call is for a product search, which may not specifically address promotions. A more appropriate function call might be the one that directly queries promotions or discounts.</span></div><div class="tline" data-t="438"><span class="ts">7:18</span><span class="tx">We actually do have, within the application, uh, a function call that's available for promos and discounts. Um, might be easier to see that one in the slides. But it didn't actually call that one.</span></div><div class="tline" data-t="451"><span class="ts">7:31</span><span class="tx">It actually called the one that's specifically about product search instead. And so it called the wrong function call, and this is actually one where the rest of the entire execution branch is gonna be off because it got the first call wrong.</span></div><div class="tline" data-t="466"><span class="ts">7:46</span><span class="tx">This is why it's really important to-- If I had to zoom back out to just what do you care about in an application like this? You care about first your traces because you wanna see what the heck's happening.</span></div><div class="tline" data-t="478"><span class="ts">7:58</span><span class="tx">Where is it going down the flow? You care about evals. You care about evals knowing, well, something like where in the application did it get it wrong? And then you also care about, we'll go into this, explanations of the evaluation, so that when it gets it wrong, you get a view of actually where did it go wrong,</span></div><div class="tline" data-t="496"><span class="ts">8:16</span><span class="tx">what to go fix, and what should I actually go do to iterate and improve the application. Um, traces, you want to evaluate it, and then you want to use it to actually iterate on your application.</span></div><div class="tline" data-t="508"><span class="ts">8:28</span><span class="tx">That's kind of the loop that people do as they're building these. I can take this example, I can go add it to my dataset, for example, um, and then I can say, &quot;All right.</span></div><div class="tline" data-t="518"><span class="ts">8:38</span><span class="tx">Every single time I get something wrong like this, I'm gonna go build up my dataset and then use these to now eventually run experiments, and run experiments where I can track and improve.&quot;</span></div><div class="tline" data-t="529"><span class="ts">8:49</span><span class="tx">And this is one where I modified the prompt, and I can run these experiments and then continuously iterate to make sure-- Maybe the function description wasn't right. Maybe the call from the LLM wasn't, wasn't right.</span></div><div class="tline" data-t="541"><span class="ts">9:01</span><span class="tx">And so there's all sorts of things you can actually do to improve, but it really helps when you have evals at different levels of the application to be able to...</span></div><div class="tline" data-t="551"><span class="ts">9:11</span><span class="tx">Oh, is it loading? Evals at different levels of the application so that you know where to go focus and where to actually go improve. Um, so with that, I'm gonna actually jump to just some of the best practices we've seen from the ground.</span></div><div class="tline" data-t="565"><span class="ts">9:25</span><span class="tx">Um, so you saw an example of basically a router-based application, function calling evals. There's different types of levels that we see to it-- to applications. Uh, how many of you guys have a chatbot with multiple back and forths sessions basically in there?</span></div><div class="tline" data-t="580"><span class="ts">9:40</span><span class="tx">Well, typically, you want evals at different levels of that, at a session level, often at a trace level, often at a span level. So</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">getting this stuff to actually work in the real world isn't just single eval and we're good. It's, it's often single eval, help me understand an explanation, let me drill down to where exactly, what component.</span></div><div class="tline" data-t="603"><span class="ts">10:03</span><span class="tx">And so these, these levels really help you do that. And what we see folks do is they actually start to do this in iterative phases. They first start off benchmarking the evals when they're building.</span></div><div class="tline" data-t="615"><span class="ts">10:15</span><span class="tx">Um, and then a-as they're actually building the application and they're building each of the different components, they're developing those eval templates iteratively along the application. And then as they move into production, they can actually go monitor it, run it in, you know, run it as jobs.</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">But you're doing this as an iterative process as you're, as you're kind of building. Um, if there's one thing you take away from my talk today, I hope it's actually this slide. [chuckles]</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">Um, evals with explanations are by far what we see real,</span></div><div class="tline" data-t="647"><span class="ts">10:47</span><span class="tx">you know, real people deploying applications finding the most useful in production. A single incorrect, not incorrect, is just really hard to know what to go fix. But when you have something like an explanation like we were looking at, it makes it easier for teams to go, &quot;Okay, here's what I go fix.</span></div><div class="tline" data-t="663"><span class="ts">11:03</span><span class="tx">Here's what I go dig into.&quot; Um, and so run your evals with explanations, um, if you can. There's different types of ways you can generate these evals, actually. There's-- If any of you guys are familiar with like, you know, in ML, there's like regression type of models, classification types of models, et cetera.</span></div><div class="tline" data-t="682"><span class="ts">11:22</span><span class="tx">Well, there's different types of evals too. There's numeric score outputs, there's categorical outputs, multi-outputs, multi-class. Um, can I actually-- Maybe this is a fun question. How many of you guys use numerical outputs as your, as your LLM evals?</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">Okay. Okay. A few brave folks. How many of you guys use categorical evals? Okay. Both. Okay. Nice. Um, I'm gonna actually share-- We did a ton of research around this, and we've been sharing about this.</span></div><div class="tline" data-t="712"><span class="ts">11:52</span><span class="tx">But if you are using numerical outputs today, highly recommend you actually don't only rely on them. Um, here's a little research we shared, and I'll, I'll share some results of this.</span></div><div class="tline" data-t="725"><span class="ts">12:05</span><span class="tx">But- Uh, numeric scores, just for people who, you know, need a refresher on it, is, um, you basically have the output of your LLM as a judge be a single number.</span></div><div class="tline" data-t="736"><span class="ts">12:16</span><span class="tx">And this is a simple example. I have a document, one where we've corrupt- corrupted the document with a lot of spelling errors, and one where we've corrupted the document with very little spelling errors.</span></div><div class="tline" data-t="747"><span class="ts">12:27</span><span class="tx">So one of them, the corruption's, like, eighty percent, the other one, the corruption's, like, eleven percent. And we asked the LLM as a judge, &quot;Hey, can you evaluate and tell us how bad of the spelling errors are actually in this document?&quot;</span></div><div class="tline" data-t="759"><span class="ts">12:39</span><span class="tx">For both of them, it actually gave an eval score of ten on it. And we actually noticed this was really consistent across a- all the foundational models. I think Mistral actually did pretty good compared to some of the rest.</span></div><div class="tline" data-t="773"><span class="ts">12:53</span><span class="tx">But, uh, across all the foundational models, it was actually pretty binary in how it did the scores. It was either a zero or it was, uh, or it was either a one or it was a ten, but it was never, like, this linear range of scores that you'd want it to expect.</span></div><div class="tline" data-t="792"><span class="ts">13:12</span><span class="tx">So as you increase the density of corruption, you don't actually get an increase in the number of scores. It was pretty binary, which kinda just indicated that if you're using numeric scores, it might not be the right way to evaluate because you're not gonna catch the granularity.</span></div><div class="tline" data-t="807"><span class="ts">13:27</span><span class="tx">You know, an eighty percent doesn't actually mean anything. It's not gonna really mean anything different than a ten percent evaluation. Um, so just a little best practices from the ground that we've been seeing as we've been running evals with, with customers.</span></div><div class="tline" data-t="821"><span class="ts">13:41</span><span class="tx">Um, in the last, like, four minutes here, I'll share a couple more-- This is slightly more model evals-related research, uh, for folks to kinda see the latest on, on that front.</span></div><div class="tline" data-t="833"><span class="ts">13:53</span><span class="tx">Um, for folks who have been following the needle-in-a-haystack test, this was a really popular one on-- trending on Twitter, um, recently. Needle-in-a-haystack test was basically we put a needle in a haystack.</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">We hid a fact in some context window. Um, and the context window size can change, but the key thing we were also trying to figure out is does placement in the context window matter?</span></div><div class="tline" data-t="862"><span class="ts">14:22</span><span class="tx">So this is an example where the fact was placed within the first five percent of the context window. This is an example where the fact was placed kinda lower down in the context window, ninety percent.</span></div><div class="tline" data-t="874"><span class="ts">14:34</span><span class="tx">And the reason to do this type of research is, well, if you're using RAG, which I'm sure many of you guys in this room are, well, does it matter if what you put in the context window that's the most important part is actually lower in the document?</span></div><div class="tline" data-t="887"><span class="ts">14:47</span><span class="tx">Does that actually impact the final output of the LLM that's given? And turns out it actually does. So we did a lot of pressure testing against a number of foundational models.</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">Um, we do have the latest, uh, from the Opus model. I just don't have it in this deck right now. But this is actually results from Anthropic Claude 2.1 versus GPT-4.</span></div><div class="tline" data-t="908"><span class="ts">15:08</span><span class="tx">Um, [lip smack] the-- Sorry it's hard to read, but the x-axis on the bottom is basically the context window size, and then the y-axis is basically the depth in the document.</span></div><div class="tline" data-t="920"><span class="ts">15:20</span><span class="tx">And, I mean, GPT-4 was for sure better, um, in, in being able to retrieve the fact. But we consistently noticed actually that if you put the fact, especially as you increase the context window, if you put the fact earlier in the context window, it actually had a really hard time almost remembering or retrieving to pull that document.</span></div><div class="tline" data-t="944"><span class="ts">15:44</span><span class="tx">And so it-- we repeatedly, as we ran this, saw this kind of, you know, red's where it gets it wrong, green's where it gets it right, but it consistently has this, like, red block earlier in the context window.</span></div><div class="tline" data-t="956"><span class="ts">15:56</span><span class="tx">So, um, for folks who are actually using RAG, depending on how much information you're putting in the document, it's important to just balance where you place it in the document as well.</span></div><div class="tline" data-t="968"><span class="ts">16:08</span><span class="tx">Um, uh, another couple research results. We, um, also tested not just retrieval, but also retrieval with generation. What do I mean by generation? Well, after you did the retrieval, you can do things like generation on-- It's kinda like the G in RAG.</span></div><div class="tline" data-t="985"><span class="ts">16:25</span><span class="tx">Uh, you actually generate a response after that. So some of the common types of generations were things like, um, from this financial document, round the numbers or map the dates or concatenate the strings.</span></div><div class="tline" data-t="998"><span class="ts">16:38</span><span class="tx">So these are all common types of generation tasks. And, um, again, we stack ranked two different models against each other. This one's actually super interesting because GPT-4, which, you know, at that point state-of-the-art, uh, did worse than Anthropic 2.1, almost four times as worse.</span></div><div class="tline" data-t="1019"><span class="ts">16:59</span><span class="tx">And we were really confused at why. Uh, it was really great at retrieval, but it wasn't great at generation. And we kept going back and trying to understand, like, why this is over so many results and, um, talked to the team, and basically we modified something in the prompt that made it so much better. [chuckles]</span></div><div class="tline" data-t="1043"><span class="ts">17:23</span><span class="tx">We asked it to please explain yourself and then answer the question. If any of you guys have noticed, but Anthropic's models are slightly wordier, and actually in this scenario, it was more of a feature versus a bug.</span></div><div class="tline" data-t="1056"><span class="ts">17:36</span><span class="tx">Because it was wordier, it kept kind of asking itself to-- It, like, thought through the process, and it thought through the process and then answered the question correctly and did the generation at the end, as opposed to GPT-4.</span></div><div class="tline" data-t="1070"><span class="ts">17:50</span><span class="tx">But when we asked GPT-4 to actually explain itself and then answer the question, it was able to get a pretty remarkable jump in performance on generation. So, um,</span></div><div class="tline" data-t="1082"><span class="ts">18:02</span><span class="tx">uh, hopefully this was helpful to give you guys a view of just, like, different type of task and model evals. If you wanna hear more about this, um, we're actually hosting, uh, an event, Arize Observe, on July 11th.</span></div><div class="tline" data-t="1093"><span class="ts">18:13</span><span class="tx">This is, uh, my code for a free ticket. If any of you guys wanna go, there's all sorts of researchers from OpenAI, Anthropic, Mistral, who are all coming to share model evals, as well as builders who are sharing their own task evals.</span></div><div class="tline" data-t="1107"><span class="ts">18:27</span><span class="tx">So, um, check it out. Thanks, everyone. [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

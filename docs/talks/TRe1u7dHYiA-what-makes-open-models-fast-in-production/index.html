@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>是什么让开源模型在生产中跑得快 —— Sujee Maniyam，Nebius | AI 工程师中文版</title>
+<meta name="description" content="Dylan Bristot 和 Sujee Maniyam 讲解了 Nebius Token Factory 如何把生产数据与模型改进联系起来，并详解了快速推理背后的硬件、路由、缓存和解码选择。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>是什么让开源模型在生产中跑得快 —— Sujee Maniyam，Nebius</h1>
+    <div class="orig-title">What Makes Open Models Fast in Production — Sujee Maniyam, Nebius</div>
+    <div class="meta"><span class="speaker">Dylan Bristot、Sujee Maniyam</span> · AI Engineer Code 2025 · 20:32</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=fine-tuning">微调</a><a class="tag" href="../../index.html#topic=open-weights">开放权重模型</a><a class="tag" href="../../index.html#topic=quantization">量化</a><a class="tag" href="../../index.html#topic=kv-caching-and-prefix-reuse">KV 缓存与前缀复用</a><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/TRe1u7dHYiA-what-makes-open-models-fast-in-production" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="TRe1u7dHYiA"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=TRe1u7dHYiA" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">模型只是生产工作的开端</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>模型只是生产工作的开端</span></li><li data-t="245"><span class="ts">4:05</span><span>把生产中的补全结果变成下一个部署的模型</span></li><li data-t="601"><span class="ts">10:01</span><span>让模型与硬件和服务引擎相匹配</span></li><li data-t="778"><span class="ts">12:58</span><span>把请求路由到已经缓存好的工作那里</span></li><li data-t="863"><span class="ts">14:23</span><span>让小模型起草，让大模型验证</span></li><li data-t="953"><span class="ts">15:53</span><span>保留可复用的上下文，即使它离开了 GPU 显存</span></li><li data-t="1092"><span class="ts">18:12</span><span>找到能保住有用质量的精度</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 22 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Agenda" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agenda</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk moves from an introduction to inference infrastructure, then model-shaping and model-serving optimizations.
+
+[0:27](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=27s) [Agenda covering introduction, inference infrastructure, model shaping and model serving.](https://assets.ai.engineer/sites/aiecode2025/sha256/48d31e085087ec66ccd112147764fec8528f2353864a489f4442aafbd27652c6.webp)
+
+Agenda
+
+Introduction
+Infrastructure for inference
+Model-shaping optimizations
+Model-serving optimizations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Nebius at a glance" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Nebius at a glance</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Nebius describes owning data centers and integrating its stack from silicon through inference serving. It targets 5+ GW of NVIDIA systems by the end of 2030.
+
+[0:50](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=50s) [Company overview with cards about infrastructure, partnerships and vertical integration.](https://assets.ai.engineer/sites/aiecode2025/sha256/33c09298cc6397773b9423e47012775a7899bd06cb5349f7b2bf9a49b6a6e272.webp)
+
+Nebius at a glance
+
+Full-stack AI cloud infrastructure, purpose-built for the global AI industry.
+
+NASDAQ: NBIS
+Publicly listed on Nasdaq.
+HQ in Amsterdam.
+
+$2B
+Strategic investment from NVIDIA for a full-stack AI cloud partnership.
+
+5+ GW
+NVIDIA systems target by the end of 2030.
+
+Owned data centers across the EU and US — bare-metal, not shared cloud.
+
+Early adopter of NVIDIA Rubin, Vera CPUs and BlueField storage — customers get Day 1 access to the latest chips.
+
+First European cloud to run both NVIDIA Blackwell Ultra platforms (HGX B300 and GB300 NVL72) in production.
+
+~$17.4B Microsoft deal + $27B Meta capacity agreement — trusted by the largest AI builders globally.
+
+Vertical integration from silicon to Serving. One vendor from GPU training clusters to optimized inference tokens.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Nebius Token Factory" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Nebius Token Factory</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Nebius Token Factory deploys and optimizes open-source models for customers, with control over performance, cost and behavior in production.
+
+[2:26](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=146s) [Nebius Token Factory introduction describing an AI engineering platform for production.](https://assets.ai.engineer/sites/aiecode2025/sha256/e0980656fc8378c6a593dd2d6fd0eea6020616bd7be99cb5bc4096ac8a22bd3d.webp)
+
+NEBIUS TOKEN FACTORY
+
+Nebius Token Factory
+
+Build AI engineered for your product.
+
+The complete AI engineering platform to run open-source models in production, with full control over performance, cost and behavior.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="The problem you face today" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The problem you face today</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Token Factory presents managed inference as a third path: customers control performance, cost and model behavior while Nebius handles infrastructure.
+
+[2:39](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=159s) [Comparison of closed APIs and self-hosting with Token Factory's performance, cost and behavior offering.](https://assets.ai.engineer/sites/aiecode2025/sha256/0e1d4c8ff74919ac2e4c5691afe7980dee8cd880a6734dcf4f71174e1be73fdf.webp)
+
+The problem you face today
+
+Neither option scales cleanly
+Today, teams choose between:
+
+Closed APIs
+OpenAI, Anthropic
+• Fast to start, but zero customization.
+• Costs scale linearly, but margins compress.
+• Opaque performance, low rate limits.
+• Can’t tune for your workload or data.
+
+Self-hosting
+• Full control, but massive infrastructure burden.
+• Requires a dedicated inference R&amp;D team.
+• Months to production, then constant maintenance.
+• GPU procurement cycles slow you down.
+
+The Token Factory shift
+Dedicated open inference you can operate. Managed by us, controlled by you over:
+
+Performance
+p99 latency, TTFT, scaling behavior. Dedicated GPUs, predictable throughput. Sub-200ms latency.
+
+Cost
+Token efficiency, KV cache optimization, speculative decoding, distillation. Up to 50% cost reduction.
+
+Behavior
+Managed inference: We proactively optimize your model for your workload, chips and traffic patterns. Synthetic benchmarks during onboarding. Continuous fleet tuning.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Full-stack GenAI platform" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Full-stack GenAI platform</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Token Factory connects inference, Data Lab, post-training and deployment in a loop: production logs inform model tuning, and trained models return to production.
+
+[4:02](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=242s) [Platform overview listing inference, Data Lab, post-training and deployment capabilities.](https://assets.ai.engineer/sites/aiecode2025/sha256/be88c288248a2dbaa6d7b5ceaa17e8077743d3874adc7e826c89efa3f0d7d61d.webp)
+
+Full-stack GenAI platform
+
+Inference
+• 60+ models
+• Dedicated endpoints
+• Fast and base flavors
+• Batch API
+• Structured output
+• Function calling
+
+Data Lab
+• Inference log import
+• SQL-like dataset filtering
+• Dataset versioning
+• One-click export
+• Batch evaluation
+
+Post-training
+LoRA and full fine-tuning
+• Model distillation
+• Custom spec. decoding training
+• Quantization and calibration
+• Preference optimization (RL/GRPO)
+
+Deployment
+• Custom Weights Hub
+• GPU type selection
+• Region control
+• Autoscaling config
+• Observability surfaces
+• FT dashboard
+
+Security and compliance
+Reliability and scale
+Model ops and innovation</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="What we handle so you don’t have to" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What we handle so you don’t have to</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Nebius describes three layers it handles for production AI: engine-level optimization, cloud infrastructure, and enterprise security and compliance. Customers control model behavior while Nebius runs the infrastructure.
+
+[6:19](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=379s) [Three columns summarize optimization, AI cloud infrastructure, and enterprise foundations.](https://assets.ai.engineer/sites/aiecode2025/sha256/e5045b317e06f91c1e248b5dbe1c7ab503c6f5b78cdca047739220511f05f17c.webp)
+
+What we handle so you don’t have to
+
+We don’t just host models. We help you engineer AI systems.
+
+Optimization layer
+Cache-aware routing → 90% KV cache hit rates in multi-turn workloads
+Prefill/decode disaggregation → optimized TTFT for long-context
+KV cache offloading → up to 50% cost savings on chat workloads
+Speculative decoding → ~30% performance boost (higher with custom data)
+Custom forks on TensorRT-LLM / vLLM / SGLang — engine selection per workload
+Workload-aware autoscaling with real-time fleet metrics
+We optimize latency, throughput and cost at the engine level.
+
+AI cloud infrastructure
+Dedicated NVIDIA H100 / H200 / B200 / B300 clusters
+Multi-region inference (EU and US-owned data centers)
+99.9% SLA with proactive system health monitoring
+800 Gbps InfiniBand (Quantum-X800) interconnect
+Bare-metal performance, not shared cloud instances
+You control behavior. We run the infrastructure.
+
+Enterprise foundation
+SOC 2 Type II + HIPAA + ISO 27001 certified
+RBAC + SSO for team access control
+Zero data retention (data never trains our models)
+Project separation and unified enterprise billing
+OpenAI-compatible API for seamless migration
+Production-ready from day one.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Continuous model improvement loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Continuous model improvement loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Token Factory connects inference, production logs, post-training and deployment in a loop. Teams can use real-world signals to improve a model, then redeploy it with control over how it runs.
+
+[8:05](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=485s) [A four-stage loop covers choosing models, capturing data, improving models, and deployment.](https://assets.ai.engineer/sites/aiecode2025/sha256/4093956b1aa15771a890a789b822887a81de65710311cb65aa622054e8804166.webp)
+
+Continuous model improvement loop
+
+Start with the right model and run it at production scale.
+
+Choose and run models
+60+ open-source LLMs
+GPT OSS, DeepSeek, Kimi, Qwen, Mistral, Llama, GLM...
+Batch and real-time inference
+Structured outputs and function calling
+Dedicated endpoints
+Inference
+
+Turn production traffic into training — minutes from logs to training.
+
+Observe and capture
+Auto-capture inference logs
+SQL-like filtering and cleaning
+Version datasets
+One-click export to training
+Data Lab
+
+Optimize quality, cost and latency inside the same platform.
+
+Improve the model
+LoRA and full fine-tuning
+Model distillation
+Custom speculative decoding
+Quantization + calibration
+90% quality at lower cost
+Post-training
+
+Design AI behavior in production, not just the model.
+
+Deploy as a system
+Custom Weights Hub
+GPU type and region selection
+Min/max replica autoscaling
+Real-time observability
+Zero-retention option
+Dedicated endpoints
+
+Continuous improvement loop — every cycle makes your AI more specific, faster and cheaper</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Scaling open models to production" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Scaling open models to production</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Sujee takes over to discuss scaling open models to production.
+
+[9:49](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=589s) [Section title: Scaling open models to production.](https://assets.ai.engineer/sites/aiecode2025/sha256/7b786cd84771226aa2a9e24ee3d62a9ee9fae4b77c240f9e005ee8873e890ee6.webp)
+
+Scaling open models
+to production</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Great inference starts with great models + infrastructure" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Great inference starts with great models + infrastructure</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Maniyam says strong models need infrastructure to deliver their best performance, and positions Nebius Token Factory as providing it.
+
+[10:12](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=612s) [Statement that great inference starts with great models and infrastructure.](https://assets.ai.engineer/sites/aiecode2025/sha256/d211b350ff37d03d6564d105e643d2d0fb48848ac500f31e8caa116709ad07e0.webp)
+
+Great inference starts with
+great models + infrastructure</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="OS models on Token Factory" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>OS models on Token Factory</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Token Factory hosts large teacher models and smaller student models. Large models can train smaller ones, which can be useful for specific tasks.
+
+[11:25](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=685s) [Tables list large teacher models and smaller student models with parameter counts.](https://assets.ai.engineer/sites/aiecode2025/sha256/aeded1861d3494c9faf0e758d954a2650eda25e206ca21f8981ab84a19f60a8a.webp)
+
+OS models on Token Factory
+
+Large models
+Great intelligence
+Makes great “teacher” models
+
+Model | Parameters
+GLM 5.2 | 735B
+Kimi 2.6 | 1.1T
+DeepSeek V4 Pro | 862B
+Qwen3.5-397B | 400B
+
+Smaller models
+Nimble, can be great for specific tasks
+Good “student” models
+
+Model | Parameters
+Qwen-3-30B | 30B
+Nemotron Nano | 30B</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Infrastructure + optimizations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Infrastructure + optimizations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The inference stack spans infrastructure, model serving, and model shaping. The serving layer combines techniques such as caching and parallelism with serving engines.
+
+[11:47](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=707s) [Inference stack showing model shaping, model serving, and infrastructure components.](https://assets.ai.engineer/sites/aiecode2025/sha256/6e3f2d4ee399c470802088bb91cf713a26b7c2ca165465ace1a375c0dc4be1b5.webp)
+
+Infrastructure + optimizations
+
+Inference stack
+
+Model shaping
+Fine-tuning
+Model distillation
+Quantization
+INT8, FP8, FP16
+
+Model serving
+Speculative decoding
+Prefill / decoding
+Caching
+Prompt cache, embedding reuse
+Parallelism
+Tensor, pipeline, model
+Serving engine
+vLLM, SGLang, TensorRT-LLM
+
+Infrastructure
+NVIDIA GPUs
+Fleet management
+Auto-scale
+Routing</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Infrastructure: Hardware" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Infrastructure: Hardware</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Maniyam starts with hardware, then moves to serving and optimization.
+
+[11:53](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=713s) [Section title: Infrastructure: Hardware.](https://assets.ai.engineer/sites/aiecode2025/sha256/8a2c7aca42771f2ba8b6684b39b1855c18d313874143daf2df176876e364f790.webp)
+
+Infrastructure:
+Hardware</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Hardware optimizations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Hardware optimizations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Nebius deploys HGX B200 and GB200 NVL72 systems, benchmarks hardware and kernels, and uses NVFP4 to take advantage of NVIDIA Blackwell.
+
+[11:56](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=716s) [Three cards describe deployed NVIDIA systems, hardware and kernel benchmarking, and the NVFP4 format.](https://assets.ai.engineer/sites/aiecode2025/sha256/a63196023ff632598844c65e04a5368c44b7ebf0a0b5ea1792a523a8a095c700.webp)
+
+Hardware optimizations
+
+Latest NVIDIA Accelerated Computing
+HGX B200 and GB200 NVL72 systems are deployed
+
+Continuous benchmarking of hardware and kernels and optimizing runtimes and kernel
+
+We use advanced low-precision formats such as NVFP4 to take advantage of the NVIDIA Blackwell platform</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Model serving" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Model serving</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Model serving sits between model shaping and infrastructure. Its optimization layer includes speculative decoding, caching, parallelism, and serving engines.
+
+[12:20](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=740s) [Inference stack diagram highlighting the model-serving layer and its optimization components.](https://assets.ai.engineer/sites/aiecode2025/sha256/664f21c06df057714f172f0d7e112a738f068fc9a03ae8b27545077b9f4947d3.webp)
+
+Model serving
+
+Inference stack
+
+Model shaping
+Fine-tuning
+Model distillation
+Quantization
+INT8, FP8, FP16
+
+Model serving
+Speculative decoding
+Prefill / decoding
+Caching
+Prompt cache, embedding reuse
+Parallelism
+Tensor, pipeline, model
+Serving engine
+vLLM, SGLang, TensorRT-LLM
+
+Infrastructure
+NVIDIA GPUs
+Fleet management
+Auto-scale
+Routing</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Inference engines" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference engines</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Nebius selects an engine and configuration for each customer’s performance and quality requirements, maintains forks for observability and optimization, and contributes changes upstream when they are not platform- or customer-specific.
+
+[12:24](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=744s) [Cards describe engine selection, internal forks, and open-source contributions above logos for popular inference engines.](https://assets.ai.engineer/sites/aiecode2025/sha256/d5a71768e28d2a86f28ef666a9e5a1cbedc2d9f5f4e10d862fa1c361335ff67a.webp)
+
+Inference engines
+
+Customers provide performance and quality requirements, and we determine which engine and configuration best fits those constraints.
+
+We maintain internal forks to improve observability and enable additional performance optimizations.
+
+Contribute changes back to open source, when they are not platform- or customer-specific.
+
+Popular engines
+vLLM
+NVIDIA
+NVIDIA Tensor RT-LLM
+SGL</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Fleet management: Load balancing and auto scaling" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fleet management: Load balancing and auto scaling</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At the scale of hundreds of thousands of GPUs, routing LLM workloads requires more than sending traffic randomly across GPUs.
+
+[12:56](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=776s) [Section title: Fleet management, load balancing and auto scaling.](https://assets.ai.engineer/sites/aiecode2025/sha256/0a3a4df84b34ffeb1768eaa95a4dd0376fe49907fea6268a93917d91c5b62470.webp)
+
+Fleet management
+Load balancing
+and auto scaling</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Load balancing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Load balancing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Traffic patterns may vary significantly over time, while inference requests often differ by orders of magnitude in input size, output length and compute cost. Simple round-robin routing doesn't work.
+
+[13:04](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=784s) [Slide describing variable traffic, heterogeneous inference requests, and limitations of round-robin routing.](https://assets.ai.engineer/sites/aiecode2025/sha256/b3b9c41de891f8f8398539fb1472f13948a878e05a3bf8cfdfe40f63deef834e.webp)
+
+Load balancing
+
+Load balancing LLM inference is much more complex than 'web traffic.'
+
+Challenges:
+• Traffic patterns may vary significantly over time.
+• Inference requests are often highly heterogeneous, with orders-of-magnitude differences in input size, output length and compute cost.
+• Simple round-robin routing doesn't work.
+
+see next slide</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Inference workloads example" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Inference workloads example</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Small prompts can produce short or long outputs; large codebase inputs can produce summaries or refactored code. This variation makes inference requests harder to route.
+
+[13:16](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=796s) [Four examples pair small or large inputs with outputs of varying sizes.](https://assets.ai.engineer/sites/aiecode2025/sha256/6b9ef3a9f3764afee150ca94c1d3cd2818a0979f2c37cafca4df07c7bff58ffd.webp)
+
+Inference workloads example
+
+Input (small)
+Write a haiku about cats
+
+Output (small)
+Whiskers catch the sun ...
+
+Input (small)
+Write a report on electric cars of 2026
+
+Output (large)
+Large report....
+
+Input (large)
+Coding agent gives a large context ... and asks
+&quot;summarize this project&quot;
+
+Output (small / medium)
+Project summary
+
+Input (large)
+Coding agent gives a large code base... and asks
+&quot;refactor this code base&quot;
+
+Output (large)
+Refactored code</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Cache-aware routing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Cache-aware routing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The router sends requests to replicas with matching KV caches, keeping cached context together. The slide reports 95% of tokens served from cache versus 65% without cache-aware routing, alongside lower times in its comparison.
+
+[13:46](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=826s) [Diagram compares fragmented and localized caches alongside latency and cache-hit comparisons.](https://assets.ai.engineer/sites/aiecode2025/sha256/dd1c74d69b0a26641189f324a2b6cf214c51286ebd4812b8cd5e8e23f316f548.webp)
+
+Cache-aware routing
+
+For each request, the router attempts to select a replica with the best KV cache match for the request.
+
+Context fragmentation vs. context locality
+
+Native routing (fragmentation)
+Client
+Load balancer
+Replica  Replica  Replica
+Broken state (mixed, fragmented)
+
+Cache-aware routing (locality)
+Client
+Smart router
+Replica  Replica  Replica
+Preserved state (sorted, localized)
+
+Inference latency and runtime comparison:
+Router-enabled vs. disabled
+
+Y-axis: Time (s)
+Average Step Time (s): 4.8, 9
+P90 Latency (s): 9.6, 15.2
+P95 Latency (s): 17, 70.8
+Total Time (k seconds): 93, 183
+Legend: Router enabled, Router disabled
+
+With cache-aware routing
+95%
+Percentage of tokens served from cache
+
+Without cache-aware routing
+65%
+Tokens served from cache</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Latency problem" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Latency problem</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Many benchmarks count tokens and requests per minute, while users experience end-to-end latency. Large models take time to generate tokens one by one.
+
+[14:27](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=867s) [Slide contrasts throughput benchmarks with user-perceived latency and notes the cost of generating tokens.](https://assets.ai.engineer/sites/aiecode2025/sha256/66239b63f870f736bcad9cf7540fca6bea945c0426199d10037b6880ee5d3a3f.webp)
+
+Latency problem
+
+The challenge
+• Many benchmarks focus on tokens per minute and requests per minute.
+• But what users experience is end-to-end latency.
+
+Root cause
+Generating tokens in large models (MoE) is time-consuming.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Speculative decoding" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Speculative decoding</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Traditional decoding runs the large model once per token: five tokens require five sequential forward passes. Maniyam proposes using a faster small model to generate tokens for the large model to verify.
+
+[14:32](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=872s) [Diagram shows five tokens generated through five sequential large-model forward passes.](https://assets.ai.engineer/sites/aiecode2025/sha256/901b7fdb1b1de713e76837366684d172118960ae48d562b0260650c564f00f24.webp)
+
+Speculative decoding
+
+Large models generating tokens in sequence is expensive!
+
+Traditional autoregressive decoding
+
+Token 1: LLM, t=1
+Token 2: LLM, t=2
+Token 3: LLM, t=3
+Token 4: LLM, t=4
+Token 5: LLM, t=5
+
+Problem: Each token requires a full forward pass through the large model
+5 tokens = 5 sequential forward passes (SLOW)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Speculative decoding" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Speculative decoding</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A small model drafts five tokens, then a larger model verifies them in one forward pass. Tokens are accepted until the first mismatch, when the target model resamples.
+
+[14:42](https://www.youtube.com/watch?v=TRe1u7dHYiA&amp;t=882s) [A draft model proposes tokens for a larger model to verify, alongside a comparison with sequential decoding.](https://assets.ai.engineer/sites/aiecode2025/sha256/e2767f3a4d3eded5aeaddb8963d6ed48aaa426be3ad9039e0403ff96bb8840a1.webp)
+
+Speculative decoding
+
+In speculative decoding
+• A smaller model generates tokens (in batches) – faster than a large model.
+• Larger model verifies generated tokens and accepts / rejects – faster!
+
+Speculative recording process
+Phase 1: Draft model speculates (fast)
+Draft  Draft  Draft  Draft  Draft
+t=1  t=2  t=3  t=4  t=5
+Draft: [T1, T2, T3, T4, T5]
+
+Phase 2: Target model verifies (parallel)
+Target model
+Verifies all 5 draft tokens in ONE forward pass
+
+Phase 3: Accept or reject
+T1  T2  T3  T4  T5
+Accept tokens until first mismatch, then resample from target model.
+
+Performance comparison
+Traditional decoding
+LLM  LLM  LLM  LLM  LLM
+Step 1  Step 2  Step 3  Step 4  Step 5
+Total time: 5 x T_large
+
+VS.
+
+Speculative decoding
+Draft 5 tokens (5 x T_small)
+Verify all 5 tokens in parallel (1 x T_large)
+Total time: (5 x T_small) + (1 x T_large)</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">模型只是生产工作的开端</a></li><li><a href="#sec-2">把生产中的补全结果变成下一个部署的模型</a></li><li><a href="#sec-3">让模型与硬件和服务引擎相匹配</a></li><li><a href="#sec-4">把请求路由到已经缓存好的工作那里</a></li><li><a href="#sec-5">让小模型起草，让大模型验证</a></li><li><a href="#sec-6">保留可复用的上下文，即使它离开了 GPU 显存</a></li><li><a href="#sec-7">找到能保住有用质量的精度</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">是什么让开源模型在生产中跑得快</h2>
+      <div class="lede"><p>Dylan Bristot 和 Sujee Maniyam 讲解了 Nebius Token Factory 如何把生产数据与模型改进联系起来，并详解了快速推理背后的硬件、路由、缓存和解码选择。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>模型只是生产工作的开端</h3>
+      <p>An easy model API can become a difficult production dependency. Dylan Bristot, who leads product marketing for Nebius Token Factory, opens with the choice facing teams that want to control model behavior and operating cost: use a closed API, or take responsibility for serving an open model themselves. Sujee Maniyam, a Nebius developer advocate, joins him to explain the engineering underneath that choice.</p>
+<p>- <strong>Closed APIs:</strong> They make the first integration easy. Bristot’s concern is the ceiling afterward: limited ability to tune the model for a specific task, little visibility into shared infrastructure, and costs that grow with usage.
+- <strong>Self-hosting:</strong> It gives the team control over the model and serving setup. That control also brings a substantial engineering project and an ongoing responsibility to keep it running.
+- <strong>Managed open-model inference:</strong> Token Factory’s proposed middle path is to handle deployment and serving optimization while customers concentrate on their products and the behavior they need.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ef104f51f94f5ec6d7e0e2ca579ceea2b959bdfe8df11786ab60e4a134e7a586" alt="Selected presentation frame from What Makes Open Models Fast in Production — Sujee Maniyam, Nebius at 211 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Token Factory is presented as a managed path combining control over open models with managed serving.</figcaption></figure>
+<p>The infrastructure matters to this proposition. Nebius describes a stack extending from its own data centers and NVIDIA systems through bare-metal capacity, managed cloud and model serving. Owning those layers gives the inference team room to change how a model runs, rather than treating the hardware underneath an API as someone else’s fixed constraint.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="245">▶ 4:05</button></div>
+      <h3>把生产中的补全结果变成下一个部署的模型</h3>
+      <p>Token Factory connects four activities that teams otherwise have to stitch together. At the time of the recording, Bristot describes more than 60 hosted models, including GLM, Kimi, DeepSeek and Qwen, with dedicated endpoints, structured outputs, function calling and batch APIs. Those endpoints start the cycle by producing real application traffic.</p>
+<p>- <strong>Data Lab:</strong> Import inference logs and completions, then filter, version, export and batch datasets. This turns accumulated responses into material a team can inspect and use.
+- <strong>Post-training:</strong> Use production logs or synthetic datasets for LoRA or full fine-tuning, distillation, custom speculative decoding, and model-specific quantization and calibration. The goal is to make the model better suited to the application’s expected behavior.
+- <strong>Deployment:</strong> Push the resulting model onto the owned infrastructure so the improvement reaches the product and produces the next round of experience.</p>
+<p>How does an application response become a model update? The cycle below shows the handoffs. Completions enter the data layer; selected data feeds post-training; the trained model returns to production. The useful relationship is the return path: deployment creates new experience to inspect, so serving a model becomes an ongoing improvement process.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b5f19d486a0c31843c9b391e4aadabb7d844b896c2daa0868506f738f8dee6a7" alt="Selected presentation frame from What Makes Open Models Fast in Production — Sujee Maniyam, Nebius at 562 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A four-part platform diagram connects inference, data, post-training, and deployment.</figcaption></figure>
+<p>Keeping that cycle working also requires less glamorous operations. Token Factory groups its responsibilities into engine-level optimization of latency, throughput and cost; operation of the underlying infrastructure; and enterprise requirements such as security, compliance and reliability. Customers still care where the model runs, which chips serve it and how much it has been quantized. A managed API hides operational work without making those choices irrelevant.</p>
+<p>Production experience feeds the next deployment
+The platform connects serving, dataset preparation, model improvement and deployment into a recurring cycle.
+- Inference — Run models and produce application completions.
+- Data Lab — Import, filter and version production datasets.
+- Post-training — Customize models using logs and synthetic data.
+- Deployment — Push the improved model into production.
+- Inference → Data Lab (Logs and completions)
+- Data Lab → Post-training (Prepared datasets)
+- Post-training → Deployment (Updated model)
+- Deployment → Inference (New production experience)</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="601">▶ 10:01</button></div>
+      <h3>让模型与硬件和服务引擎相匹配</h3>
+      <p>Maniyam begins the technical half with model quality. An Artificial Analysis chart compares open and proprietary models, and he uses it to show that open models can be competitive, sometimes ahead of proprietary alternatives. That comparison supports considering open models for intelligence as well as cost; it does not establish parity for every application. Their portability also gives customers more choice about who serves them.</p>
+<p>The hosted models have different roles. Large, capable models can act as teachers for smaller student models. That gives post-training a route to a smaller serving target: use the large model’s capabilities to help train a model that is less expensive to run. Later, a different pairing of small and large models will accelerate generation itself.</p>
+<p>Serving performance then depends on matching several layers. Nebius optimizes kernels and runtimes for its hardware, including adoption of <strong>NVFP4</strong>, NVIDIA’s four-bit floating-point format. Above that, Token Factory uses open-source serving engines and an internal fork that it continually modifies. Models do not perform equally well on every engine, so engine selection happens per model rather than through one universal choice.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/1b00372b1816dd39ff573301774024c7b02bd76afa7532621cf77675a590e2e7" alt="Selected presentation frame from What Makes Open Models Fast in Production — Sujee Maniyam, Nebius at 774 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide lists vLLM, NVIDIA TensorRT-LLM, and SGLang as popular inference engines.</figcaption></figure>
+<p>The customer sees an API, but the provider chooses the GPU, runtime and engine combination behind it. This helps explain Bristot’s earlier observation that the same open model can have different operating costs on different providers: identical model weights do not imply identical serving behavior.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="778">▶ 12:58</button></div>
+      <h3>把请求路由到已经缓存好的工作那里</h3>
+      <p>A random load balancer misses something important about LLM workloads. Early requests might have had a short prompt and a short answer. Coding agents now send large codebases for refactoring, summarization or analysis, and a large input can lead to either a short or a long output. Request count alone does not describe the work being assigned.</p>
+<p>Consider the coding workload Maniyam introduces. A request reaches a GPU that may already have useful cached context—or may have none of it. With random routing, requests scatter across GPUs without regard to that reusable work. The result is fragmented caches and missed opportunities to reuse them.</p>
+<p>Cache-aware routing changes the destination decision. The router knows where cached material is stored and sends requests accordingly. In Maniyam’s comparison, scattered cache colors become grouped together: related work reaches a location where it can benefit from existing state. The observable change is better cache locality, which supports more cache hits and faster inference.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/78927355eb912eeac41f86c6c8157524329de61caf6effa5454e9e379f50d8aa" alt="Selected presentation frame from What Makes Open Models Fast in Production — Sujee Maniyam, Nebius at 844 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A two-part cache-aware routing diagram contrasts scattered cache placement with grouped cache colors.</figcaption></figure>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="863">▶ 14:23</button></div>
+      <h3>让小模型起草，让大模型验证</h3>
+      <p><strong>Speculative decoding</strong> targets the cost of generating tokens one after another with a large model. A smaller, faster model proposes tokens, and the large model verifies the proposed work. Maniyam compares it to a senior engineer handing work to a junior engineer and then checking the result.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/03bec0b44e196738db514087aa3ba2a73b0b83f413cc11b5c43173639e7444be" alt="Selected presentation frame from What Makes Open Models Fast in Production — Sujee Maniyam, Nebius at 914 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A speculative decoding diagram shows draft tokens being checked by a larger model, with accepted and rejected outcomes.</figcaption></figure>
+<p>The speedup depends on how much of that draft the large model can use. Accepted work avoids having the large model generate everything itself. Rejected work requires regeneration, reducing the benefit of drafting. The small model therefore helps most when its proposals suit the large model and the application’s traffic.</p>
+<p>That creates a reason to train custom draft models. Maniyam reports up to 30% improvement from draft models trained with generic data and says application-specific data can improve the result further. The recording does not define the improvement metric or evaluation conditions, so the figure is a reported experimental result rather than a general speed guarantee. He describes a launching feature that captures production data and trains a draft model with nearly one-click setup, connecting the earlier data loop directly to serving optimization.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="953">▶ 15:53</button></div>
+      <h3>保留可复用的上下文，即使它离开了 GPU 显存</h3>
+      <p><strong>KV caching</strong> addresses repeated work during generation. Maniyam’s example starts with the prompt “The cat sat on” and then generates the next token. As the sequence grows, its existing context remains useful for later steps. The cache retains reusable state associated with that context; the next step looks up retained work rather than rebuilding everything already processed.</p>
+<p>The example makes the distinction useful: caching supports the next generation step, rather than choosing all future words in advance. Maniyam reports speedups of five to ten times from caching, but does not specify the workload or baseline for that range. Long inputs and large context windows also make the retained cache consume substantial memory.</p>
+<p>GPU memory is valuable, so retaining every cache there is costly. Token Factory automatically offloads cached state to regular memory and brings it back when needed. In the cat-prompt example, the important change is where the retained state lives: leaving GPU memory need not mean discarding the work used to build it.</p>
+<p>The next optimization separates two phases of inference. <strong>Prefill</strong> processes the input context and calls for compute-efficient execution. <strong>Decode</strong> generates the continuation and places heavy demands on memory. Running both on the same GPUs makes them compete for resources; Token Factory assigns them to separate GPU sets and transfers the KV cache between them.</p>
+<p>What connects the two GPU groups once their jobs are separated? The diagram shows the KV cache as the handoff. Prefill prepares context state; decode receives that state and continues generation. Separation lets each group suit its phase, while making cache transfer part of the serving path.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c6186989f148b3933a151c1dbc6bb5987455d53f6c9b58bfd0f64701742a8943" alt="Selected presentation frame from What Makes Open Models Fast in Production — Sujee Maniyam, Nebius at 1090 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A disaggregated prefill diagram shows separate prefill and decode paths connected by a KV-cache handoff.</figcaption></figure>
+<p>Separate GPU groups share context through the KV cache
+Prefill and decode use different GPU groups, with retained context state moving between them.
+- Prefill GPU group — Process the input context with compute-efficient execution.
+- KV cache — Carry retained context state between phases.
+- Decode GPU group — Continue generation with memory-efficient execution.
+- Prefill GPU group → KV cache (Context state)
+- KV cache → Decode GPU group (Transfer for decoding)</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1092">▶ 18:12</button></div>
+      <h3>找到能保住有用质量的精度</h3>
+      <p><strong>Quantization</strong> reduces numerical precision to make a model run more efficiently. Reducing it too far can degrade model quality. Token Factory experiments to find a sweet spot: an efficient representation whose quality loss remains acceptable. This is a model-serving decision that needs attention alongside engine choice, caching and decoding.</p>
+<p>The closing recap brings the mechanisms together. Speculative decoding reduces the generation work assigned to the large model. KV caching retains useful work, cache-aware routing sends requests toward it, and separate prefill and decode groups divide competing resource demands. The API can conceal all of these operations, even as they determine how well very large models serve production traffic.</p>
+<p>Maniyam ends by returning to coding as a practical use case. He describes using hosted open models for coding and incorporating them into Cursor or OpenCode, then invites the audience to try the platform and share feedback. The talk’s final move is from hidden serving machinery back to the application: these optimizations matter because they make capable models more useful in the tools people already use.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>A production model needs a recurring path from inference logs through dataset preparation and post-training back to deployment.</li><li>Serving the same model on different hardware and engines can produce different performance and cost; engine selection belongs to the model-specific optimization work.</li><li>Cache-aware routing improves reuse by sending requests toward GPUs that already hold useful cached state.</li><li>Speculative decoding pairs a fast draft model with a large verifier; custom training uses application traffic to make the draft more useful.</li><li>Cache offloading preserves reusable work outside GPU memory, while prefill/decode separation assigns different resource demands to separate GPU groups.</li><li>Quantization requires experiments to balance serving efficiency against model quality loss.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Thank you for joining us today. Um, I'm Dylan. I'm here today with my colleague, Sujee. So I lead, uh, product marketing for Nebius Token Factory, and I'm here with Sujee who's as, uh, developer advocate, and we're gonna talk a bit about, uh, engineering, um, open LLMs for production. So before we jump right in, um, I wanna give a few words about what we're gonna cover today. We only have twenty minutes, so we'll try to keep this brief. Uh, but we're gonna give you a quick intro on who we are, what we do, uh, then talk about what it takes to build the infra for inference.</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">Um, a few words on model shaping optimizations, which are extremely important, uh, in what we do, and then we'll talk about model serving optimizations.</span></div><div class="tline" data-t="52"><span class="ts">0:52</span><span class="tx">But before we jump right in, I just wanna give a few words, uh, about who we are and what we do. So we work for Nebius, uh, so specifically Nebius Token Factory. Uh, but Nebius is, like a full stack AI, um, cloud infrastructure. Um, so this means we actually not only exposing model APIs, we run the actual physical, uh, AI layer and, and infrastructure underneath it. Um, we have our own data centers, NVIDIA systems, uh, bare metal capacity, managed cloud, and optimizing the serving and the inference through Nebius Token Factory.</span></div><div class="tline" data-t="83"><span class="ts">1:23</span><span class="tx">Um, top, top row here is really about scale and trust. So we're a publicly traded company on the Nasdaq, um, headquartered in Amsterdam. Uh, we're very close with NVIDIA, who made a two billion, uh, investment in Nebius a couple of month ago, and we're targeting a five gigawatts of NVIDIA systems by the end of, uh, twenty-thirty. Uh, bottom row is really more about the control of the stack. This is a quite a, a good edge we have. Uh, we operate own data centers across the EU and the US, uh, bare metal rather than shared cloud.</span></div><div class="tline" data-t="113"><span class="ts">1:53</span><span class="tx">We're a very early adopter of NVIDIA Rubin, um, CP, like, uh, and, uh, BlueField storage. And we were amongst the first European clouds to run both Blackwell Ultra, HGX B300 and GB300s, uh, in production. Uh, we also have, um, s-s-like strong contracts from M-Microsoft and Meta agreements that kind of show that the largest AI builders are already building this kind of capacity from us. Um, and the last time is quite important. It's the, uh, to like read the important bridge to this talk is the vertical integration from</span></div><div class="tline" data-t="143"><span class="ts">2:23</span><span class="tx">silicon to serving that we, um, rely on.</span></div><div class="tline" data-t="148"><span class="ts">2:28</span><span class="tx">So today, we're talking about Nebius Token Factory. So the idea here is to, like, really, uh, engineer AI for products. So we're a managed inference company, uh, meaning we deploy these models and optimize them for our customers.</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">So we noticed a few thing today in the market of, uh, serving open source LLMs. Um, usually most AI teams are stuck between choosing two bad options. Um, closed APIs are really easy to start with, but you often hit a ceiling, uh, really fast, and you can't really tune the model to your specific use case. Uh, you share the infra with everyone else, so it kind of operates as a black bos-- black box, and the costs grow in a straight line with no way to really optimize things. The other option here is self-hosting. Obviously, it's quite fun, uh, gives you full control on the</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">model, but it's a massive engineering project. Um, so you really need a dedicated team to actually keep it running. Um, and you're usually a month away from production before you even start your actual product. So Token Factory is kind of the shift, uh, this third path we identified, uh, before you even start, like, on your, um, actual product. You get the control and the performance of self-hosting with the simplicity of a managed inference service. So we do the heavy lifting, the hard infrastructure work, and then customers stay focused on their product. This really unlocks, uh, three main</span></div><div class="tline" data-t="221"><span class="ts">3:41</span><span class="tx">things, performance, cost, and behavior of the models. Um, as we've seen, the gap between proprietary and open source models has been closing a lot. And so this is where we kind of operate, and we feel comfortable, um, operating. It's really not only relying on the fact that this bridge and this gap is closing down, but also figuring out how you actually make it work in your own production, uh, use cases.</span></div><div class="tline" data-t="245"><span class="ts">4:05</span><span class="tx">So this is really the core of Token Factory. Uh, we've built a full stack GenAI platform. Um, most platform we've seen on the markets either give you inference, training, uh, data tooling, but here we decided to connect everything under one loop. So we have a bunch of tools to-- that kind of unlock this. On the inference side, um, we allow you to run models in production. So we have sixty-plus models on the platform, GLM, Kimi, DeepSeek, Qwen, you name them. Um, we have dedicated endpoints. We have different flavors on the models, depending if you want to run them fast. Uh, we have different</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">tooling like structured outputs, function calling, and batch API. Second layer here is the data lab. So this allows you to really capture and structure the production logs. So we see a lot of customers actually running these models in production, importing the completions, and wanting a way to kind of slice and dice, uh, through these completions. And this is really what we allow with the data lab. So, uh, inference log imports, SQL data like, uh, dataset filtering, dataset versioning, um, exporting, and then batching, uh, these. Uh, the third layer is post-training. So we allow you to kind of fine-tune,</span></div><div class="tline" data-t="304"><span class="ts">5:04</span><span class="tx">distill, optimize these models. So this is a natural follow-up with the data lab, is once you have your logs and your inference and you can generate synthetic datasets, you can bring it all to post-training and use that to kind of either through LoRA or full fine-tuning, make the models much more adapt to the behavior you're expecting from them. Uh, we also allow model distillation. We do custom spec decoding for customers who need really advanced, um, like cus-custom spec decoding, uh, tooling. Uh, we do like on-demand and like specific quantization and calibration of the model depending on</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">your preferences, and we do our RGPO. And the fourth layer here is the deployment. So once you, like run these models, once you like train these models, uh, you need a way to deploy them. So these-- this is what allows us to push the models into production on our own, um, owned infra. So for most teams, this is kind of usually a choice of different tools that you stitch together, uh, but that's creates kind of a lot of friction and need for iteration. It slows the need for like the, the ability to iterate here. And so what we allow is really</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">to make the data flow from, uh, the inference to the training, and the training flows directly into production. So that allows you to keep like a virtuous loop of your product. And that's really what I think is the main difference between, uh, running a model and running an actual production, uh, AI system.</span></div><div class="tline" data-t="382"><span class="ts">6:22</span><span class="tx">Um, so here is this little slide about what we handle, so you don't have to. Um, so running models in production is actually quite complicated. It takes a lot of work. And so I think, uh, the way we approach it, the value here is in three main layers. The first one is the optimization. So we actively tune how models run, so the customers get much better speed and lower co- and lower costs without having to figure out, um, all of that themselves. Like, we really do the heavy lifting around the model deployment and optimization, and we do allow you to kind of, uh, come in and just play with them.</span></div><div class="tline" data-t="412"><span class="ts">6:52</span><span class="tx">This is, like, all around optimizing latency, throughput, and cost at the actual engine level 'cause you could be running the same open source model on different providers and have completely different, um, results in terms of costs. So there's a lot of technical stuff that goes on under the hood, uh, to make this work, and Sujee will cover that in a few minutes. Uh, second layer is the infrastructure. So the fact that we actually own the hardware, uh, we keep it running, we own this, like, kind of vertical stack, um, gives us an edge that, uh, most providers don't have. So it's, it's, it's the control...</span></div><div class="tline" data-t="442"><span class="ts">7:22</span><span class="tx">Like, we really control what the model does. Uh, we handle, like, everything underneath. And so we just give the, the customers, um, the full control of the be- behavior, and we take care of the infrastructure. Third layer is the enterprise readiness. Uh, I think this is really important in here 'cause, like, right now, open source seems kind of obvious, but you need a bunch of ways to, like, secure-- like, make it-- make sure it works in a secure environment. So there's a bunch of things here. Um, security, compliance, reliability, they're all requirements that all these large companies usually have, um, and they kind of</span></div><div class="tline" data-t="472"><span class="ts">7:52</span><span class="tx">need those before they can sh- ship anything into production. And so a lot of AI providers make you figure out all of these three yourself, and, uh, our mission here is to really handle all of these so you don't have to.</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">Um, something that comes up a lot with AI teams is that they start with inference. Um, they just get a model up and running, and then they realize that pretty qu- quickly, quickly that running it is not just as easy as it seems, uh, and it's only the beginning of your path to running open source models at scale. So they really need to understand how it's actually performing in the real world, and this is kind of h- where we come in. They wanna improve it over time. Um, they need to redeploy updates without breaking things. Um, and, and that full cycle</span></div><div class="tline" data-t="517"><span class="ts">8:37</span><span class="tx">from running to observing to capturing and to redeploying the model is really what separates team from that ship, like, great AI products from teams that ship demos, and I think that's re- really important to hear, especially when talking about open source. Um, and so Token Factory covers that full loop, uh, inference to run the models. So as I said, Kimi, DeepSeek, all the, all the main ones, uh, through real-time inference or batch inference, uh, through structured outputs and function calling, um, and on dedicated endpoints when it's necessary. Um, and then moving on to the data</span></div><div class="tline" data-t="547"><span class="ts">9:07</span><span class="tx">lab to collect and analyze the real-world signal, uh, the completions, moving over to post-training to improve and customize the model, and finally moving to the last step, and probably the most important one, which is the deployment, to push, uh, updates with full control over the model. And you actually really... It's, it's really important for most our customers to know where, how it's running, and what chips it's running on, uh, the level of quantization and all that stuff, and that's really where we kind of operate, uh, and are comfortable. Most teams today, we figured, have to stitch different tools together to get this, and we actually</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">built, uh, one platform that tries and covers it, uh, end to end. So we really see this as a continuous improvement loop. Every cycle makes your AI more specific, uh, way faster and much cheaper.</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">And now we'll dive into scaling open models to production, and I'll invite Sujee on stage to take it over.</span></div><div class="tline" data-t="601"><span class="ts">10:01</span><span class="tx">All right. Thank you, Dylan. All right, everyone. So, um, I'll zip through a few of these, but, um, I'm happy to, um, have a discussion afterwards, so come and find us if you have any questions. So we believe great inference start with great models, but that's not enough. You need great infrastructure behind the scene to get the best performance, and, uh, I believe that's what, uh, Nebius Token Factory provides. Uh, I get a lot of times I get asked like, &quot;So this is great, you guys host open models, but</span></div><div class="tline" data-t="632"><span class="ts">10:32</span><span class="tx">how good are the open models really?&quot; And I like to show you this benchmark here. Uh, this is from Artificial Analysis. The black ones are proprietary models, and the blue ones are open models. And the cool thing you can see here is how, um, the open models are actually very competitive, sometimes even better than a lot of the proprietary models. So the gap between, uh, proprietary and open models is very narrow. Uh, so we don't really have to chase proprietary</span></div><div class="tline" data-t="661"><span class="ts">11:01</span><span class="tx">models all the time for the intelligence. You can just, uh, just as well choose an open model that's just as smart and also ends up being much cheaper in most cases, which is pretty cool. So what does it mean for our customers? You get choice, right? You can run these open models in any provider, hopefully Token Factory. But, so there's no vendor lock-in, and also you end up saving a lot of money on tokenomics. And here's a, a few examples of models, uh, we host. Uh, the top, the top, uh, table is like the</span></div><div class="tline" data-t="691"><span class="ts">11:31</span><span class="tx">large models. We call them sort of the teacher models, right? They are very capable, uh, very smart, but also kind of large. You can also use a large teacher models to train the smaller student models. So you sort of see that both large models and small models hosted. So I wanna sort of structure the talk a little bit, um, sort of from the hardware layer, the serving layer, and the optimizing layer. Uh, so Dylan t-talked a little bit about hardware. We are-- We work very closely with NVIDIA. We get the latest chipsets. And, uh,</span></div><div class="tline" data-t="721"><span class="ts">12:01</span><span class="tx">not j- not just, um, the latest, we also optimize, uh, kernels and runtimes, so the models run really, uh, really well. For example, something like the NVIDIA Floating Point four standard, we embraced it. It gives us a really good model performance on latest NVIDIA chips. And if you think about model serving, that kind of takes us to the middle layer, and there are a few optimization I, I will talk about. Uh, starting with the engines, because you need an engine to serve the model. Uh, we utilize a lot of the open source</span></div><div class="tline" data-t="751"><span class="ts">12:31</span><span class="tx">engines. Uh, we have our own internal fork, uh, that we continuously tweak and optimize, and we will deploy the model on the best engine possible. Uh, you know, not all the models run equally well on all the engines, so we figure out which engines run well and we'll deploy the models accordingly. So as a customer, you can just use an API not having to worry about, you know, which kind of GPU, which engine, because we take care of all that work behind the scene.</span></div><div class="tline" data-t="778"><span class="ts">12:58</span><span class="tx">And, uh, when you have, like, hundreds of thousands of GPUs, uh, running models, load balancing and routing becomes an issue. So a lot of the time people say, &quot;Well, that's easy, right? We just, you know, put a, put a load balancer in front, um, send traffic randomly to different GPUs.&quot; Uh, that's not how it works in LLMs because the workloads are slightly different. For example, just to kinda give you an idea, uh, in the early days of LLM, the inputs were small. I could just say, right, like a one-liner, and the output is also small. But now we are seeing your</span></div><div class="tline" data-t="808"><span class="ts">13:28</span><span class="tx">input could be pretty large, like we are sending, like, large code bases, uh, as... using coding agents to do, like, refactor or summarize or analyze, right? So the output, as you can see, can vary from, like, you know, s- large to small, large to large, and routing them accordingly will give you, um, you know, it's not, it's not trivial. So what we employ is we employ, um, routers that actually are cache-aware. What I mean by that is, like, if you look at the left side here, you will see that my cache, like different colors, it's kind of</span></div><div class="tline" data-t="837"><span class="ts">13:57</span><span class="tx">fragmented all over. So our cache hit rate isn't, isn't all that great because my request r- landing randomly at different GPUs that may or may not have the cache. But if you look at the, the one on the right, you can see that now the cache is much more coherent. See the colors are kind of together. And the router knows where the caches are stored, and it will route them accordingly. So when you actually do the inference, you get pretty good cache hit and very good speed.</span></div><div class="tline" data-t="863"><span class="ts">14:23</span><span class="tx">Um, another thing, and this is something we are really excited about, um, it's called spec decoding. So the challenge is, uh, LLMs, they generate tokens one by one. One, two, three, four, right? And then large models take a long time to generate these tokens. So the idea for spec decoding is, how about we employ a smaller model, which is a lot of the time faster and cheaper to generate the tokens, but then have the large model verify at the end? So it's kind of like if you're like</span></div><div class="tline" data-t="893"><span class="ts">14:53</span><span class="tx">a senior engineer, you're kind of farming out the work to a junior engineer, so they're kind of doing the heavy lifting, and then you are verifying the work. And this actually surprisingly scales really well. So the smaller models can generate tokens very quickly, and the large model can verify. And they-- a-and if it's good, we are done. If the large model doesn't like the, the answer, it'll actually regenerate the tokens for you. So that's kind of the worst-case scenario. But most of the time, you will get pretty good performance out of this by mixing small models and large models. And this</span></div><div class="tline" data-t="923"><span class="ts">15:23</span><span class="tx">actually, uh, feature we actually baked into Token Factory, uh, that gives you pretty, pretty good optimization, um, speed. So one of the things we ex-experimented, we sort of trained draft models. Uh, you can train them using synthetic data. Even if you train them using like, you know, generic data, you get like, you know, we are seeing like up to thirty percent improvement. But it, it gets even better if you can train the smaller model using your own data, right? So we did a lot of experiments here, and, um, we are lo-launching a feature, feature you can actually, uh, train these draft models almost</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">like with one click. And, you know, we will capture your production data and train the draft models for you, which is pretty cool. Uh, another optimization, uh, behind the scene is KV cache. Um, this is probably one of the biggest R-ROI i-in doing inference because, uh, creating tokens are expensive, especially when you're doing one at a time. And the common sense is once you generate a token, it n- it doesn't change. So there's no need to keep, keep regenerating the same token over and over again. So the idea is we cache the</span></div><div class="tline" data-t="983"><span class="ts">16:23</span><span class="tx">tokens. So just to kinda give you an example here, let's say this is my prompt, &quot;The cat sat on,&quot; right? Let's say tho-those are my prompt, and I'm creating the next word. And as soon as we create the next token, we cache it. And the next time we need to look up, we don't have to regenerate it, regenerate it. We just look up the cache. Very easy. And this actually speeds up quite a bit. So just to kinda give you some ideas, w-we are seeing, uh, speedups anywhere from five to ten X. Not just five to ten percentage, actually ten X, right? Because caching really works well.</span></div><div class="tline" data-t="1013"><span class="ts">16:53</span><span class="tx">Um, the thing about caching is it takes a lot of memory, right? Because, you know, especially with our large inputs and the large token windows. And one thing we are, we, we've been implementing in, uh, Token Factory is when we do caching, we can actually, uh, because GPU memory is very precious, so we can offload caching out of GPU memory automatically, save it in a regular memory, and then bring it back. So we don't, like, throw away the cache we spent a lot of time building. We actually offload it and bring it back, and all of this is done automatically. So you don't</span></div><div class="tline" data-t="1043"><span class="ts">17:23</span><span class="tx">have to worry about managing cache. This is done for you behind the scenes. So, and th-this is one of the, um, um, one of the important optimization we have done to speed up inference. Uh, another one is called decoding. Um, so the way you think about this is like there are two stages to LLMs. So one of them is, like, sort of filling the context that is very CPU intensive, and then the other one is actually decoding that is very memory intensive. And a lot of the time, if you do them in the same GPU, they are kind of competing for resources. So what we have</span></div><div class="tline" data-t="1073"><span class="ts">17:53</span><span class="tx">done, we sort of separate these two phases out. So one GPU set does prefill. They are very, you know, uh, compute efficient, and the other one does, uh, decoding that's very memory efficient. And then they sort of transfer the KV cache in between. And we have seen this is actually working, working out pretty well.</span></div><div class="tline" data-t="1092"><span class="ts">18:12</span><span class="tx">And another thing we do, and, and this is already, you know, already baked into our, our platform, we also quantize the models. Uh, and when we do quantizing, you know, we are reducing the precision, so if-- but we don't wanna go too far, right? Because then your model starts, you know, quality starts getting degrading. So what we do is we do a lot of experiments to figure out like what's the kind of the, the sweet spot of quantization- So you can run the models efficiently, but not, not degrade the performance too much. So, so all of these th-things are already built</span></div><div class="tline" data-t="1122"><span class="ts">18:42</span><span class="tx">in, and, uh, yeah, and, and, and there's a, there's a few more, and in interest of time, also wrap this up here. And these are some of the things we kinda covered, uh, spec decoding, KV cache. And when you do caching, doing, um, routing, that is actually cache aware and also pre-fill, uh, you know, se- uh, separating pre-fill and decoding phases. And if you're using an API, you may not realize all these works going behind the scene, but they are, right? And th-this is what make up, you know, make a, a, a inference platform really great to serve, especially the large, large</span></div><div class="tline" data-t="1152"><span class="ts">19:12</span><span class="tx">models we are seeing, like the one trillion models, uh, we are seeing. And finally, I wanna quickly, um, give this out. So we, um, probably this is the most important slide of the presentation.  So you can take the... Take a quick picture or scan the code. Uh, this will give you some credit on Token Factory platform. So we allow you for-- allow for you guys to try it out. And, and we have all the co-- uh, latest open source models, uh, GLM-5.2, Kimi, uh, K2.7. Uh, try them out. I've been using the-them a lot, a lot</span></div><div class="tline" data-t="1182"><span class="ts">19:42</span><span class="tx">for coding lately, and they work really, really well. So if you're using a Cursor or OpenCode, um, you can very easily in-incorporate our models to, um, uh, for coding work. Try them out, let us know. And there's a Discord channel, um, at the bottom. If you have any questions, you can post them there or you can, um, you know, um, message me or Dylan. We'll happy to, um, answer your questions. Uh, so I'll stop here. We have, like, ten seconds.  So right on time. But, uh, we'll be around. Please come and talk to us if you have any questions. We'll happy to,</span></div><div class="tline" data-t="1212"><span class="ts">20:12</span><span class="tx">um, uh, chat more and then take any... take your questions. Thank you all.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

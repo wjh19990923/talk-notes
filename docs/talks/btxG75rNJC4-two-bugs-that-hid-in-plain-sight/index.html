@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>两个藏在眼皮底下的 bug：一次 vLLM 调试侦探故事 —— Asaf Gardin 与 Yuval Belfer | AI 工程师中文版</title>
+<meta name="description" content="Asaf Gardin 和 Yuval Belfer 追查了 Jamba 推理中的两个静默故障：一个调度器读到了另一个请求的状态，一个缓存索引发生了回绕。对数概率比较、可重复的工作负载和请求身份，把“一本正经的胡说八道”变成了具体的工程 bug。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>两个藏在眼皮底下的 bug：一次 vLLM 调试侦探故事 —— Asaf Gardin 与 Yuval Belfer</h1>
+    <div class="orig-title">Two Bugs That Hid in Plain Sight: A vLLM Debugging Detective Story — Asaf Gardin &amp; Yuval Belfer</div>
+    <div class="meta"><span class="speaker">Asaf Gardin、Yuval Belfer</span> · AI Engineer World's Fair 2026 · 18:06</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/btxG75rNJC4-two-bugs-that-hid-in-plain-sight" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="btxG75rNJC4"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=btxG75rNJC4" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">模型回答得很自信，引擎却是错的</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="17"><span class="ts">0:17</span><span>模型回答得很自信，引擎却是错的</span></li><li data-t="227"><span class="ts">3:47</span><span>让 GPU 吃不饱以缩短调试循环</span></li><li data-t="318"><span class="ts">5:18</span><span>在一个更简单的实现中给同一序列打分</span></li><li data-t="437"><span class="ts">7:17</span><span>去掉解码会掩盖 bug，请求身份能揭示它</span></li><li data-t="586"><span class="ts">9:46</span><span>为什么 Mamba 会在注意力覆盖之前读到错误</span></li><li data-t="706"><span class="ts">11:46</span><span>每十二步一次尖峰——以及掩盖它的内存优化</span></li><li data-t="919"><span class="ts">15:19</span><span>两个场景，一个状态缓存</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 26 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Gibberish output" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Gibberish output</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A model or agent appears to run normally, then produces garbled text. The speaker describes bugs that give no crash, warning, or error despite high confidence.
+
+[0:23](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=23s) [A black screen displays three lines of garbled text and a pink cursor.](https://assets.ai.engineer/sites/aiecode2025/sha256/30f56983b0840b7b5df72fe444870337603f244e0e0f1971f9ec511b7c39ce98.webp)
+
+, a82 starts for for em IN EIMT in5, an9 aals-
+multiplic RISM PRO whenlickatori- rub22 RION None
+1thATH CASE in2 or AND T6V9 startingenedEN</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="High confidence without errors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>High confidence without errors</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The system can give misleading output with high confidence while producing no crash, warning, or error.
+
+[0:32](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=32s) [Slide lists no crash, warning, or error alongside high confidence.](https://assets.ai.engineer/sites/aiecode2025/sha256/1e38d0320c32dc46f3c29e16dc2080c128db45d23c10848ad7e75f72bd36eb98.webp)
+
+THE SYMPTOM THAT SHOULD SCARE YOU
+
+No crash.
+No warning.
+No error.
+High confidence.
+
+The system isn't failing loudly. It's lying quietly – and it's sure of itself.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Two bugs that hid in plain sight" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Two bugs that hid in plain sight</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Asaf Gardin and Yuval Belfer recount fixing vLLM bugs that produced bad output with high confidence, without crashes, warnings or errors.
+
+[0:45](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=45s) [Title slide for a vLLM debugging detective story, with two presenters pictured as detectives.](https://assets.ai.engineer/sites/aiecode2025/sha256/78305e93f78e8c374682c30a18776d766b7fb66a9f99b763bff0442a205b84cd.webp)
+
+A vLLM DEBUGGING DETECTIVE STORY
+
+Two bugs that hid
+in plain sight.
+
+Asaf Gardin
+Inference Engineer
+
+Yuval Belfer
+Sr. Developer Advocate
+
+ai21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="A smoke detector, not a quality metric" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A smoke detector, not a quality metric</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Bad output with low confidence points to a quality problem; bad output with high confidence points to corruption, which the speaker frames as an engineering problem.
+
+[1:36](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=96s) [Slide contrasts bad output with low confidence as a quality problem against bad output with high confidence as corruption.](https://assets.ai.engineer/sites/aiecode2025/sha256/c0cced18930f6b6fe436290688074ab8454bca8797fbf1102ad8eb2c2f5ead21.webp)
+
+THE MAGNIFYING GLASS · REFRAME
+
+A smoke detector,
+not a quality metric.
+
+Bad output+low confidence
+QUALITY PROBLEM
+
+Bad output+high confidence
+CORRUPTION
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="The impostor request" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The impostor request</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The first case introduces silent gibberish, marked as vLLM-only and 1-in-1000.
+
+[2:00](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=120s) [Case 01 title slide labels the impostor request as silent gibberish, vLLM only, and one in a thousand.](https://assets.ai.engineer/sites/aiecode2025/sha256/89152269973b6f92b2de24bd4dce6cca1e6ad6a674499bf94901cd86275d7d94.webp)
+
+CASE 01
+
+The impostor request
+
+SILENT GIBBERISH
+vLLM ONLY
+1-IN-1000
+
+01</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="The crime scene" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The crime scene</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The case begins with GRPO reinforcement learning on a Jamba foundation model, using vLLM for inference. Jamba interleaves attention with Mamba state-space layers.
+
+[2:07](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=127s) [Slide describes Jamba training with GRPO and vLLM inference and a hybrid architecture combining attention with Mamba layers.](https://assets.ai.engineer/sites/aiecode2025/sha256/dd27574bdae896137c03453af8de9ee50c9fda4ad6dcd4e236ce5f8a1d734c61.webp)
+
+CASE 01
+The crime scene
+
+01
+Training a Jamba foundation model – GRPO RL-training + vLLM inference.
+
+02
+A hybrid model – attention interleaved with Mamba state-space layers.
+
+[illegible]NSIC ANALYSIS · FORENSIC ANALYSI[illegible]
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="The life of a request" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The life of a request</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A request moves from tokenization through prefill and decode, then detokenization. Both bugs concern how Mamba state is read and written during the forward pass.
+
+[2:26](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=146s) [Diagram traces a request from prompt through tokenization, prefill, decode, and detokenization.](https://assets.ai.engineer/sites/aiecode2025/sha256/48db86dd72f4b598c6ce0695689d759d69f22cbc50689bc8002d2cca9a55133f.webp)
+
+CASE 01
+The life of a request
+
+Prompt → Tokenization → FORWARD PASS → Detokenization
+Tokenization: text → token ids
+FORWARD PASS: prefill → decode
+Detokenization: ids → text
+
+Every request walks the same path. Both crimes happen inside the forward pass - in how the Mamba state is read and written across prefill and decode.
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="The crime" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The crime</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>vLLM produced rare gibberish after hundreds of requests, while the same checkpoint ran clean in transformers. The one-in-1,000 failure was hard to catch in tests.
+
+[2:49](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=169s) [The failure is described as rare gibberish, specific to vLLM, and appearing after many requests.](https://assets.ai.engineer/sites/aiecode2025/sha256/e4b78dd3df60e2ea14cc4f3d0c8ca87cf93650595f58e6fe43bbbdd11acd2e43.webp)
+
+CASE 01
+
+The crime
+
+1-IN-1000 GIBBERISH
+Rare enough to slip every test, common enough to ship.
+
+vLLM ONLY
+The same checkpoint runs clean in transformers.
+
+LATE-ONSET
+Never at init or the first pass. Only after hundreds of requests.
+
+Rare, engine-specific, late-onset.
+Something is accumulating.
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Reproducing the unreproducible" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reproducing the unreproducible</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The team reduced GPU memory utilization from 90% to 20% and ran many requests simultaneously. At temperature zero, the same request returned gibberish on every run, giving them a reproducible failure to investigate.
+
+[3:47](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=227s) [Reducing GPU memory utilization and recycling slots makes a gibberish response reproducible.](https://assets.ai.engineer/sites/aiecode2025/sha256/6cdddb9af441e9eb059ff0712c9cd3d42307191f75687744bcec458e86162b71.webp)
+
+CASE 01
+
+Reproducing the unreproducible
+
+Forced the same pressure and recycled slots aggressively:
+
+gpu_mem 0.9 → 0.2
+
+REPRO · TEMP 0
+request 851 ok
+request 852 ok
+request 853 ok
+request 854 gibberish
+# deterministic. every run.
+
+Comfortable conditions hid the bug.
+Now we had a suspect we could interrogate.
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Ask the witness what it would have said" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Ask the witness what it would have said</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>vLLM generates tokens and log probabilities; Transformers scores the same sequence using a prefill pass. Their divergence reveals where vLLM's probabilities differ from the baseline.
+
+[5:16](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=316s) [A workflow compares vLLM output and log probabilities with a Transformers distribution for the same tokens.](https://assets.ai.engineer/sites/aiecode2025/sha256/de7967ac09785c6ddbab7a8d103753eb09d5d523f331a9fc95b9dbebe88c6e84.webp)
+
+THE FORENSIC TOOL · LOGPROB COMPARISON
+
+Ask the witness what it would have said
+
+vLLM
+generate → vllm_out
+tokens + logprobs, returned directly
+
+TRANSFORMERS
+same tokens → prefill only → logits → softmax → distribution
+no generation
+
+compare the distribution to vLLM's chosen tokens → divergence = fingerprint
+
+Healthy, they agree within floating-point noise. Diverge hard and vLLM is confidently wrong.
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="The logprob comparison script" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The logprob comparison script</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>vLLM generates tokens and their log probabilities; a Transformers prefill scores the same sequence. The script checks whether the maximum absolute difference stays below floating-point noise.
+
+[6:36](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=396s) [Pseudocode generates tokens with vLLM, scores them with Transformers, and checks log-probability divergence.](https://assets.ai.engineer/sites/aiecode2025/sha256/6eac3a105d3b900a24ba04138d61d5280e80b1c4cc6667b3d0ac280d33bbcb20.webp)
+
+The logprob comparison script
+
+THE FORENSIC TOOL · THE DETECTIVE'S KIT
+
+LOGPROB_COMPARE.PY
+
+# vLLM generates the tokens →
+vllm_out = engine.generate(prompt)        # the suspect
+# transformers scores the SAME tokens →
+hf_logits   = hf_model.forward(full_sequence)
+hf_logprobs = compute_logprobs(hf_logits) # the witness
+divergence = vllm_out.logprobs - hf_logprobs
+assert divergence.abs().max() &lt; FLOAT_NOISE   # ← fingerprint
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="The wrong suspects" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The wrong suspects</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The prefill kernel and compute-sanitizer checks found no obvious issue. Forcing prefill made the gibberish vanish, initially pointing to the decode kernels—a lead that proved wrong.
+
+[7:08](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=428s) [An initial list of suspects shows the CUDA prefill kernel.](https://assets.ai.engineer/sites/aiecode2025/sha256/9d72c38ebae951e1d8a67ccd3afe00d94ea651f258063068e9d2e878b033f3d9.webp)
+
+CASE 01
+The wrong suspects
+
+CUDA prefill kernel
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21
+
+[7:50](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=470s) [A list of investigated kernels and checks, including the observation that forcing prefill made the gibberish disappear.](https://assets.ai.engineer/sites/aiecode2025/sha256/b21e33742a4522d934acd133aff6db085fb8852967ee166a69c9653b1c4cfb62.webp)
+
+CASE 01
+The wrong suspects
+
+CUDA prefill kernel — ALIBI HOLDS
+compute-sanitizer — NO ERRORS
+Forced prefill path → gibberish vanishes — IT'S THE DECODE!
+Decode kernels
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Build the witness" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Build the witness</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The team carried request IDs into the forward pass and broke on the request producing gibberish. Inspecting its metadata revealed that decode ran before prefill.
+
+[8:24](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=504s) [Code adds request identity to the forward context and sets a breakpoint for the failing request.](https://assets.ai.engineer/sites/aiecode2025/sha256/a37ad70bb45e2ef9bd0fe2c33dc2b06422a18ca3541a7b2e34765bb84b8c4c85.webp)
+
+CASE 01 · INSTRUMENTATION
+
+Build the witness the system won't give you.
+
+FORWARD_CONTEXT.PY
+
+# thread request identity all the way down
+class ForwardContext:
+    ...
+    req_ids: list[str]   # ← new: who is this?
+
+# model_runner → mamba_mixer, now name-aware
+if &quot;req-854&quot; in ctx.req_ids:
+    breakpoint()   # stop the world, here
+
+REPRO · TEMP 0
+request 851 ok
+request 852 ok
+request 853 ok
+request 854 gibberish
+# deterministic. every run.
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="The reframe" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The reframe</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A request entered decode before prefill, so Mamba used stale state from earlier requests and produced gibberish. The kernels were called at the wrong time for the wrong request.
+
+[10:27](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=627s) [The kernels were called at the wrong time for the wrong request.](https://assets.ai.engineer/sites/aiecode2025/sha256/97530cca450c2de073f940655f8c08feaebd6d162612f1c3212077d8392d9ca0.webp)
+
+CASE 01 · THE REFRAME
+
+The kernels weren't doing the wrong thing.
+They were called at the wrong time, for the wrong request.
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+
+ai21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Why only Mamba" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why only Mamba</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Attention overwrites a token’s stale K/V data before reading it. Mamba’s decode kernel reads the state first, so a misclassified request can use stale state from token zero.
+
+[10:33](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=633s) [Attention writes before reading, while Mamba reads its state before writing, exposing stale state.](https://assets.ai.engineer/sites/aiecode2025/sha256/1528adff1051f8abe66d4c94c85d4926c7b2857cc8089bb3e93ea71635af0b9e.webp)
+
+CASE 01 · THE ACCOMPLICE
+
+Why only Mamba
+
+ATTENTION
+write → read
+
+Writes this token's K/V before it reads. Stale data is overwritten first - masking is a safety boundary, almost by accident.
+
+BOUNDARY HOLDS
+
+MAMBA SSM
+read → write
+
+Reads the whole state vector first, then writes. Misclassify it and it's corrupted from token zero - no boundary at all.
+
+NO BOUNDARY
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="The fix" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The fix</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The scheduler marks requests with zero computed tokens as prefill, keeping new Mamba requests from decoding with stale state. The fix was merged in PR #32118.
+
+[11:04](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=664s) [A scheduler change marks requests with zero computed tokens as prefill, alongside a merged pull request.](https://assets.ai.engineer/sites/aiecode2025/sha256/30159c0a467b6d922cb983c36cbd29eef9550249812771e4b0734090b0b8c463.webp)
+
+CASE 01
+The fix
+MERGED · PR #32118
+
+SCHEDULER.PY · DIFF
+- is_decode = num_scheduled_tokens == 1
++ is_prefill = num_computed_tokens == 0
+# new request → always prefill
+
+Zero computed tokens means new - therefore prefill. Only requests with context can decode.
+
+[Bugfix] Fix stale SSM state for new Mamba requests scheduled as decode #32118
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+ai21
+
+Interface text:
+Merged
+[illegible] merged 3 commits into vllm-project:main from [illegible] on Jan 12
+Conversation 8
+Commits 3
+Checks 8
+Files changed 2
+[illegible] commented on Jan 11 · edited by github-actions Bot
+Contributor
+Reviewers
+[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Stride and prejudice" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Stride and prejudice</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Case 2 investigates logprob spikes between rollout and the FSDP step during GRPO training, occurring roughly every 12 steps.
+
+[11:40](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=700s) [Case two introduces logprob spikes during GRPO training.](https://assets.ai.engineer/sites/aiecode2025/sha256/b5f1cd9df76c4a04c1c78470e1a00e25609d694938f3caa2208088646c30791d.webp)
+
+CASE 02
+02
+Stride and prejudice.
+LOGPROB SPIKES
+GRPO TRAINING
+EVERY ~12 STEPS</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="The crime scene" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The crime scene</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>During RL training, rollout and FSDP logprobs diverged before any weight update, even though the weights and inputs were the same.
+
+[11:54](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=714s) [Log probabilities spike between rollout and FSDP before any weight update, despite identical weights and inputs.](https://assets.ai.engineer/sites/aiecode2025/sha256/58d278e1a86b76983006163c7effe40d7fe4bf15cc24206e17a1fe84d7620601.webp)
+
+CASE 02
+The crime scene
+
+RL – Logprob spikes between rollout and FSDP – before any weight update.
+
+Same weights, same inputs: the two logprobs should be identical. They weren't.
+
+[illegible] ANALYSIS · FORENSIC ANALYSI[illegible]
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="The clue" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The clue</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Logprob differences between rollout and FSDP spike roughly every 12 steps, even before a weight update. The team looks for a setting that changes the pattern to help locate the cause.
+
+[12:24](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=744s) [The log-probability spikes occur roughly every 12 steps.](https://assets.ai.engineer/sites/aiecode2025/sha256/6c86a1ba6741c4c20786d9ee2f5e4c6bfb585244daaebfc2e39a844f3183c766.webp)
+
+CASE 02 · THE CLUE
+
+The spikes aren't random.
+
+Every ~12 steps.
+
+You're the detective now. What do you change first?
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="The transferable lesson" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The transferable lesson</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Change a knob that alters the error’s shape to reveal how it connects to vLLM’s engine and narrow the search to a specific component.
+
+[12:37](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=757s) [Find a lever that changes how failures occur; a change in the error's shape can reveal what organizes it.](https://assets.ai.engineer/sites/aiecode2025/sha256/7e96faf8098cf340d79c74b6b4568e2e92ba93b4a8acb21644644b8a74b4661d.webp)
+
+CASE 02 · THE TRANSFERABLE LESSON
+
+Find the lever that changes how things fail – not just how much they fail
+
+A louder error tells you nothing. An error whose shape moves when you turn a knob tells you what's organizing it.
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Rollouts per prompt" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Rollouts per prompt</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Increasing rollouts per prompt brought the issue forward: with 8, it appeared every 12 steps; with 128, it appeared at step 1, speeding up the debugging loop.
+
+[13:17](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=797s) [Line chart comparing runs with 8, 64 and 128 rollouts per prompt.](https://assets.ai.engineer/sites/aiecode2025/sha256/c4dfca23907dd1345de3df04a28e690613a0573438fdf1b88a3e459851084a77.webp)
+
+CASE 02 · TURNING THE LEVER
+
+Rollouts per prompt
+
+Legend: Rollouts = 8; Rollouts = 64; Rollouts = 128
+Y-axis ticks: 0.00, 0.04, 0.08, 0.12, 0.16, 0.20, 0.24, 0.28
+X-axis ticks: 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Reducing GPU memory again" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reducing GPU memory again</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Reducing GPU memory utilization from 0.9 to 0.2 made the issue disappear: the smaller state buffer never reached the offset that triggered the 32-bit overflow.
+
+[14:11](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=851s) [Reducing GPU memory utilization from 0.9 to 0.2 made the issue disappear; a cartoon labels this the wrong lever.](https://assets.ai.engineer/sites/aiecode2025/sha256/6c054e3b2760ca26d8d3a547f12525767080c431b3d5539a863fbe3ea46e8e20.webp)
+
+CASE 02
+
+Reducing GPU Mem – Again
+
+gpu_mem 0.9 → 0.2
+
+This time it caused the issue to go away!
+
+Wrong lever!
+imgflip.com
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="Small buffer — bug stays hidden" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Small buffer — bug stays hidden</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Reducing GPU memory shrank the state buffer, keeping accesses before slot 47,935. Their offsets never reached the 32-bit limit, so the overflow stayed hidden.
+
+[14:36](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=876s) [A buffer diagram shows approximately 35,000 slots ending before the 32-bit offset limit.](https://assets.ai.engineer/sites/aiecode2025/sha256/3b30d987b5a07c6c1dacc2955a8c5f659fa21ef5cf335d78b337ae826ec0078e.webp)
+
+GPU MEMORY UTILIZATION ≈ 50%
+NO OVERFLOW
+
+Small buffer — bug stays hidden
+
+The buffer ends well before slot 47,935, so no offset ever reaches the 32-bit limit.
+
+struct SSMParamsBase {
+    using index_t = uint32_t;
+
+32-bit limit · 4.29 B
+written correctly
+≈ 35,000 slots
+not allocated
+slot 0
+47,935
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="The Fix" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Fix</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Replacing uint32_t with size_t makes index multiplication 64-bit on most modern architectures, preventing the overflow observed in this case.
+
+[15:12](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=912s) [A code diff replaces uint32_t with size_t for the index type.](https://assets.ai.engineer/sites/aiecode2025/sha256/9d45273b700c7ae2cfd745a1dc9253a0e2ebcae962a5ee5bcf939a1cce0ef2eb.webp)
+
+CASE 02 · THE FIX
+
+The Fix
+
+CASE CLOSED
+
+SELECTIVE_SCAN.CU · DIFF
+- using index_t = uint32_t;
++ using index_t = size_t;
+# multiply in 64-bit. no wrap.
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="24" data-cap="The Thesis" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Thesis</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A detective faces an evidence board: some stateful inference errors produce confident-looking output without a trace log, leaving engineers to investigate the cause.
+
+[16:06](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=966s) [A detective faces an evidence board beside the claim that stateful inference systems can fail silently and confidently.](https://assets.ai.engineer/sites/aiecode2025/sha256/7a8bfe6731e0f79e62da281caad20dc563f07fb969513f3f40e83e013da191e4.webp)
+
+THE THESIS
+
+Stateful inference systems don't fail loudly. They lie confidently.
+
+AI21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="25" data-cap="Four things to steal" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Four things to steal</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Compare logprobs against a baseline, reproduce failures under memory pressure, track changes in timing, spacing and location, and carry tensor identity through the system.
+
+[16:28](https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=988s) [Four takeaways cover logprob comparisons, pressure testing, failure patterns, and preserving tensor identity.](https://assets.ai.engineer/sites/aiecode2025/sha256/b0984612875c87cf4416f5c0f7c66c6265183ed1ddfc5ec74908e2ea80b88e52.webp)
+
+YOUR CASE FILES
+
+Four things to steal.
+
+01 Build the logprob comparison script before you need it.
+02 Reproduce under pressure – constrain memory, crank scale.
+03 Look for what moves the failure's shape – timing, spacing, location
+04 When tensors lose identity, thread identity through.
+
+TWO BUGS THAT HID IN PLAIN SIGHT
+AI21</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">模型回答得很自信，引擎却是错的</a></li><li><a href="#sec-2">让 GPU 吃不饱以缩短调试循环</a></li><li><a href="#sec-3">在一个更简单的实现中给同一序列打分</a></li><li><a href="#sec-4">去掉解码会掩盖 bug，请求身份能揭示它</a></li><li><a href="#sec-5">为什么 Mamba 会在注意力覆盖之前读到错误</a></li><li><a href="#sec-6">每十二步一次尖峰——以及掩盖它的内存优化</a></li><li><a href="#sec-7">两个场景，一个状态缓存</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">两个藏在眼皮底下的 bug：一次 vLLM 调试侦探故事</h2>
+      <div class="lede"><p>Asaf Gardin 和 Yuval Belfer 追查了 Jamba 推理中的两个静默故障：一个调度器读到了另一个请求的状态，一个缓存索引发生了回绕。对数概率比较、可重复的工作负载和请求身份，把“一本正经的胡说八道”变成了具体的工程 bug。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="17">▶ 0:17</button></div>
+      <h3>模型回答得很自信，引擎却是错的</h3>
+      <p>The service stays up. There is no crash, warning, or exception. Then a response comes back as gibberish—with high confidence. At AI21, Yuval Belfer and Asaf Gardin encountered this while training and serving <strong>Jamba</strong>, a hybrid model with attention and Mamba layers. Improving the model’s capabilities would not repair the failures they eventually found: the inference engine was computing with the wrong state.</p>
+<p>The first case, the “imposter request,” appeared during GRPO reinforcement learning. A request should proceed from prompt tokenization to prefill, then decode, and finally back to text through detokenization. That ordering matters because decode continues computation from state established for the request. Jamba’s mixture of attention and Mamba made a violation of this sequence especially revealing.</p>
+<p>Three features made the failure difficult to catch:</p>
+<p>- <strong>Rare:</strong> Gibberish appeared roughly once in a thousand requests, allowing many ordinary tests to pass.
+- <strong>Late onset:</strong> A few requests were insufficient. The engine needed a workload behind it before the symptom emerged.
+- <strong>Engine specific:</strong> The team observed it in vLLM and not in the other inference frameworks they tried.</p>
+<p>A prompt alone was therefore a poor reproducer. The surrounding execution history belonged to the problem.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="227">▶ 3:47</button></div>
+      <h3>让 GPU 吃不饱以缩短调试循环</h3>
+      <p>Sending assorted prompts and small batches produced normal responses. Gardin’s next move was to change the operating conditions so the failure would arrive sooner. vLLM exposed a GPU memory utilization setting that controlled its memory budget, including space used for weights, activations, and caches. The team reduced it from <strong>90% to 20%</strong> and ran many requests simultaneously.</p>
+<p>Under that workload, one request repeatedly returned gibberish. Sampling at <strong>temperature zero</strong> let the team reproduce the same failing request in their setup. This changed the investigation: instead of waiting for an occasional bad answer, they could rerun the workload, change one part of the engine, and check whether the same request still failed. The workload supplied a stable target for the later breakpoint.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="318">▶ 5:18</button></div>
+      <h3>在一个更简单的实现中给同一序列打分</h3>
+      <p>A repeatable bad answer still leaves a large search space: model behavior, kernel math, cached state, and engine scheduling. The team used Hugging Face Transformers as a reference because its implementation of their Mamba kernels was comparatively plain. vLLM’s implementation had accumulated changes to support its serving features. Comparing the two gave them a way to ask whether the optimized execution path assigned the same probabilities to the same tokens. <a href="https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=318s" target="_blank" rel="noopener">5:18</a></p>
+<p>The comparison started with vLLM generation. For each prompt, the team retained the generated response and its logprobs—the logarithms of token probabilities. They then passed the <strong>prompt plus that generated response</strong> through the Transformers forward pass using prefill only. The reference implementation scored the sequence that vLLM had actually produced; it did not generate an independent answer that might wander onto a different token sequence.</p>
+<p>The reference pass returned logits, which they converted through softmax into probabilities and used to compute comparable logprobs. Differences at corresponding token positions exposed where the two executions disagreed. Holding the sequence fixed made those differences useful: a discrepancy could no longer be explained merely by the engines choosing different continuations.</p>
+<p>What data must remain shared for this comparison to work? The diagram follows one generated sequence into both sides of the check. The important relationship is the replay: Transformers receives vLLM’s tokens, while the comparison receives probability scores from both executions. This turns an impression of bad text into a token-by-token diagnostic.</p>
+<p>Generate once, compare scores on the same sequence
+The reference pass scores the prompt and vLLM continuation together, allowing corresponding token logprobs to be compared.
+- Prompt — Input to vLLM generation.
+- vLLM generation — Produces continuation tokens and their logprobs.
+- Prompt + continuation — The full sequence produced by the generation path.
+- Transformers prefill — Runs a forward pass over the full sequence and returns logits.
+- Reference logprobs — Computed from the reference logits through probability conversion.
+- Per-token differences — Compare the two executions at corresponding token positions.
+- Prompt → vLLM generation (generate)
+- vLLM generation → Prompt + continuation (retain generated tokens)
+- Prompt + continuation → Transformers prefill (replay using prefill only)
+- Transformers prefill → Reference logprobs (convert logits)
+- Reference logprobs → Per-token differences (reference scores)
+- vLLM generation → Per-token differences (generation scores)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="437">▶ 7:17</button></div>
+      <h3>去掉解码会掩盖 bug，请求身份能揭示它</h3>
+      <p>The first suspects were the Mamba CUDA kernels. Inspecting the prefill math and the tensors before and after the kernel call revealed nothing wrong. NVIDIA Compute Sanitizer also reported no apparent memory problem in this investigation. Neither check exposed the failure that was actually occurring: valid computation over state belonging to an earlier request.</p>
+<p>Next, the team separated prefill from decode. Mamba allowed them to route all the computation through the prefill kernel, avoiding the decode kernels entirely. The gibberish vanished. Decode looked guilty—but this experiment had changed the execution path as well as the kernel being used. It localized the symptom without yet identifying the faulty operation.</p>
+<p>To investigate the failing request itself, they needed something the forward pass lacked: identity. By the time a request reached the kernels, it appeared as tensors, numbers, and matrices. A debugger could inspect those values, but could not easily answer which prompt they represented. The team added the request ID to a forward context and propagated it down to Mamba’s forward pass, just before kernel selection.</p>
+<p>That small instrumentation change connected the reproducible response to the computation that produced it. A conditional breakpoint on the failing request’s ID let them inspect its metadata at the relevant call. On its <strong>first</strong> trip through the forward pass, the scheduler had selected <strong>decode before prefill</strong>. The suspicious kernel was being called before the request had established the state it needed. <a href="https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=556s" target="_blank" rel="noopener">9:16</a></p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="586">▶ 9:46</button></div>
+      <h3>为什么 Mamba 会在注意力覆盖之前读到错误</h3>
+      <p>Follow the failing request through that call. Earlier requests had already left data in the Mamba state cache. The fresh request entered decode, which read the existing state before computing over it. Its continuation therefore incorporated computations from requests that came before it. The result was gibberish even though the kernel performed its intended operations. The fault was in deciding when, and for which request, to call it.</p>
+<p>The two layer types exposed different consequences of the same scheduling error:</p>
+<p>- <strong>Attention writes before reading:</strong> In the path described here, the current token’s keys and values were written before being read. That overwrite prevented stale values from producing this symptom.
+- <strong>Mamba reads before computing:</strong> Decode first read the cached state, then computed over it. Entering decode without the request’s prefill allowed old state to affect the new computation.</p>
+<p>This explains why the hybrid model revealed the mistake; it does not make arbitrary scheduling errors safe for attention.</p>
+<p>The fix restored the request lifecycle at classification time. If a request had <strong>zero computed tokens</strong>, the scheduler had to mark it as prefill so its first forward pass would take the prefill path. For the same fresh request, that changed the first operation from consuming leftover state to processing its own prompt before decode. Gardin reports that the fix was merged.</p>
+<p>Where does the wrong request’s information enter the computation? The comparison below places the state read beside the corrected ordering. The failure happens before any new continuation is returned: selecting decode makes old cache contents an input. The scheduler fix changes that input’s history by requiring prefill first.</p>
+<p>The fresh request’s first state read
+Incorrect classification sends a fresh request into decode over stale state. Correct classification requires prefill before decode.
+- Fresh request — Its tokens have not yet been computed.
+- Earlier requests’ state — Existing Mamba cache contents remain from prior computation.
+- Decode first — Reads cached state and computes over it.
+- Gibberish — The fresh request’s output depends on stale request data.
+- Zero computed tokens — The scheduler recognizes that this request needs prefill.
+- Prefill first — The first forward pass processes the request through prefill.
+- Decode follows — Continues after the request’s prefill.
+- Fresh request → Decode first (misclassified by scheduler)
+- Earlier requests’ state → Decode first (read before computation)
+- Decode first → Gibberish (computes using prior requests’ data)
+- Zero computed tokens → Prefill first (classify as prefill)
+- Prefill first → Decode follows (required request ordering)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="706">▶ 11:46</button></div>
+      <h3>每十二步一次尖峰——以及掩盖它的内存优化</h3>
+      <p>The scheduler repair did not end the investigation. A second failure appeared during reinforcement learning post-training: logprob spikes between rollout generation and the FSDP step. Crucially, the comparison happened <strong>before any weight update</strong>, with the same weights and inputs. The recurring spike therefore could not be explained by the model learning between the two evaluations. The expected agreement was breaking during execution. <a href="https://www.youtube.com/watch?v=btxG75rNJC4&amp;t=706s" target="_blank" rel="noopener">11:46</a></p>
+<p>With the default <strong>eight rollouts per prompt</strong>, the spike appeared every <strong>12 steps</strong>. The team wanted a lever that changed the failure’s timing or location, giving them information about the mechanism as well as a faster reproducer. Increasing rollouts per prompt brought the failure forward. At <strong>128 rollouts per prompt</strong>, it appeared on <strong>step one</strong>, eliminating the wait for steps 12 and 24.</p>
+<p>The successful memory experiment from the first case suggested another test: reduce GPU memory utilization from <strong>0.9 to 0.2</strong>. This time, the issue disappeared. That was useful evidence, but shrinking memory had hidden the failure rather than repaired it. The same knob had opposite diagnostic effects in the two cases.</p>
+<p>The cause was an <strong>unsigned 32-bit index</strong> in the Mamba kernel’s cache-addressing path. When the offset passed roughly <strong>four billion</strong>, the index wrapped around instead of raising an error. The resulting value no longer represented the intended offset. A smaller GPU memory budget made vLLM allocate a smaller state buffer, so the cache index never reached the region that triggered the overflow. The bad arithmetic remained; the workload stopped reaching it.</p>
+<p>The repair changed the index type from <code>uint32</code> to <code>size_t</code>. On the modern architectures discussed in the talk, that provided an unsigned 64-bit range, and the team no longer encountered the overflow. <code>size_t</code> has an architecture-dependent width, so the practical fix relies on the wider range available in that environment; the type name alone is not a universal promise of 64-bit indexing.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="919">▶ 15:19</button></div>
+      <h3>两个场景，一个状态缓存</h3>
+      <p>The two bugs shared the Mamba state cache, but reached it through different mistakes. One request consumed another request’s state because the scheduler selected decode too early. Another computation exceeded its index range and wrapped around. Both produced silent probability anomalies, sometimes accompanied by gibberish, and both became understandable through logprob comparisons and changes to memory or workload scale.</p>
+<p>The closing advice follows directly from the investigations:</p>
+<p>- <strong>Build a probability comparison:</strong> Use another inference implementation as a baseline and score the same sequence. This helps separate an execution discrepancy from dissatisfaction with the model’s answer.
+- <strong>Move the failure:</strong> Change memory budgets, concurrency, or rollout scale, then watch timing and location. A disappearing symptom can mean the trigger is no longer reachable, as the smaller state buffer demonstrated.
+- <strong>Carry identity into computation:</strong> Preserve request IDs down to the forward pass so a bad response can be connected to its tensors, metadata, and kernel calls.
+- <strong>Inspect the implementation:</strong> Read the engine code and observe the relevant execution. An LLM’s explanation of a complex framework cannot replace seeing which path the failing request actually takes.</p>
+<p>Gardin’s closing warning is that stateful inference can “lie to you confidently.” These systems do sometimes crash or report out-of-bounds errors. The harder cases keep running while producing plausible confidence scores over corrupted computation. Here, the decisive questions were concrete: whose state is being read, has this request run prefill, and can this index represent the offset it is supposed to address?</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Replay vLLM’s prompt and generated continuation through a simpler reference implementation, then compare corresponding token logprobs to investigate silent execution errors.</li><li>A correct kernel can produce corrupt output when the scheduler calls it before its state is ready. In the first case, a fresh Mamba request entered decode and read earlier requests’ cached state.</li><li>Reducing memory exposed the scheduling bug but concealed the index overflow. Treat changes in failure timing and reachability as diagnostic evidence, rather than assuming that disappearance means repair.</li><li>Thread request identity down to the forward pass. It makes a repeatable bad response actionable by letting a breakpoint connect the request to its execution metadata.</li><li><a href="https://ai.engineer/talks/TKmfBnW0mQA-fixing-bugs-in-gemma-llama-phi-3" target="_blank" rel="noopener">Fixing bugs in Gemma, Llama &amp; Phi-3</a> — A companion topic for readers interested in concrete model-implementation bugs and the engineering work required to repair them.</li><li>[[Full Workshop] Reinforcement Learning, Kernels, Reasoning, Quantization &amp; Agents — Daniel Han](https://ai.engineer/talks/OkEGJ5G3foU-rl-quantization-agents) — Offers a broader workshop topic connecting reinforcement learning and kernels, the two areas that meet in these inference failures.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">So put your model somewhere. Put your agent. You're hoping for the best. You're waiting for something to crash. Everything looks good. Everything's fine, and you see this.</span></div><div class="tline" data-t="33"><span class="ts">0:33</span><span class="tx">And that's the problem, right? In these type of bugs, there is no crash. There's no warning, no error, and there's high confidence. That's not a quality issue 'cause, uh, right, this is something that you don't really know what and how and why. Um, welcome to this talk. My name is Yuval. This is Asaf. And together we're gonna take you on a journey of how we ended up</span></div><div class="tline" data-t="63"><span class="ts">1:03</span><span class="tx">fixing those type of bugs. A little bit about us. We work at AI21, which is an AI research lab. We started as a foundation model company, and most famously known for Jamba, which is a hybrid architecture between Transformers and Mamba, which is an SSM, uh, state. And while we were doing those, while we were training those models, while we were shipping those models into production and had users and we had a workload, we</span></div><div class="tline" data-t="93"><span class="ts">1:33</span><span class="tx">got into several interesting bugs, and these are the bugs that I think are the hardest to deal with because this is not a quality problem. It's not something you can take your research team and try to optimize or solve or make the model be better at something. This is an engineering problem. This is an issue where, that there is high confidence, uh, but the output is bad. So</span></div><div class="tline" data-t="123"><span class="ts">2:03</span><span class="tx">let's break... Let's dive deep to the first case, what we call the imposter request, where just to set up the scene, what are we talking about? We are talking about how we, during the training of our Jamba model, more specifically, we did GRPO, which is a type of RL training, and again, this is a hybrid model, layers of Mamba and attention. And just to make sure we're all aligned, what is the type of a request? So life cy- life cy-</span></div><div class="tline" data-t="153"><span class="ts">2:33</span><span class="tx">life of a request, so we start with a prompt, tokeni- tokenization, and then in the forward pass, we're doing both prefill and then decode. After that, we finish the forward pass, uh, detokenization to go back to text. And the thing about the crime here is that it's bad on so many levels, but mainly on these three. This is what we call the one in thousand gibberish. It's not something that will</span></div><div class="tline" data-t="182"><span class="ts">3:02</span><span class="tx">happen in the first five hundred or nine hundred requests, but it will happen in the one thousand, which is rare enough to duplicate it easily, but not, uh, right, too common to ship it. Sorry. Uh, also, it only happened in vLLM, not in other, uh, not in any other inference framework, and it's something which is late onset. It's not something that will happen if you have only few requests. You</span></div><div class="tline" data-t="212"><span class="ts">3:32</span><span class="tx">need some sort of workload. So it's rare, it's late onset, and it's very engine specific. It's a very, very hard task, and we had to bring one of our best detectives to handle that. So I'll give it to Asaf to explain how.</span></div><div class="tline" data-t="227"><span class="ts">3:47</span><span class="tx">All right. Hey, guys. Thank you, Yuval. Uh, thanks, Yuval. Uh, so we're gonna start with, um, trying to reproduce something with-- that was very difficult to reproduce. Um, and basically, um, vLLM has got a lot of, um, a lot of flags, a lot of the CLI flags, and a lot of knobs you guys can alter and tweak. Um, and one of the things that helped us understand how to even reproduce it, because when we tried to reproduce it on the first time, just sending prompts here, prompts there, a few batches, um, it didn't really help us manage to get gibberish back from our model. The model</span></div><div class="tline" data-t="257"><span class="ts">4:17</span><span class="tx">responded back just fine. So what we did was, is we tried to make it happen in a very, very short, um, amount of time, so we'll get a, a quick feedback loop when we try to debu- uh, debug it. So what we did was, is we took one of the, one of the, um, most default and most common, um, g- um, flag that v- the vLLM allows you to play with, which is GPU memory utilization, which basically allows you to, uh, out, to choose how much memory, how much GPU memory you want to allocate for your, for your weight, for your activations, and for your, um,</span></div><div class="tline" data-t="287"><span class="ts">4:47</span><span class="tx">KV cache and so on, and reduced it from, uh, ninety percent to twenty percent. And once we did that, and then we started, uh, running a lot of, uh, requests, uh, simultaneously, um, uh, all of a sudden, request number, let's say eight hun- eight hundred and fifty-four suddenly returned, uh, gibberish. And when we did that, we, uh, we sampled all of the batches with temperature zero, so we'll be able to deterministically and constantly get the same request to g- to return, to return and respond with gibberish.</span></div><div class="tline" data-t="318"><span class="ts">5:18</span><span class="tx">Um, so, um, like Yuval said, it happened only in vLLM, and, um, we used, um, in order to, uh... A, another way to reproduce it and to understand where the issue really came from, we used, um, uh, Hugging Face's Transformers as a baseline since, uh, Transformers is a very, had a very, um, vanilla and, uh, plain implementation of our Mamba kernels, as opposed to vLLM, which, uh, all the kernels and all the engine have gone through a lot of changes and modifications to support a lot of, um, cool features that vLLM</span></div><div class="tline" data-t="347"><span class="ts">5:47</span><span class="tx">supports. So we used Transformers as our baseline to understand whether or not there is an issue with our, um, with our inference or not, with the model or not. So what we did was, we took vLLM and we sent, uh, all of our prompts through vLLM, and we generated a response, uh, all the responses. We got it... And now in our hands we have the response along with the logprobs, 'cause v- 'cause in vLLM, you're, you, you're able to get your logprobs out and inspect them. Then what we did was we took the full sequence, the prompt and the generation, and we, uh, uh, passed it over to,</span></div><div class="tline" data-t="377"><span class="ts">6:17</span><span class="tx">to, uh, to Hugging Face's forward pass. But what all we did was run just the prefill, um, and then we, uh, uh, sample... We took this, the logits out of the prefill, um, um, response. We ran it through softmax, and then we were able to, um, to compare the divergence, uh, in the distributions of our tokens. Um, that's a short, uh, pseudocode of how that look like. You can see here that we, uh, take up the prompt. Uh, we, we run it through gen- uh, vLLM's generate. We get the, uh, the</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">response back along with the, uh, with the log probs. We pass it over to, to Hugging Face's, uh, forward pass. We only run it with prefill. Um, we've created some function called com- compute log, log probs, which, um, runs the softmax. Um, then you calculate the difference between them, and then you'll be able to, uh, tell the divergence between every one of the tokens' log probs. All right. So now that we have the tools in our hand to understand how... where the issue could maybe come from, um, we started to look at different</span></div><div class="tline" data-t="437"><span class="ts">7:17</span><span class="tx">suspects in vLLM's engine. So the first thing we looked at was, um, the CUDA prefill kernel of Mamba. Um, we looked at it. We, uh, inspected all of the, all of the math that's being done here, th- that's being done there. Um, and we looked at the tensor in, the tensors out before the, be- before we call the prefill and after. Everything looks just fine. Second thing we did was running NVIDIA's Compute Sanitizer tool to really see if we have any, uh, out-of-bound memory, um, any other, uh, memory, uh,</span></div><div class="tline" data-t="467"><span class="ts">7:47</span><span class="tx">uh, bugs or issues. Looked okay to me. Um, then what we did was we tried to isolate between the decode kernels and the prefill kernels. Now, we saw that the prefill kernels were working just fine, so we tried to not call the decode kernels 'cause in Mamba you're able to do that. Um, so what we did was, um, we moved all of our calls and all of our computations to go through the p- through the prefill kernel, and there you have it. The gibberish all of a sudden kind of vanished. So we were like, &quot;Okay, it's gotta be the</span></div><div class="tline" data-t="497"><span class="ts">8:17</span><span class="tx">decode kernels.&quot; But you know how it is in software. You get excited too quickly, and then you figure out it's not what happened. So what we did was, uh, we tried to start playing with, uh, with vLLM's engine, and we kind of needed to go and, you know, lift the hood up and see what we can do to maybe get a bit better understanding and, uh, maybe, you know, get our hands dirty because vLLM didn't really give us more, um, tools to really, um, debug our kernel and our, and our forward pass. So once, so once,</span></div><div class="tline" data-t="527"><span class="ts">8:47</span><span class="tx">uh, once a tensor, once the request gets all the way to your forward pass and before it goes into your prefill and decode kernels, they don't really have any identity. You can't really tell what prompt, uh, is currently being processed. It, uh, it's all just tensors and, and numbers and matrices. So what we did was is we added to, uh, the request ID to some class called Forward Context that, uh, that we propagated all the way down to, uh, to Mamba's, uh, forward pass just before the, the prefill and the decode kernels were called.</span></div><div class="tline" data-t="556"><span class="ts">9:16</span><span class="tx">And there we just managed to, uh, you know, have a simple c- uh, if condition with a request ID, the one that gave us gibberish, and put a breakpoint there. And then we were able to, to, to infer and to really, um, inspect all the metadata that comes along with it. And the second we did that, we saw that the request was, um, for the first time when it went through the, uh, through the forward pass, it's actually doing decode before prefill. The scheduler, um, decided that it's, um, that the, that</span></div><div class="tline" data-t="586"><span class="ts">9:46</span><span class="tx">this request should be doing, uh, decode before prefill. And as Yuval said earlier, in our, in the life cycle of a prompt, a prompt should first be, uh, going through prefill and then decode. And what happens was is that when, when in Mamba, um, you run a request fir- uh, uh, with a, uh, with decode first, after a long... a lot of other requests were already computed, the state was already kind of, um, overused, and we were</span></div><div class="tline" data-t="616"><span class="ts">10:16</span><span class="tx">using, uh, the data and the computations of stale requests, requests that came before it. So now we were actually running decode on, on previous requests, and that kind of generated gibberish for us. So the kernels weren't doing the wrong thing. They were called at the wrong time for the wrong requests. And now... And why did it matter only for Mamba? The reason is, was is that in, uh, in, in attention, uh, when you write the tokens KV, you write it, you, you write the tokens KVs before you actually, you</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">read it. So even if you have stale data, it's being overwritten. But for Mamba, as, uh, as I said, it, when, uh, when, uh, when you first go through the decode kernels, you first read the state, and then you compute over it. So what happens was is you just use over, uh, you use stale data, um, um, when you do the, wh-when you do a decode. And the fix was relatively simple. We just needed to make sure that what we do is that when a request first... wh-when the req- when the scheduler first classifies a request, it's gotta, it's gotta make</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">sure that, um, that, um, that when, that it sets, that, that if, that if, that if you see the request that's, whose tokens were never been computed, um, we, and, and they're, and it, and they're zero, to mark them as, to mark them as, uh, as prefill, um, as, as prefill so the, so when they get to the forward pass, they'll actually just be, um, uh, used for prefill and not decode and not, um, and not chunked. You can see that it was merged after some time. Um, and that really leads us to... And then we thought everything was fixed, right? We thought everything was fixed,</span></div><div class="tline" data-t="706"><span class="ts">11:46</span><span class="tx">and there you have it. No more issues. But that, but that was almost the case because after a little bit of time, it gets us to, uh, case number two, which, um, surfaced another issue that we've faced in our, in our, uh, RL, in our inference. Um, so we ran RL, and, and when, while we were running, um, our, our trainings, our post-trainings, um, and we looked at our evaluations and all of our benchmarks, we thought that we had some logprob spikes, uh, between the rollout and the FSDP step. Uh, so b- then... And that</span></div><div class="tline" data-t="736"><span class="ts">12:16</span><span class="tx">was before any weight up- update. So same weights, uh, same inputs, and the two logprob should be, uh, identical. Now they weren't Um, we saw that every 12 step cons- uh, constantly, um, there was a logprob spike, and that was kind of weird. Now, what would you guys do, right? What can-- what, what's the ne- what's the first thing to do here? So we wanted to find some lever that changes how things fail and not just how much they fail. We wanna see how much, um...</span></div><div class="tline" data-t="766"><span class="ts">12:46</span><span class="tx">We wanna tweak some knobs that, that don't just tell us, &quot;Hey, this error, um, this error is very, very ba- uh, uh, this error happens, uh, this many times or, or, or... and, and so, and so on.&quot; We wanted to tweak some knobs that kind of tell us that once we tweak that knob, um, we understand how, how it's wired to, uh, anything in the, in, in vLLM's engine, and so we'll be able to specifically go and, uh, and debug that specific part. Um, that's some, uh, some, some cool meme that</span></div><div class="tline" data-t="796"><span class="ts">13:16</span><span class="tx">Yuval wanted to put in.</span></div><div class="tline" data-t="799"><span class="ts">13:19</span><span class="tx">Um, uh, so what we did was is we decided to, um, to increase the, the, the amount of rollouts per prompt. Uh, since we saw, uh, in our, in our default RL engine we have, um, eight rollouts per prompt, and we saw that it happened consi- uh, deterministically every 12 steps, we decided, &quot;Okay, let's try to tweak it up a bit and, uh, and increase the amount of rollouts per prompt.&quot; So we started doubling it from s- eight to 16 to 64, 32, and 128. And you can see here that it's almost, um, almost,</span></div><div class="tline" data-t="829"><span class="ts">13:49</span><span class="tx">um... it's-- there's, there's a pattern here. That, that the m- the more we increased it, the closer, um, it happened. Because what we wanted to achieve here, we wanted to try to reproduce the issue as fast as possible so we'd have a faster debug, uh, uh, debug loop, uh, feedback loop. So when we, when we re- when we ran it on 128 rollouts, uh, per prompt, it happened immediately on step one, and we didn't have to wait for step 12 and step 24 and so on. Now, you might think, &quot;Okay, so you guys played with the, uh, with the GPU memory utilization before. You, you tweaked it. You</span></div><div class="tline" data-t="859"><span class="ts">14:19</span><span class="tx">decreased it. It looks like, you know, when you test on pressure, um, it really surfaced things up.&quot; So, so we, we, we thought that as well. And when we reduced the GPU memory from zero, uh, from 0.9, uh, to 0.2, it actually caused the issue to go away. So we actually pulled the wrong lever here. Um, and the reason is, is because we noticed that Mamba kernels, um, used, um, int32, unsigned int, uh, 32 index pattern, uh, pointer. So once the offset went past</span></div><div class="tline" data-t="889"><span class="ts">14:49</span><span class="tx">some, you know, 4 billion, um, uh, in, in numbers, it wrapped around instead of throwing an error. Um, so, uh, when we shrank the GPU memory, vLLM allocated a small state buffer and, um, and the cache index never got large to hit that slot. So we were, so we were just not reaching, um, far enough for the buffer to trigger an overflow. So again, the fix was rather simple. All we needed to do was just change one word, one v- one data type variable, um, from</span></div><div class="tline" data-t="919"><span class="ts">15:19</span><span class="tx">uint32 to size_t, which basically means for most modern ar- architectures, hard- uh, hardware architectures, size_t would mean to, uh, it would be now changed to unsigned 64, uh, bit, and that's a very large number. We didn't-- We never reached that number, and that overflow now never happened. So  what we can see here is that we had, um, two scenes and, uh, one criminal. Um, both kind of, you know, they had similar symptoms. Both had silent</span></div><div class="tline" data-t="949"><span class="ts">15:49</span><span class="tx">gibberish and, and silent logprob spikes, which also kind of pro- sometimes generated gibberish. They were both around the Mamba state cache. Um, they were both surfaced by memory pressure, whether it was for worse or for the best, and, uh, both found via logprob's, um, forensics. Um, stateful inference, inference systems don't fail loudly. They lie to you confidently. I mean, obviously, sometimes you get crashed, you get out of bounds errors, you get other, you know, exceptions and so on,</span></div><div class="tline" data-t="980"><span class="ts">16:20</span><span class="tx">but sometimes there are some errors that don't surface up, and you don't get a trace log. You don't get anything. You have to go and dig and understand why things happen. Um, so if there are some takeaways to take from this, um, presentation is build a logprob comparison script. If you need to compare your quality, you need to compare it to understand whether you modelize the issues or not, um, logprob comparison script with a baseline of some other inference framework that you have or built is always great. Um, reproducing under</span></div><div class="tline" data-t="1010"><span class="ts">16:50</span><span class="tx">pressure and constrained memory, uh, crank the scale up, play with other knobs that the inference framework gives you, and really try to understand where the issue comes from. Uh, look for what moves, um, the failure shape, the timing, the space, and the location. And when things don't really have identity, uh, thread identity through. And what also I want you to take from this, and don't be afraid to even, you know, for complex, uh, systems like vLLM or any other, um, complex framework, don't be afraid</span></div><div class="tline" data-t="1039"><span class="ts">17:19</span><span class="tx">to go dig in the code, get your hands dirty. Um, sometimes, you know, model languages, um, LLMs are, um, they might tell you how things work, but, you know, without you seeing it in your own eyes and getting your hands dirty, you won't get full understanding of what's going on. Um, thank you. You guys can add us on LinkedIn. Scan the, uh, QR code to read the actual blog that we've, uh, published with this finding. Um, yeah, that's it.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

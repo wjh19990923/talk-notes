@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>用 GraphRAG 方法为检索打造优化的 LLM 上下文窗口 —— Jonathan Larson，Microsoft | AI 工程师中文版</title>
+<meta name="description" content="一个小小的终端游戏暴露了“检索代码”与“理解一个仓库”之间的差距，随后《毁灭战士》和 LazyGraphRAG 展示了结构化上下文能带来什么。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>用 GraphRAG 方法为检索打造优化的 LLM 上下文窗口 —— Jonathan Larson，Microsoft</h1>
+    <div class="orig-title">GraphRAG methods to create optimized LLM context windows for Retrieval — Jonathan Larson, Microsoft</div>
+    <div class="meta"><span class="speaker">Jonathan Larson</span> · AI Engineer World's Fair 2025 · 15:09</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=developer-workflows-and-testing">开发工作流与测试</a><a class="tag" href="../../index.html#topic=context-engineering">上下文工程</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/c5qJHr3DnT4-graphrag-methods-create-optimized-llm-context" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="c5qJHr3DnT4"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=c5qJHr3DnT4" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">这个游戏实际上做了什么？</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="16"><span class="ts">0:16</span><span>这个游戏实际上做了什么？</span></li><li data-t="256"><span class="ts">4:16</span><span>生成 Rust 不等于翻译一个游戏</span></li><li data-t="369"><span class="ts">6:09</span><span>跨文件理解 Doom</span></li><li data-t="448"><span class="ts">7:28</span><span>添加一个跨越文件边界的功能</span></li><li data-t="574"><span class="ts">9:34</span><span>同时评估检索和综合</span></li><li data-t="715"><span class="ts">11:55</span><span>更大的上下文窗口改变了什么——以及没有改变什么</span></li><li data-t="828"><span class="ts">13:48</span><span>从仓库知识到科学推理</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 18 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="From Local to Global: A GraphRAG Approach to Query-Focused…" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From Local to Global: A GraphRAG Approach to Query-Focused…</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GraphRAG addresses questions about an entire corpus by building an entity graph, summarizing related communities, and combining partial responses into a final answer.
+
+[0:23](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=23s) [First page of the GraphRAG paper, showing its title, authors, and abstract.](https://assets.ai.engineer/sites/aiecode2025/sha256/48cb78de9db82c8aa535e5823dc927244de5030bdc39492860dec8f3a07cbdfa.webp)
+
+From Local to Global: A GraphRAG Approach to Query-Focused Summarization
+
+Darren Edge¹†   Ha Trinh¹†   Newman Cheng²   Joshua Bradley²   Alex Chao³
+Apurva Mody³   Steven Truitt²   Dasha Metropolitansky¹   Robert Osazuwa Ness¹
+Jonathan Larson¹
+
+¹Microsoft Research
+²Microsoft Strategic Missions and Technologies
+³Microsoft Office of the CTO
+
+[redacted]
+†These authors contributed equally to this work
+
+Abstract
+
+The use of retrieval-augmented generation (RAG) to retrieve relevant information from an external knowledge source enables large language models (LLMs) to answer questions over private and/or previously unseen document collections. However, RAG fails on global questions directed at an entire text corpus, such as “What are the main themes in the dataset?”, since this is inherently a query-focused summarization (QFS) task, rather than an explicit retrieval task. Prior QFS methods, meanwhile, do not scale to the quantities of text indexed by typical RAG systems. To combine the strengths of these contrasting methods, we propose GraphRAG, a graph-based approach to question answering over private text corpora that scales with both the generality of user questions and the quantity of source text. Our approach uses an LLM to build a graph index in two stages: first, to derive an entity knowledge graph from the source documents, then to pre-generate community summaries for all groups of closely related entities. Given a question, each community summary is used to generate a partial response, before all partial responses are again summarized in a final response to the user. For a class of global sensemaking questions over datasets in the 1 million token range, we show that GraphRAG leads to substantial improvements over a conventional RAG baseline for both the comprehensiveness and diversity of generated answers.
+
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Microsoft GraphRAG repository" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Microsoft GraphRAG repository</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Microsoft’s GraphRAG repository describes a modular graph-based RAG system. The screenshot shows 25.5k stars; Larson says the attention after release surprised the team.
+
+[0:29](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=29s) [GitHub page for Microsoft's GraphRAG repository, showing its files and project description.](https://assets.ai.engineer/sites/aiecode2025/sha256/5da9bfde193b3c3f61364a391ab5c509bcc899700b6446427cb61fc1e9a4f227.webp)
+
+microsoft / graphrag
+Public
+
+About
+A modular graph-based Retrieval-Augmented Generation (RAG) system
+microsoft.github.io/graphrag/
+
+gpt  rag  gpt-4  gpt4  llm  llms  graphrag
+
+AlonsoGuevara  Release v2.3.0 (#1951)  4a42ac8 · 5 days ago  386 Commits
+.github  Fix API key reference for gh-pages (#1821)  2 months ago
+.semversioner  Release v2.3.0 (#1951)  5 days ago
+.vscode  Feat/update cli (#1376)  6 months ago
+docs  Various minor updates (#1932)  2 weeks ago
+examples_notebooks  Cleanup query api - remove code duplication (#1690)  3 months ago
+graphrag  Fix/drift search reduce (#1948)  5 days ago
+scripts  Index API (#953)  9 months ago
+tests  Task/raw model answer (#1947)  last week
+unified-search-app  Update .vsts-ci.yml (#1874)  last month
+.gitattributes  move mkdocs-typer to devdeps (#1331)  7 months ago
+.gitignore  Fix/notebooks (#1614)  4 months ago
+.vsts-ci.yml  Initial Release  11 months ago
+CHANGELOG.md  Release v2.3.0 (#1951)  5 days ago
+CODEOWNERS  Stabilize smoke tests for query community context building (...  9 months ago
+CODE_OF_CONDUCT.md  Initial Release  11 months ago
+CONTRIBUTING.md  Initial Release  11 months ago
+
+Readme
+MIT license
+Code of conduct
+Security policy
+Activity
+Custom properties
+25.5k stars
+175 watching
+2.6k forks
+Report repository
+
+Releases 25
+v2.3.0  Latest
+5 days ago
++ 24 releases
+
+Packages
+No packages published
+
+Interface text:
+Product  Solutions  Resources  Open Source  Enterprise  Pricing
+Search or jump to...  Sign in  Sign up
+Notifications  Fork 2.6k  Star 25.5k
+Code  Issues 147  Pull requests 53  Discussions  Actions  Projects  Security  Insights
+main  35 Branches  25 Tags  Go to file  Code
+AIE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="New Horizons" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>New Horizons</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Larson frames structured LLM memory as a key enabler for AI applications, then previews GraphRAG for code, the open-source BenchmarkQED release, and LazyGraphRAG results.
+
+[0:51](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=51s) [Agenda introducing GraphRAG for code, BenchmarkQED, and LazyGraphRAG results.](https://assets.ai.engineer/sites/aiecode2025/sha256/c6ca326a8aed49d43460569d88ad03e3ee546b8960f7abba6864436bf17f377c.webp)
+
+New Horizons!
+
+LLM memory with structure is a key enabler
+
+• New Vertical: GraphRAG for Code
+• New OSS Release Today: BenchmarkQED
+• LazyGraphRAG Results
+  • New Benchmarks
+  • Azure Local
+  • LazyGraphRAG for Science
+
+AIE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="GraphRAG for Code: Repository Understanding" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>GraphRAG for Code: Repository Understanding</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Players gain points by jumping obstacles and lose them on collisions. The roughly 200-line, 7-file game is small enough for human ground truth but difficult for an LLM to understand from code alone.
+
+[2:32](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=152s) [Slide describing a terminal game used to assess repository understanding, alongside a gameplay frame with obstacles.](https://assets.ai.engineer/sites/aiecode2025/sha256/de81f87853cbbfb21fc5c7e3d76eec385d81fe2bffb960fb2b28db2afac1d521.webp)
+
+GraphRAG for Code - Repo Understanding
+An Example
+
+Terminal based Python game where the player earns points by avoiding obstacles and loses points if they collide.
+
+• LLM has never seen this code before
+• Small enough for human to know holistically for ground truth
+• Complex enough that the LLM couldn’t reason well over it
+• ~200 lines of code across 7 files
+
+Game screen: Score: -5
+
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="GraphRAG for Code – Translation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>GraphRAG for Code – Translation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The team translated a Python game to Rust despite differences in libraries, abstract classes and semantics. The slide reports that the generated Rust code worked out of the box, while putting all the code in the context window failed.
+
+[4:13](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=253s) [Slide discusses translating the Python game to Rust, language differences, and a claimed working generated codebase, alongside a Rust code screenshot.](https://assets.ai.engineer/sites/aiecode2025/sha256/5c461befa727fb3059679784463b38959b6488dbaa25c191c26be8d4df115b1b.webp)
+
+GraphRAG for Code - Translation
+
+• Simply including all code directly in the context window fails
+• Python -&gt; Rust
+  • Involved language specific libraries (E.g. curses)
+  • Game codebase uses abstract classes
+  • Rust has highly different semantics than Python
+• Building Rust codebase generated complete working code out of the box
+
+// Import necessary modules
+use std::io::{stdout, Stdout};
+use std::rc::Rc;
+use std::time::Duration;
+use std::thread::sleep;
+use crossterm::{ExecutableCommand, cursor, terminal, event::{self, Event, KeyCode}};
+use rand::Rng;
+use crate::background::Background;
+use crate::config::{GameConfig, ScreenConfig};
+use crate::obstacle::Obstacle;
+use crate::player::Player;
+use crate::ui_element::{UIElement, check_collision};
+
+// Define the Game struct
+pub struct Game {
+    config: Rc&lt;GameConfig&gt;,
+    stdout: Stdout,
+    background: Background,
+    player: Player,
+    obstacles: Vec&lt;Obstacle&gt;,
+    score: i32,
+}
+
+impl Game {
+    // Constructor for Game
+    pub fn new(stdout: Stdout, config: Rc&lt;GameConfig&gt;) -&gt; Self {
+        let background = Background::new(config.screen.clone(), config.background.clone());
+        let player = Player::new(config.screen.clone(), config.player.clone());
+
+Self {
+            config,
+            stdout,
+            background,
+            player,
+            obstacles: Vec::new(),
+            score: 0,
+        }
+    }
+
+// Method to run the game loop
+
+Interface text:
+AIE
+EXPLORER
+src
+background.rs
+config.rs
+game.rs
+main.rs
+obstacle.rs
+player.rs
+ui_element.rs
+.gitignore
+Cargo.lock
+Cargo.toml
+Dockerfile</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Python game source code" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Python game source code</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo opens the Python game's UIElement class, which renders characters within screen bounds, alongside a separate collision-checking function. These files are the starting point for a Python-to-Rust translation.
+
+[4:33](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=273s) [A code editor shows the Python UIElement class and collision-checking function.](https://assets.ai.engineer/sites/aiecode2025/sha256/618e72b12ccc6b0199b6b24c107d6b8979a95e4ca9d485b8a987dbafe873c72c.webp)
+
+# Copyright (c) 2024 Microsoft Corporation.
+import curses
+from abc import ABC, abstractmethod
+
+from .config import ScreenConfig
+
+class UIElement(ABC):
+    screen_config: ScreenConfig
+
+render_character: str
+
+positions_to_render: list[tuple[int, int]]
+
+@abstractmethod
+    def update(self) -&gt; None: ...
+
+def render(self, screen: curses.window) -&gt; None:
+        for x, y in self.positions_to_render:
+            if (
+                x &gt;= 0
+                and x &lt; self.screen_config.width
+                and y &gt;= 0
+                and y &lt; self.screen_config.height
+            ):
+                screen.addstr(y, x, self.render_character)
+
+def check_collision(element_0: UIElement, element_1: UIElement) -&gt; bool:
+    for x0, y0 in element_0.positions_to_render:
+        if any(x1 == x0 and y1 == y0 for x1, y1 in element_1.positions_to_render):
+            return True
+    return False
+
+Interface text:
+EXPLORER
+TERMINAL-JUMPER
+.venv
+terminal_jumper
+  __pycache__
+  __init__.py
+  __main__.py
+  background.py
+  config.py
+  game.py
+  obstacle.py
+  player.py
+  ui_element.py
+__init__.py
+.coverage
+.gitignore
+Dockerfile
+poetry.lock
+pyproject.toml
+README.md
+Tabs: ui_element.py, player.py, obstacle.py, game.py
+terminal_jumper &gt; ui_element.py &gt; UIElement
+01:12.12
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Terminal game demonstration" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Terminal game demonstration</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Python side-scroller runs with a score of zero. Larson plans to put its source files into an LLM for translation into Rust.
+
+[4:45](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=285s) [A terminal game displays a player, obstacles, a ground line, and a score of zero.](https://assets.ai.engineer/sites/aiecode2025/sha256/fcbe5a661b07e1131a174a8d7b1685cab6f426412f889f6f4634261312e9fad7.webp)
+
+Score: 0
+
+Interface text:
+docker
+01:12.12
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Python-to-Rust translation prompt" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Python-to-Rust translation prompt</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo first puts the game’s source code directly into an LLM without GraphRAG, asking it to translate the curses game to Rust with crossterm.
+
+[4:58](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=298s) [A text editor shows instructions to translate a Python terminal game into Rust using crossterm.](https://assets.ai.engineer/sites/aiecode2025/sha256/d9aed72b1c405aa2d50f9444836ae8265dfcdafbc9ce54f133a9c3e952e3a16a.webp)
+
+You are a coding expert, and your job is to translate code from a Python project into the Rust version of that project.
+
+In this code translation task, you are presented with the original source code, and you need to translate it respecting the following rules:
+
+1. Output only the raw code; we should be able to directly copy and paste the output to a Python file.
+3. Add comments in the output code to explain it.
+3. Try to follow the implementation in the source code, but make adjustments as needed as the change in language, dependencies, and specifications require.
+
+Also, follow this specification to perform the translation:
+
+1. Translate a Python terminal game using curses into Rust utilizing the crossterm library.
+2. Ensure the functionality remains intact while conforming to Rust idioms.
+3. Replace the Python curses library with Rust's crossterm library, adapting the code accordingly.
+4. Employ the latest version of the crossterm API.
+
+All these rules and specifications should be used to rewrite and adapt the code into a new Rust implementation, according to the given specification.
+
+The code to be translated is:
+
+import curses
+import random
+import time
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+
+@dataclass
+class ScreenConfig:
+    width: int = 80
+    height: int = 30
+    margin: int = 2
+
+Interface text:
+prompt.txt</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Translation prompt: game code" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Translation prompt: game code</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo puts the Python game’s source into an LLM and asks for a Rust translation without GraphRAG. The visible prompt ends with rendering and entry-point code.
+
+[5:01](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=301s) [A text editor shows the game’s rendering code, entry point, and final translation request.](https://assets.ai.engineer/sites/aiecode2025/sha256/f34b2ae5e6287ad0faaf2554ad89f06de4bd8914bcbc9cc63680d08dc5e01c81.webp)
+
+class Game:
+    def _render(self):
+        self._player.render(self._screen)
+
+for obstacle in self._obstacles:
+            obstacle.render(self._screen)
+
+self._screen.addstr(0, 0, f&quot;Score: {self._score}&quot;)
+
+self._screen.refresh()
+
+def main():
+    config = GameConfig()
+
+def run(screen: curses.window) -&gt; curses.window:
+        curses.curs_set(0)
+        screen.nodelay(True)
+        screen.resize(config.screen.height, config.screen.width)
+
+game = Game(screen, config=GameConfig())
+        game.run()
+
+curses.wrapper(run)
+
+if __name__ == &quot;__main__&quot;:
+    main()
+```
+
+Now output the translated code to rust.
+
+Interface text:
+Users &gt; [illegible] &gt; Desktop &gt; prompt.txt</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Rust compilation problems" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Rust compilation problems</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The LLM-generated Rust translation fails to compile, with errors involving moved values, missing fields, and unavailable clone methods.
+
+[5:24](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=324s) [A code editor’s Problems panel lists Rust errors involving moved values, missing fields, and missing clone methods.](https://assets.ai.engineer/sites/aiecode2025/sha256/82a49740b10b9b7574bd1b3e21b2b4eafe3d0e62e6c35c0312a114cc66f3f16c.webp)
+
+PROBLEMS 12
+Code | Message | File | Source
+rustc (Click for full co... | use of moved value: `player_config` value used here after move | src/main.rs [Ln 197, Col 31] | rustc
+rustc (Click for full co... | use of moved value: `obstacle_config` value used here after move | src/main.rs [Ln 273, Col 31] | rustc
+rustc (Click for full co... | no field `positions_to_render` on type `&amp;impl UIElement` unknown field | src/main.rs [Ln 310, Col 33] | rustc
+rustc (Click for full co... | no field `positions_to_render` on type `&amp;impl UIElement` unknown field | src/main.rs [Ln 311, Col 22] | rustc
+rustc (Click for full co... | no method named `clone` found for struct `ScreenConfig` in the current scope items from tra... | src/main.rs [Ln 332, Col 55] | rustc
+rustc (Click for full co... | no method named `clone` found for struct `BackgroundConfig` in the current scope items fro... | src/main.rs [Ln 332, Col 82] | rustc
+rustc (Click for full co... | no method named `clone` found for struct `ScreenConfig` in the current scope items from tra... | src/main.rs [Ln 333, Col 47] | rustc
+rustc (Click for full co... | no method named `clone` found for struct `PlayerConfig` in the current scope items from trai... | src/main.rs [Ln 333, Col 70] | rustc
+rustc (Click for full co... | no method named `clone` found for mutable reference `&amp;mut Obstacle` in the current scope i... | src/main.rs [Ln 370, Col 45] | rustc
+rustc (Click for full co... | no method named `clone` found for struct `ScreenConfig` in the current scope items from tra... | src/main.rs [Ln 377, Col 36] | rustc
+rustc (Click for full co... | no method named `clone` found for struct `ObstaclesConfig` in the current scope items from... | src/main.rs [Ln 378, Col 39] | rustc
+rustc (Click for full co... | unused import: `ExecutableCommand` `#[warn(unused_imports)]` on by default | src/main.rs [Ln 6, Col 5] | rustc
+
+Interface text:
+OUTPUT  DEBUG CONSOLE  TERMINAL  PORTS  AZURE  SPELL CHECKER
+Filter (e.g. text, **/*.ts, !**/node_modules/**)
+01:12.12
+AIE  Microsoft  smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Running the translation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Running the translation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Larson runs GraphRAG for code’s translate command on the Python terminal game, using a structured index to generate Rust files.
+
+[5:29](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=329s) [Terminal command starts translation of the game from Python to Rust.](https://assets.ai.engineer/sites/aiecode2025/sha256/7187383f4fbec122865bd27d349ca84b81ca64d52c8d6b2480228e9374fc7316.webp)
+
+uv run poe translate --code ./tests/integration/terminal_jumper --source python --target rust --output ../terminal_jumper_rust/src --index output/terminal_jumper_index_structured
+
+Interface text:
+code4llm git:(feature/unit-test-generation)
+AIE
+Microsoft
+smol ai
+01:12.12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Generated Rust game code" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Generated Rust game code</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GraphRAG for code generates Rust files for the Python game. The editor shows the game’s rendering and screen setup alongside the generated project files.
+
+[5:46](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=346s) [Editor displays Rust rendering and screen setup code alongside the generated project files.](https://assets.ai.engineer/sites/aiecode2025/sha256/f443075dadfd19f65dcddfeb4a4337312f996bc7f246158d265d3e17d926ea5a.webp)
+
+impl Game {
+    }
+
+// Method to render game elements
+    fn render(&amp;mut self) {
+        self.stdout.execute(terminal::Clear(terminal::ClearType::All)).unwrap();
+
+self.background.render(&amp;mut self.stdout);
+        self.player.render(&amp;mut self.stdout);
+
+for obstacle in &amp;self.obstacles {
+            obstacle.render(&amp;mut self.stdout);
+        }
+
+self.stdout.execute(cursor::MoveTo(0, 0)).unwrap();
+        write!(self.stdout, &quot;Score: {}&quot;, self.score).unwrap();
+        self.stdout.flush().unwrap();
+    }
+}
+
+// Public function to create the screen
+pub fn create_screen(screen_config: ScreenConfig) -&gt; Stdout {
+    let mut stdout = std::io::stdout();
+    stdout.execute(terminal::EnterAlternateScreen).unwrap();
+    stdout.execute(cursor::Hide).unwrap();
+    terminal::disable_raw_mode().unwrap();
+    stdout
+}
+
+Interface text:
+EXPLORER
+TERMINAL_JUMPER_RUST
+src
+background.rs
+config.rs
+game.rs
+main.rs
+obstacle.rs
+player.rs
+ui_element.rs
+target
+.gitignore
+Cargo.lock
+Cargo.toml
+Dockerfile
+src &gt; game.rs
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Running the translated game" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Running the translated game</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Larson runs the game translated from Python into Rust. The terminal shows a player, obstacles, and a score of zero.
+
+[5:52](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=352s) [A terminal game displays a player, obstacles, and a score of zero.](https://assets.ai.engineer/sites/aiecode2025/sha256/2492cdf4672be4cbd630fdb9ef6171c9a7e7cb507d3e1aac37908b1498c52025.webp)
+
+Score: 0
+
+Interface text:
+docker
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Automated documentation: contents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Automated documentation: contents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo shows repository-level Doom documentation generated from GraphRAG global queries, with chapters covering network clients, GUI operations, server management, and sound.
+
+[6:51](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=411s) [Doom documentation website displaying a table of contents for repository-level topics.](https://assets.ai.engineer/sites/aiecode2025/sha256/d6e097e87ec2ff5b7bf4d416a6d88601ae1b0113971c6ac838aa800556e31423.webp)
+
+GraphRAG for Code - Automated Documentation
+
+Documentation
+
+Table of Contents
+• Introduction
+• The Doom Project
+• User Experience
+• Chapter 1: Introduction to the System
+• Chapter 2: Community-Driven Enhancements
+• Section 2.1: Processing Community Input
+• Section 2.2: Applying Modifications
+• Chapter 3: Network Client Functionality
+• Section 3.1: Initialization and Connection
+• Section 3.2: Game State Management
+• Chapter 4: GUI Operations Pre-Launch
+• Section 4.1: Initialization
+• Section 4.2: Updating-GUI Elements
+• Chapter 5: Dedicated Server Management
+• Section 5.1: Command-Line Parameter Validation
+• Section 5.2: Server-Operations Loop
+• Chapter 6: Sound System Interface
+• Section 6.1: Sound Initialization and Shutdown
+• Section 6.2: Sound Effects and Music Control
+
+Interface text:
+Doom Documentation
+Search
+Home
+API
+
+Table of contents
+Table of Contents
+Introduction
+The Doom Project
+User Experience
+Chapter 1: Introduction to the System
+Chapter 2: Community-Driven Enhancements
+Section 2.1: Processing Community Input
+Section 2.2: Applying Modifications
+Chapter 3: Network Client Functionality
+Section 3.1: Initialization and Connection
+Section 3.2: Game State Management
+Chapter 4: GUI Operations Pre-Launch
+Section 4.1: Initialization
+Section 4.2: Updating GUI Elements
+Chapter 5: Dedicated Server Management
+Section 5.1: Command-Line Parameter Validation
+Section 5.2: Server Operations Loop
+Chapter 6: Sound System Interface
+
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Automated documentation: system overview" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Automated documentation: system overview</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo shows repository-level documentation from global GraphRAG queries, describing system architecture and community input across modules rather than a single file.
+
+[7:08](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=428s) [Doom documentation page describing system architecture and community-driven enhancements.](https://assets.ai.engineer/sites/aiecode2025/sha256/30d51d4d8952d68ce4a42d1fcad449c5992b81eab29f8b50d8228d01802d6c68.webp)
+
+GraphRAG for Code - Automated Documentation
+
+Chapter 1: Introduction to the System
+
+The system’s architecture is built with a modular design, enabling scalability and flexibility. Key components include:
+- A graphical rendering engine responsible for real-time graphics, spatial data handling, and clipping geometries.
+- Network client and server modules for managing client-server interactions and synchronization in multiplayer environments.
+- A sound system that processes and plays sound effects and music in coordination with game events.
+- User interface management components that facilitate navigation and interactions.
+
+Each module focuses on tasks such as rendering graphics, managing network connections, processing sound, and orchestrating user interactions. This approach allows independent maintenance and easier upgrades for each subsystem.
+
+Chapter 2: Community-Driven Enhancements
+
+Community-driven enhancements leverage user-generated content—custom levels, mods, or gameplay mechanics—to expand a system’s capabilities. This collaborative model promotes deeper engagement and a sense of ownership among community members.
+
+Section 2.1: Processing Community Input
+
+When users contribute content, the system must parse, validate, and integrate the input safely. Typical approaches include:
+- Using structured formats (JSON, XML) to define configurations or assets.
+- Parsing these data formats with specialized libraries (e.g., “json-c” for C, “Jackson” for Java, “ElementTree” for Python).
+- Validating the data to confirm correctness of format, data types, and acceptable value ranges.
+- Handling parsing errors gracefully, logging any issues, and preventing malformed or malicious data from affecting the system’s stability.
+
+Section 2.2: Applying Modifications
+
+Interface text:
+Home
+Search
+Doom Documentation
+Home
+API
+Table of contents
+Connection
+Section 3.2: Game State Management
+Chapter 4: GUI Operations Pre-Launch
+Section 4.1: Initialization
+Section 4.2: Updating GUI Elements
+Chapter 5: Dedicated Server Management
+Section 5.1: Command-Line Parameter Validation
+Section 5.2: Server Operations Loop
+Chapter 6: Sound System Interface
+Section 6.1: Sound Initialization and Shutdown
+Section 6.2: Sound Effects and Music Control
+Chapter 7: Video Operations and Management
+Section 7.1: Basic Video Setup
+Section 7.2: Drawing and Buffer Manipulation
+Chapter 8: Networking and Query Operations
+Section 8.1: Query Initialization
+Section 8.2: Secure Network Operations
+Chapter 9: Command-Line Argument Management
+Section 9.1: Setting Executable [illegible]
+AIE
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Automated documentation: sound system" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Automated documentation: sound system</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo shows repository-level documentation for Doom’s sound system. Larson says the global query examines modules across 20–30 files to explain how the system works.
+
+[7:12](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=432s) [Doom documentation describing sound initialization, effects, and music control.](https://assets.ai.engineer/sites/aiecode2025/sha256/29196c27a72c93e8311c94db733664bc658d2675cbc3d004e660f76f972bf2ca.webp)
+
+GraphRAG for Code - Automated Documentation
+
+Chapter 6: Sound System Interface
+
+The sound system interface governs audio playback, enhancing the immersive quality of gameplay with sound effects and music.
+
+Section 6.1: Sound Initialization and Shutdown
+
+• Using functions like S_Init to configure audio hardware, load drivers, and set volume parameters.
+• Handling diverse hardware and operating system environments to guarantee broad compatibility.
+• Ensuring proper resource deallocation with functions like I_ShutdownSound to prevent memory leaks or lingering processes.
+
+Section 6.2: Sound Effects and Music Control
+
+• Invoking calls such as I_StartSound for effects and S_StartMusic for background tracks.
+• Adjusting audio attributes (volume, pitch, stereo separation) to match game dynamics.
+• Coordinating audio updates with gameplay events (e.g., transitions between levels or cutscenes).
+• Supporting different audio devices and modules for flexibility and high-quality sound output.
+
+Chapter 7: Video Operations and Management
+
+Video management encompasses configuring, rendering, and updating all on-screen visual elements in a gaming context.
+
+Interface text:
+Home
+Search
+Doom Documentation
+Home
+API
+Table of contents
+Connection
+Section 3.2: Game State Management
+Chapter 4: GUI Operations Pre-Launch
+Section 4.1: Initialization
+Section 4.2: Updating GUI Elements
+Chapter 5: Dedicated Server Management
+Section 5.1: Command-Line Parameter Validation
+Section 5.2: Server Operations Loop
+Chapter 6: Sound System Interface
+Section 6.1: Sound Initialization and Shutdown
+Section 6.2: Sound Effects and Music Control
+Chapter 7: Video Operations and Management
+Section 7.1: Basic Video Setup
+Section 7.2: Drawing and Buffer Manipulation
+Chapter 8: Networking and Query Operations
+Section 8.1: Query Initialization
+Section 8.2: Secure Network Operations
+Chapter 9: Command-Line Argument Management
+Section 9.1: Setting Executable [illegible]
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Automated documentation: S_Init" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Automated documentation: S_Init</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo drills down from the sound system overview to S_Init, documenting the function’s role in initializing sound settings and its components.
+
+[7:21](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=441s) [Doom documentation page outlining the S_Init function's purpose and components.](https://assets.ai.engineer/sites/aiecode2025/sha256/bdcebfc3afc1412daa885f0b97fb454bf29c3e4f8d215abe2f498275b5e816fd.webp)
+
+GraphRAG for Code - Automated Documentation
+
+S Init
+
+Function: S_Init
+• Module: src/doom/s_sound.c
+
+Overview
+• Objective: Initialize sound settings for the game, including sound effects volume, music volume, and allocating memory for sound channels.
+• Functionality: The function sets the driver version based on game variants, pre-caches sound effects, configures volume settings, allocates memory for channel handling, and registers a shutdown routine to ensure proper resource termination.
+
+Key Components and Execution
+• Components:
+• Driver version determination
+• Sound effects pre-caching
+• Volume settings configuration
+• Dynamic memory allocation for sound channels
+• Sound channels initialization
+• Music pause flag setting
+• Sound effects caching
+• Pitch shifting behavior configuration
+
+Interface text:
+Doom Documentation
+Home
+API
+Search
+Table of contents
+Function: S_Init
+Overview
+Key Components and Execution
+Parameters
+Example Inputs and Outputs
+Parameter Calling Variations
+Summary
+AIE
+Microsoft
+smol ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Code Feature Development" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Code Feature Development</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Adding a jump to Doom requires changes across multiple files. Larson says coding agents can fix one file while breaking others when they lack an understanding of how the code fits together.
+
+[7:38](https://www.youtube.com/watch?v=c5qJHr3DnT4&amp;t=458s) [Slide proposing a jump feature for Doom and describing the difficulty agents have with multi-file changes.](https://assets.ai.engineer/sites/aiecode2025/sha256/5a2b8b7213f759a16c6770844871925a9afc1f574d0a443cfd035855a5cfafcf.webp)
+
+Code Feature Development
+
+Feature: Add ability for players to jump in Doom
+
+• Existing agents fail on complex tasks
+  • Multi-file modifications cause problems
+  • Lack of understanding of how everything fits together
+
+AIE
+aws</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">这个游戏实际上做了什么？</a></li><li><a href="#sec-2">生成 Rust 不等于翻译一个游戏</a></li><li><a href="#sec-3">跨文件理解 Doom</a></li><li><a href="#sec-4">添加一个跨越文件边界的功能</a></li><li><a href="#sec-5">同时评估检索和综合</a></li><li><a href="#sec-6">更大的上下文窗口改变了什么——以及没有改变什么</a></li><li><a href="#sec-7">从仓库知识到科学推理</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">用 GraphRAG 方法为检索打造优化的 LLM 上下文窗口</h2>
+      <div class="lede"><p>一个小小的终端游戏暴露了“检索代码”与“理解一个仓库”之间的差距，随后《毁灭战士》和 LazyGraphRAG 展示了结构化上下文能带来什么。</p><p>熟悉检索增强生成、LLM 上下文窗口和多文件的软件仓库，有助于理解示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="16">▶ 0:16</button></div>
+      <h3>这个游戏实际上做了什么？</h3>
+      <p>What would an LLM need to explain a game: its source files, or an understanding of how those files work together? Jonathan Larson, who introduces himself as leading Microsoft Research’s GraphRAG team, approaches that question through <strong>structured LLM memory</strong>. The <a href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener">GraphRAG paper</a> and <a href="https://github.com/microsoft/graphrag" target="_blank" rel="noopener">public repository</a> had already inspired derivative work, including Neo4j’s <a href="https://neo4j.com/blog/developer/graphrag-card-game/" target="_blank" rel="noopener">card-game explanation</a>. Here, the progression moves from repository understanding to agents that act on it, then to evaluating retrieval quality with BenchmarkQED and LazyGraphRAG.</p>
+<p>The first example is a terminal game: jump over an obstacle and earn points; collide with one and lose points. Larson describes it as roughly 200 lines across seven files, with code the LLM has never seen. That makes it small enough for a person to understand completely, yet the team found that placing all its code directly into a context window still produced poor understanding. Context capacity alone did not solve the problem.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/2ca4cac39ceefbbac6eca71769d4762c61e1ae6dc0ff87881d5d11cd9960c77e" alt="Repository-understanding slide with a terminal game showing obstacles and bullets describing unseen code, human-verifiable ground truth, and about 200 lines across seven files." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A terminal game illustrates repository-level understanding with GraphRAG for Code.</figcaption></figure>
+<p>The team asks an ordinary RAG system, “Describe what this application is and how it works.” Its answer identifies a game initialized through a main function, a configuration file, and separate classes and functions for the screen and logic. Those details describe code organization, but they leave the reader unable to picture the game.</p>
+<p>With the same repository and question, <strong>GraphRAG for Code</strong> gives a more behavioral description: a curses-based terminal game, a player that jumps vertically, obstacles moving horizontally, a static background, and the Spacebar as the jump control.</p>
+<p>| Approach | What the answer explains |
+|---|---|
+| Ordinary RAG | Entry point, configuration, classes and functions |
+| GraphRAG for Code | Player movement, obstacle movement, background and controls |</p>
+<p>This is a <strong>global query</strong>: answering it requires connecting behavior across the repository. A local query can focus on a narrower piece of code; explaining the application requires assembling those pieces into a coherent account. The demonstration makes the distinction visible in the answer itself.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="256">▶ 4:16</button></div>
+      <h3>生成 Rust 不等于翻译一个游戏</h3>
+      <p>Once the system can explain the game, the next test is whether it can preserve its behavior in another language. The team takes the same Python repository—four main source files within seven files total—and asks for a Rust translation. The demonstration first runs the Python game, establishing the behavior the translation must retain.</p>
+<p>The baseline puts all the source into an LLM. Larson says the team tried a variety of prompts aimed at translating the application as a whole. The model produces Rust, but attempting to compile that output reveals problems throughout it. Producing plausible source text has not produced a working application.</p>
+<p>The GraphRAG for Code path instead uses the repository’s graph structures during translation and generates a collection of Rust files. Larson then shows the translated game running natively in Rust. The useful comparison is between two end states: generated code that fails to compile, and a translated application that runs. The talk does not identify the model, enumerate trials, or establish a translation success rate beyond this demonstration.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/2fab64b3c4c201d7df0256814e2ff81f5c35ac1b78dcb7e875e5253d2f8cf23b" alt="GraphRAG for Code translation slide listing Python-to-Rust challenges, failure of direct full-code prompting, and a claim of complete working output beside a code screenshot." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The translation slide contrasts full-context prompting with GraphRAG-generated working Rust code.</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="369">▶ 6:09</button></div>
+      <h3>跨文件理解 Doom</h3>
+      <p>The next repository is Doom, which Larson describes as approximately 100,000 lines across 231 files and about 30 years old. Its public history creates a different challenge from the unseen terminal game. Larson initially expects models to know the code from training; his team’s tests instead suggest broad familiarity without the implementation detail needed to make meaningful modifications. Recognizing a repository is not enough to change it reliably.</p>
+<p>The team starts by generating documentation. At the global level, that means explaining entire modules rather than summarizing files independently. A description of Doom’s sound system, for example, must connect responsibilities spread across roughly 20–30 files. Local queries then let the reader drill into individual files beneath that module-level account. <strong>Global understanding and local detail serve different parts of the same task</strong>: first establish how a subsystem works, then inspect the code that implements it.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="448">▶ 7:28</button></div>
+      <h3>添加一个跨越文件边界的功能</h3>
+      <p>Documentation, Q&amp;A and translation lead to the next experiment: feature development. Original Doom does not let the player jump, so the team chooses to add that capability. It requires coordinated changes across files—the kind of task where an agent can make a convincing edit in one place while breaking another. Repeatedly repairing those breakages can leave the repository in a cycle of incompatible changes because the system lacks a sufficient understanding of how its parts fit together.</p>
+<p>After showing the original game, the team connects the <a href="https://github.com/newsroom/press-releases/coding-agent-for-github-copilot" target="_blank" rel="noopener">GitHub Copilot coding agent</a>, introduced at Build, to GraphRAG for Code. The workflow is short:</p>
+<p>1. Create an issue against the Doom repository asking to add player jump capability.
+2. Add a couple of sentences describing the request and assign the issue to the coding agent.
+3. Let the agent consult GraphRAG for Code to develop a holistic, top-down plan before making the changes.</p>
+<p>GraphRAG supplies repository context to the agent; the agent turns that context into a plan and edits.</p>
+<p>Larson reports that the agent changed many files and the feature worked out of the box, whereas the other agents his team tried failed on this task. The resulting demonstration shows jumping in Doom. This is the concrete payoff of pairing structured memory with an agent: repository understanding becomes a resource for coordinating action. The comparison remains a reported demonstration, without a controlled agent benchmark or detailed trial accounting.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="574">▶ 9:34</button></div>
+      <h3>同时评估检索和综合</h3>
+      <p>The coding demonstrations raise a measurement problem: how should a system be evaluated when some questions target a specific fact and others require understanding the whole dataset? Larson introduces <a href="https://github.com/microsoft/benchmark-qed" target="_blank" rel="noopener">BenchmarkQED</a>, announced as newly open source during the talk, to address both local and global answer quality.</p>
+<p>BenchmarkQED separates three responsibilities:</p>
+<p>| Component | Responsibility |
+|---|---|
+| <code>AutoQ</code> | Generate queries for a target dataset |
+| <code>AutoE</code> | Evaluate answers using an LLM as judge |
+| <code>AutoD</code> | Summarize and sample datasets |</p>
+<p>This separates the questions a benchmark asks from how it judges responses and how it prepares the underlying data.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/8e620f102abfa309afc00c2ea125678f9d3c65790dd949de8056d458649ab4f1" alt="Three connected boxes labeled AutoQ, AutoE, and AutoD describe query synthesis, relative answer-quality evaluation, and dataset summarization, with a GitHub link above." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>BenchmarkQED connects query generation, answer evaluation, and dataset preparation.</figcaption></figure>
+<p><code>AutoQ</code> organizes questions along two axes: <strong>local versus global scope</strong>, and <strong>data-driven versus persona- or activity-driven intent</strong>. Data-driven questions start from information in the dataset. Persona- and activity-driven questions adopt the perspective of someone working in the domain and ask what that person needs to know.</p>
+<p>The examples come from an AP News dataset focused on medical events:</p>
+<p>- <strong>Data-local:</strong> “Why are junior doctors in South Korea striking in February 2024?” The country, profession, event and date give retrieval specific targets. Larson expects ordinary RAG to perform well here.
+- <strong>Activity-global:</strong> “What are the main public health initiatives mentioned that target underserved communities?” This asks for a synthesis of initiatives across the dataset. A relevant passage may help, but retrieving one passage does not establish the main patterns across the corpus.</p>
+<p><code>AutoQ</code> generates questions across both dimensions so that evaluation does not quietly reduce overall quality to performance on precise lookup questions.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="715">▶ 11:55</button></div>
+      <h3>更大的上下文窗口改变了什么——以及没有改变什么</h3>
+      <p>Once <code>AutoQ</code> supplies the questions, <code>AutoE</code> judges the answers. Its composite combines <strong>comprehensiveness, diversity, empowerment and relevance</strong>. The first three carry forward the criteria used in the original GraphRAG work; relevance is the added dimension. These are judgments of answer quality, not a factual-accuracy score.</p>
+<p>Larson uses this framework to compare <a href="https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/" target="_blank" rel="noopener">LazyGraphRAG</a> with vector RAG using 8K, 120K and one-million-token context windows. A bar above 50% means the judge favors LazyGraphRAG over the corresponding baseline.</p>
+<p>The <a href="https://www.microsoft.com/en-us/research/blog/benchmarkqed-automated-benchmarking-of-rag-systems/" target="_blank" rel="noopener">companion evaluation article</a> describes 1,397 health articles, 200 queries, six trials per query per metric, and a <strong>GPT-4.1</strong> judge, with ties counting as half a win. Its <strong>GPT-4o</strong> comparisons precede a separate GPT-4.1 million-token experiment; these should not be read as one fixed-model context-length sweep.</p>
+<p>The tie rule can be expressed directly in Python when aggregating pairwise verdicts:</p>
+<p>```python
+from collections.abc import Sequence
+from typing import Literal</p>
+<p>Verdict = Literal[&quot;win&quot;, &quot;tie&quot;, &quot;loss&quot;]</p>
+<p>def preference_rate(verdicts: Sequence[Verdict]) -&gt; float:
+    if not verdicts:
+        raise ValueError(&quot;At least one verdict is required&quot;)
+    scores = {&quot;win&quot;: 1.0, &quot;tie&quot;: 0.5, &quot;loss&quot;: 0.0}
+    return sum(scores[verdict] for verdict in verdicts) / len(verdicts)
+```</p>
+<p>This computes preference for a chosen system from supplied verdicts; the four judging criteria determine what those verdicts reward.</p>
+<p>For data-local questions, Larson reports the following LazyGraphRAG win rates under the composite judging criteria:</p>
+<p>| Vector-RAG context window | Reported LazyGraphRAG win rate |
+|---|---|
+| 8K tokens | 92% |
+| 120K tokens | 90% |
+| One million tokens | 91% |</p>
+<p>The local results surprise him because these are the questions expected to suit ordinary retrieval. He reports strong performance across the question categories, with a somewhat larger advantage on global questions.</p>
+<p>Increasing the vector-RAG context window did not materially close the judged-quality gap in these tests. Larson had expected longer contexts to help with global questions, but the presented comparison still favored LazyGraphRAG. He also reports that, in a separate off-slide test, LazyGraphRAG cost one-tenth as much as the one-million-token-context comparison. The talk does not specify that cost test’s model configuration, pricing or whether indexing costs were included. The result points toward the value of selecting and organizing context, rather than assuming that a larger window alone supplies the needed understanding.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="828">▶ 13:48</button></div>
+      <h3>从仓库知识到科学推理</h3>
+      <p>LazyGraphRAG had first been discussed in a November blog post the previous year. At the time of this talk, Larson describes Azure Local integration as forthcoming following a Build announcement, and integration into <a href="https://azure.microsoft.com/en-us/blog/transforming-rd-with-agentic-ai-introducing-microsoft-discovery/" target="_blank" rel="noopener">Microsoft Discovery</a> as underway. Discovery extends the application from code to scientific work: hypothesis leads to experiment, experiment produces learning, and learning becomes knowledge for the next cycle.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f8d0dcfb31a2f5f7205f17d6fd0698f524a5c3571a56815ccbb3c66e98bdf442" alt="Slide titled Transforming the scientific method with Agentic AI, showing Discovery Agents surrounded by a circular workflow labeled Knowledge, Hypothesis, Experiment, and Learning." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Discovery Agents sit within a scientific cycle of knowledge, hypothesis, experiment, and learning.</figcaption></figure>
+<p>The closing demonstration shows a copilot reasoning over scientific knowledge, with GraphRAG and LazyGraphRAG powering the underlying graphs and answers. The same relationship seen in the Doom example reappears in another domain: <strong>structured memory gives an agent connected knowledge to reason with, and the agent uses that knowledge to carry work forward</strong>. Larson ends on that pairing—memory with structure, amplified by agents—and invites further questions outside the session.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener">From Local to Global: A Graph RAG Approach to Query-Focused Summarization</a> — Original GraphRAG research on entity graphs and community summaries for corpus-wide questions.</li><li><a href="https://github.com/microsoft/graphrag" target="_blank" rel="noopener">Microsoft GraphRAG</a> — Research implementation with documentation and a command-line quickstart. The repository currently describes itself as largely in maintenance mode.</li><li><a href="https://github.com/microsoft/benchmark-qed" target="_blank" rel="noopener">BenchmarkQED</a> — Tools for query generation, answer evaluation and dataset preparation, with AP News and podcast datasets.</li><li><a href="https://www.microsoft.com/en-us/research/blog/benchmarkqed-automated-benchmarking-of-rag-systems/" target="_blank" rel="noopener">BenchmarkQED: Automated benchmarking of RAG systems</a> — Launch article explaining the query categories, judging procedure and LazyGraphRAG evaluation conditions.</li><li><a href="https://www.microsoft.com/en-us/research/blog/lazygraphrag-setting-a-new-standard-for-quality-and-cost/" target="_blank" rel="noopener">LazyGraphRAG: Setting a new standard for quality and cost</a> — November 2024 explanation of deferred LLM processing, relevance-test budgets and the original evaluation.</li><li><a href="https://github.com/newsroom/press-releases/coding-agent-for-github-copilot" target="_blank" rel="noopener">GitHub Copilot coding agent announcement</a> — Historical Build 2025 announcement of GitHub's asynchronous coding agent.</li><li><a href="https://azure.microsoft.com/en-us/blog/transforming-rd-with-agentic-ai-introducing-microsoft-discovery/" target="_blank" rel="noopener">Introducing Microsoft Discovery</a> — Microsoft's initial announcement of its agentic platform for scientific research and development.</li><li><a href="https://neo4j.com/blog/developer/graphrag-card-game/" target="_blank" rel="noopener">GraphRAG – the card game</a> — An imaginary music quiz illustrates how following graph relationships supplies additional evidence for an answer.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[electronic music] Um, well hello everyone.</span></div><div class="tline" data-t="16"><span class="ts">0:16</span><span class="tx">Um, thanks for coming to the session here today. My name's Jonathan Larson, and, uh, I run the GraphRAG, uh, team at Microsoft Research. Um, some of you may have seen our paper that we actually, uh, released last year, uh, the GraphRAG paper, or you m- uh, might have seen our, uh, GitHub repo, uh, that was out there</span></div><div class="tline" data-t="33"><span class="ts">0:33</span><span class="tx">and, uh, has a lot of stars on it. Um, when we released this last year, to our surprise, it got a lot of attention, and also it inspired many other offerings that we saw that were out there as well too.</span></div><div class="tline" data-t="43"><span class="ts">0:43</span><span class="tx">Um, uh, and my favorites, of course, were the ones that Neo4j did with the card game, because I'm a huge bo- uh, board game fanatic as well too. Uh, but, uh, there's been lots of derivative work from it.</span></div><div class="tline" data-t="51"><span class="ts">0:51</span><span class="tx">And today, though, I'm not here to talk to you about some of the things that have been. I'm here to talk to you about some of the new horizons.</span></div><div class="tline" data-t="58"><span class="ts">0:58</span><span class="tx">And the th- two things I really want to leave you with here today are that, uh, LLM memory with structure is just an absolutely key enabler for, uh, building, uh, effective AI applications.</span></div><div class="tline" data-t="69"><span class="ts">1:09</span><span class="tx">The second, as we'll talk about a little bit later in the talk as well too, are that, uh, agents, of course, paired with these structures can provide something even more powerful.</span></div><div class="tline" data-t="77"><span class="ts">1:17</span><span class="tx">And let me go ahead and go back to this slide here. So today I'm gonna tell you about a couple things. The first is actually showing you GraphRAG as applied to a specific domain.</span></div><div class="tline" data-t="85"><span class="ts">1:25</span><span class="tx">In this case, we're gonna apply it to the coding domain to look at enterprise productivity, uh, in, in the coding space. The second is we're gonna take a look at a new release that we are announcing today.</span></div><div class="tline" data-t="95"><span class="ts">1:35</span><span class="tx">Uh, we're actually having a blog post on this tomorrow. Uh, we have BenchmarkQED just went open source, uh, as well. And then I'll talk about some, uh, new results that we've had on, uh, some GraphRAG evolutions on a new, uh, technology we've been working on called LazyGraphRAG.</span></div><div class="tline" data-t="108"><span class="ts">1:48</span><span class="tx">I won't be going into the specifics of how any of it works. I'll just be showing some benchmarks and talking about some of the ways you c- be able to access it soon.</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">So with that, let me go ahead and jump into GraphRAG for code and tell you about how we've been using GraphRAG to actually help, uh, drive repository-level understanding. And I wanna start first with a little demonstration.</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">Uh, everyone likes to watch little videos, so I'm gonna go ahead and hit play. And yes, it's showing on the screen there. So this is a little, uh, terminal-based video game that one of my engineers have put together.</span></div><div class="tline" data-t="135"><span class="ts">2:15</span><span class="tx">It's a one where you jump over obstacles, and then you get points when you jump over them. When you run into them, you lose points. And two important things, though.</span></div><div class="tline" data-t="142"><span class="ts">2:22</span><span class="tx">First, the LLM has never seen this code before, and it's small enough for the human to know the ground truth holistically 'cause it's only about 200 lines of code across seven files.</span></div><div class="tline" data-t="151"><span class="ts">2:31</span><span class="tx">But it's complex enough that the LLMs had a lot of troubles understanding it if you just provide all the code directly into the context window. So with that as a background, let's take a look at what happens if you use typical regular RAG over the top of this.</span></div><div class="tline" data-t="163"><span class="ts">2:43</span><span class="tx">So if you're using, uh, one of the tools that help analyze your code, this is the type of answer you might get back. And this is... We ran this, uh, through with a regular RAG system, and we asked it, &quot;Describe what this application is and how it works.&quot;</span></div><div class="tline" data-t="176"><span class="ts">2:56</span><span class="tx">And just to read you, 'cause the, what it says, 'cause it's too small to read, &quot;The application is designed as a game that is configured and initiated through a main function.</span></div><div class="tline" data-t="183"><span class="ts">3:03</span><span class="tx">The game leverages a configuration file and has its main components, such as the game screen, game logic, encapsulated in separate classes and functions.&quot; Totally useless. It just says it's a game.</span></div><div class="tline" data-t="193"><span class="ts">3:13</span><span class="tx">That's... There's nothing more [chuckles] to it than that. Um, and it just put a bunch of other, uh, cruft in there. If you use GraphRAG for code over the exact same code base with the exact same question, you get a much, much better description.</span></div><div class="tline" data-t="206"><span class="ts">3:26</span><span class="tx">This is just a very stark contrast you get between the two. So in the GraphRAG for code, it says, &quot;The application is a terminal-based interactive game designed to run with a, in a curses-based terminal environment.&quot;</span></div><div class="tline" data-t="217"><span class="ts">3:37</span><span class="tx">So far, not much better. But this next line just kills it. &quot;It features a player character that can jump vertically, obstacles that move horizontally across the screen, and a static background layer.</span></div><div class="tline" data-t="228"><span class="ts">3:48</span><span class="tx">The game controls via keyboard input, specifically using the Spacebar to trigger the player's jump action.&quot; So what this is showing you is semantic understanding. So if you've, um, read our paper or used any of the, um, GraphRAG code base that we've, uh, put out there, you've, you'll know about the concept of what we call local and global</span></div><div class="tline" data-t="245"><span class="ts">4:05</span><span class="tx">queries. And so this is what we would call a global query over top of the repository. It requires understanding the whole repository to answer that question correctly. And we can see that it excels at that.</span></div><div class="tline" data-t="256"><span class="ts">4:16</span><span class="tx">So one of the next things we decided to do is, well, if it can answer questions pretty well, can it maybe do code translation? And so that was the next thing that we, uh, aimed it at.</span></div><div class="tline" data-t="265"><span class="ts">4:25</span><span class="tx">So taking the same code base here, we took on the challenge of taking this Python code and then asking to translate it directly into Rust. And let me show you just how that actually works.</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">I'm gonna play the video here. So what we're gonna do is start off with, um, in VS Code here. We're gonna look at the four source code file. Well, there's four main ones.</span></div><div class="tline" data-t="281"><span class="ts">4:41</span><span class="tx">There's seven files total for this game. These are the source Python code, uh, files that we're working with here. We're gonna go ahead and run those just to show you again.</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">This is the same game. So this is again the same side-scroller game here. And then what we're gonna do is we're gonna actually take those source code files and just put them straight into an LLM.</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">We're first not gonna use GraphRAG for code. We're just gonna take all that source code, 'cause it's only 200 lines of code, and put in some nice prompts. We tried a wide variety of these prompts and then try and see if the LLM could actually translate that code holistically in all of its pieces into Rust and actually</span></div><div class="tline" data-t="312"><span class="ts">5:12</span><span class="tx">just work out of the box. And so this is actually the translation happening there. Um, we're gonna go ahead and copy the Rust code that it generated. So it did generate Rust code.</span></div><div class="tline" data-t="319"><span class="ts">5:19</span><span class="tx">I got to gr- give it credit for that. But after it generated the code and we reviewed it there, we went and we tried to compile it, and there's problems everywhere.</span></div><div class="tline" data-t="327"><span class="ts">5:27</span><span class="tx">Doesn't work out of the box. Uh, so then we used GraphRAG for code, again bringing structure and these, uh, these graph structures to the code base there. We're gonna just go ahead and run the translate function there on GraphRAG for code, and it generates, on its side, all these s- all these new Rust files that you see</span></div><div class="tline" data-t="344"><span class="ts">5:44</span><span class="tx">are on the side there. I'm just gonna skip past here 'cause I don't y- wanna bore you with clicking through a bunch of Rust files. But once we generated all these Rust files, we can go ahead and run those Rust files on GraphRAG for code side of things, and presto, we have a full video game completely translated</span></div><div class="tline" data-t="359"><span class="ts">5:59</span><span class="tx">from Python, uh, now working in Rust natively. But we didn't wanna stop there. The next thing that we wanted to do was, well... That game is kind of a toy example.</span></div><div class="tline" data-t="369"><span class="ts">6:09</span><span class="tx">It's like 200 lines of code. Let's go to a code base with 100,000 lines of code, and that's what we did next. So we went to the Doom code base.</span></div><div class="tline" data-t="376"><span class="ts">6:16</span><span class="tx">It's about 30 years old. Now, we did run a bunch of tests over the top of this here first, uh, because I figured, well, all the LLMs are trained on the Doom code base.</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">I mean, it's, it's gonna just know these things on, um, natively and automatically. So we did a bunch of tests with that. We actually figured out, while it knew the Doom co- Doom code base, it didn't know any of the specifics.</span></div><div class="tline" data-t="394"><span class="ts">6:34</span><span class="tx">So if you ask it to actually modify the Doom code base in any sort of meaningful way, the LLM models just fail again completely. Um, so then what we did next was, well, if we can, uh, reason and understand over top of this code base, 100,000 lines of code, 231 files, um, maybe we can generate some new</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">outputs that you otherwise couldn't generate. So with that, we then immediately had it start- used it to start generating documentation. So this is actually showing a high-level repository-level documentation.</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">Again, going back to the concepts of GraphRAG, we have local and we have global queries. This is showing you the global query results. And so it's not looking at the understanding of a single file.</span></div><div class="tline" data-t="430"><span class="ts">7:10</span><span class="tx">This is looking at modules in their entirety, like across 20, 30 files, and being able to actually give you a sense for, like, what's the sound system inside of the video game, and how does that work?</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">But then you can still drill down into what we would call the local-style queries and actually see the individual files as well too. So then we thought, &quot;Well, this is kind of neat.</span></div><div class="tline" data-t="448"><span class="ts">7:28</span><span class="tx">We can look at the documentation. But if we can look at the documentation, we can do Q&amp;A, and we can do code translation, can we maybe take this one step further, do feature development?&quot;</span></div><div class="tline" data-t="459"><span class="ts">7:39</span><span class="tx">So that's the next thing I'm gonna show you. So, um, we had a lot of, uh, video game players in, uh, our office, and we were kind of thinking about, like, what would be a cool thing we put over top of this Doom video game?</span></div><div class="tline" data-t="468"><span class="ts">7:48</span><span class="tx">And somebody to me said, &quot;Well, doesn't... You can't jump in the original video game. What if we w- added the ability for a player to jump?&quot; And that's a complex thing to add into Doom because it requires multi-file modification.</span></div><div class="tline" data-t="479"><span class="ts">7:59</span><span class="tx">And if you tried to use AI systems to do multi-file modification, what it'll often do is it will do a great job editing one of the files and then completely break a bunch of the other files in the process of doing so.</span></div><div class="tline" data-t="489"><span class="ts">8:09</span><span class="tx">And then it, that just pr- rinses and repeats and continually [laughs] kind of, uh... You end up with something that doesn't work is what, what you oftentimes run into, and it's because of this lack of understanding how everything fits together.</span></div><div class="tline" data-t="500"><span class="ts">8:20</span><span class="tx">But again, this is where GraphRAG can really help out. So with that, we went ahead and this is... If you haven't seen the Doom video game, this is actually a little video of the original Doom video game, uh, being played, just to sh- give you some context for what it was.</span></div><div class="tline" data-t="514"><span class="ts">8:34</span><span class="tx">Then we used, uh, the new, um, GitHub Copilot coding agent that was announced at Build, and we wired it up directly to a GraphRAG for Code. So we're gonna go ahead and s- create a new issue.</span></div><div class="tline" data-t="523"><span class="ts">8:43</span><span class="tx">This is pointing to the Doom code base. And we're gonna tell it, &quot;Add jump capability to the player.&quot; We're just gonna add a couple sentences of description here and then tell it to go.</span></div><div class="tline" data-t="532"><span class="ts">8:52</span><span class="tx">And then we're gonna assign it to that GitHub Copilot coding agent.</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">And then the next thing we're gonna do is we're gonna then go ahead and look at what's happening underneath the hood. So this is actually the GitHub Copilot coding agent reaching out to GraphRAG for Code on the back end, coming up with a plan that's holistic, and it's approaching it from the top down.</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">And then this is the really the mo- the aha, aha moment we had for us. It changed a whole lot of files, and it worked out of the box, where all the other agents that we had tried completely failed on this task.</span></div><div class="tline" data-t="562"><span class="ts">9:22</span><span class="tx">And because it worked because of those GraphRAG structures that we were bringing to bear and actually using those, uh, with that. So then the end result was we were elated with joy and jumping in Doom specifically.</span></div><div class="tline" data-t="574"><span class="ts">9:34</span><span class="tx">So, uh, that's [laughs] kind of the story of how we got to with that. So with that, um, I do, uh, have another part of the talk I'm gonna talk about today, and that's also, um, uh, five minutes to talk about that one, and that's BenchmarkQED.</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">Uh, just shifting topics a little bit, I just showed you GraphRAG as applied to one vertical. Uh, next I wanna spe- specifically talk about, um, how do we measure and evaluate systems like GraphRAG?</span></div><div class="tline" data-t="596"><span class="ts">9:56</span><span class="tx">How do we build systems to evaluate those local and global quality metrics? And so for that, today I'm announcing BenchmarkQED. This is available now open source on GitHub, so you can go ahead and, uh, check it out at the link.</span></div><div class="tline" data-t="609"><span class="ts">10:09</span><span class="tx">We just, I think, got it live last night. Um, and there's three components to this. The first is what we're calling AutoQ, and AutoQ is focused on doing query generation for target datasets.</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">So it allows you to take a dataset and then generate queries for it. AutoE is the evaluation using LLM as a judge to actually then evaluate how those queries performed on that said dataset.</span></div><div class="tline" data-t="632"><span class="ts">10:32</span><span class="tx">AutoD is the third component, and that really focuses on dataset summarization and dataset sampling. Let's jump into just a couple of these in a little more detail. So if you take a look at AutoQ, AutoQ is taking a look at the local and global aspects.</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">You can see that there on the X-axis. On the Y-axis, it's then combining that against data-driven basic questions that are generated based on the data itself or persona or activity-driven, which is the second type that we have there.</span></div><div class="tline" data-t="659"><span class="ts">10:59</span><span class="tx">Those are more complex, like if you take on the role of a person in that domain field and then using that to generate questions. So to show you a few of these sample questions, I'm just gonna choose a couple here.</span></div><div class="tline" data-t="669"><span class="ts">11:09</span><span class="tx">This was built on a AP News dataset that was focused on, like, medical type of events. And so a data local question might be, &quot;Why are junior doctors in South Korea striking in February 2024?&quot;</span></div><div class="tline" data-t="680"><span class="ts">11:20</span><span class="tx">There's a lot of highly specific information in this, and I would expect regular RAG to perform very well on this type of question. In contrast, take an activity global question here.</span></div><div class="tline" data-t="690"><span class="ts">11:30</span><span class="tx">It might be, &quot;What are the main public health initiatives mentioned that target underserved communities?&quot; There is nothing in that question that you can really pivot on in terms of, like, embedding or, uh, indexing that would really work on it.</span></div><div class="tline" data-t="701"><span class="ts">11:41</span><span class="tx">You really have to holistically know the entire dataset. And so this, uh, AutoQ will help generate questions across that whole spectrum, from local to global, from data-driven to activity-driven, and give you these categories of questions that you can use.</span></div><div class="tline" data-t="715"><span class="ts">11:55</span><span class="tx">Now, once you generate those questions, we can then start measuring them using AutoE, which is the evaluation platform that we released along with, um, this as well too. So just to get to show you how this in, in practice and how it works, it c- use...</span></div><div class="tline" data-t="727"><span class="ts">12:07</span><span class="tx">It gives you a composite score of four metrics. The first is comprehensiveness Diversity and empowerment, which if you're familiar with our paper, those are the three original ones that we used back in that one, and a new one that we also call relevance.</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">And so we actually did some comparisons, uh, just to show you how this works on LazyGraphRAG, which is one of the newer technologies that we've been working on, and we compared it to Vector RAG on 8K, 120K, and million-token context windows, and we had a few takeaways from that.</span></div><div class="tline" data-t="753"><span class="ts">12:33</span><span class="tx">The first is if you take a look at these charts, any bar that is above the 50% mark, uh, gives, uh... means that LazyGraphRAG is winning in that benchmark against those specific Vector RAGs.</span></div><div class="tline" data-t="763"><span class="ts">12:43</span><span class="tx">So Vector RAG blue here is 8K, 120K, and a million-token context windows, and it's winning at, correspondingly at 92%, 90 and 91% of the time against data local questions, which is kind of a surprise because one of the first things that we started seeing is that LazyGraphRAG was actually prov- providing dominant performance, um, across the entire</span></div><div class="tline" data-t="781"><span class="ts">13:01</span><span class="tx">span of questions, whether they were local or global. And we do expect RAG to be performing better on local questions, and you can see that from the fact that data local and the data global, there's a little bit of a lift between these bars between the global and the, and the local ones.</span></div><div class="tline" data-t="795"><span class="ts">13:15</span><span class="tx">Second thing we noticed is that the long context window didn't really make much of a difference. We were expecting that maybe the long context windows might give you a little bit of a, um...</span></div><div class="tline" data-t="803"><span class="ts">13:23</span><span class="tx">'cause you have a better understanding towards those global types of questions. But it actually turns out that LazyGraphRAG in this case was still able to dominate those metrics, and in fact when it, when we ran the test, it's not on the slide here, we actually found that Lazy GraphRAG was a tenth of the cost of what</span></div><div class="tline" data-t="817"><span class="ts">13:37</span><span class="tx">we saw in the one-million-token context windows as well too. So those are a couple things to show there. Now, uh, with the last minute that I have, I did want to address another thing too with LazyGraphRAG.</span></div><div class="tline" data-t="828"><span class="ts">13:48</span><span class="tx">Um, you may have read the blog posts about it in November last year when we first discussed it. Um, it is now, uh, officially being lined up for launch in a couple products.</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">Uh, the first is Azure Local, and so, uh, it will... they just announced at Build that, uh, LazyGraphRAG will soon be incorporated into their platform for that, so you can actually try it out for yourselves there.</span></div><div class="tline" data-t="846"><span class="ts">14:06</span><span class="tx">And it's also being incorporated into the recently announced at Build Microsoft Discovery, uh, platform tool as well. So if you're not familiar with Microsoft Discovery, it does graph-based scientific co-reasoning, and just to give you a quick, uh, summary of it, it goes from hypothesis to experiment, learning, and knowledge.</span></div><div class="tline" data-t="863"><span class="ts">14:23</span><span class="tx">I'll just play a quick like five-second video here, and the questions... the, the answers to the questions that you start coming back to with on this are powered underneath the hood by GraphRAG and LazyGraphRAG as well too.</span></div><div class="tline" data-t="872"><span class="ts">14:32</span><span class="tx">So as you can see, the copilot here is generating the deep reasoning over graph-based scientific knowledge. Those graphs are being powered by, uh, um, GraphRAG and LazyGraphRAG. So with that, I just wanna leave you with a couple takeaways, and the first is just that LLM memory structure, uh, [laughs] LLM memory with structure is just a really, really</span></div><div class="tline" data-t="891"><span class="ts">14:51</span><span class="tx">powerful tool, uh, to keep in your tool belt. Um, and the agents, of course, can massively amplify this power. And if you have any questions, I'll be outside if you, uh, want to talk about any of this further.</span></div><div class="tline" data-t="901"><span class="ts">15:01</span><span class="tx">Thank you so much for your time. [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

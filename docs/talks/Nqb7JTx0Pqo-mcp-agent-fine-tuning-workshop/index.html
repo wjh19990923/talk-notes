@@ -1,0 +1,1827 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MCP 智能体微调工作坊 —— Ronan McGovern | AI 工程师中文版</title>
+<meta name="description" content="一个浏览器智能体有用的训练数据，包括它的工具、推理、动作和观察。Ronan McGovern 跟随这份记录，从采集到 Qwen3 适配器训练，再回到推理。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>MCP 智能体微调工作坊 —— Ronan McGovern</h1>
+    <div class="orig-title">MCP Agent Fine-Tuning Workshop - Ronan McGovern</div>
+    <div class="meta"><span class="speaker">Ronan McGovern</span> · AI Engineer World's Fair 2025 · 35:30</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=evals">评测</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/Nqb7JTx0Pqo-mcp-agent-fine-tuning-workshop" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="Nqb7JTx0Pqo"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=Nqb7JTx0Pqo" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">一个浏览器智能体应该从一次成功的运行中学到什么？</div></div>
+      <div class="label row">章节跳转 <span>共 13 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="0"><span class="ts">0:00</span><span>一个浏览器智能体应该从一次成功的运行中学到什么？</span></li><li data-t="142"><span class="ts">2:22</span><span>在 MCP、API 和模型文本之间转换</span></li><li data-t="305"><span class="ts">5:05</span><span>部署一个会展示推理过程的“老师”模型</span></li><li data-t="522"><span class="ts">8:42</span><span>批准一次导航并读取页面</span></li><li data-t="717"><span class="ts">11:57</span><span>保存整个运行过程，再尝试一个更难的任务</span></li><li data-t="954"><span class="ts">15:54</span><span>把有引导的运行变成精选的示范</span></li><li data-t="1074"><span class="ts">17:54</span><span>把对话展开成训练用的前缀</span></li><li data-t="1271"><span class="ts">21:11</span><span>让智能体的转换职责保持明确</span></li><li data-t="1372"><span class="ts">22:52</span><span>为记录套用模板，并测试未经调优的“学生”模型</span></li><li data-t="1654"><span class="ts">27:34</span><span>在很小的内存和数据预算内训练适配器</span></li><li data-t="1824"><span class="ts">30:24</span><span>导出“学生”模型并设计一个有意义的评测</span></li><li data-t="1919"><span class="ts">31:59</span><span>给奖励训练一个有用的起始策略</span></li><li data-t="1999"><span class="ts">33:19</span><span>一次正确的工具调用闭合的是循环，而不是评测</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 27 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="What you’ll learn" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What you’ll learn</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The workshop saves tools and multi-turn traces from high-quality MCP agent runs, uses them to fine-tune Qwen3 with Unsloth, then runs the model to check whether performance improves.
+
+[0:21](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=21s) [Workshop objectives: generate and save MCP agent traces, fine-tune Qwen3 with Unsloth, and run the model.](https://assets.ai.engineer/sites/aiecode2025/sha256/2890fd3d5e43648065d92d83dae579f7823846da5bb504d2934bd1f3cd4ee0e2.webp)
+
+What you’ll learn
+
+In short: Fine-tune an MCP agent to improve multi-turn performance (works with ~any MCP servers!)
+
+—
+
+In detail:
+- How to generate high quality MCP agent reasoning traces
+- How to save tools and multi-turn traces
+- Fine-tune a Qwen3 model on those traces with unsloth
+- Run the fine-tuned model</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Workshop materials repository" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Workshop materials repository</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Ronan McGovern points to the mcp-agent-fine-tune folder containing the workshop materials, including agent code and traces. He plans to clone it and work through it after an introduction to MCP.
+
+[0:46](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=46s) [A repository folder listing workshop files and traces.](https://assets.ai.engineer/sites/aiecode2025/sha256/b2e231db8db6163085f557934288fffa61acba855ebec3b6c891c065f4fe0834.webp)
+
+ai-worlds-fair-2025 / mcp-agent-fine-tune /
+
+RonanKMcGovern: docs: update README with uv sync command and increased truncate limit
+4a6eeba · 8 minutes ago
+
+Name | Last commit message | Last commit date
+..
+traces | feat: add trace for exploring ARC AGI approaches on trelis.substack.com | 3 hours ago
+.gitignore | docs: reorganize project structure and add fine-tuning documentation | 3 hours ago
+.python-version | initial commit of mcp agent | 9 hours ago
+README.md | docs: update README with uv sync command and increased truncate limit | [illegible]
+agent.py | feat: add system prompt file loading and update CLI options | [illegible]
+config.json | initial commit of mcp agent | [illegible]
+push-to-hub.py | feat: add unroll flag to create multiple training examples from conve... | [illegible]
+pyproject.toml | feat: add dataset upload functionality to push traces to Hugging Face... | [illegible]
+system_prompt.txt | feat: add system prompt file loading and update CLI options | [illegible]
+
+Interface text:
+github.com
+MCP Agent Fine-tuning Workshop - Google Slides
+docs.google.com
+Code · Pull requests · Actions · Projects · Security · Insights · Settings
+Type / to search
+Go to file · Add file · History
+Function Call Syntax
+My Pods</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Workshop objectives in the slide editor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Workshop objectives in the slide editor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The workshop aims to improve an MCP agent’s multi-turn performance by generating and saving traces, fine-tuning Qwen3 with unsloth, and running the resulting model.
+
+[0:59](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=59s) [The slide editor displays the workshop objectives and neighboring slide thumbnails.](https://assets.ai.engineer/sites/aiecode2025/sha256/365de3a175e1dbfd5d4714feb76b580d4cd2034b36f567a2584f533af9b6114d.webp)
+
+What you’ll learn
+
+In short: Fine-tune an MCP agent to improve multi-turn performance (works with ~any MCP servers!)
+
+In detail:
+- How to generate high quality MCP agent reasoning traces
+- How to save tools and multi-turn traces
+- Fine-tune a Qwen3 model on those traces with unsloth
+- Run the fine-tuned model
+
+Interface text:
+docs.google.com
+MCP Agent Fine-tuning Workshop
+File  Edit  View  Insert  Format  Slide  Arrange  Tools  Extensions  Help
+Menus  91%  Background  Layout  Theme  Transition
+Slideshow  Share
+Slide thumbnails: Workshop; What you’ll learn; Workshop Overview; What is MCP?; How does MCP work?</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="MCP tool information" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MCP tool information</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The MCP tool service sends tool information to the language model, helping it understand how to call tools. The service also runs the tools.
+
+[1:18](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=78s) [A diagram shows an MCP tool service providing tool information to a language model conversation.](https://assets.ai.engineer/sites/aiecode2025/sha256/28060c126bccb28d1d9697826d5902ed2a21ba83f61677a27b92d24818343bf6.webp)
+
+How does MCP work?
+
+Large
+Language
+Model
+Conversation
+
+Tool Info
+
+[stores tool info]
+MCP Tool
+Service
+[runs tools]
+
+MCP Service</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="MCP tool calls and responses" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MCP tool calls and responses</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The MCP tool service supplies tool information, runs calls from the language model, and returns results that can guide another call or a text response.
+
+[1:43](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=103s) [A diagram shows tool information and responses flowing to a language model conversation, and tool calls flowing to an MCP tool service.](https://assets.ai.engineer/sites/aiecode2025/sha256/c8c38e97d41272f3aeb48a5fdfd4c43180a7ac626dfff60ead4195f9a86a0178.webp)
+
+How does MCP work?
+
+Large Language Model Conversation
+
+Tool Info
+Tool Call
+Tool Response
+
+[stores tool info]
+MCP Tool Service
+[runs tools]
+
+MCP Service</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="How does MCP work?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How does MCP work?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A vLLM OpenAI endpoint exposes the model as an API. The MCP service supplies tool information, runs tool calls, and returns responses to the conversation.
+
+[2:20](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=140s) [A diagram places a vLLM OpenAI endpoint between a language model conversation and an MCP tool service, alongside tool information, call, and response arrows.](https://assets.ai.engineer/sites/aiecode2025/sha256/86f22653f4dd92d683e9435f9ec317e7eca5b9098f01fdbbe32aad94fca4252b.webp)
+
+How does MCP work?
+
+Large Language Model Conversation
+
+vLLM OpenAI Endpoint
+
+Tool Info
+Tool Call
+Tool Response
+
+[stores tool info]
+MCP Tool Service
+[runs tools]
+
+MCP Service
+
+[2:25](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=145s) [Diagram showing tool information, calls, and responses between a language model conversation and an MCP tool service.](https://assets.ai.engineer/sites/aiecode2025/sha256/674096daecacf85694a53717a5366aa45fd05143d542d5e8ca812b265f4aa26f.webp)
+
+How does MCP work?
+
+Large Language Model Conversation
+
+Tool Info
+Tool Call
+Tool Response
+
+[stores tool info]
+MCP Tool Service
+[runs tools]
+
+MCP Service
+
+Interface text:
+8</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="How does MCP work?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How does MCP work?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The vLLM OpenAI endpoint converts MCP tool information and responses into JSON, then extracts Hermes-format tool calls from the model’s output.
+
+[3:20](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=200s) [MCP diagram with a vLLM OpenAI endpoint and annotations for converting tool information and responses and extracting tool calls.](https://assets.ai.engineer/sites/aiecode2025/sha256/554d3181ef22903e2cbace62fe15613e5491d6029da02b0164b0b010a5a11e6c.webp)
+
+How does MCP work?
+
+Extract tool calls (hermes)
+Convert MCP -&gt; list of JSON tools
+
+Large Language Model Conversation
+
+vLLM OpenAI Endpoint
+
+Tool Info
+Tool Call
+Tool Response
+
+[stores tool info]
+MCP Tool Service
+[runs tools]
+
+MCP Service
+Convert MCP -&gt; JSON response</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Pseudo-prompt going to the LLM" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Pseudo-prompt going to the LLM</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A prepared pseudo-prompt illustrates the string sent to the LLM. It starts with a system message describing how to make tool calls.
+
+[3:40](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=220s) [Slide introducing a pseudo-prompt sent to the language model, with a link labeled here.](https://assets.ai.engineer/sites/aiecode2025/sha256/08b677e9d2e2b18c3767be8e8f4d5a01a91fcbe5812a30f37a9087e35520a357.webp)
+
+Pseudo-prompt (string) going to the llm
+
+See here</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Pseudo-prompt and tool-call syntax" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Pseudo-prompt and tool-call syntax</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example system message lists tools as JSON and tells the model to return function calls as JSON inside tool_call tags. User and assistant messages follow.
+
+[3:56](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=236s) [A chat displays an illustrative prompt with tool definitions, function-call syntax, and user and assistant message sections.](https://assets.ai.engineer/sites/aiecode2025/sha256/90cbeaed06eca1bd7f7880af638c71e46280b8ac9b36c00f50ecacae67dcab09.webp)
+
+&lt;|im_start|&gt;system
+# Tools
+You may call one or more functions.
+
+&lt;tools&gt;
+{ …tool-1 JSON… }
+{ …tool-2 JSON… }
+…
+&lt;/tools&gt;
+
+Return each function call as JSON inside &lt;tool_call&gt; tags:
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;&lt;function-name&gt;&quot;, &quot;arguments&quot;: { … } }
+&lt;/tool_call&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;user
+&lt;actual user message&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;assistant
+&lt;think&gt;
+…assistant’s private reasoning…
+&lt;/think&gt;
+
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;browser_navigate&quot;, &quot;arguments&quot;: { [illegible]: &quot;https://…&quot;} }
+
+Interface text:
+chatgpt.com
+MCP Agent Fine-tuning Workshop - G...
+ai-worlds-fair-2025/mcp-agent-fine-t...
+Function Call Syntax
+Trelis_MCP_Agent_Fine_tuning_World...
+one-click-llms/README.md at main - T...
+My Pods
+My Pods
+ChatGPT o3
+Thought for 14 seconds
+txt
+Copy
+Edit
+New chat
+Search chats
+Library
+Codex
+Operator
+GPTs
+Social Summarizer
+ChaatGPT
+Ireland Budget 2025 GPT
+New project
+ARC
+EPD Caroline
+Vet Vision
+Quarterly Reviews
+Benchmarking
+See more
+Today
+TPU v6e vs H100
+GPU Rental Pricing Comparison
+vLLM TPU Backend Execution
+Function Call Syntax
+Message ChatGPT
+Tools
+ChatGPT can make mistakes. Check important info.
+
+[4:09](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=249s) [A pseudo-prompt with the tool definitions highlighted.](https://assets.ai.engineer/sites/aiecode2025/sha256/bc8f7af24622e418f15164055a4acdf705e95693bada9c42319200f137ee3c72.webp)
+
+&lt;|im_start|&gt;system
+# Tools
+You may call one or more functions.
+
+&lt;tools&gt;
+{ …tool-1 JSON… }
+{ …tool-2 JSON… }
+…
+&lt;/tools&gt;
+
+Return each function call as JSON inside &lt;tool_call&gt; tags:
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;&lt;function-name&gt;&quot;, &quot;arguments&quot;: { … } }
+&lt;/tool_call&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;user
+&lt;actual user message&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;assistant
+&lt;think&gt;
+…assistant’s private reasoning…
+&lt;/think&gt;
+
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;browser_navigate&quot;, &quot;arguments&quot;: { [illegible]: &quot;https://…&quot;} }
+
+Interface text:
+chatgpt.com
+MCP Agent Fine-tuning Workshop - G...
+ai-worlds-fair-2025/mcp-agent-fine-t...
+Function Call Syntax
+Trelis_MCP_Agent_Fine_tuning_World...
+one-click-llms/README.md at main - T...
+My Pods
+My Pods
+ChatGPT o3
+Thought for 14 seconds
+txt
+Copy
+Edit
+New chat
+Search chats
+Library
+Codex
+Operator
+GPTs
+Social Summarizer
+ChaatGPT
+Ireland Budget 2025 GPT
+New project
+ARC
+EPD Caroline
+Vet Vision
+Quarterly Reviews
+Benchmarking
+See more
+Today
+TPU v6e vs H100
+GPU Rental Pricing Comparison
+vLLM TPU Backend Execution
+Function Call Syntax
+Message ChatGPT
+Tools
+ChatGPT can make mistakes. Check important info.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Function-call format" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Function-call format</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The pseudo-prompt tells the model to put a function’s name and arguments in JSON inside &lt;tool_call&gt; tags. The highlighted template shows the format.
+
+[4:25](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=265s) [A pseudo-prompt with the JSON function-call format highlighted.](https://assets.ai.engineer/sites/aiecode2025/sha256/3b61d569d65049abc3cf7ff27546ac1e17831673340698df63734b9a35610d68.webp)
+
+&lt;|im_start|&gt;system
+# Tools
+You may call one or more functions.
+
+&lt;tools&gt;
+{ …tool-1 JSON… }
+{ …tool-2 JSON… }
+…
+&lt;/tools&gt;
+
+Return each function call as JSON inside &lt;tool_call&gt; tags:
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;&lt;function-name&gt;&quot;, &quot;arguments&quot;: { … } }
+&lt;/tool_call&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;user
+&lt;actual user message&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;assistant
+&lt;think&gt;
+…assistant’s private reasoning…
+&lt;/think&gt;
+
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;browser_navigate&quot;, &quot;arguments&quot;: {[illegible]: &quot;https://…&quot;} }
+
+Interface text:
+chatgpt.com
+MCP Agent Fine-tuning Workshop - G...
+ai-worlds-fair-2025/mcp-agent-fine-t...
+Function Call Syntax
+Trelis_MCP_Agent_Fine_tuning_World...
+one-click-llms/README.md at main - T...
+My Pods
+My Pods
+ChatGPT o3
+Thought for 14 seconds
+txt
+Copy
+Edit
+PRO
+New chat
+Search chats
+Library
+Codex
+Operator
+GPTs
+Social Summarizer
+ChaatGPT
+Ireland Budget 2025 GPT
+New project
+ARC
+EPD Caroline
+Vet Vision
+Quarterly Reviews
+Benchmarking
+See more
+Today
+TPU v6e vs H100
+GPU Rental Pricing Comparison
+vLLM TPU Backend Execution
+Function Call Syntax
+Message ChatGPT
+Tools
+ChatGPT can make mistakes. Check important info.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Assistant response and tool call" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Assistant response and tool call</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The pseudo-prompt shows an assistant thinking after the user message, then calling browser_navigate with a URL in JSON. The call is wrapped in tool_call tags.
+
+[4:40](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=280s) [A pseudo-prompt showing system and user messages followed by assistant reasoning and a browser tool call.](https://assets.ai.engineer/sites/aiecode2025/sha256/621db7a2f04e02bc8c93fb152f07f37219c88318543aea4a5e66062bd045484e.webp)
+
+&lt;|im_start|&gt;system
+# Tools
+You may call one or more functions.
+
+&lt;tools&gt;
+{ …tool-1 JSON… }
+{ …tool-2 JSON… }
+…
+&lt;/tools&gt;
+
+Return each function call as JSON inside &lt;tool_call&gt; tags:
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;&lt;function-name&gt;&quot;, &quot;arguments&quot;: { … } }
+&lt;/tool_call&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;user
+&lt;actual user message&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;assistant
+&lt;think&gt;
+…assistant’s private reasoning…
+&lt;/think&gt;
+
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;browser_navigate&quot;, &quot;arguments&quot;: {&quot;url&quot;: &quot;https://…&quot;} }
+&lt;/tool_call&gt;
+&lt;|im_end|&gt;
+
+Interface text:
+chatgpt.com
+MCP Agent Fine-tuning Workshop - G...
+ai-worlds-fair-2025/mcp-agent-fine-t...
+Function Call Syntax
+Trelis_MCP_Agent_Fine_tuning_World...
+one-click-llms/README.md at main - T...
+My Pods
+My Pods
+ChatGPT o3
+New chat
+Search chats
+Library
+Codex
+Operator
+GPTs
+Social Summarizer
+ChaatGPT
+Ireland Budget 2025 GPT
+New project
+ARC
+EPD Caroline
+Vet Vision
+Quarterly Reviews
+Benchmarking
+See more
+Today
+TPU v6e vs H100
+GPU Rental Pricing Comparison
+vLLM TPU Backend Execution
+Function Call Syntax
+Copy
+Edit
+Message ChatGPT
+Tools
+ChatGPT can make mistakes. Check important info.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Browser tool-call argument" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Browser tool-call argument</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The pseudo-prompt shows the assistant producing a browser_navigate tool call as JSON, with a URL argument. Ronan describes this as one possible response after the model thinks.
+
+[4:45](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=285s) [A pseudo-prompt with the browser call's URL argument highlighted.](https://assets.ai.engineer/sites/aiecode2025/sha256/12ebcf14c289f887e9916426b9d586ae9a4c6940ac0a0ee96a074ebf686a1e06.webp)
+
+&lt;|im_start|&gt;system
+# Tools
+You may call one or more functions.
+
+&lt;tools&gt;
+{ …tool-1 JSON… }
+{ …tool-2 JSON… }
+…
+&lt;/tools&gt;
+
+Return each function call as JSON inside &lt;tool_call&gt; tags:
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;&lt;function-name&gt;&quot;, &quot;arguments&quot;: { … } }
+&lt;/tool_call&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;user
+&lt;actual user message&gt;
+&lt;|im_end|&gt;
+
+&lt;|im_start|&gt;assistant
+&lt;think&gt;
+…assistant’s private reasoning…
+&lt;/think&gt;
+
+&lt;tool_call&gt;
+{&quot;name&quot;: &quot;browser_navigate&quot;, &quot;arguments&quot;: {&quot;url&quot;: &quot;https://…&quot;} }
+&lt;/tool_call&gt;
+&lt;|im_end|&gt;
+
+Interface text:
+chatgpt.com
+MCP Agent Fine-tuning Workshop - G…
+ai-worlds-fair-2025/mcp-agent-fine-t…
+Function Call Syntax
+Trelis_MCP_Agent_Fine_tuning_World…
+one-click-llms/README.md at main - T…
+My Pods
+ChatGPT o3
+Copy
+Edit
+New chat
+Search chats
+Library
+Codex
+Operator
+GPTs
+Social Summarizer
+ChaatGPT
+Ireland Budget 2025 GPT
+New project
+ARC
+EPD Caroline
+Vet Vision
+Quarterly Reviews
+Benchmarking
+See more
+Today
+TPU v6e vs H100
+GPU Rental Pricing Comparison
+vLLM TPU Backend Execution
+Function Call Syntax
+Message ChatGPT
+Tools
+ChatGPT can make mistakes. Check important info.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Pseudo-prompt sent to the LLM" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Pseudo-prompt sent to the LLM</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>McGovern closes the MCP and prompt-structure overview before moving to examples that show how the prompt’s parts are injected in code.
+
+[5:06](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=306s) [A blue slide titled Pseudo-prompt going to the LLM, with a link to the example.](https://assets.ai.engineer/sites/aiecode2025/sha256/ef0aaf767563fc4ff89f86f63fc56079bd6da71c977a0785b4952d68f7f42ebd.webp)
+
+Pseudo-prompt (string) going to the llm
+
+See here
+
+Interface text:
+docs.google.com
+MCP Agent Fine-tuning Workshop
+File  Edit  View  Insert  Format  Slide  Arrange  Tools  Extensions  Help
+Menus  91%  Background  Layout  Theme  Transition
+Slideshow  Share</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="MCP agent fine-tuning README walkthrough" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MCP agent fine-tuning README walkthrough</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The README separates data collection, where the agent generates sample runs, from fine-tuning in a notebook. It shows commands for using the OpenAI API or a local server.
+
+[5:20](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=320s) [An editor displaying README options and examples for running the agent with an API or local server.](https://assets.ai.engineer/sites/aiecode2025/sha256/f200fb7fb8776a1001db48a190cc14511ba34c40eb421938cf7534fc21919907.webp)
+
+# MCP Agent Fine-tuning
+
+**Data Collection**
+
+| `--config` | `-c` | `config.json` | Path to MCP config file |
+| `--model` | `-m` | `gpt-4o` | Model name to use for chat completions |
+| `--base-url` | | None | Custom OpenAI-compatible API endpoint |
+| `--api-key` | | From env | Override OPENAI_API_KEY environment variable |
+| `--show-reasoning` | | True | Display model reasoning content when available |
+| `--trace-dir` | | `traces` | Directory to save conversation traces |
+| `--system-prompt` | | False | Flag to enable loading system prompt from file |
+| `--system-prompt-file` | | `system_prompt.txt` | Path to file containing system prompt |
+| `--truncate` | | None | Truncate tool responses to this many characters |</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Examples" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Examples</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Using OpenAI API (note that you won't get back reasoning traces):
+```bash
+uv run agent.py --model gpt-4o
+```
+
+Using a local server:
+```bash
+uv run agent.py --model any-model-name --base-url http://localhost:8000/v1
+```
+
+Using a custom API key:
+```bash
+uv run agent.py --api-key sk-your-api-key-here
+```
+
+Interface text:
+ai-worlds-fair-2025 — README.md
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com__fin...
+go_to_trelis_substack_...
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+LICENSE
+README.md
+Problems  Output  Debug Console  Terminal  Ports
+You: exit
+Conversation trace saved to:
+traces/go_to_trelis_com_and_tell_me_w_20250529_192802.json
+
+[5:30](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=330s) [README with the data collection section collapsed and a link to the fine-tuning notebook.](https://assets.ai.engineer/sites/aiecode2025/sha256/f9822e3f542957c80eefb0026fb22d6c4d059b20376c7350612a96df255fca23.webp)
+
+# MCP Agent Fine-tuning
+
+Contents:
+1. An agent that bridges MCP JSON-RPC tool servers with OpenAI-compatible chat completion APIs. This agent is used to generate &quot;high quality traces&quot;.
+2. A fine-tuning notebook that takes those traces and fine-tunes a model on them.
+
+Materials:
+- Workshop slides [here](https://docs.google.com/presentation/d/[illegible]/edit?usp=sharing).
+- Recommended pre-watching on MCP [here](https://www.youtube.com/watch?v=[illegible]), and optionally also [here, part 2](https://www.youtube.com/watch?v=[illegible]).
+- Fine-tuning notebook [here](https://colab.research.google.com/drive/[illegible]?usp=sharing).
+
+**Data Collection…**
+
+**Fine-tuning**
+
+Once you have pushed a dataset, you can run fine-tuning with this [colab notebook](https://colab.research.google.com/drive/[illegible]?usp=sharing).
+
+Interface text:
+ai-worlds-fair-2025 — README.md
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com__fin...
+go_to_trelis_substack_...
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+LICENSE
+README.md
+Problems  Output  Debug Console  Terminal  Ports
+You: exit
+Conversation trace saved to:
+traces/go_to_trelis_com_and_tell_me_w_20250529_192802.json</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="RunPod template overrides" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>RunPod template overrides</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>McGovern configures a vLLM server for Qwen3 with reasoning and Hermes tool-call parsers, automatic tool choice, and HTTP port 8000. The reasoning parser extracts think tokens into the response.
+
+[6:48](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=408s) [RunPod template overrides showing a model server command, disk settings, and an HTTP port.](https://assets.ai.engineer/sites/aiecode2025/sha256/7d9d5f8504e0d37dcf0a2aad54127ed91065516484436ea4c674be31cb780ee4.webp)
+
+Pod Template Overrides
+
+Container Image
+vllm/vllm-openai:latest
+
+Container Start Command
+--model Qwen/Qwen3-30B-A3B-FP8 --enable-reasoning --reasoning-parser deepseek_r1 --max-model-len 32768 --host 0.0.0.0 --port 8000 --enable-auto-tool-choice --tool-call-parser hermes
+
+Container Disk
+Temporary disk space for the container
+10 GB
+
+Volume Disk
+Persistent disk space mounted to the container
+50 GB
+
+Volume Mount Path
+/root/.cache/huggingface
+
+Expose HTTP Ports (Max 10)
+8000
+
+Expose TCP Ports
+22, 443
+
+Public Environment Variables (max 50)
+Clear Overrides
+Set Overrides
+
+Interface text:
+runpod.io
+MCP Agent Fine-tuning Worksh...
+ai-worlds-fair-2025/mcp-agent-...
+Function Call Syntax
+Trelis_MCP_Agent_Fine_tuning_...
+one-click-llms/README.md at...
+My Pods
+My Pods
+RunPod GPU Cloud</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="How MCP works" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How MCP works</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A vLLM endpoint sits between the model conversation and MCP tool service, with JSON conversions shown at its boundary. Hermes extracts the model’s tool calls into JSON for MCP.
+
+[7:26](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=446s) [Diagram connecting a language model conversation, a vLLM endpoint, and an MCP tool service through tool information, calls, and responses.](https://assets.ai.engineer/sites/aiecode2025/sha256/6414da67f1e3d7d7602a1982aaeb8e9823f178bbabc19f37a570ff6e0f503a9e.webp)
+
+How does MCP work?
+
+Extract tool calls (hermes)
+Convert MCP -&gt; list of JSON tools
+
+Large Language Model Conversation
+vLLM OpenAI Endpoint
+Tool Info
+Tool Call
+Tool Response
+MCP Tool Service
+[stores tool info]
+[runs tools]
+
+Convert MCP -&gt; JSON response
+MCP Service
+
+Interface text:
+docs.google.com
+MCP Agent Fine-tuning Workshop
+File  Edit  View  Insert  Format  Slide  Arrange  Tools  Extensions  Help
+Menus  91%  Background  Layout  Theme  Transition
+Slideshow  Share
+Browser tabs: MCP Agent Fine-tuning Worksh...; ai-worlds-fair-2025/mcp-agent-...; Function Call Syntax; Trelis_MCP_Agent_Fine_tuning_...; one-click-llms/README.md at...; RunPod GPU Cloud; My Pods; My Pods</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Browser tool server configuration" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Browser tool server configuration</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent loads its Playwright MCP server from config.json. The terminal reports 25 available tools; McGovern says additional servers can be configured to load their tools too.
+
+[9:42](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=582s) [An editor displays the browser tool server configuration above the agent terminal.](https://assets.ai.engineer/sites/aiecode2025/sha256/1b0a26e43d93bbfe0b71444f01b8535f38b0f49ad7b133e738641554acbde117.webp)
+
+config.json
+{
+  &quot;mcpServers&quot;: {
+    &quot;playwright&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;@playwright/mcp@latest&quot;
+      ]
+    }
+  }
+}
+
+Terminal:
+You: exit
+
+Conversation trace saved to:
+traces/go_to_trelis_com_and_tell_me_w_20250529_192802.json
+ronanmcgovern@Ronans-MacBook-Pro-2 mcp-agent-fine-tune % uv sync
+Resolved 52 packages in 6ms
+Audited 50 packages in 0.19ms
+ronanmcgovern@Ronans-MacBook-Pro-2 mcp-agent-fine-tune % uv run agent.py --model Qwen/Qwen3-30B-A3B-FP8 --base-url https://[illegible]x98vpo2i-8000.proxy.runpod.net/v1 --truncate 16000
+
+MCP Agent (OpenAI edition)
+Type 'exit' to quit.
+
+Started MCP server: playwright
+Discovered 25 tools from playwright.
+Total available tools: 25
+You:
+
+Interface text:
+ai-worlds-fair-2025 — config.json
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___fin...
+go_to_trelis_substack_...
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+LICENSE
+README.md
+Explain  Refactor  Add Docstring
+Problems  Output  Debug Console  Terminal  Ports
+Outline  Timeline
+main
+Ln 8, Col 8  Spaces: 2  UTF-8</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Browser navigation demo" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Browser navigation demo</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent requests approval to navigate to Trelis.com. After approval, it opens the browser and picks out the page’s first two lines.
+
+[11:36](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=696s) [A browser displays the Trelis Research page beside an editor showing the navigation tool call.](https://assets.ai.engineer/sites/aiecode2025/sha256/b0998a201d9a49af12ded3e14cb16d980c75784faf5e91e2646a7db84a716ff7.webp)
+
+Trelis Research
+Tools and Tutorials for Large Language Models
+
+Trelis Research
+
+For regular content, subscribe to Trelis on Youtube or Substack (newsletter).
+
+AI Tools: Self-Serve Github Repositories
+
+Get access to Trelis’ repos, including support through Github issues.
+
+Time Series Forecasting
+Language Mo[illegible]valuation (Evals)
+Language Mo[illegible]ne-tuning
+Language Mode[illegible]
+Vi[illegible]nference
+[illegible]nscription, Voice Cloning and Speech to Speech)
+
+config.json:
+{
+  &quot;mcpServers&quot;: {
+    &quot;playwright&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;@playwright/mcp@latest&quot;
+      ]
+    }
+  }
+}
+
+Terminal:
+Type 'exit' to quit.
+Started MCP server: playwright
+Discovered 25 tools from playwright.
+Total available tools: 25
+You: Navigate to trelis.com and read out the top two lines
+
+Assistant:
+
+Tool call requested:
+browser_navigate
+  • url: https://www.trelis.com
+Run this tool? [y/n]: y
+
+Interface text:
+Chrome — trelis.com
+Restore pages?
+Chrome didn't shut down correctly.
+Help make Google Chrome better by sending crash reports and usage statistics to Google
+Restore
+
+ai-worlds-fair-2025 — config.json
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___fin...
+go_to_trelis_substack_...
+navigate_to_trelis_...
+navigate_to_trelis_...
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+LICENSE
+README.md
+Problems
+Terminal
+Outline
+Timeline</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Agent reads the page" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent reads the page</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After the approved browser navigation, the agent identifies the page heading and subscription sentence as its first two visible text elements.
+
+[11:41](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=701s) [The browser page remains open while the terminal displays the agent’s response identifying its first two lines.](https://assets.ai.engineer/sites/aiecode2025/sha256/5ba15b654e4aa06e3fbe67d2e33c9a0a36c18a05bc20ad3788622e67f830d69d.webp)
+
+Trelis Research
+Tools and Tutorials for Large Language Models
+
+Trelis Research
+
+For regular content, subscribe to Trelis on Youtube or Substack (newsletter).
+
+AI Tools: Self-Serve Github Repositories
+
+Get access to Trelis’ repos, including support through Github issues.
+
+Time Series Forecasting
+Language M[illegible]ce Evaluation (Evals)
+Language [illegible] Fine-tuning
+Language M[illegible]
+Vi[illegible] Inference
+[illegible]nscription, Voice Cloning and Speech to Speech)
+
+config.json:
+{
+  &quot;mcpServers&quot;: {
+    &quot;playwright&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;@playwright/mcp@latest&quot;
+      ]
+    }
+  }
+}
+
+Terminal:
+browser_navigate
+  • url: https://www.trelis.com
+Run this tool? [y/n]: y
+
+Assistant:
+
+The top two lines from Trelis.com are:
+
+1. **Trelis Research** (Heading level 1)
+2. *For regular content, subscribe to Trelis on YouTube or Substack (newsletter).*
+
+These are the first two visible text elements on the page.
+
+You:
+
+Interface text:
+Windsurf  File  Edit  Selection  View  Go  Run  Terminal  Window  Help
+Thu 29 May 19:56
+Chrome address: trelis.com
+Restore pages?
+Chrome didn't shut down correctly.
+Help make Google Chrome better by sending crash reports and usage statistics to Google
+Restore
+ai-worlds-fair-2025 — config.json
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___fin...
+go_to_trelis_substack_...
+navigate_to_trelis_...
+navigate_to_trelis_...
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+LICENSE
+README.md
+Problems  Terminal
+Outline  Timeline
+main*  Spaces: 2  UTF-8  LF  JSON  Pro  Windsurf - Settings</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Saved conversation trace" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Saved conversation trace</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent saves a conversation trace after the demo. McGovern opens the JSON to show the user request, assistant reasoning, and browser navigation call; he says the logs also include the tools needed for fine-tuning.
+
+[11:56](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=716s) [The editor shows trace files and the terminal confirms that the conversation trace was saved.](https://assets.ai.engineer/sites/aiecode2025/sha256/a5a5517affbf5ab287bffb20540f2730f4cb6a8784ccce0809a4988c91e3aaa4.webp)
+
+{
+  &quot;mcpServers&quot;: {
+    &quot;playwright&quot;: {
+      &quot;command&quot;: &quot;npx&quot;,
+      &quot;args&quot;: [
+        &quot;@playwright/mcp@latest&quot;
+      ]
+    }
+  }
+}
+
+The top two lines from Trelis.com are:
+1. **Trelis Research** (Heading level 1)
+2. *For regular content, subscribe to Trelis on YouTube or Substack (newsletter).*
+
+These are the first two visible text elements on the page.
+
+You: exit
+
+Conversation trace saved to:
+traces/Navigate_to_trelis_com_and_rea_20250529_195610.json
+
+Interface text:
+ai-worlds-fair-2025 — config.json
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___find_the_th_20250529_130900.json
+go_to_trelis_substack_com__nav_20250529_161533.json
+navigate_to_trelis_com_and_rea_20250529_195426.json
+Navigate_to_trelis_com_and_rea_20250529_195610.json
+navigate_to_trelis_com_and_tel_20250529_194841.json
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+Problems  Output  Debug Console  Terminal  Ports
+
+[12:11](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=731s) [Editor showing a saved conversation trace with a user request and browser navigation call.](https://assets.ai.engineer/sites/aiecode2025/sha256/9aa23e1d3728a8cfe2e6cce9296daff3e5228450d309e99260c051412117736c.webp)
+
+{
+  &quot;timestamp&quot;: &quot;20250529_195610&quot;,
+  &quot;model&quot;: &quot;Qwen/Qwen3-30B-A3B-FP8&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: &quot;Navigate to trelis.com and read out the top two lines&quot;
+    },
+    {
+      &quot;role&quot;: &quot;assistant&quot;,
+      &quot;content&quot;: &quot;\n\n&quot;,
+      &quot;reasoning_content&quot;: &quot;\nOkay, the user wants me to navigate to trelis.com and read the top two lines. Let me think[illegible]
+      &quot;tool_calls&quot;: [
+        {
+          &quot;id&quot;: &quot;[illegible]&quot;,
+          &quot;type&quot;: &quot;function&quot;,
+          &quot;function&quot;: {
+            &quot;name&quot;: &quot;browser_navigate&quot;,
+            &quot;arguments&quot;: &quot;{\&quot;url\&quot;: \&quot;https://www.trelis.com\&quot;}&quot;
+          }
+        }
+      ]
+    },
+    {
+      &quot;role&quot;: &quot;tool&quot;,
+      &quot;tool_call_id&quot;: &quot;[illegible]&quot;,
+      &quot;content&quot;: &quot;- Ran Playwright code:\n```js\n// Navigate to https://www.trelis.com\nawait page.goto('https://www.trel[illegible]
+    },
+    {
+
+Conversation trace saved to:
+traces/Navigate_to_trelis_com_and_rea_20250529_195610.json
+
+Interface text:
+ai-worlds-fair-2025 — Navigate_to_trelis_com_and_rea_20250529_195610.json
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___find_th...
+go_to_trelis_substack_com...
+Navigate_to_trelis_com... U
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+LICENSE
+Problems  Output  Debug Console  Terminal  Ports</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Saved conversation trace" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Saved conversation trace</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The saved trace contains browser output, including open tabs and a page snapshot. McGovern plans to use saved traces to create a fine-tuning dataset.
+
+[17:46](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=1066s) [An editor displays a saved JSON conversation trace and a terminal confirms it was saved.](https://assets.ai.engineer/sites/aiecode2025/sha256/77a9ecebdd2fa4f9b1ccf96856c55824fa6f5e5f6b7ab871cb4e7ee3d0ef6bdd.webp)
+
+[illegible] ('link', { name: 'Learn More' }).click();\n```\n\n### Open tabs\n- 1: (current) [Trelis Research \u2013 Tools and Tutorials for Large Language Models] (https://trelis.com/)\n- 2: [Fine-tuning and Retrieval (RAG) \u2013 Trelis Research] (https://trelis.com/advanced-fine-tuning/)\n\n### Current tab\n- Page URL: https://trelis.com/\n- Page Title: Trelis Research \u2013 Tools and Tutorials for Large Language Models\n- Page Snapshot\n```yaml\n- generic [ref=e2]:\n  - banner [ref=e3]:\n    - link \&quot;Skip to content\&quot; [ref=e4] [cursor=pointer]:\n      - /url: \&quot;#content\&quot;\n    - navigation [ref=e6]:\n      - generic [ref=e9]:\n        - link \&quot;Trelis Research\&quot; [ref=e14] [cursor=pointer]:\n          - /url: https://trelis.com/\n          - generic [ref=e15] [cursor=pointer]:\n            - img \&quot;Trelis Research Logo\&quot; [ref=e16] [cursor=pointer]\n            - generic [ref=e17] [cursor=pointer]:\n              - paragraph [ref=e18] [cursor=pointer]: Trelis Research\n              - generic [ref=e19] [cursor=pointer]: Tools and Tutorials for Large Language Models\n        - button \&quot;Navigation Menu\&quot; [ref=e24] [cursor=pointer]:\n          - generic [ref=e29] [cursor=pointer]: Navigation Menu\n  - main [ref=e30]:\n    - heading \&quot;Trelis Research\&quot; [level=1] [ref=e36]\n    - generic [ref=e37]:\n      - paragraph [ref=e38]:\n        - text: For regular content, subscribe to Trelis on\n        - link \&quot;Youtube\&quot; [ref=e39] [cursor=pointer]:\n          - /url: https://youtube.com/@trelisresearch\n          - strong [ref=e40] [cursor=pointer]: Youtube\n        - text: or\n        - link \&quot;Substack\&quot; [ref=e41] [illegible]
+
+Terminal:
+[illegible] purchasers.
+- Student discounts available (use `LEARN2025` at checkout).
+
+Would you like me to summarize specific sections or extract details about a particular feature?
+
+You: exit
+
+Conversation trace saved to:
+traces/navigate_to_trelis_com_and_the_20250529_200812.json
+
+Interface text:
+ai-worlds-fair-2025 — navigate_to_trelis_com_and_the_20250529_200812.json
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___find_the_th_20250529_130900.json
+go_to_trelis_substack_com__nav_20250529_161533.js...
+Navigate_to_trelis_com_and_rea_20250529_1956... U
+navigate_to_trelis_com_and_the_20250529_2008... U
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+README.md
+navigate_to_trelis_com_and_the_20250529_200812.json U
+config.json
+messages &gt; 7 &gt; reasoning_content
+/ai-worlds-fair-2025/mcp-agent-fine-tune/pyproject.toml
+Problems  Output  Debug Console  Terminal  Ports
+Ln 61, Col 210  Spaces: 2  UTF-8  LF  JSON  Pro  Windsurf - Settings</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="Trace uploader options" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Trace uploader options</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>McGovern shows a script for turning saved messages and tools into a Hugging Face dataset. Its --unroll option adds truncated examples for training on intermediate conversation turns.
+
+[17:51](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=1071s) [The uploader script describes its repository, trace directory and unroll options.](https://assets.ai.engineer/sites/aiecode2025/sha256/97c953ef53ae4b71a26be2edc43160a979db1bd1c45fb4393763d75c5520fb16.webp)
+
+#!/usr/bin/env python3
+&quot;&quot;&quot;
+Push MCP Agent conversation traces to Hugging Face Hub as a dataset.
+
+Usage:
+    uv run push-to-hub.py --repo-id=&quot;owner/dataset-name&quot; [--trace-dir=&quot;traces&quot;] [--unroll]
+
+Options:
+    --repo-id       Hugging Face Hub repository ID (required)
+    --trace-dir     Directory containing trace files (default: 'traces')
+    --unroll        Create multiple examples from each trace by truncating at different points
+
+The --unroll flag creates multiple training examples from each conversation trace:
+- One example with the complete conversation
+- Additional examples where the conversation is truncated at each assistant message
+- This allows training on intermediate steps of conversations
+
+Before running this script, make sure to log in to Hugging Face:
+    huggingface-cli login
+&quot;&quot;&quot;
+
+import argparse
+
+Terminal:
+purchasers.
+- Student discounts available (use `LEARN2025` at checkout).
+
+Would you like me to summarize specific sections or extract details about a particular feature?
+
+You: exit
+
+Conversation trace saved to:
+traces/navigate_to_trelis_com_and_the_20250529_200812.json
+
+Interface text:
+ai-worlds-fair-2025 — push-to-hub.py
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___find_th...
+go_to_trelis_substack_com_...
+Navigate_to_trelis_com... U
+navigate_to_trelis_com... U
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+Problems  Output  Debug Console  Terminal  Ports
+Ln 1, Col 1  Spaces: 4  UTF-8  LF  Python  3.13.3 64-bit  Pro  Windsurf - Settings</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="Preparing the dataset" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Preparing the dataset</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The script extracts messages and tools from each trace. McGovern explains that unrolling can turn three back-and-forths into three training rows containing one, two, and three exchanges.
+
+[18:10](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=1090s) [Python code prepares dataset rows from conversation traces and extracts messages and tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/f540814374ec0ad8784e267be90c24ad2055b74d7a3149c4ea784bdb29868a88.webp)
+
+def load_traces(trace_dir: str) -&gt; List[Dict[str, Any]]:
+        })
+        progress.update(task, advance=1)
+    except Exception as e:
+        console.print(f&quot;[red]Error loading {trace_file}: {e}[/red]&quot;)
+        progress.update(task, advance=1)
+
+return traces
+
+def prepare_dataset(traces: List[Dict[str, Any]], unroll: bool = False) -&gt; Dataset:
+    &quot;&quot;&quot;Convert traces to a Hugging Face dataset.&quot;&quot;&quot;
+    if not traces:
+        raise ValueError(&quot;No valid traces to convert to dataset&quot;)
+
+[illegible] relevant data from traces
+    dataset_rows = []
+
+for trace_item in traces:
+        trace = trace_item[&quot;trace&quot;]
+
+# Extract conversation and tools
+        messages = trace.get(&quot;messages&quot;, [])
+        tools = trace.get(&quot;tools&quot;, [])
+
+if not messages:
+            console.print(f&quot;[yellow]Skipping trace {trace_item['filename']} - no messages found[/yellow]&quot;)
+            continue
+
+# Format conversation for the dataset
+        formatted_messages = []
+
+Interface text:
+ai-worlds-fair-2025 — push-to-hub.py
+Explorer
+ai-worlds-fair-2025
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___find_th...
+go_to_trelis_substack_com_...
+Navigate_to_trelis_com... U
+navigate_to_trelis_com... U
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+README.md | push-to-hub.py | config.json
+mcp-agent-fine-tune &gt; push-to-hub.py &gt; ...
+Problems | Output | Debug Console | Terminal | Ports
+Conversation trace saved to:
+traces/navigate_to_trelis_com_and_the_20250529_200812.json
+ronanmcgovern@Ronans-MacBook-Pro-2 mcp-agent-fine-tune %
+Ln 1, Col 1 | Spaces: 4 | UTF-8 | LF | Python 3.13.3 64-bit | Pro | Windsurf - Settings</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="24" data-cap="Trace logging and upload prerequisites" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Trace logging and upload prerequisites</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The agent saves conversations, tool definitions, model information, and timestamps as JSON traces. The README describes logging in to Hugging Face and collecting traces before uploading them as a dataset.
+
+[18:57](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=1137s) [The README lists the contents of logged traces and the prerequisites for uploading them.](https://assets.ai.engineer/sites/aiecode2025/sha256/756c0579398db8d9ea647734641ff2819533b849eb872af0f1e80c21cfc8c55c.webp)
+
+MCP Agent Fine-tuning
+Data Collection
+
+Trace Logging
+
+The agent automatically logs conversation traces to the `traces` directory. Each trace is saved as a JSON file named using the first 30 characters of the user's first message plus a timestamp.
+
+Traces include:
+- Full conversation history with all messages
+- Tool definitions in OpenAI format
+- Model information
+- Timestamp
+
+You can specify a custom directory for traces using the `--trace-dir` option.
+
+Pushing Traces to Hugging Face Hub
+
+After collecting conversation traces, you can push them to Hugging Face Hub as a dataset for fine-tuning or sharing. The repository includes a script for this purpose.
+
+Prerequisites
+
+1. Log in to Hugging Face Hub using the CLI:
+   huggingface-cli login
+
+2. Make sure you have collected some traces in your traces directory.
+
+Run the script with your Hugging Face repository ID:
+
+Interface text:
+ai-worlds-fair-2025 — README.md
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___find_th...
+go_to_trelis_substack_com_...
+Navigate_to_trelis_com... U
+navigate_to_trelis_com... U
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+Search: push_= — No results
+Problems  Output  Debug Console  Terminal  Ports
+Conversation trace saved to:
+traces/navigate_to_trelis_com_and_the_2025
+0529_200812.json
+ronanmcgovern@Ronans-MacBook-Pro-2 mcp-agent-fine-tune %</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="25" data-cap="Unrolling traces" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Unrolling traces</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The upload script’s --unroll option creates a complete conversation example plus examples truncated at each assistant message. This run prepares 9 examples.
+
+[19:00](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=1140s) [The README explains the upload options and unrolling, while the terminal reports nine dataset examples.](https://assets.ai.engineer/sites/aiecode2025/sha256/fb2d26b8573fef86a9f75cd72b8212639982403b407bd25c2a4c79e26990e610.webp)
+
+MCP Agent Fine-tuning
+Data Collection
+Pushing Traces to Hugging Face Hub
+
+Prerequisites
+
+1. Log in to Hugging Face Hub using the CLI:
+   huggingface-cli login
+
+2. Make sure you have collected some traces in your traces directory.
+
+Run the script with your Hugging Face repository ID:
+uv run push-to-hub.py --repo-id=&quot;Trelis/qwen-web-agent&quot; --unroll
+
+Options:
+- --repo-id (required): The Hugging Face Hub repository ID where the dataset will be pushed
+- --trace-dir (optional): Directory containing trace files (default: &quot;traces&quot;)
+- --unroll (optional): Create multiple examples from each trace by truncating at different points
+
+The script will:
+1. Load all JSON trace files from the specified directory
+2. Convert them to a structured dataset format
+3. When --unroll is enabled, create multiple training examples from each trace:
+   - One example with the complete conversation
+   - Additional examples truncated at each assistant message
+   - This increases training data and helps the [illegible] intermediate conversation steps
+
+Terminal:
+Preparing dataset...
+Unroll flag enabled: Creating multiple examples from each trace
+Created dataset with 9 examples
+
+Interface text:
+ai-worlds-fair-2025 — README.md
+Explorer
+mcp-agent-fine-tune
+.venv
+traces
+go_to_trelis_com___find_th...
+go_to_trelis_substack_com_...
+Navigate_to_trelis_com... U
+navigate_to_trelis_com... U
+.gitignore
+.python-version
+agent.py
+config.json
+push-to-hub.py
+pyproject.toml
+README.md
+system_prompt.txt
+test_api.py
+test_trace_reload.py
+uv.lock
+tts-fine-tuning
+README.md | push-to-hub.py | config.json
+Search: push-to; 1 of 1
+Explain | Refactor | Add Docstring
+Problems | Output | Debug Console | Terminal | Ports
+Ln 82, Col 65 | Spaces: 3 | UTF-8 | LF | Markdown | Pro | Windsurf - Settings</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="26" data-cap="Uploading conversation traces to Hugging Face" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Uploading conversation traces to Hugging Face</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After logging in, Ronan reruns the uploader. The --unroll option turns four traces into nine examples, which he pushes to Trelis/qwen-web-agent.
+
+[19:07](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=1147s) [The terminal reports that four traces produced nine examples and that login is required before upload.](https://assets.ai.engineer/sites/aiecode2025/sha256/b03d9bca08fd7ee2881c43606e4899995ce8fdc07e192d322510d772831bb2cd.webp)
+
+MCP Agent Fine-tuning
+Data Collection
+Pushing Traces to Hugging Face Hub
+
+Prerequisites
+
+1. Log in to Hugging Face Hub using the CLI:
+   huggingface-cli login
+
+2. Make sure you have collected some traces in your traces directory.
+
+Run the script with your Hugging Face repository ID:
+uv run push-to-hub.py --repo-id=&quot;Trelis/qwen-web-agent&quot; --unroll
+
+Options:
+- --repo-id (required): The Hugging Face Hub repository ID where the dataset will be pushed
+- --trace-dir (optional): Directory containing trace files (default: &quot;traces&quot;)
+
+Terminal:
+Conversation trace saved to:
+traces/navigate_to_trelis_com_and_the_20250529_200812.json
+uv run push-to-hub.py --repo-id=&quot;Trelis/qwen-web-agent&quot; --unroll
+MCP Agent Trace Uploader
+Pushing traces to Hugging Face Hub
+
+Loading traces from traces...
+Loading 4 trace files... 100%
+Loaded 4 trace files
+Preparing dataset...
+Unroll flag enabled: Creating multiple examples from each trace
+Created dataset with 9 examples
+Not logged in to Hugging Face. Please run 'huggingface-cli login' first.
+huggingface-cli log
+
+Interface text:
+ai-worlds-fair-2025 — README.md
+Explorer; README.md; push-to-hub.py; config.json
+mcp-agent-fine-tune; .venv; traces; .gitignore; .python-version; agent.py; pyproject.toml; system_prompt.txt; test_api.py; test_trace_reload.py; uv.lock; tts-fine-tuning
+Problems; Output; Debug Console; Terminal; Ports
+
+[19:26](https://www.youtube.com/watch?v=Nqb7JTx0Pqo&amp;t=1166s) [A terminal reports that trace examples were prepared and uploaded to Hugging Face.](https://assets.ai.engineer/sites/aiecode2025/sha256/b04bf395906ce8a3523dc5b3758dc3168dabc82e3b3ab35e834a5d357e5933e6.webp)
+
+MCP Agent Fine-tuning
+Data Collection
+Pushing Traces to Hugging Face Hub
+
+Prerequisites
+
+1. Log in to Hugging Face Hub using the CLI:
+   huggingface-cli login
+
+2. Make sure you have collected some traces in your traces directory.
+
+Run the script with your Hugging Face repository ID:
+uv run push-to-hub.py --repo-id=&quot;Trelis/qwen-web-agent&quot; --unroll
+
+Options:
+- --repo-id (required): The Hugging Face Hub repository ID where the dataset will be pushed
+- --trace-dir (optional): Directory containing trace files (default: &quot;traces&quot;)
+
+Terminal:
+Loading traces from traces...
+Loading 4 trace files... 100%
+Loaded 4 trace files
+Preparing dataset...
+Unroll flag enabled: Creating multiple examples from each trace
+Created dataset with 9 examples
+Logged in as: RonanMcGovern
+Pushing dataset to Trelis/qwen-web-agent...
+Creating parquet from Arrow format: 100% 1/1 [00:00&lt;00:00, 147.80ba/s]
+Uploading the dataset shards: 100% 1/1 [00:01&lt;00:00, 1.80s/it]
+README.md: 100% 5.65k/5.65k [00:00&lt;00:00, 9.65MB/s]
+Successfully pushed dataset to Trelis/qwen-web-agent!
+View your dataset at: https://huggingface.co/datasets/Trelis/qwen-web-agent
+
+Interface text:
+ai-worlds-fair-2025 — README.md
+Explorer; README.md; push-to-hub.py; config.json
+mcp-agent-fine-tune; .venv; traces; .gitignore; .python-version; agent.py; pyproject.toml; system_prompt.txt; test_api.py; test_trace_reload.py; uv.lock; tts-fine-tuning
+Problems; Output; Debug Console; Terminal; Ports</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">一个浏览器智能体应该从一次成功的运行中学到什么？</a></li><li><a href="#sec-2">在 MCP、API 和模型文本之间转换</a></li><li><a href="#sec-3">部署一个会展示推理过程的“老师”模型</a></li><li><a href="#sec-4">批准一次导航并读取页面</a></li><li><a href="#sec-5">保存整个运行过程，再尝试一个更难的任务</a></li><li><a href="#sec-6">把有引导的运行变成精选的示范</a></li><li><a href="#sec-7">把对话展开成训练用的前缀</a></li><li><a href="#sec-8">让智能体的转换职责保持明确</a></li><li><a href="#sec-9">为记录套用模板，并测试未经调优的“学生”模型</a></li><li><a href="#sec-10">在很小的内存和数据预算内训练适配器</a></li><li><a href="#sec-11">导出“学生”模型并设计一个有意义的评测</a></li><li><a href="#sec-12">给奖励训练一个有用的起始策略</a></li><li><a href="#sec-13">一次正确的工具调用闭合的是循环，而不是评测</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">MCP 智能体微调工作坊</h2>
+      <div class="lede"><p>一个浏览器智能体有用的训练数据，包括它的工具、推理、动作和观察。Ronan McGovern 跟随这份记录，从采集到 Qwen3 适配器训练，再回到推理。</p><p>熟悉 Python、聊天模型 API 和基本的模型微调，有助于理解智能体和 notebook 示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="0">▶ 0:00</button></div>
+      <h3>一个浏览器智能体应该从一次成功的运行中学到什么？</h3>
+      <p>How do you turn a successful browser-agent run into training data for a smaller model? The final answer alone leaves out much of the work: choosing a tool, supplying its arguments, interpreting the result and deciding what to do next. Ronan McGovern’s workshop follows that complete sequence—collect good MCP agent traces, save their tool definitions and conversations, fine-tune <strong>Qwen3</strong>, then run the trained model to inspect its behavior.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b4c333a5fed5d0363709b1880abb36281a2193b85a6fa39bd2806574c835ae08" alt="Blue “What you’ll learn” slide with four steps covering reasoning traces, saved tools and multi-turn traces, Qwen3 fine-tuning with Unsloth, and running the model." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Workshop goals: generate and save MCP agent traces, fine-tune Qwen3, and run the fine-tuned model.</figcaption></figure>
+<p>The <a href="https://github.com/TrelisResearch/ai-worlds-fair-2025/tree/main/mcp-agent-fine-tune" target="_blank" rel="noopener">workshop materials</a> live in the <code>mcp-agent-fine-tune</code> directory of Trelis Research’s AI Worlds Fair 2025 repository. The supplied task environment is browser navigation. MCP integrations for Stripe, GitHub or Gmail could replace it, but starting with the browser keeps the collection and training pipeline consistent while you learn it.</p>
+<p><strong>MCP connects tool discovery to tool execution.</strong> A server supplies descriptions and input schemas so the model can decide how to use its tools. When the model requests an action, the agent routes that request to the server. The server executes it and returns a result, sometimes with guidance for the next action. That observation enters the conversation, allowing the model to make another call or answer the user.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="142">▶ 2:22</button></div>
+      <h3>在 MCP、API 和模型文本之间转换</h3>
+      <p>The model sits behind an <strong>OpenAI-compatible endpoint</strong>. This gives the agent a familiar request and response interface, but MCP schemas and generated model text still need translation at three boundaries.</p>
+<p>| Boundary | Required translation |
+|---|---|
+| Tool discovery | MCP metadata → API JSON tool definitions |
+| Model output | Generated tool-call text → structured call |
+| Tool execution result | MCP response → conversation tool message |</p>
+<p>The workshop’s Qwen model emits calls in <strong>Hermes format</strong>. A parser detects those calls in the generated tokens and exposes structured arguments through the API. The parser name describes the output convention; it does not require the model itself to be named Hermes.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/520b306302d13b05fae620fc3b963e8cce66cba31499248ac12fc58e7e868af3" alt="Diagram connecting a language-model conversation, vLLM OpenAI endpoint, and MCP tool service. Three arrows show tool information, calls, and responses; orange annotations mark conversion and extraction steps." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>MCP integration through a vLLM OpenAI endpoint, with tool and response conversions and Hermes tool-call extraction.</figcaption></figure>
+<p>The prompt makes this convention explicit. Its system portion introduces the available tools and instructs the model to put JSON function calls inside XML-style <code>tool_call</code> tags. The user then asks it to navigate to <code>trelis.com</code>. The assistant can produce reasoning followed by a browser call; after receiving the page, it can reason again and return ordinary answer text. <strong>A generated call is a request for execution, not an executed browser action.</strong> The surrounding agent must recognize it and carry it out.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="305">▶ 5:05</button></div>
+      <h3>部署一个会展示推理过程的“老师”模型</h3>
+      <p>After cloning the repository into Windsurf, McGovern opens the README’s data-collection section; fine-tuning comes later in a notebook. For collection he chooses <strong>Qwen3-30B-A3B</strong>, a mixture-of-experts teacher described in rounded terms as 30 billion total parameters with 3 billion active. The companion command selects its FP8 variant. He recommends keeping the teacher and student in the same family, although a different stronger model could supply demonstrations. The practical requirement here is access to the reasoning being trained on: OpenAI models do not expose their private thinking traces.</p>
+<p>The demonstrated host is RunPod, using a linked affiliate one-click template and a vLLM Docker image. An H100 is one suggested GPU. Other hosting services can work, and local hosting depends on whether the serving application supports the required tool calls; McGovern leaves LM Studio support unchecked. The deployment settings each serve a distinct purpose:</p>
+<p>- <strong>Reasoning extraction:</strong> enable reasoning and its parser so thinking tokens become a separate response field.
+- <strong>Context budget:</strong> configure a maximum model length of 32,000.
+- <strong>Tool selection:</strong> enable automatic tool choice so the model decides whether and which tool to call.
+- <strong>Call parsing:</strong> select the Hermes parser to turn generated calls into structured API output.</p>
+<p>The historical parser option is documented in <a href="https://docs.vllm.ai/en/v0.8.5/features/tool_calling.html" target="_blank" rel="noopener">vLLM’s versioned tool-calling guide</a>. These are the workshop’s serving choices, rather than a version-independent deployment command.</p>
+<p>Expose port <code>8000</code>, apply the template overrides and start the server. McGovern estimates roughly three minutes for startup. The agent receives the model name and an OpenAI-compatible base URL containing the RunPod pod ID, exposed port and <code>/v1</code> suffix. That connects the local agent workspace to the remotely served teacher.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="522">▶ 8:42</button></div>
+      <h3>批准一次导航并读取页面</h3>
+      <p>Browser results can dominate the context. A navigation returns an <strong>accessibility tree</strong>: a structured text description of the page that the model can read. The agent’s <code>--truncate</code> option keeps only the beginning of that response. In the companion instructions, this limit is measured in characters, separately from the model’s token budget. It is a deliberately simple compromise: content farther down the page can disappear from the model’s view. A more complete agent needs a way to retrieve relevant content beyond that prefix.</p>
+<p>Install <code>uv</code> if needed, then synchronize the project dependencies:</p>
+<p>``<code>bash
+pip install uv
+uv sync
+</code>``</p>
+<p>The agent starts the MCP servers listed in its configuration and loads their tools. The supplied <a href="https://github.com/microsoft/playwright-mcp" target="_blank" rel="noopener">Playwright MCP</a> server provides browser navigation, history, tabs and link interactions. McGovern initially reports 25 tools. He estimates that open models may become confused beyond roughly 25–50 tools, while <strong>Claude</strong> might handle around 200; these are practical estimates, not measured capacity limits.</p>
+<p>The first request is to navigate to <code>trelis.com</code> and read out the top two lines. Thinking tokens are hidden from the terminal to reduce clutter, but retained for logging. The model proposes navigation and waits for approval. McGovern keeps the browser visible so the audience can watch the action; <code>--headless</code> would run it in the background. After arranging the windows and submitting the request again, he approves the call. The browser opens, its accessibility structure returns to the model, and the assistant identifies both lines.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/3c1139ae235c80f0753ac9de5724302fe365438b043c2b9e6de3bd8f515fcc6c" alt="Trelis Research webpage beside an editor terminal showing browser navigation approval and the assistant’s returned text." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The browser opens Trelis Research and the agent reports the page’s top lines.</figcaption></figure>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="717">▶ 11:57</button></div>
+      <h3>保存整个运行过程，再尝试一个更难的任务</h3>
+      <p>The agent logs two essential fields by default: <code>messages</code> and <code>tools</code>. The former preserves the conversation; the latter preserves the tool definitions available during that conversation. Here McGovern describes the saved inventory as 26 tools, including browser close and resize, rather than the 25 reported at startup. The <a href="https://github.com/TrelisResearch/ai-worlds-fair-2025/blob/main/mcp-agent-fine-tune/config.json" target="_blank" rel="noopener">companion configuration</a> launches <code>@playwright/mcp@latest</code>, so it does not establish a fixed historical count.</p>
+<p>The saved record contains the user request, assistant reasoning, navigation call, truncated page response, further reasoning and final answer. That is the behavior to preserve. McGovern keeps this successful trace for training a smaller model: the teacher already solved this example, whereas a less capable student may benefit from learning its sequence of decisions. The next collection step is to repeat the process and retain more good runs for upload to Hugging Face Hub.</p>
+<p>The harder task is to find the third product on <code>trelis.com</code>, Training and Fine-Tuning, navigate to its page and report the feature section. McGovern first follows the route manually and notices that the product opens in a new tab. The agent then navigates, successfully opens the dropdown, but stops early with an answer and asks whether to click Learn More.</p>
+<p>McGovern tells it to continue and explicitly reminds it to switch tabs. The agent clicks Learn More, opens the new tab and requests tab selection. He is unsure whether selecting that tab automatically obtains a fresh snapshot, but the subsequent answer retrieves the correct features: GitHub repository access and the ability to post issues. This is a successful guided run, with the corrective user turn forming part of the recorded conversation.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="954">▶ 15:54</button></div>
+      <h3>把有引导的运行变成精选的示范</h3>
+      <p>One way to collect cleaner behavior is to supply a task-specific system prompt. It can explain which tools to use, how to reach the product and when to switch tabs. McGovern’s proposal is to use that guidance during collection, then omit the task-specific prompt from the training record while retaining the resulting trace. The goal is for the student to learn the demonstrated sequence without requiring the same detailed instructions each time.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/27f8adf12ee6a132d35518db4b47775b2dad9048e5d72d014f70de6fb75f9701" alt="Editor displaying system_prompt.txt with instructions to navigate to a product, click Learn more, and switch to the newly opened tab; a saved-trace message appears in the terminal below." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A system prompt gives explicit browser navigation and tab-switching instructions.</figcaption></figure>
+<p>He then opens the more complicated trace, leaving its tool definitions unchanged, and considers two editing approaches:</p>
+<p>- <strong>Combine the interrupted sequence:</strong> remove the corrective user turn and combine the assistant sections, manually or with ChatGPT. Remove the intervening assistant answer content while retaining the reasoning needed for the continued action.
+- <strong>Reduce the correction:</strong> retain a short instruction to proceed, but move the possible need to switch tabs into the assistant’s reasoning. This is the edit he demonstrates.</p>
+<p>The resulting examples are <strong>curated demonstrations</strong>, including retrospective edits, rather than a collection consisting only of untouched autonomous successes. That distinction matters when interpreting what the student is being taught.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1074">▶ 17:54</button></div>
+      <h3>把对话展开成训练用的前缀</h3>
+      <p>Uploading a trace means preserving both its conversation and its tool list. <strong>Unrolling</strong> also saves shorter conversation prefixes so intermediate responses can become training endpoints. McGovern illustrates a conversation with three back-and-forths:</p>
+<p>| Training row | Conversation retained | Endpoint |
+|---|---|---|
+| Short prefix | First exchange | Earlier assistant response |
+| Longer prefix | First two exchanges | Later assistant response |
+| Full record | All three exchanges | Final assistant response |</p>
+<p>His motivation includes reasoning retention: he describes the workshop template as including reasoning only from the most recent turn. Making an earlier response the endpoint lets that reasoning appear in its own training row.</p>
+<p>This behavior depends on the uploader and template revisions. The current companion uploader adds prefixes at assistant messages immediately following user messages, plus the full conversation—not at every assistant tool step. The current <a href="https://huggingface.co/Qwen/Qwen3-4B/blob/main/tokenizer_config.json" target="_blank" rel="noopener">Qwen3-4B chat template</a> retains reasoning after the last real user query, which can span several assistant/tool steps. For a reproduction, inspect those boundaries together rather than assuming every tool call produces a row or that only one assistant message can retain reasoning.</p>
+<p>The upload helper takes a repository ID and an optional unroll argument. Hugging Face authentication needs a token with write permissions. In the demonstrated upload, four collected examples become nine dataset rows: one contributes three rows and the other three contribute two each. The displayed dataset includes an ID, timestamp, model, <code>messages</code>, <code>tools</code> and a flag described as truncated or unrolled. Here truncation means shortening the conversation to a prefix; it is separate from shortening a browser’s accessibility response.</p>
+<p>Inspecting the rows makes the difference concrete. A full record reaches the answer about the product page. A shorter record ends with reasoning and a tool call to select the tab. The reasoning remains in a separate field because the endpoint’s reasoning parser extracted it during collection. Training will later combine each row’s messages and tools through the student’s chat template.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1271">▶ 21:11</button></div>
+      <h3>让智能体的转换职责保持明确</h3>
+      <p>The implementation walkthrough maps the visible browser behavior to a small set of runtime responsibilities. The agent configures its OpenAI-compatible client, boots the MCP services, discovers their tools and translates their schemas. An MCP tool’s description and input schema become an API function definition; the Python mapping has this shape:</p>
+<p>``<code>python
+def to_openai_tool(tool):
+    return {
+        &quot;type&quot;: &quot;function&quot;,
+        &quot;function&quot;: {
+            &quot;name&quot;: tool.name,
+            &quot;description&quot;: tool.description or &quot;&quot;,
+            &quot;parameters&quot;: tool.inputSchema,
+        },
+    }
+</code>``</p>
+<p>The reverse path takes a structured model call back to the appropriate MCP tool. Once execution finishes, the agent wraps the result as a conversation message the API can accept. These conversions are the code-level counterparts of the earlier architecture diagram.</p>
+<p>The chat loop ties discovery, model requests, tool execution and subsequent model responses together. It keeps parsed reasoning separate from assistant answer content, while a trace-logging helper saves the details needed for training. Server configuration and command-line arguments control the environment without changing those core responsibilities.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1372">▶ 22:52</button></div>
+      <h3>为记录套用模板，并测试未经调优的“学生”模型</h3>
+      <p>Fine-tuning moves to a modified Unsloth notebook. After the Colab-specific installation, McGovern loads <strong>Qwen3-4B</strong> in 16-bit precision, without 4-bit weight quantization. Larger models may exceed the free GPU’s capacity; his alternative is a RunPod fine-tuning template with Jupyter, where the notebook can be uploaded. He postpones attaching <strong>LoRA adapters</strong> so he can first inspect the untouched student’s behavior.</p>
+<p>The notebook loads the dataset and inspects <code>messages</code>, <code>tools</code> and the tokenizer’s chat template. That template is the serialization contract: it turns structured records into the single sequence the model consumes. It is also available in the model’s tokenizer configuration on Hugging Face.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/2d6f5f088c080307ea612f447e0b29dc7f8fc58f71dce427a32948c9c18f17b3" alt="Colab notebook showing message and tool inspection cells and a formatting function that applies the chat template, with an option to remove system messages." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Notebook code formats messages and tools with the tokenizer’s chat template.</figcaption></figure>
+<p>After the runtime restart and weight download, the records are formatted into a <code>text</code> field. The central operation is:</p>
+<p>``<code>python
+def format_record(row, tokenizer):
+    return {
+        &quot;text&quot;: tokenizer.apply_chat_template(
+            row[&quot;messages&quot;],
+            tools=row[&quot;tools&quot;],
+            tokenize=False,
+            add_generation_prompt=False,
+        )
+    }
+</code>``</p>
+<p>The output starts with system-level tool instructions and definitions, then includes the user messages, assistant messages, calls and tool responses. Those tool definitions and page observations make the sequence long. Before training, the notebook checks the longest formatted row against its configured maximum length of 32,000.</p>
+<p>The baseline probe uses the first dataset request: navigate to <code>trelis.com</code>. An output already visible in the notebook came from an earlier fine-tuned run, so McGovern reruns the missing dataset cells before starting the fresh baseline. He reports nine rows and a longest formatted-row length of approximately 18,000. The raw 4B student receives the navigation request with 26 tools available. Its output is streamed to inspect whether it chooses a tool; a 2,000-token generation limit could be consumed by thinking before a call appears.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1654">▶ 27:34</button></div>
+      <h3>在很小的内存和数据预算内训练适配器</h3>
+      <p>With baseline generation underway, McGovern applies rank-32 LoRA adapters to attention modules and MLP layers. The base matrices stay frozen while the smaller adapter matrices learn the update. He also enables <strong>rank-stabilized LoRA</strong>. Although he describes it in terms of adapting the learning rate to adapter size, the precise change is adapter scaling: <a href="https://huggingface.co/docs/peft/v0.20.0/package_reference/lora" target="_blank" rel="noopener">PEFT’s LoRA configuration</a> uses <code>α/√r</code> for rank-stabilized LoRA instead of ordinary LoRA’s <code>α/r</code>. This does not automatically change the optimizer’s learning-rate setting.</p>
+<p>The trainer consumes the previously prepared <code>text</code> field. Its intentionally small configuration is:</p>
+<p>| Setting | Workshop choice |
+|---|---|
+| Device batch size | 1 |
+| Gradient accumulation | 1 |
+| Epochs | 1 |
+| Warm-up | Remove for this short run |
+| Learning-rate schedule | Constant |
+| Optimizer | AdamW 8-bit |</p>
+<p>With nine rows, one epoch, device batch size one and gradient accumulation one, the run has nine update steps. McGovern describes the learning rate as relatively high for the small model, without giving its numeric value aloud. The 8-bit optimizer saves memory; a larger GPU such as an A40 or H100 would allow a larger batch. With this tiny batch, the training loss will be noisy.</p>
+<p>Before training, McGovern reports approximately 15 GB of device memory, with 10 GB already reserved. Returning to the baseline output, he finds that the untuned student has more or less chosen the correct action. Reading both requested lines is his prediction, rather than a completed browser rollout in this notebook. He expects harder multi-step tasks to remain difficult, pointing back to the assistance needed by the larger teacher.</p>
+<p>The training display reports that 1.62% of the model’s parameters are trainable; the main weights remain frozen. The experiment is therefore updating a small adapter set, not retraining the entire student.</p>
+    </section>
+<section class="section" id="sec-11">
+      <div class="section-head"><span class="num">11</span>
+      <button class="seek" data-t="1824">▶ 30:24</button></div>
+      <h3>导出“学生”模型并设计一个有意义的评测</h3>
+      <p>The notebook provides a route back to the agent environment:</p>
+<p>1. Save the trained model and tokenizer.
+2. Authenticate to Hugging Face.
+3. Merge the adapters into 16-bit weights for the recommended export, then upload the merged model and tokenizer to Hub.
+4. Replace the model repository name in the existing RunPod serving configuration with that uploaded repository.</p>
+<p>This would expose the student through the same style of inference endpoint used during collection. McGovern describes these export and deployment options while training proceeds.</p>
+<p>A falling training loss is only a first diagnostic. McGovern recommends collecting a few hundred examples, reserving an evaluation split and logging with TensorBoard. The displayed loss is bumpy, consistent with the batch size of one. He suggests a batch around 32 for a larger experiment, with gradient accumulation as another way to increase the effective batch. But using the entire tiny dataset in one update would leave almost no sequence of learning steps; more data is part of the solution, not just a larger batch setting.</p>
+    </section>
+<section class="section" id="sec-12">
+      <div class="section-head"><span class="num">12</span>
+      <button class="seek" data-t="1919">▶ 31:59</button></div>
+      <h3>给奖励训练一个有用的起始策略</h3>
+      <p>Could trace generation be automated, or replaced with reward-based training such as <strong>GRPO</strong>? McGovern recommends beginning with manually curated, high-quality domain traces and supervised fine-tuning. His rationale is about exploration: if the initial model rarely completes the task, it generates many unsuccessful trajectories and receives few positive rewards. Teaching useful behavior first can make subsequent reward training more productive.</p>
+<p>For browser tasks, he proposes a simple source of verifiable rewards: choose obscure websites, record the correct text from their top lines, and ask the model to navigate to those pages and retrieve it. The dataset then contains a ground-truth answer against which the result can be checked. The essential requirement is a systematic way to produce correct targets and reward successful retrieval; the workshop itself remains a supervised fine-tuning exercise.</p>
+    </section>
+<section class="section" id="sec-13">
+      <div class="section-head"><span class="num">13</span>
+      <button class="seek" data-t="1999">▶ 33:19</button></div>
+      <h3>一次正确的工具调用闭合的是循环，而不是评测</h3>
+      <p>Training finishes with a generally lower loss. McGovern reports peak memory use of 75% and doubts that a device batch size of two would have fit. The notebook starts post-training generation with about 2,000 tokens available. He explicitly allows for the possibility that this small, noisy training run could disturb an answer the baseline already got right.</p>
+<p>The fine-tuned model emits the expected tool call. That is a useful integration check, but the untuned student also selected the basic navigation action, and the workshop presents no held-out score or measured improvement in complete agent success. The next evaluation is to serve the student and run actual browser rollouts in the earlier workspace. The displayed inference configuration uses temperature <code>0.6</code>, consistent with Qwen’s thinking-mode guidance rather than a universal setting for reasoning models.</p>
+<p>The practical extension is to add the MCP servers needed for a real task and curate more examples of its recurring action sequences. McGovern suggests that roughly 50–100 manually generated examples could improve common, narrow task paths even without reinforcement learning; that is his expectation, not a measured result from this run. The workshop repository provides the starting materials, and its two companion MCP videos cover server setup and building a custom server. The useful specialization target is a repeatable task whose successful decisions, tool calls and observations you can capture well enough to teach.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/TrelisResearch/ai-worlds-fair-2025/tree/main/mcp-agent-fine-tune" target="_blank" rel="noopener">MCP Agent Fine-tuning workshop materials</a> — Agent scripts, trace collection instructions and links to the fine-tuning notebook, slides and introductory MCP videos.</li><li><a href="https://huggingface.co/Qwen/Qwen3-4B/blob/main/tokenizer_config.json" target="_blank" rel="noopener">Qwen3-4B chat template</a> — Tokenizer configuration showing how tool definitions, reasoning, calls and responses become model input.</li><li><a href="https://github.com/microsoft/playwright-mcp" target="_blank" rel="noopener">Playwright MCP</a> — Browser automation server exposing navigation and page inspection through MCP and accessibility snapshots.</li><li><a href="https://docs.vllm.ai/en/v0.8.5/features/tool_calling.html" target="_blank" rel="noopener">vLLM 0.8.5 tool calling</a> — Versioned documentation for tool-call parsers, including the Hermes parser option used in the workshop.</li><li><a href="https://arxiv.org/abs/2312.03732" target="_blank" rel="noopener">A Rank Stabilization Scaling Factor for Fine-Tuning with LoRA</a> — Original explanation of square-root rank scaling for LoRA adapters.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">Okay. Welcome to this workshop on MCP Agent Fine-tuning. I'm Ronan from the Trelis Research YouTube channel. And today I'll be showing you how to run an agent that has access to tools via MCP servers, and then take traces or logs from the high-quality runs and use them to fine-tune and improve the performance of a model.</span></div><div class="tline" data-t="22"><span class="ts">0:22</span><span class="tx">By the end of the workshop, you should be able to generate high-quality MCP agent reasoning traces, save the tools and the multi-turn traces from each of those runs, fine-tune, uh, a model.</span></div><div class="tline" data-t="36"><span class="ts">0:36</span><span class="tx">I'm going to show you how to fine-tune Qwen3, but you'll be able to fine-tune other models too, and then run the fine-tuned model and see if the performance, uh, is any better.</span></div><div class="tline" data-t="45"><span class="ts">0:45</span><span class="tx">Now, all of the materials are available online in this repo here, Trelis Research AI Worlds Fair 2025, and they're in the mcp-agent-fine-tune folder.</span></div><div class="tline" data-t="56"><span class="ts">0:56</span><span class="tx">I'll be cloning this and working through it very shortly, but first I do want to give a brief introduction to what MCP is, that's Model Context Protocol, how it allows a language model access to tools, and I'll emphasize what we need to understand about those interactions when we're building both the fine-tuning scripts and also the agent scripts</span></div><div class="tline" data-t="75"><span class="ts">1:15</span><span class="tx">and saving of those logs. So what is MCP, Model Context Protocol? It is a protocol for providing services to LLMs, namely access to tools. The tool we're going to focus on is browser use, so using an LLM to navigate through websites.</span></div><div class="tline" data-t="90"><span class="ts">1:30</span><span class="tx">But there are MCPs for things like Stripe, GitHub, Gmail, and many more you can find. You can sub those into these examples today, but I recommend running through first using the MCP tool that I've selected until you're comfortable with how everything works.</span></div><div class="tline" data-t="105"><span class="ts">1:45</span><span class="tx">MCP does a few things. It's first of all a store of information on tools. That information helps the LLM to know how it can make calls to the tools or make use of them.</span></div><div class="tline" data-t="116"><span class="ts">1:56</span><span class="tx">But the MCP tool service also runs the tools. So when the LLM decides to make a call, MCP, the tool service, will take the action, whether that's adding numbers or navigating to a page, and it will then return a response which contains details of the result or maybe some extra helping guidance for the LLM, so the LLM</span></div><div class="tline" data-t="136"><span class="ts">2:16</span><span class="tx">can then loop back and make another tool call or provide some kind of text-based response.</span></div><div class="tline" data-t="142"><span class="ts">2:22</span><span class="tx">Now, to bring it to one more level of detail, we're going to wrap the language model here, or we're going to expose it in the form of an API that we can hit, and we're going to expose it as an OpenAI endpoint, which is, um, pretty common.</span></div><div class="tline" data-t="157"><span class="ts">2:37</span><span class="tx">Of course, it's the one OpenAI itself uses, but using that library, there are many models and many libraries that will make use of that style of API endpoint if you want to set up, uh, an endpoint for your language model.</span></div><div class="tline" data-t="168"><span class="ts">2:48</span><span class="tx">So this is what we're going to use. And in integrating this API endpoint, there are a few points of integration or translation we need to take care of. Don't worry if you don't understand this first time around because it'll become apparent in the code.</span></div><div class="tline" data-t="181"><span class="ts">3:01</span><span class="tx">The first one is we will get tool information from the MCP services, and we need to convert that into lists of JSON tools because that's what OpenAI endpoints expect.</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">Second of all, we will need to convert the tool response into a format that the language model expects. And lastly, when we have, uh, the language model calling a tool, and it will call it just by emitting tokens or text, we need to extract, detect and extract whether it wants to make a tool call or not.</span></div><div class="tline" data-t="211"><span class="ts">3:31</span><span class="tx">And the form that the text will take when it wants to make a cool- tool call is going to be, uh, in Hermes format actually, even though it's a Qwen model.</span></div><div class="tline" data-t="220"><span class="ts">3:40</span><span class="tx">And I'll talk about that, uh, in just a little bit. To give you a better idea of how all of this fits together, it's helpful to look at a prompt.</span></div><div class="tline" data-t="227"><span class="ts">3:47</span><span class="tx">We can take a look at, um, this little chat I've prepared. It just shows a little pseudo prompt. It's the string that is being sent into the LLM. It starts off with a system message just after a system start tag, and it starts by describing to the LLM how to make tune-- tool calls, namely by passing them</span></div><div class="tline" data-t="248"><span class="ts">4:08</span><span class="tx">as JSONs within these tool XML tags here. And the LLM is being told, &quot;Okay, you have access to these tools.&quot; There'll only be one in our case, which is the browser.</span></div><div class="tline" data-t="259"><span class="ts">4:19</span><span class="tx">&quot;Please return each function call as JSON inside tool call tags if you wish to call a function.&quot; So this... We're telling the LLM, &quot;Here's how to call a, a tool by giving us these XML tags and then the JSON.&quot;</span></div><div class="tline" data-t="271"><span class="ts">4:31</span><span class="tx">After the system message, we have the first user message, which would be the first message like navigate to trelis.com, and then the assistant will respond, and it can respond in a few ways.</span></div><div class="tline" data-t="281"><span class="ts">4:41</span><span class="tx">Typically, it might do some thinking here because it's a thinking model, and then decide to call, uh, some tool like navigating with the browser to a certain URL. Or if it's finished navigating, it might decide to think and then just provide an assistant response as text.</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">So this is, uh, a little pseudo prompt here, and we'll see this come into play in the code when we want to set up and inject these different parts.</span></div><div class="tline" data-t="305"><span class="ts">5:05</span><span class="tx">Okay. So that brings me to the end of my very quick overview of MCP and the prompt structure. If you're not following fully, that's okay because it'll become a lot more clear when I run the examples, which I'll do now by cloning this repo, ai-worlds-fair, into Windsurf.</span></div><div class="tline" data-t="322"><span class="ts">5:22</span><span class="tx">If you clone it, you want to open up then the mcp-agent-fine-tune folder and go to the README. Now, in this README, there are two sections. There's the data collection section where we run the agent to generate these sample runs, and then there's the fine-tuning, which will be done in a notebook.</span></div><div class="tline" data-t="338"><span class="ts">5:38</span><span class="tx">So starting off with the data collection, we need to make sure we have an endpoint. We need to make sure it's an OpenAI style endpoint. And if we're not using OpenAI itself, which we won't be because I'm going to generate the traces using a Qwen-type agent because I'm going to fine-tune a Qwen model later, I do recommend</span></div><div class="tline" data-t="355"><span class="ts">5:55</span><span class="tx">keeping some consistency between the model to generate data and the model you're going to fine-tune. In principle, you could just use a stronger model, any stronger model Um, but we want the stronger model to share its reasoning traces so we can train on those, and OpenAI models don't share their thinking traces.</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">So we're going to use a Qwen model. Specifically, we're going to use the thirty billion parameter one with, uh, three billion activated, uh, parameters. It's a mixture of experts model.</span></div><div class="tline" data-t="381"><span class="ts">6:21</span><span class="tx">And I'm going to run it on RunPod. I'm going to use this one-click affiliate template here. You can run it, though, on any service. In principle, I think you could run it locally as well, provided local, uh, your local</span></div><div class="tline" data-t="394"><span class="ts">6:34</span><span class="tx">app supports tool calls. I'd need to look into whether LM Studio does, uh, support that. But if you click that one-click link, you'll pick a GPU, maybe a H100, and you can inspect then the template.</span></div><div class="tline" data-t="406"><span class="ts">6:46</span><span class="tx">So a few things here. We're running a Docker image for vLLM. We're running this Qwen model. We're going to enable reasoning and a reasoning parser. What this means is that when we see a response that includes think tokens, we're going to det-detect those and extract it as reasoning into a JSON, uh, type style in the response.</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">Next, we're going to set the max model length to thirty-two thousand. We'll set the port. We're going to host it on port eight thousand, and we're going to enable automatic tool choice.</span></div><div class="tline" data-t="437"><span class="ts">7:17</span><span class="tx">This means the LLM will decide whether or not to call a tool and which tool to call. Here we have the tool parser that we're choosing. You'll remember in my presentation, I said we need to specify how to extract the tool into JSON format.</span></div><div class="tline" data-t="451"><span class="ts">7:31</span><span class="tx">What this means is when the LLM makes a tool call like this, we're saying, &quot;Okay, the tool call is in this format. Hermes, extract it into this JSON here and provide it to the MCP in a format it's expecting.&quot;</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">So this is specifically this point here where it converts from the language model string into a JSON format that OpenAI, uh, the API expects. Okay, so these are all of the arguments we'll use, and then we click here to start the server.</span></div><div class="tline" data-t="479"><span class="ts">7:59</span><span class="tx">We do need, need to expose port eight thousand because that's where we're serving it. We're going to hit that port and server from outside, and the way we're going to hit it...</span></div><div class="tline" data-t="487"><span class="ts">8:07</span><span class="tx">By the way, I would click Set Overrides and start the server. I actually have a server that's running already here. It will take about three minutes to start up.</span></div><div class="tline" data-t="495"><span class="ts">8:15</span><span class="tx">And to hit the server, we need to specify the RunPod pod ID and also the port number, which is eight thousand. So you'll see here when we run this agent, and I'm going to start just by running it without explaining it because it'll be more intuitive when you see an example.</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">I'm going to run the agent with this model here. I'm going to run it with this base URL, which has got the pod ID and the port number, and it's got the v1 that is required for the OpenAI style endpoint.</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">And there's one more argument here I'm using, which is truncate. This is truncating the length of the tool response. So when you have a tool response, for example, here there's a tool response coming back.</span></div><div class="tline" data-t="533"><span class="ts">8:53</span><span class="tx">If we call a browser navigate tool to navigate to trelis.com, it's going to return an accessibility tree, which is a text description of that page, and that will be provided back in the tool response so the language model can read the page.</span></div><div class="tline" data-t="547"><span class="ts">9:07</span><span class="tx">But this could be really long, and so I'm just naively truncating it, so we just take the top part. Now bear in mind that means that the LLM won't probably be able to see the full length of the page, and you would need to do something more complex, uh, in a deeper implementation of what I'm showing.</span></div><div class="tline" data-t="563"><span class="ts">9:23</span><span class="tx">So we're going to run the agent here and first run uv sync just to make sure you've synced the requirements. If you don't have uv, do pip install uv, and then you can run the agent here.</span></div><div class="tline" data-t="575"><span class="ts">9:35</span><span class="tx">So you'll see the agent has started up. We've started the MCP server. This is the only server that's configured, and it's configured in the config file here. You can add in other servers here, and it will load up those tools.</span></div><div class="tline" data-t="588"><span class="ts">9:48</span><span class="tx">Playwright offers twenty-five tools, so there's quite a few, like I think navigate forwards, backwards, switch tab, navigate to link, different things like this. We'll see more of them later.</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">And those twenty-five tools are all available to the LLM. For open source models, probably you don't want more than maybe twenty-five to fifty tools. I think for Claude you can probably handle two hundred.</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">More than that, the LLM will get confused by a lot of, uh, context.</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">So now it's asking me to put in an input, and I'm going to say navigate to trelis.com and read out the top two lines.</span></div><div class="tline" data-t="623"><span class="ts">10:23</span><span class="tx">Let's see what it does with that. It should start to think now. That user message has gone to the LLM. It should be thinking now, generating thinking tokens. They won't be shown here just for brevity.</span></div><div class="tline" data-t="633"><span class="ts">10:33</span><span class="tx">I'll save them later on. And then, yeah, it's asking for a tool call to move and navigate to trelis.com. Okay, and actually before I say yes to that tool, which, uh, requires my approval, I'm just going to put this screen on the side.</span></div><div class="tline" data-t="647"><span class="ts">10:47</span><span class="tx">So I leave space here because the browser's going to pop up. And the reason the browser will pop up is because I'm running this browser. Uh, I'm not running it in headless mode.</span></div><div class="tline" data-t="655"><span class="ts">10:55</span><span class="tx">If you want the browser to operate in the background, you would just put in, uh, --headless. But I actually want to do it because I want to see the browser and what it's doing.</span></div><div class="tline" data-t="663"><span class="ts">11:03</span><span class="tx">So I'm going to, um, I'm going to ask this, uh, question here, which is navigate</span></div><div class="tline" data-t="672"><span class="ts">11:12</span><span class="tx">to trelis.com and read out the top two lines. Okay.</span></div><div class="tline" data-t="682"><span class="ts">11:22</span><span class="tx">So I'm expecting the model to start thinking here. The tokens won't be printed because I'm saving them just to avoid clutter on the screen. And then, yeah, it's decided to call a tool, which is trelis.com.</span></div><div class="tline" data-t="692"><span class="ts">11:32</span><span class="tx">Navigate there. I've built in approval to the agent, so I'm going to say yes. And now it has opened up that browser, which is good. And the structure, the accessibility structure should be sent now to the LLM, and it is picking out, uh, the top line here.</span></div><div class="tline" data-t="707"><span class="ts">11:47</span><span class="tx">And it's also picking out the second line here. So this looks really good. I'm just going to exit. And that was our first, uh, quick demo.</span></div><div class="tline" data-t="717"><span class="ts">11:57</span><span class="tx">So I've got a few little demos here. I'm just going to clean up two demos, uh, from before where I didn't have my screen set up And you can see the logs here.</span></div><div class="tline" data-t="727"><span class="ts">12:07</span><span class="tx">So I've got a feature where by default when you run the agent, things are going to be logged, uh, like this with two parts, with the messages part and the tools part.</span></div><div class="tline" data-t="736"><span class="ts">12:16</span><span class="tx">And this is exactly what we need for fine-tuning. We need to know a list of the tools, and we need the full conversation history. So you'll see in the tools a list of the 26, browser close, browser resize, et cetera.</span></div><div class="tline" data-t="748"><span class="ts">12:28</span><span class="tx">And under messages, you can see my user request,</span></div><div class="tline" data-t="752"><span class="ts">12:32</span><span class="tx">then the assistant starts thinking and, yeah, it was quite a bit of thinking. User wants me to navigate to trelis.com, et cetera, et cetera. So it goes through all this logic and then it decides to make a tool call here.</span></div><div class="tline" data-t="764"><span class="ts">12:44</span><span class="tx">The tool call is sent to the MCP, and then Playwright basically opens that up, as you saw, and sends back the accessibility trace, which includes details on the page but truncated.</span></div><div class="tline" data-t="776"><span class="ts">12:56</span><span class="tx">And then the assistant takes that and says, &quot;Oh, I have the information I need. Here's some reasoning, and here's my final answer.&quot; So this is a very nice trace, and we're going to keep it.</span></div><div class="tline" data-t="787"><span class="ts">13:07</span><span class="tx">We're going to keep it, and we're going to use this for fine-tuning. Now, it wouldn't make sense to fine-tune using this on the same model because the model can already do this, but it can make sense to fine-tune a smaller model that doesn't have, uh, this kind of capability.</span></div><div class="tline" data-t="803"><span class="ts">13:23</span><span class="tx">So your goal now is you should set this up and you should run this, and I want you to run it multiple times and try to get some good traces, and then we'll save those traces and we're going to upload them to Hugging, Hugging Face Hub.</span></div><div class="tline" data-t="815"><span class="ts">13:35</span><span class="tx">Okay, so we'll run one more example here. I'm going to make it a bit more complicated this time, and I'm going to say navigate to trelis.com and then find the third product, navigate to that page and tell me what is on...</span></div><div class="tline" data-t="831"><span class="ts">13:51</span><span class="tx">Um, you know what? Let's try and ask a specific question. So let's go to trelis.com and manually do the navigation first. Oops. Oh, I can't type. Here we go.</span></div><div class="tline" data-t="844"><span class="ts">14:04</span><span class="tx">Trelis.com. The third model is training and fine-tuning. We'll navigate there. It opens in a new tab, which by the way is tricky for navigation. And let's ask it, uh, what the first line is.</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">Yeah, let's ask what is in the feature section. Okay, we'll try that. So the model should be thinking. We should see the browser pop up</span></div><div class="tline" data-t="866"><span class="ts">14:26</span><span class="tx">in a second once we approve that navigation. It should get a snapshot,</span></div><div class="tline" data-t="872"><span class="ts">14:32</span><span class="tx">and we'll see what it decides to do next. It should try to do this drop-down menu here, which is a bit tricky. It is clicking on something, so that's good.</span></div><div class="tline" data-t="880"><span class="ts">14:40</span><span class="tx">It did get the drop-down menu. That's also good. And okay, it's actually just given an answer, which is not exactly what we want.</span></div><div class="tline" data-t="890"><span class="ts">14:50</span><span class="tx">Yeah. Well, the answer's correct. It says, &quot;Do you want to click the Learn More section?&quot; Yes, click that and then navigate.</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">Um, and then make sure to switch tabs because it will open in a new tab. So yeah, I mean this is kind of working out well. There's always going to be noise, so some of the traces won't be good, and I'll show you some ways to deal with that.</span></div><div class="tline" data-t="913"><span class="ts">15:13</span><span class="tx">One is to just manually adjust the trace. All right, it's going to click on Learn More, and that has opened a new tab, which is good.</span></div><div class="tline" data-t="921"><span class="ts">15:21</span><span class="tx">And now it's going to think. It's thinking in the background. We'll save the thinking logs. And it's asking to select that, uh, tab too, which is this tab.</span></div><div class="tline" data-t="931"><span class="ts">15:31</span><span class="tx">And I think at this point it will get a browser snapshot, but I'm not entirely sure of that. And let's see. So</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">it, um, the core features are GitHub repo access and ability to post issues. So yeah, this is correct. Um, it's getting the correct content, so it's actually fulfilled this task very well, and I'm going to exit.</span></div><div class="tline" data-t="954"><span class="ts">15:54</span><span class="tx">Now, before I show you the trace, there's one more trick. If it's not following what you want it to do, you can kind of guide it like I did in the user prompt and adjust retrospectively, but you can also pass in a system prompt.</span></div><div class="tline" data-t="965"><span class="ts">16:05</span><span class="tx">So you could pass in a system prompt like this that literally explains very directly how it should do this task and what tools to call. And this can also help performance, and the idea is you get it to create a nice tidy trace, and then you don't have to include the system prompt in your training data.</span></div><div class="tline" data-t="981"><span class="ts">16:21</span><span class="tx">You just train on that nice trace because our goal is to get nice traces for, for training data. So I'll just show you that, and then you should go yourself and try to make some of these different traces.</span></div><div class="tline" data-t="991"><span class="ts">16:31</span><span class="tx">Let's find that more complex one, which I just made. Let's see if I want to make some adjustments here. So we have the tools that are saved, and I'm, I'm not going to change those.</span></div><div class="tline" data-t="1003"><span class="ts">16:43</span><span class="tx">But right here when I say, uh, make sure to switch tabs, um, let's just expand that thinking. I need to find... I'm trying to find the section where I said, yeah, click that and yeah, okay.</span></div><div class="tline" data-t="1021"><span class="ts">17:01</span><span class="tx">So one thing you could do is literally delete that user turn and combine [laughs], and combine kind of these two sections here. So you could kind of do that manually or just literally copy paste it into ChatGPT and ask ChatGPT to generate, uh, just a single version.</span></div><div class="tline" data-t="1036"><span class="ts">17:16</span><span class="tx">You would need to delete the assistant content, just provide reasoning. Um, but another approach here is just to say, uh, yes, click that and proceed. Um,</span></div><div class="tline" data-t="1049"><span class="ts">17:29</span><span class="tx">and i- instead of saying and switch to a new tab,</span></div><div class="tline" data-t="1053"><span class="ts">17:33</span><span class="tx">I may then need to switch tabs if it opens in a new tab [laughs]. So you can see I'm cleaning up the trace here,</span></div><div class="tline" data-t="1063"><span class="ts">17:43</span><span class="tx">and yeah, this is some nice data. So we have a few data points that I've saved, and what we want to do now is push this up, uh, to, to Hub.</span></div><div class="tline" data-t="1074"><span class="ts">17:54</span><span class="tx">So we want to create a data set that has the tools and that has the conversations that we'll use for fine-tuning. So for that, I'm just going to run push to Hub, and quite simply, it's going to grab the tools and it's going to grab the, the messages and push them up to a data set Now, there's</span></div><div class="tline" data-t="1090"><span class="ts">18:10</span><span class="tx">one subtle point here that I'll show you, which is called, uh, unrolling the data because where we want to train on multiple turns, not just the first response, but the second and the third.</span></div><div class="tline" data-t="1100"><span class="ts">18:20</span><span class="tx">So actually, if we have, say, three back-and-forths, we want to unroll that into three rows. One row with all of them, one row with just two, and one roll with one.</span></div><div class="tline" data-t="1108"><span class="ts">18:28</span><span class="tx">So actually we get kind of three for the price of one in terms of, of training data here. And there is a subtle point that the template of Qwen will always include the reasoning from the most recent turn.</span></div><div class="tline" data-t="1120"><span class="ts">18:40</span><span class="tx">So even if we include reasoning and save it for all of the turns, it will only inject the most recent reasoning, and that's another reason why doing this unrolling is important.</span></div><div class="tline" data-t="1129"><span class="ts">18:49</span><span class="tx">Uh, ask me a question in the comments, uh, if you want more clarification on that. It's kind of a subtle point. If you want to push to Hub, you can just look up, uh, in the README.</span></div><div class="tline" data-t="1139"><span class="ts">18:59</span><span class="tx">There's a function here, push to Hub. You need to specify the repo ID and then pass in unroll if you want to do that unrolling.</span></div><div class="tline" data-t="1148"><span class="ts">19:08</span><span class="tx">And this data set, uh, should get pushed up. Now, I do need to, uh, log into Hugging Face,</span></div><div class="tline" data-t="1155"><span class="ts">19:15</span><span class="tx">so I'm just gonna do that. So I've put in my, uh, my token. It needs to have write permissions, and then I can run push to Hub again. And it's a pretty small data set.</span></div><div class="tline" data-t="1166"><span class="ts">19:26</span><span class="tx">There's nine examples, so it's unrolling these four into nine. One of them has three, the others have two when unrolled. And then I can check out my data set, which has got, um, ID timestamp, the model, the messages, and then the tools.</span></div><div class="tline" data-t="1180"><span class="ts">19:40</span><span class="tx">And you can see, uh, I think there's also a flag, whether it's been truncated, which means unrolled. So say this last example,</span></div><div class="tline" data-t="1189"><span class="ts">19:49</span><span class="tx">uh, well, it's not the last example, but there's an example here where we have unrolled it twice. So the first example here, second example, third example has got two-- it's got three turns, so there are two unrolls.</span></div><div class="tline" data-t="1203"><span class="ts">20:03</span><span class="tx">So you'll see if you look at the messages here, this will give the full three turns. So it'll be fairly long. It will have all of the messages. And notice how the reasoning content is extracted.</span></div><div class="tline" data-t="1214"><span class="ts">20:14</span><span class="tx">That's because we've turned on the reasoning parser. Uh, but if we scroll right down to the bottom of this, and I know it's kind of long, that's because the tool responses are long.</span></div><div class="tline" data-t="1222"><span class="ts">20:22</span><span class="tx">You can see the last response is the answer, or at least it should be. Yeah. It's saying what's on that page. Whereas if you go up to the one above that where it's been truncated, um, it should just be a tool call, I think.</span></div><div class="tline" data-t="1236"><span class="ts">20:36</span><span class="tx">Or it may actually be that assistant response we got.</span></div><div class="tline" data-t="1240"><span class="ts">20:40</span><span class="tx">Uh, yeah, it's, uh, got some reasoning content, and then it's making a tool call down here where it's deciding to select the tab. So you can see we've got nine rows of data here, and we will grab these messages, and we will template them along with the tools in our fine-tuning template, uh, when we want to fine-tune</span></div><div class="tline" data-t="1258"><span class="ts">20:58</span><span class="tx">the model, which we're going to do very shortly now. Okay, so at this point, you should be able to go ahead and run this a few times, try to modify some of the traces, try to push some of that data up to Hub.</span></div><div class="tline" data-t="1271"><span class="ts">21:11</span><span class="tx">I will maybe very briefly show you the agent. Um,</span></div><div class="tline" data-t="1277"><span class="ts">21:17</span><span class="tx">let me see how I can do this quickly.</span></div><div class="tline" data-t="1280"><span class="ts">21:20</span><span class="tx">I'm basically setting up an OpenAI endpoint. Um,</span></div><div class="tline" data-t="1285"><span class="ts">21:25</span><span class="tx">and what can I say that won't be too long? I need to set up the server. So I have server management here. Any MCP service that I want to run, I need to boot it up when I start the agent.</span></div><div class="tline" data-t="1296"><span class="ts">21:36</span><span class="tx">So that's one of the first things. I need to do schema conversion then. So I talked about how you have MCP that has a specific syntax, but OpenAI expects, the endpoint expects a different syntax, so there's conversions that need to happen.</span></div><div class="tline" data-t="1310"><span class="ts">21:50</span><span class="tx">There are some kind of helper functions, but then here's how we convert the turl, turn, the tools from MCP to the OpenAI format, and then we need to go OpenAI to MCP.</span></div><div class="tline" data-t="1318"><span class="ts">21:58</span><span class="tx">So we need to go both directions. Here's where we execute the tools, and here's how we wrap the result in a format that's going to be suitable for OpenAI.</span></div><div class="tline" data-t="1328"><span class="ts">22:08</span><span class="tx">So that's all those connections I showed you in the PowerPoint.</span></div><div class="tline" data-t="1332"><span class="ts">22:12</span><span class="tx">This here is discovering all the tools, then booting up the servers, and this is the chat loop, which you saw operating below. There's not a whole lot that's, uh,</span></div><div class="tline" data-t="1341"><span class="ts">22:21</span><span class="tx">to explain beyond what you saw me doing. You can see reasoning has been parsed separately to the assistant content. Um, and</span></div><div class="tline" data-t="1351"><span class="ts">22:31</span><span class="tx">we have a helper here for trace logging just to save the details. And yeah, we've some logic here for, for doing the logging and then some different, uh, some different arguments that we can pass.</span></div><div class="tline" data-t="1363"><span class="ts">22:43</span><span class="tx">So I'll let you dig on that in your own time. In the meantime, let's move to the fine-tuning steps. So we've got these traces, and we want to use them to improve the performance of the LLM.</span></div><div class="tline" data-t="1372"><span class="ts">22:52</span><span class="tx">We'll go to the fine-tuning section and open up this notebook. I have it open here.</span></div><div class="tline" data-t="1379"><span class="ts">22:59</span><span class="tx">Uh, my runtime is disconnected. I'll just restart. This is based on an Unsloth notebook for fine-tuning Qwen, but it's got some things that I've changed.</span></div><div class="tline" data-t="1388"><span class="ts">23:08</span><span class="tx">First thing we'll do is install Unsloth, which has got a bit more of a detailed, detailed install if you're on Colab, and then we load a model. Now I'm going to train the four billion parameter model.</span></div><div class="tline" data-t="1398"><span class="ts">23:18</span><span class="tx">You can train a larger model if you want better performance. The max sequence length needs to be fairly large. If you want to train on the free GPU, you probably can't cha-train a larger model.</span></div><div class="tline" data-t="1409"><span class="ts">23:29</span><span class="tx">Um, you'll need to run maybe on RunPod by starting up. You can find a fine-tuning te- one-click template actually in the one-click LLMs repo. You can start that up and then open Jupyter and then open the n- download the notebook here and upload it.</span></div><div class="tline" data-t="1422"><span class="ts">23:42</span><span class="tx">We're going to run it in full precision in 16 bits.</span></div><div class="tline" data-t="1426"><span class="ts">23:46</span><span class="tx">And once we've loaded the model, we'll want to set it up for training. We're actually not going to train all the parameters. We're going to only train adapters that we connect to certain parts, certain matrices.</span></div><div class="tline" data-t="1437"><span class="ts">23:57</span><span class="tx">They're called, uh, low rank adapters or LoRA. And I'll talk about applying those adapters in a moment. But I want to actually get a benchmark on performance without fine-tuning, so I'm not going to apply the LoRA adapters just yet.</span></div><div class="tline" data-t="1448"><span class="ts">24:08</span><span class="tx">I'm going to prepare the data, and then I'm going to run inference without having done fine-tuning. And the data we're going to load is that data set that we've been looking at right here So we load it up and we just print it out to see how many rows.</span></div><div class="tline" data-t="1461"><span class="ts">24:21</span><span class="tx">It should be nine rows now. If you want, you can take a look at, uh, the format of the messages or the tools just by running these to inspect the zeroth row.</span></div><div class="tline" data-t="1471"><span class="ts">24:31</span><span class="tx">You can also take a look at the chat template. Uh, the template is what takes in the tools and the messages and puts it into a single long string.</span></div><div class="tline" data-t="1479"><span class="ts">24:39</span><span class="tx">In fact, it's probably worth looking at, so we just run that. You can also find it if you go to the model. You can go to the tokenizer config on the model on Hugging Face, and you can see a copy of that there as well.</span></div><div class="tline" data-t="1489"><span class="ts">24:49</span><span class="tx">By the way, um, my runtime restarted, so I need to re-download the model weights. They're just downloading here. It'll take a few moments. And yeah, as I said, we take a look here at the data set.</span></div><div class="tline" data-t="1504"><span class="ts">25:04</span><span class="tx">Sorry, I've got a really long data set row saved.</span></div><div class="tline" data-t="1508"><span class="ts">25:08</span><span class="tx">Once we have the data set downloaded, which means we're going to have access to the messages and the tools, we basically pass them into the chat template, which will make a single long string, and that single long string is basically this.</span></div><div class="tline" data-t="1520"><span class="ts">25:20</span><span class="tx">It's the formatted data set as a single long string, and it is very long because it contains all of those, uh, tool responses. But you can see it starts off with a system message.</span></div><div class="tline" data-t="1529"><span class="ts">25:29</span><span class="tx">It starts off with those tools. It then gives a list of the tools available, which is very long because there's 26 of them. Then it'll give the user message, the assistant message, the tool calls, et cetera.</span></div><div class="tline" data-t="1539"><span class="ts">25:39</span><span class="tx">So that's, uh, what it's going to look like. When we rerun this, we will have nine rows, and then we'll just print out to check what the length of the longest row is, because we don't want it to be longer than 32,000, which is our max length.</span></div><div class="tline" data-t="1550"><span class="ts">25:50</span><span class="tx">Um, so we'll do a check there. Now we will train the model, but I said first we'll just do a quick run to see how performance is without training.</span></div><div class="tline" data-t="1559"><span class="ts">25:59</span><span class="tx">And for that, we'll just run on the first row of the data set, and we will see if the model decides to call a tool correctly when I ask it to navigate to, um, Trelis.com.</span></div><div class="tline" data-t="1574"><span class="ts">26:14</span><span class="tx">So yeah, if we print out, um... Yeah, if we print this out,</span></div><div class="tline" data-t="1582"><span class="ts">26:22</span><span class="tx">we should start to get it to, uh, stream a response. Here's one I streamed earlier with a fine-tuned model and it correctly called a tool. But if I, if I call this again now, let's just quickly check the length of the data set.</span></div><div class="tline" data-t="1593"><span class="ts">26:33</span><span class="tx">Oh, the data set is not defined. Why is that? I don't think I ran all of my data set rows.</span></div><div class="tline" data-t="1600"><span class="ts">26:40</span><span class="tx">So let's just check. Downloaded the data set.</span></div><div class="tline" data-t="1605"><span class="ts">26:45</span><span class="tx">All these rows will run quickly. It's quite a small data set. Yeah, nine rows. The longest is 18,000. That would be fine.</span></div><div class="tline" data-t="1615"><span class="ts">26:55</span><span class="tx">And yeah, you can see if I print out the zeroth message, I'm asking it to navigate to Trelis.com. And if I run inference on that, it should just start to stream its output string, and we'll see whether it decides to call a tool or not.</span></div><div class="tline" data-t="1631"><span class="ts">27:11</span><span class="tx">So we're just testing here the raw 4 billion parameter model, which should be capable of tool calling. This is a lot of tools for a 4 billion parameter model, though, 26 tools.</span></div><div class="tline" data-t="1641"><span class="ts">27:21</span><span class="tx">So, you know, it's going to blab on here with a lot of thinking, and then we'll check whether it gives a tool call. It may or may not. It may decide to blab on for a full 2,000 tokens and then just stop when it hits the limit.</span></div><div class="tline" data-t="1654"><span class="ts">27:34</span><span class="tx">So we'll come back to this. But what you're going to do now that this model is loaded is you're going to prepare it for fine-tuning by applying LoRA adapters.</span></div><div class="tline" data-t="1662"><span class="ts">27:42</span><span class="tx">And we're going to apply LoRA adapters to the attention modules and also to the MLP layers. We will use a rank of 32, which means the adapter matrices will, uh, have effectively a, a width or height of 32.</span></div><div class="tline" data-t="1674"><span class="ts">27:54</span><span class="tx">We'll use, uh, rescaled LoRA, which will adapt the learning rate of the LoRA adapters according to their size. Larger LoRA adapters means loring-- lower learning rate. Uh, so I'll go ahead and apply that.</span></div><div class="tline" data-t="1686"><span class="ts">28:06</span><span class="tx">The data should all be prepped, so we can go right to training the model here. We're going to pass in the data set, and it's going to train based on the text field because we've prepared that text field.</span></div><div class="tline" data-t="1697"><span class="ts">28:17</span><span class="tx">Uh, I went through this quickly, but if you recall, when we formatted the messages and the tools, we templated them into one string of text. That's the text key there.</span></div><div class="tline" data-t="1708"><span class="ts">28:28</span><span class="tx">And when we did that, we essentially prepared it so we could pass in just rows of text to our trainer. Batch size of one. This is not ideal because you don't get much, uh, smoothing.</span></div><div class="tline" data-t="1718"><span class="ts">28:38</span><span class="tx">It's going to make it very jumpy in training loss, but we don't have enough VRAM here. If you run on an A40 or on a H100, you'll have more VRAM, so you can use a larger batch size.</span></div><div class="tline" data-t="1728"><span class="ts">28:48</span><span class="tx">We just trained for one epoch. Um, we actually shouldn't have warm-up steps because we don't have enough steps here at all. If I have nine rows, I'm only going to have nine steps with gradient accumulation one and device batch size of one.</span></div><div class="tline" data-t="1740"><span class="ts">29:00</span><span class="tx">Learning rate is fairly high because it's a small model. Using the AdamW 8-bit optimizer to save a bit of VRAM, and we'll use a constant learning rate. Everything here is quite simple.</span></div><div class="tline" data-t="1750"><span class="ts">29:10</span><span class="tx">Um, I'll probably do a, a follow-up video with some more advanced techniques on the YouTube channel, on the Trelis Research channel afterwards, uh, so keep an eye out for that.</span></div><div class="tline" data-t="1758"><span class="ts">29:18</span><span class="tx">But I wanted to keep this fairly simple so we can go through it, uh, quickly. So yeah, we'll run the training. That's actually just setting up the training. We'll check the device memory.</span></div><div class="tline" data-t="1767"><span class="ts">29:27</span><span class="tx">It's got, uh, 15 gigabytes, 10 of it's reserved already, and we can start to train. After training, we'll show the final code, and then we'll run inference again. Now, let's just take a look at what it did without training, and actually pretty good.</span></div><div class="tline" data-t="1782"><span class="ts">29:42</span><span class="tx">So on this basic task here, um, it more or less got the problem correct. Would it be able to read out the top two lines? Probably it would, even with the 4B model.</span></div><div class="tline" data-t="1792"><span class="ts">29:52</span><span class="tx">But I can tell you that if you do a more complicated task like multi-step, um, it will struggle. It already struggled when we did the 30B model, as I showed you.</span></div><div class="tline" data-t="1800"><span class="ts">30:00</span><span class="tx">It was kind of lucky I got it to work when I did. Uh, but this 4B model will definitely struggle on multi-step.</span></div><div class="tline" data-t="1806"><span class="ts">30:06</span><span class="tx">So after the training, I'll rerun that and we can see, uh, what it does. Hopefully, it'll also get it right.</span></div><div class="tline" data-t="1812"><span class="ts">30:12</span><span class="tx">You can see the training is underway here. We've got nine steps. We're only training 1.62% of the parameters, so those adapters are tiny. Everything else is frozen. All the main weights are frozen.</span></div><div class="tline" data-t="1824"><span class="ts">30:24</span><span class="tx">And it'll take a little bit of time for this to complete and then inference to run. And when that's done, we've the option to save the model and the tokenizer.</span></div><div class="tline" data-t="1834"><span class="ts">30:34</span><span class="tx">We also have the option then to push the model up to Hub. If you want to do that, you can just log into Hugging Face here, and then I recommend merging it to 16 bits.</span></div><div class="tline" data-t="1843"><span class="ts">30:43</span><span class="tx">If you merge it with this name here, for example, you can actually go back into your pod, you could edit the pod and just swap, drop in here the name of your fine-tuned model, and now you've got an inference endpoint, uh, ready to go.</span></div><div class="tline" data-t="1857"><span class="ts">30:57</span><span class="tx">So, let's see how our training is doing. About two minutes left and our training loss is falling. You know, in a more advanced implementation, you would want to have an eval set.</span></div><div class="tline" data-t="1867"><span class="ts">31:07</span><span class="tx">So you want to have much more data, not just nine traces. You want to have probably a few hundred. You want to split some of those off into an eval set.</span></div><div class="tline" data-t="1875"><span class="ts">31:15</span><span class="tx">You also want to do logging with TensorBoard. I go through that in most of my videos, but, uh, I wanted to keep this fairly simple. Okay, so we have the training completed, and generally the loss is kind of falling.</span></div><div class="tline" data-t="1889"><span class="ts">31:29</span><span class="tx">Like, it's very bumpy, and that's-- it's not quite completed by the way, it's just finishing up. But it's not helped by the fact that we only have batch size of one.</span></div><div class="tline" data-t="1897"><span class="ts">31:37</span><span class="tx">Ideally, we'd have batch size of like 32 maybe, which would require quite a bit more data. Um, you could use gradient accumulation, but if you have a very small amount of data, you actually just have to set the batch size smaller.</span></div><div class="tline" data-t="1908"><span class="ts">31:48</span><span class="tx">Um, you don't want to do just one update step with all of the data. So we're kind of doing the best we can here given, uh, the limited amount of data, and this is something you can definitely add a lot more traces to, hopefully.</span></div><div class="tline" data-t="1919"><span class="ts">31:59</span><span class="tx">Now, just one other comment because I know one question will be around reinforcement learning. Can we automate this so that we generate traces automatically or use some rewa-reward-based system?</span></div><div class="tline" data-t="1929"><span class="ts">32:09</span><span class="tx">And my recommendation there is start off with manual traces and curate them like this because even if you want to do rewards afterwards, like GRPO, and you can check some of the other videos on that, it's going to be beneficial to SFT supervised fine-tune like I am now on some traces that are high quality.</span></div><div class="tline" data-t="1948"><span class="ts">32:28</span><span class="tx">If you just start with a model that you want to do reinforcement learning on, but you've not done any supervised fine-tuning for that domain, it's going to struggle. It's going to generate lots of traces and very rarely get to the correct answer where it sees a positive reward.</span></div><div class="tline" data-t="1961"><span class="ts">32:41</span><span class="tx">So it will speed up your training a lot, even if you do reinforcement learning afterwards, um, if you first generate some high-quality traces and then do the fine-tuning. Now, if you want to do GRPO, you need to define rewards.</span></div><div class="tline" data-t="1974"><span class="ts">32:54</span><span class="tx">That means you need to have a data set where you have answers that could involve picking some random niche websites and picking, finding maybe the text on the top, and then asking the language model to navigate to those kind of obscure pages, and then you have a ground truth of what those lines of text are.</span></div><div class="tline" data-t="1990"><span class="ts">33:10</span><span class="tx">That's just a really simple example, but you need to come up with a way to systematically generate data that's verifiably correct and then reward the model when it gets that answer correct.</span></div><div class="tline" data-t="1999"><span class="ts">33:19</span><span class="tx">Okay, that was a bit of a sidebar on reinforcement learning, which is not the focus here, but it's very much related. We have finished the training. The loss, I'd say, generally has, has gone down.</span></div><div class="tline" data-t="2011"><span class="ts">33:31</span><span class="tx">Uh, we used peak memory 75%, so we didn't have space for probably doing a batch size of two,</span></div><div class="tline" data-t="2017"><span class="ts">33:37</span><span class="tx">and now we're generating response. So the model is thinking,</span></div><div class="tline" data-t="2021"><span class="ts">33:41</span><span class="tx">and it's got about 2,000 tokens to think. Let's see if it finishes up, uh, with recommending a tool call. It may or may not. It's possible that with this noisy of a training, we bumped it off what was a good answer, at least the first time around.</span></div><div class="tline" data-t="2034"><span class="ts">33:54</span><span class="tx">By the way, I'm using default parameters for running inference. You can set them manually here. There's recommended parameters for Qwen for the thinking model. And yeah, it looks good.</span></div><div class="tline" data-t="2044"><span class="ts">34:04</span><span class="tx">It's calling the tool as expected. So you'd want to do a much more elaborate setup on the evaluation. You probably want to run your model on the endpoint and actually try to run some of the rollouts over in, um, the workspace on Windsurf that I showed you earlier.</span></div><div class="tline" data-t="2058"><span class="ts">34:18</span><span class="tx">Just in case you want to see, uh, what the default configuration parameters are, you can see the temperature's .6, and I think these are the recommended parameters if you're using, uh, a reasoning type model.</span></div><div class="tline" data-t="2069"><span class="ts">34:29</span><span class="tx">Okay, with that, it brings us full circle. Hopefully, you've had an opportunity to create some good traces and understand now how to do fine-tuning, at least in principle, even if we didn't use all that much data.</span></div><div class="tline" data-t="2081"><span class="ts">34:41</span><span class="tx">This is something you can build on by adding in different MCP servers, curating many traces. And I think it's, it's probably quite powerful, even without moving to RL. If you've got a small number of examples, um, and I mean maybe 100 or 50, something that you can realistically generate yourself, I think you can get, uh, significant improvements</span></div><div class="tline" data-t="2098"><span class="ts">34:58</span><span class="tx">in performance, particularly if there are some kind of narrow trees that are common, uh, but important for your use case. As I said at the start, all of the materials are in Trelis Research AI Worlds Fair 2025.</span></div><div class="tline" data-t="2111"><span class="ts">35:11</span><span class="tx">You might also want to check out the two MCP videos that are on Trelis Research on YouTube if you want to understand in a bit more detail how those servers are not just set up, but how you would make a custom one by yourself.</span></div><div class="tline" data-t="2122"><span class="ts">35:22</span><span class="tx">In the meantime, any questions, uh, let us know by posting down below in the comments. Cheers folks.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

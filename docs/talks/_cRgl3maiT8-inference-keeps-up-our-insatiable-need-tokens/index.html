@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>推理如何跟上我们对 token 永不满足的需求 —— Cerebras 与 Gimlet Labs | AI 工程师中文版</title>
+<meta name="description" content="从连续批处理和 KV 缓存，到专用硬件和由智能体编写的内核，Daniel Kim 和 Michelle 讲解了推理系统如何把稀缺的内存、算力和电力转化为更多可用的 token。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>推理如何跟上我们对 token 永不满足的需求 —— Cerebras 与 Gimlet Labs</h1>
+    <div class="orig-title">How Inference Keeps Up with Our Insatiable Need for Tokens — Cerebras &amp; Gimlet Labs</div>
+    <div class="meta"><span class="speaker">Daniel Kim</span> · AI Engineer World's Fair 2026 · 22:46</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=kv-caching-and-prefix-reuse">KV 缓存与前缀复用</a><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a><a class="tag" href="../../index.html#topic=speculative-decoding">推测解码</a><a class="tag" href="../../index.html#topic=gpu-programming-and-kernel-optimization">GPU 编程与内核优化</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/_cRgl3maiT8-inference-keeps-up-our-insatiable-need-tokens" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="_cRgl3maiT8"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=_cRgl3maiT8" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">更快的 token 从搬运权重开始</div></div>
+      <div class="label row">章节跳转 <span>共 10 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>更快的 token 从搬运权重开始</span></li><li data-t="246"><span class="ts">4:06</span><span>共享权重读取，再直面缓存问题</span></li><li data-t="366"><span class="ts">6:06</span><span>少浪费缓存内存，复用已经完成的工作</span></li><li data-t="516"><span class="ts">8:36</span><span>别让一个超大提示词阻塞其他用户</span></li><li data-t="578"><span class="ts">9:38</span><span>不同的请求需要不同的工作进程池</span></li><li data-t="741"><span class="ts">12:21</span><span>在能力不同的机器之间迁移 KV 缓存</span></li><li data-t="849"><span class="ts">14:09</span><span>让小模型起草，让完整模型验证</span></li><li data-t="1025"><span class="ts">17:05</span><span>在一个模型层内部拆分工作</span></li><li data-t="1106"><span class="ts">18:26</span><span>用智能体搜索更快的算子</span></li><li data-t="1215"><span class="ts">20:15</span><span>更多可用的 token 也来自可用性、编译器和部署</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 4 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="AI spend is going bananas" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI spend is going bananas</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Goldman Sachs’ baseline model shows AI capex rising from $765B in 2026 to a projected $1.6T in 2031.
+
+[0:35](https://www.youtube.com/watch?v=_cRgl3maiT8&amp;t=35s) [Line chart of AI capital expenditure rising from 2018 to 2031, highlighting $765 billion in 2026 and a projected $1.6 trillion in 2031.](https://assets.ai.engineer/sites/aiecode2025/sha256/4d4d3b5ce9d3d3c575f89f9c96763fec2e9cd08cc05a5c2a5cbb4accc91e85a0.webp)
+
+AI spend is going 🍌
+
+TODAY
+Timeline: 2018 2020 2022 2024 2026 2028 2030 2031
+
+$765B
+AI capex in 2026
+
+$1.6T
+projected for 2031
+
+Goldman Sachs baseline model
+
+Interface text:
+SLIDES
+Stakes · Foundation · Batching · Scheduling · Disaggregation · Next
+2 / 39</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="There is a mad dash for compute" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>There is a mad dash for compute</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Frontier labs are securing compute across hardware vendors to train models and serve users. The slide compares deals and deployments ranging from millions of GPUs to multi-gigawatt commitments.
+
+[0:49](https://www.youtube.com/watch?v=_cRgl3maiT8&amp;t=49s) [Columns compare AI compute commitments involving NVIDIA, AMD, Google TPU, AWS Trainium, Broadcom ASIC and Cerebras.](https://assets.ai.engineer/sites/aiecode2025/sha256/c4fc12a07fcbcca869ac1d8bda71832e198095d9e9acc54a23191e419255f448.webp)
+
+There is a mad dash for compute
+
+NVIDIA
+OpenAI
+10 GW
+$100B +$38B AWS
+[Anthropic logo]
+≤1 GW
+$30B Azure
+[Meta logo]
+millions
+of GPUs
+[xAI logo]
+2 GW
+555k GPUs
+
+AMD
+OpenAI
+6 GW
+~$90B
+[Meta logo]
+up to 6 GW
+
+Google TPU
+[Anthropic logo]
+1 GW+
+~1M TPUs
+
+AWS Trainium
+[Anthropic logo]
+5 GW
+$100B
+OpenAI
+~2 GW
++$100B / 8yr
+
+Broadcom ASIC
+OpenAI
+10 GW
+custom ASIC
+[Anthropic logo]
+5 GW
+from 2027
+
+Cerebras
+OpenAI
+750 MW→2 GW
+$20B+
+
+Interface text:
+SLIDES
+Stakes · Foundation · Batching · Scheduling · Disaggregation · Next
+3 / 39</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Everyone is insatiable for tokens" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Everyone is insatiable for tokens</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Google’s reported monthly token processing rose from 480 trillion in May 2025 to 3.2 quadrillion at I/O 2026, about seven times as much.
+
+[1:04](https://www.youtube.com/watch?v=_cRgl3maiT8&amp;t=64s) [Bar chart shows Google's monthly token processing rising from 9.7 trillion at I/O 2024 to 3.2 quadrillion at I/O 2026.](https://assets.ai.engineer/sites/aiecode2025/sha256/5a23034f5577f86e74e5e594f08f994ad1908ebfb97e49803815a31b85568cb4.webp)
+
+Everyone is insatiable for tokens
+
+Google · tokens processed / month
+
+I/O 2024: 9.7T
+May 2025: 480T
+Jul 2025: 980T
+I/O 2026: 3.2Q
+
+3.2
+quadrillion tokens / month
+Google alone — up 7× in a single year
+
+≈ every word spoken by every human on Earth — every month
+
+Sundar Pichai · Google I/O 2026
+
+Interface text:
+SLIDES
+Stakes · Foundation · Batching · Scheduling · Disaggregation · Next
+4 / 39</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Today's Agenda" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Today's Agenda</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk reviews how inference has become cheaper and faster, then explores the roadmap for improving performance and throughput further.
+
+[1:38](https://www.youtube.com/watch?v=_cRgl3maiT8&amp;t=98s) [Two agenda questions ask how inference has already been optimized and how performance and throughput can be improved further.](https://assets.ai.engineer/sites/aiecode2025/sha256/d7852a8f7d51374f36e98eb5c907bc5ea43f3c7d0ea03b00745cdf623202a961.webp)
+
+Today's Agenda
+
+01 How have we already optimized inference?
+02 How are we juicing perf &amp; throughput even further?
+
+Interface text:
+SLIDES
+Stakes · Foundation · Batching · Scheduling · Disaggregation · Next
+6 / 39</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">更快的 token 从搬运权重开始</a></li><li><a href="#sec-2">共享权重读取，再直面缓存问题</a></li><li><a href="#sec-3">少浪费缓存内存，复用已经完成的工作</a></li><li><a href="#sec-4">别让一个超大提示词阻塞其他用户</a></li><li><a href="#sec-5">不同的请求需要不同的工作进程池</a></li><li><a href="#sec-6">在能力不同的机器之间迁移 KV 缓存</a></li><li><a href="#sec-7">让小模型起草，让完整模型验证</a></li><li><a href="#sec-8">在一个模型层内部拆分工作</a></li><li><a href="#sec-9">用智能体搜索更快的算子</a></li><li><a href="#sec-10">更多可用的 token 也来自可用性、编译器和部署</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">推理如何跟上我们对 token 永不满足的需求 —— Cerebras 与 Gimlet Labs</h2>
+      <div class="lede"><p>从连续批处理和 KV 缓存，到专用硬件和由智能体编写的内核，Daniel Kim 和 Michelle 讲解了推理系统如何把稀缺的内存、算力和电力转化为更多可用的 token。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>更快的 token 从搬运权重开始</h3>
+      <p>Token demand keeps rising even as inference gets cheaper and faster. Daniel Kim of Cerebras opens with Google's reported jump from 480 trillion to 3.2 quadrillion tokens per month. Alongside Michelle, a Gimlet Labs co-founder, he follows the engineering needed to serve that appetite: first inside an inference worker, then across workers and different kinds of silicon.</p>
+<p>The first obstacle is the autoregressive loop. A model generates a token, then uses the growing sequence to generate the next one. In Daniel's simplified account, each step streams the model's weights from memory into the compute units. Arithmetic can finish faster than memory supplies its inputs, leaving the compute units waiting. He describes cases with up to 90% idle time: the bottleneck is moving data, even when plenty of arithmetic capacity is available.</p>
+<p>Splitting the model across four GPUs reduces the weights each GPU must read to roughly a quarter. Ideally, that would cut token latency by four. But the GPUs must combine their partial calculations through an <strong>all-reduce</strong> after the attention block and again after the feed-forward network, or FFN, in every layer. That repeated communication consumes part of the gain. Daniel's example gets only twice the speed from four times the compute.</p>
+<p>This creates the speed–throughput tradeoff that organizes the rest of the talk. Assigning more hardware to one request can make its tokens arrive faster while leaving less capacity to serve everyone else. A Pareto frontier marks the best available combinations of individual-request speed and aggregate throughput. The useful engineering question is how to move that frontier outward, so a provider can improve one without paying as much in the other.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="246">▶ 4:06</button></div>
+      <h3>共享权重读取，再直面缓存问题</h3>
+      <p>Batching starts with a cost already paid: reading the weights. Instead of using that read to advance one request, a worker advances several requests together. More useful work happens for the same movement of model weights.</p>
+<p>What happens to capacity after a short request finishes? In a fixed batch, its slot can remain unused while a longer request continues. <strong>Continuous batching</strong> admits a new request into that opening. Replacing completed requests keeps the shared weight reads useful to more users instead of letting those slots sit idle.</p>
+<p>The catch is that each active request brings its own memory demand. Attention retains key and value vectors—the <strong>KV cache</strong>—for tokens already processed. Daniel's rule of thumb for the 70-billion-parameter example is about one gigabyte per 3,000 tokens, or roughly 42 gigabytes for a single 128K-token context. Those figures depend on the model and cache representation; they are not a universal per-token cost. Run eight requests together and their caches accumulate, so batching can exhaust memory before it exhausts compute.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="366">▶ 6:06</button></div>
+      <h3>少浪费缓存内存，复用已经完成的工作</h3>
+      <p>Where does reserved cache memory go unused? <strong>Paged KV cache</strong> addresses that allocation problem. In the earlier scheme described here, a request reserves physical memory for its cache, but may never use all of it. Paging separates the request's logical cache from where its contents sit in physical memory, allowing cache data to occupy available blocks. The allocation comparison is reserved-but-empty space versus blocks holding actual KV data. Daniel reports capacity for three times as many requests in the comparison he presents; the mechanism is recovering wasted space, rather than making each stored vector smaller.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/6ec279105d5185206ecf464db053e7694b144b7888764bf3ac6cb0a34ae408c1" alt="Fixed reservations leave most of each request’s allocation empty: the slide labels 60–80% wasted and shows only three requests fitting." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Fixed reservations leave most of each request’s allocation empty: the slide labels 60–80% wasted and shows only three requests fitting.</figcaption></figure>
+<p><strong>Prompt caching</strong> saves a different resource: repeated computation. A coding agent or chat application may send the same long system prompt on successive requests. If the corresponding KV state is reusable, the next request can start from that cached work instead of recomputing it. Paging improves how memory is occupied; prompt caching avoids rebuilding state for a repeated prompt portion.</p>
+<p>That distinction becomes clearer when inference is split into its two phases:</p>
+<p>- <strong>Prefill:</strong> Process the input prompt, calculate its key and value vectors, and produce the first output token. Much of this work can run in parallel, making compute capacity especially important.
+- <strong>Decode:</strong> Produce subsequent tokens one at a time while reusing the cache built during prefill. Repeated memory access makes bandwidth especially important.</p>
+<p>The familiar pause before a chat response begins corresponds to prefill; the stream afterward corresponds to decode. Reusing a cached prompt portion removes some of the work behind that initial pause.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="516">▶ 8:36</button></div>
+      <h3>别让一个超大提示词阻塞其他用户</h3>
+      <p>Long-context coding agents turn prefill into a scheduling problem. Daniel gives contexts of 200K, 500K or a million tokens. In the blocking execution pattern he describes, a long prefill occupies the worker while other prefill and decode requests wait. Someone asking a short math question can therefore inherit the delay caused by another user's enormous coding context.</p>
+<p>Where can those waiting requests make progress? <strong>Chunked prefill</strong> divides the long prompt-processing job into smaller pieces. Between chunks, the scheduler can run other requests' prefill or decode work. The openings appear between chunks that previously formed one uninterrupted block. The large request still needs processing, but it no longer has to monopolize the worker until all of its prefill finishes.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/87920de67ea73b41019d88dac90270e95640bc940068de49284afe38b31cae99" alt="Slot 1 alternates chunks of prefill A with decode work; slot 2 runs decode work alongside it, showing where other requests fit between chunks." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Slot 1 alternates chunks of prefill A with decode work; slot 2 runs decode work alongside it, showing where other requests fit between chunks.</figcaption></figure>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="578">▶ 9:38</button></div>
+      <h3>不同的请求需要不同的工作进程池</h3>
+      <p>Michelle moves from optimizing a worker to distributing work across a system. The starting point is the shape of a request: input length and output length change which resources matter most.</p>
+<p>- <strong>Document summarization:</strong> Many documents go in, and one short answer comes out. The long prompt makes prefill and compute capacity dominant.
+- <strong>Writing a book from a few themes:</strong> Little text goes in, but a long answer comes out. Repeated decode steps make memory bandwidth dominant.
+- <strong>Long input and long output:</strong> Both phases contribute substantial work, so both compute and memory resources matter.</p>
+<p><strong>Prefill–decode disaggregation</strong> puts the two phases in separate worker pools. That makes their capacity independently adjustable. For document summarization, the system can add prefill workers to handle the documents while keeping a smaller decode pool for the brief answers. It avoids allocating equal resources to two phases that have very unequal amounts of work.</p>
+<p>The split can also follow hardware strengths. Prefill offers substantial parallel computation across prompt tokens. Decode repeatedly steps through tokens and accesses the existing KV cache, adding to its memory demands. Once those phases have separate homes, they no longer have to use the same kind of machine.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="741">▶ 12:21</button></div>
+      <h3>在能力不同的机器之间迁移 KV 缓存</h3>
+      <p>Cerebras makes the bandwidth case through its SRAM-based architecture. Daniel cites 3.35 terabytes per second for an H100 and 21,000 terabytes per second for Cerebras, then gives a decode comparison of 600 versus 3,000 tokens per second. These are presented hardware and performance figures, not a proportional conversion from bandwidth into token speed; the recording does not specify the full model and serving conditions for that comparison.</p>
+<p>The proposed AWS partnership gives phase disaggregation a concrete data path. Trainium chips perform prefill, AWS EFA transfers the resulting KV cache, and Cerebras CS-3 systems perform decode. What crosses between the two hardware pools? The cache carries the prompt's computed attention state into the machines that will generate subsequent tokens. Daniel projects five times the high-speed token capacity in the same footprint from this arrangement.</p>
+<p>Gimlet generalizes the placement problem across Nvidia, AMD, Trainium, Cerebras, d-Matrix and Intel Gaudi. Its multi-silicon inference cloud breaks workloads into smaller pieces, characterizes their resource needs and maps those pieces to suitable hardware. Michelle reports three to ten times faster inference than homogeneous systems at the same power budget. That is a reported result for Gimlet's comparisons, rather than a promise for every workload; the rest of the talk explains finer divisions of work that can make such placement useful.</p>
+<p>The cache connects specialized prefill and decode pools
+In the described AWS–Cerebras arrangement, prefill and decode run on different silicon. EFA transfers the computed KV cache between them.
+- AWS Trainium — Process the prompt during prefill and build its KV cache.
+- AWS EFA — Transfer the KV cache to the decode systems.
+- Cerebras CS-3 — Use the transferred state to serve decode tokens.
+- AWS Trainium → AWS EFA (KV cache from prefill)
+- AWS EFA → Cerebras CS-3 (Transfer cache for decode)</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="849">▶ 14:09</button></div>
+      <h3>让小模型起草，让完整模型验证</h3>
+      <p><strong>Speculative decoding</strong> divides work by model role. Ordinary autoregressive decoding runs a full-model forward pass for each output token. A smaller draft model can propose candidate tokens more quickly and with fewer resources, leaving the full model to verify them.</p>
+<p>The draft is useful because it approximates the full model, sometimes through training or fine-tuning based on it. Approximate agreement is not enough to emit its output unchecked. Candidate tokens go through a verification stage on the full model, which determines which tokens can be accepted. Drafting and verification continue until the output has been produced.</p>
+<p>Which expensive operations disappear in the nine-token example? Standard decoding needs nine forward passes on the full model. In Michelle's speculative example, producing those nine tokens needs only three full-model passes, plus the smaller model's drafting work. Several full-model passes are replaced by cheaper proposals and fewer verification passes. The speedup therefore depends on making the draft fast enough and having enough of its candidates accepted; the example does not establish a fixed threefold gain.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/00656ca7d90ff16bee483aa52b9fb612b3055cfed8d0ff2f6a298cc5d102076f" alt="For the same nine output tokens, the standard row shows nine full-model passes; the speculative row groups draft-model proposals with three full-model verification passes." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>For the same nine output tokens, the standard row shows nine full-model passes; the speculative row groups draft-model proposals with three full-model verification passes.</figcaption></figure>
+<p>For the same nine output tokens, the standard row shows nine full-model passes; the speculative row groups draft-model proposals with three full-model verification passes.</p>
+<p>This offers two successive ways to move the speed–throughput frontier. First, speculative decoding on the same GPUs reduces how often the full model runs. Second, placing the small model on hardware that runs it especially quickly further reduces drafting time. Michelle points to d-Matrix and Cerebras for that role and reports ten times the interactivity at the same throughput in the comparison shown, relative to homogeneous machines.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1025">▶ 17:05</button></div>
+      <h3>在一个模型层内部拆分工作</h3>
+      <p>Attention–FFN disaggregation takes the division inside the model itself. Michelle motivates it with models as large as three trillion parameters, where even one layer can demand substantial resources. The layer's two major kinds of work have different characteristics:</p>
+<p>- <strong>Attention:</strong> Frequent KV-cache accesses make memory bandwidth valuable.
+- <strong>Feed-forward network:</strong> Dense matrix multiplications make fast matrix computation valuable.</p>
+<p>The system can place attention on a bandwidth-oriented machine and the FFN on a machine suited to matrix multiplication. Execution then “ping-pongs” across machines within the model, rather than changing machines only between prefill and decode. This makes placement more precise while introducing repeated cross-machine movement—the same general communication cost that already limited the four-GPU example near the start.</p>
+<p>There is no universally best disaggregation strategy or hardware choice. A useful design must account for the model, input and output shapes, latency requirements and throughput guarantees. Splitting more finely creates more opportunities to match work to hardware, but the resulting arrangement still has to serve the workload's actual goals.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1106">▶ 18:26</button></div>
+      <h3>用智能体搜索更快的算子</h3>
+      <p>Agents intensify token demand, but they can also help improve the machinery serving it. Daniel calls the frontier “really getting yeeted to the right”; Michelle replies, “I told Daniel not to say that.” The engineering problem underneath the joke is substantial: supporting many kinds of silicon multiplies the kernel-optimization work.</p>
+<p>A <strong>kernel</strong> implements a computational operation on the target hardware. Hand-tuning one is sensitive to the model, hardware family, hardware generation and workload shape. Gimlet's KForge agent takes hardware profiles, workload profiles and other optimization information as inputs, then treats kernel generation as a brute-force search problem. Those profiles matter because an implementation that suits one combination may be a poor choice for another.</p>
+<p>What changes when KForge optimizes a forward pass? Michelle presents the original computation alongside the generated kernel, then reports a 33% end-to-end speedup for <strong>GPT-OSS 120B</strong> on AMD hardware after less than a week of running the agent, starting from kernels that had already been optimized. The recording does not explain the specific code transformation or evaluation procedure, so the result supports the practical value of the search without identifying which kernel choices produced the gain.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1215">▶ 20:15</button></div>
+      <h3>更多可用的 token 也来自可用性、编译器和部署</h3>
+      <p>The next proposal extends agent assistance into custom silicon. Agents could help design chips tuned to particular models or workloads; those chips could train better AI, which could help design the next generation of chips. Michelle presents this as a recursive direction for future work, including faster tape-out, rather than a demonstrated result from the kernel experiment.</p>
+<p>Several nearer operational opportunities broaden what counts as inference optimization:</p>
+<p>- <strong>Incident response:</strong> More reliable systems and greater uptime create more time in which the installed hardware can serve tokens.
+- <strong>Model bring-up:</strong> Agents could help a newly released model run across different hardware on day one, reducing the delay before available machines become useful for it.
+- <strong>Custom compilers and inference stacks:</strong> Software tailored to a particular model, workload and hardware combination could expose optimizations that a general stack misses. Daniel cites Anthropic's two-week compiler effort as motivation, while framing workload-specific stacks as an opportunity.</p>
+<p>Procurement, legal work and other back-office processes also affect what it takes to serve inference, and Daniel includes them among the candidates for agent assistance. The ending expands the unit of optimization from a token-generation step to the organization keeping that step available. Faster kernels improve the machine while it runs; faster deployment and better uptime help it spend more of its life doing useful work.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Batching shares weight reads across requests; continuous batching replaces completed requests so shorter outputs do not leave capacity idle.</li><li>Paged KV allocation reduces unused memory reservations, prompt caching reuses computed state, and chunked prefill gives other requests opportunities to run.</li><li>Disaggregation can separate phases, model roles or attention and FFN work. The right division depends on workload shape, hardware strengths, communication costs and serving goals.</li><li>Speculative decoding saves full-model passes by drafting candidate tokens cheaply and verifying them with the full model.</li><li>Gimlet reports a 33% end-to-end speedup for GPT-OSS 120B on AMD hardware through agent-assisted kernel optimization. Uptime, model bring-up, custom software and silicon design offer further ways to increase usable inference capacity.</li><li><a href="https://ai.engineer/talks/OA-Mc60Rboo-beating-rl-reflection-gepa-optimize-anything" target="_blank" rel="noopener">Beating RL With Reflection: GEPA and Optimize Anything</a> — Explains a complementary approach to agent-driven optimization: represent kernels or programs as editable text and return compiler or profiler diagnostics alongside a score.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Hello everyone. My name is Daniel. Uh, I work on AI and AI agents here at Cerebras. Um, what's your name?</span></div><div class="tline" data-t="20"><span class="ts">0:20</span><span class="tx">I'm Michelle. I'm a co-founder at Gimlet Labs, where we're building a multi-silicon neocloud to optimize inference at every layer of the stack.</span></div><div class="tline" data-t="28"><span class="ts">0:28</span><span class="tx">And we're really excited to bring you our talk, all the things we have to do to satisfy your insatiable need for tokens.</span></div><div class="tline" data-t="36"><span class="ts">0:36</span><span class="tx">As you know, AI spend is going kind of bananas right now, with this year we're sl-slated to spend seven hundred and sixty-five billion dollars on compute, and in twenty thirty one, up to one point six trillion dollars. The frontier labs are having a mad dash to secure as much compute as possible to buy, um, across hardware vendors, p- to do both training for their frontier models, as well as to serve all of their users. And all of their compute is going to satisfy</span></div><div class="tline" data-t="66"><span class="ts">1:06</span><span class="tx">everyone's insatiable need for tokens.  Um, Google, at their IO last year, said that they were serving four hundred and eighty trillion tokens per month, and l-last month, they said that it jumped up to three point two quadrillion tokens per month. So all of this is happening at the same time as models are getting cheaper and faster. Llama three point three seventy B, when it was first released, compared to now, is now twenty-five percent cheaper, while still being three point six times</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">faster. So in today's talk, we're gonna talk about two things. One, what have we done so far to optimize inference to make it cheaper and faster? And what does the roadmap look like to juice perf and throughput even further? So to do this, let's take a little bit of a time jump to twenty twenty two and learn about all the optimizations that led us to the point we're at now and hopefully what the future looks like. So LLMs produce tokens one</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">at a time in something called an auto-regressive loop. So to generate one additional token, you need to read all of the weights from memory into compute. So most of the time, the compute is sitting idle. It's just waiting for memory to be able to stream in all the weights necessary to do the compute itself. So up to ninety percent of the time, the compute's just sitting there waiting on memory to load. So how can we figure out how to optimize this so there's less idle time, and you can make full advantage and serve</span></div><div class="tline" data-t="156"><span class="ts">2:36</span><span class="tx">tokens faster? So what you can do is throw more compute at the problem. So instead of streaming in the whole set of weights, what if you could split up the entire model into four and have each GPU take care of a fourth of the model each? Then you could reduce, in theory, the amount of time it takes to serve a single token by four times. However, you have to pay a tax if you wanna do this. Before the attention block and then the F... Uh, so after the attention block and an FFN block, you have to do</span></div><div class="tline" data-t="186"><span class="ts">3:06</span><span class="tx">something called all reduce, where you take each of the individual calculations from each GPU, and you combine it all together, so you can actually get a calculation. Because each of those GPUs doesn't have the whole picture, it only does one-fourth of the model. So you need to do this across every layer twice, which can lead to only getting two x speed up for getting four x the amount of compute that you add on. If I were to graph this in a pretty graph, um, you can see that throwing more GPUs at the problem does get you faster tokens, but it requires</span></div><div class="tline" data-t="216"><span class="ts">3:36</span><span class="tx">exponentially more energy to serve a single token as you s- put in more compute at the problem because of the communication overhead we just talked about. So if we flip the Y-axis here, so it's throughput, you can see that this resembles something like a Pareto frontier, where you can see that you have to make some kind of sacrifice between throughput and speed when you're an inference provider. A great example of this is Claude Code Fast Mode, where you can spend, I think, six x the amount of tokens to serve a single token compared to</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">regular Claude for twice the speed. So for that product, they're really optimizing towards the right of the Pareto frontier, where they're getting the speed, but at the cost of not being able to serve as many tokens. So during today's talk, we're gonna talk about what are the innovations we have done in the past and in the future to be able to shift the Pareto frontier to the right. So you al-already know from our previous slides that to generate each token, you have to read the whole model. So what if we could s-spend one</span></div><div class="tline" data-t="276"><span class="ts">4:36</span><span class="tx">pass that we already paid for to serve multiple requests? So that is where the idea of batching and continuous batching comes in. The idea of batching is when you take a weight read that you've already done and be able to serve multiple user requests. However, the problem though is that some of these requests are longer than others, which means that there's all of these idle periods in the compute where nothing is happening. So how can we solve this problem and squeeze out more performance?</span></div><div class="tline" data-t="306"><span class="ts">5:06</span><span class="tx">That's where continuous batching comes in. So the idea here is that for every single idle slot, you slot in a new user request to be served during that same weight read to be able to serve as many requests as possible. However, this does come with a slight downside because every single token, when you do inference, requires you to save something into the KV cache because that's how the attention block works. You need to understand how every single token, like what the K and V vectors</span></div><div class="tline" data-t="336"><span class="ts">5:36</span><span class="tx">are. This can add up very quickly. So if you're running a coding agent with very long context, for example, a hundred and twenty-eight K context, you're going to save forty-two gigabytes of KV cache that is needed to serve that individual request. So the rule of thumb here for a seventy billion parameter model is that for every three thousand tokens, you need one gigabyte of additional KV cache, and that's for one user request. So imagine you're doing batching, and you're doing like eight different requests at the same time. Then your KV cache is going to explode, and you will not</span></div><div class="tline" data-t="366"><span class="ts">6:06</span><span class="tx">have enough memory to be able to serve all of your requests. So what are some of the innovations we have done to be able to optimize how we use memory? So that's where paged KV cache comes into play. So how traditionally KV cache worked was that you would have physical memory that you would reserve to make sure that you could have enough room to be able to store all of the KV information from each request into memory. However, this came with a downside and a lot of inefficiency because you would just have a lot of memory blocks</span></div><div class="tline" data-t="396"><span class="ts">6:36</span><span class="tx">that would be reserved but wouldn't actually be used. So the idea with a paged KV cache is we use something s- that's similar to like an OS or a virtual machine where you provision a whole memory block that's all virtual, and you can store wherever there's free space KV cache for each request. So this allows you to serve three times more requests than not having a paged KV cache and just doing what was before. And this really reduces the amount of wasted space where you're reserving memory slots without</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">actually using them. This was right after, followed by an innovation called prompt caching. So the idea here is that if you have a coding agent or if you have a chat app that has a very long system prompt, you don't actually have to recalculate the KV cache needed every single time you have a request. What you can do is you can reuse the KV cache that you calculated already for the previous request for the next request. That way, you can s- pick up where you left off. Here, you can skip</span></div><div class="tline" data-t="456"><span class="ts">7:36</span><span class="tx">the very, very time-consuming prefill phase. And you might be wondering, what is prefill? So during inference, you can split up what happens into two major phases, prefill and decode. So the prefill phase consists of all the things that happen once the re- request arrives, and then w- ends when the first tokens gets generated. And here you can see this when you type something into ChatGPT, and then it takes a couple seconds before it starts returning the first token, and then it goes kind of like smoothly from</span></div><div class="tline" data-t="486"><span class="ts">8:06</span><span class="tx">there. So what's happening during the first couple of seconds where it's not returning anything is that it's computing K and V vectors for every single prompt token that you've inputted and produces the first output token. This is very compute bound because you can optimize the hell out of this. You can parallelize this extremely. However, after the first token is generated, what happens is, uh, that you decode one token at a time, reusing the KV cache you just built in the prefill phase. So this is more reliant on memory.</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">The reason I'm talking about this is because something happened lately that's really messing up a lot of inference pipelines, which is super, super token-hungry coding agents. So let's say you have a coding agent that's using 200K context or 500K context, or a million context, right? What happens is that it starts to clog up the pipeline. While prefill is running, no other prefill or decode request can get through. So this is kind of catastrophic if you have a bunch of people that are sending in coding requests and a couple people that are just trying to figure out like</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">math qual- problems in chat mode. So to avoid this clogging problem, there is an innovation called chunked prefill. That kind of goes and solves this problem, and the idea is quite simple here. The idea is taking a very long piece of prefill, chopping it up into smaller bits, so you can interleave in different decode and prefill requests. That way, there's not one thing that's taking up a bunch of time and clogging the whole pipeline. So now, Michelle, tell</span></div><div class="tline" data-t="576"><span class="ts">9:36</span><span class="tx">us more about what else we can optimize.</span></div><div class="tline" data-t="578"><span class="ts">9:38</span><span class="tx">Yeah, so all of the optimizations that Daniel just talked about are runtime level optimizations. So that explains, uh, we explore how we make inference more efficient within a single worker. But in order to, to keep pushing that frontier, we really need to start looking at system level optimizations, which is how can we distribute these workloads across many different workers?</span></div><div class="tline" data-t="600"><span class="ts">10:00</span><span class="tx">And so the first thing to recognize there is that every request is different. So take, for example, a summarization use case. You're throwing the LLM a bunch of different documents, and you just really want a single question answered. And so this workload is going to have a long prompt and short answer, and so it's dominated by that prefill phase and so therefore compute bound. On the other hand, you might have a case where it's the opposite. Let's say you want to write a long story or book, you just wanna pass it a few themes for it to</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">go off of. And so this is gonna have a short prompt and long answer, and this is gonna be dominated by decode because you have so many output tokens compared to the number of input tokens coming in, and this is gonna be memory bound. And finally, you can have a case that's somewhere in the middle, right? It's both a long prompt, a long answer, and you're seeing here that both the prefill and decode phases, and therefore compute and memory both matter. And by looking at these different examples, you can really see that the resource requirements that</span></div><div class="tline" data-t="660"><span class="ts">11:00</span><span class="tx">you have for your hardware, it's pretty different depending on what your workload looks like. And so how do you prevent yourself from getting, you know, bound by compute, bound by memory? And so one t- way to do that is called disaggregation, so splitting up your workload to different worker nodes. And so the most common form is called prefill decode disagg, where you're actually splitting and disaggregating this workload by phase.</span></div><div class="tline" data-t="686"><span class="ts">11:26</span><span class="tx">And what that allows you to do is essentially have two pools. So you have your prefill pool, that's gonna be running the prefill part of your workload, the decode pool, that's gonna be running the decode part of your workload. And taking the summarization use case, for example, you know, you're gonna wanna scale up that prefill pool so you're not blocked by the compute, and scale down your decode pool because you don't wanna waste resources when you just really don't have that much decode work to do. And it's nice 'cause now you can scale all these independently, and neither part is</span></div><div class="tline" data-t="716"><span class="ts">11:56</span><span class="tx">stalling the other. And we can take that one step farther, right? We said before, prefill, that workload itself is inherently bound by compute. Decode, that is bound by memory. And just walking through that really quickly again, the reason for that is as you're doing decode, you're stepping through each of these tokens one by one, and for every decode step, you're rereading, you know, the entire KV cache, right? That's gonna be memory bound.</span></div><div class="tline" data-t="741"><span class="ts">12:21</span><span class="tx">So yeah, um, the, the thing that Michelle just said about this being memory bound, this can be clearly seen by what the hardware can actually do. So GPUs, right? Uh, the, the speed at which you can transfer data from memory into compute is limited by something called memory bandwidth. So for an H100, this looks like 3.35 terabytes per second. However, Cerebras has 7,000 times the bandwidth of a H100, with 21,000 terabytes per second. This is because we have a very</span></div><div class="tline" data-t="771"><span class="ts">12:51</span><span class="tx">specialized SRAM-based memory architecture on our chip. So this really means that Cerebras is really built for decode. So we can serve tokens at 3,000 tokens per second versus an H100 serving it at 600 tokens per second for decode. So we're really excited to partner with AWS to productionize this. So we are going to partner with AWS Trainium, so they can serve prefill using their AWS Trainium chips, use their EFA service to transfer the KV</span></div><div class="tline" data-t="801"><span class="ts">13:21</span><span class="tx">cache to our Cerebras CS-3 systems to finally serve the end token. So this will lead us to give us 5X high-speed token capacity in the same footprint. So this is one of the things that we're doing to try to make fast inference more accessible and cheaper for developers. So we're really excited to really pa- pursue this partnership.</span></div><div class="tline" data-t="819"><span class="ts">13:39</span><span class="tx">And at Gimlet, we're really generalizing that beyond just Trainium and Cerebras. What Gimlet is building is essentially a multi-silicon inference cloud, which takes your workload, breaks it down into finer grain pieces, determines the resource characteristics of all of those different pieces, and then figures out the best way to map it to the underlying hardware, where that hardware can be really anything, right? Nvidia, AMD, Trainium, Cerebras, d-Matrix, Intel Gaudi, the list goes on and on. And by running those tasks on the machine that is most efficient for running</span></div><div class="tline" data-t="849"><span class="ts">14:09</span><span class="tx">it, we're actually seeing pretty crazy results. So we're seeing three to 10 times faster inference compared to homogenous systems that have the same power budget. And this is diving into more than just the prefill decode disaggregation than before, and some of those techniques are, for example, disaggregating based on model instead of on phase. And so that's called speculative decoding. So just reviewing again the decode phase. Typically, you do a forward pass for each of the detoke- to- decode tokens that you're getting out,</span></div><div class="tline" data-t="879"><span class="ts">14:39</span><span class="tx">and that's the standard way of doing it. What speculative decode is, is that you essentially have a draft model, and this is just a smaller form of the full model that, um, can generally approximate the results that you get out of it. And the nice thing there is because it's smaller, it runs a lot more quickly and also uses less resources. And so in speculative decode, what you can do is, in order to get, you know, the nine next tokens, you will essentially run the decode on that draft model first. It's gonna give you back what is called candidate tokens. So you're</span></div><div class="tline" data-t="909"><span class="ts">15:09</span><span class="tx">not 100% sure all these tokens are right, but because, you know, often these have been fine-tuned or trained off of the full model, it's, it's approximately right. And you want to validate, okay, are these the tokens that I actually want to output? And so you'll actually run the next phase on that full model that's called the verify stage to validate, okay, which of these tokens are correct? And essentially, you can keep doing this until, you know, you've validated all these tokens from the draft model. And at the end of the day, you can see here on the top, the standard way of running it, you</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">needed to run that forward pass on your full model nine times to get those nine tokens. On the other hand, with speculative decode, you actually only needed to run it three times on that full model. And if you can get that draft model to run really, really quickly, then that time is minimal, and you can really shorten the amount of time it takes to get your tokens. And looking at some more concrete results, so this is essentially that Pareto frontier that Daniel was showing earlier, where X-axis is the speed at which you're getting the tokens, and the Y-axis is</span></div><div class="tline" data-t="969"><span class="ts">16:09</span><span class="tx">the throughput. And so the baseline case we're comparing to here is prefill decode disagg across homogenous GPUs. And you can see that, you know, throughput is pretty good, but as soon as you're pushing on that speed, that throughput drops pretty drastically. So what if you then run speculative decode across those same GPUs? So now you're running that draft model, and you're able to see-- you're able to get that curve to the right. And the reason for that is because you're running the decode on that full model less times. But we can push that even farther, right? Like, going</span></div><div class="tline" data-t="999"><span class="ts">16:39</span><span class="tx">back to our theme of running those workloads on the hardware that can run it best on something such as, you know, d-Matrix or Cerebras, where you're able to run small models very, very quickly, you see drastic performance improvements. So here, this is where you're seeing those numbers. For that same throughput, right, you're able to get 10X the interactivity compared to if you're just running it on homogenous machines.</span></div><div class="tline" data-t="1025"><span class="ts">17:05</span><span class="tx">The final form of disagg we wanted to talk about is called attention FFN disagg, and this one gets pretty exciting when you think about serving large models, and I'm saying like 3 trillion parameter models, where these models are so large that even just running one layer, it can be pretty resource intensive. And so the concept is essentially the same thing, right? Like for that particular task that you need to do, whether it's that attention layer or the feed forward FFN network layer, then you are essentially trying to figure out, okay, what are the resource</span></div><div class="tline" data-t="1054"><span class="ts">17:34</span><span class="tx">characteristics that what is the best hardware to map it to? And so the attention layer, that's gonna be more memory bound. It's doing a lot of KV cache accesses. The FFN layer, that's doing a lot of dense matrix multiplications. And so then it makes sense, right? You're gonna run the attention on the machine that has memory bandwidth, the FFN layer on the machines that can run those matrix multipli- multiplications as quickly as possible. And essentially what happens here is even within the model, you're ping-ponging across, you know, many different machines in order to, to get the inference from that</span></div><div class="tline" data-t="1084"><span class="ts">18:04</span><span class="tx">model and just really disaggregating every single layer. And one thing that we really wanted to note here is that there is no best form of disagg. There is actually no best hardware. It really depends on the trade-offs that you have for, you know, depending on what your model is, your workload, and what you need for latency and what you need for throughput guarantees.</span></div><div class="tline" data-t="1106"><span class="ts">18:26</span><span class="tx">And as we look towards the future, we see that agents are only becoming more and more incorporated into our everyday life. It's incorporated into our work, everyone is using it, and it's continuing to push that need for more and faster tokens.</span></div><div class="tline" data-t="1120"><span class="ts">18:40</span><span class="tx">Yeah, it's really getting yeeted to the right.</span></div><div class="tline" data-t="1122"><span class="ts">18:42</span><span class="tx">I, I told Daniel not to say that.   Um, but the good thing about this is that even though, you know, this seems like a crazy, crazy target, we can actually use agents to help us solve these problems and keep pushing the frontier. And so one of the things that we're doing at Gimlet is actually using an agent to generate optimized kernels. Especially for our use case where we wanna support such a wide range of different kinds of hardware, we need to figure out how do you make that problem a lot more tractable? 'Cause right now, how people generate and, or how people</span></div><div class="tline" data-t="1152"><span class="ts">19:12</span><span class="tx">optimize kernels is that there's a lot of people sitting there hand tuning and figuring out how to optimize these kernels. And the thing is that these optimizations can vary pretty drastically based on, you know, the model that you're trying to run, the hardware that you're running on, even within generations of the hardware, and, you know, the workload shape itself. And so what we do at Gimlet is we built KForge, which is an agent for generating these kernels. It takes in a bunch of information like your hardware profiles, your workload profiles, basically anything that you</span></div><div class="tline" data-t="1182"><span class="ts">19:42</span><span class="tx">can use to figure out how to optimize kernels, and we solve it as a brute force problem, right? And so here's an example, right? We have a forward pass, and the kernel that, um, KForge optimized from it, and we're seeing pretty interesting results. So last week, you know, we're running the agent for probably less than the span of a week, and within that time, it was able to speed up GPT-OSS 120B on AMD hardware by 33% end to end. And the interesting thing to note here is that this is building on top of kernels that have already</span></div><div class="tline" data-t="1212"><span class="ts">20:12</span><span class="tx">been optimized.</span></div><div class="tline" data-t="1215"><span class="ts">20:15</span><span class="tx">And you can go and take, you know, agents to the next level and use them to help us build and design custom silicon that is hyper-tuned for specific models or your specific workload. This can then be used to train even better and smarter and faster AI, which then can also be used then to design the next generation of the custom silicon. And, you know, this loop keeps going on and on, and it's a recursive loop. Like, shout out to the folks at Recursive.</span></div><div class="tline" data-t="1242"><span class="ts">20:42</span><span class="tx">And I wanna end the talk by saying that we're just getting started in our journey to optimize throughput and speed on inference. Because at the very top of the stack, you don't think really about inference optimization when you talk about, like, incident response, right? But when you have agents that are making our systems much more reliable and increasing uptime, we're getting more throughput, and we can get more tokens.</span></div><div class="tline" data-t="1266"><span class="ts">21:06</span><span class="tx">Or you can apply agents to the problem of bringing up models. As soon as a model drops on the market, getting it running on all the different kinds of hardware on day one.</span></div><div class="tline" data-t="1275"><span class="ts">21:15</span><span class="tx">You can even go a little bit crazier with compilers. Imagine a world where y- an inference stack can be custom-built for your workload and the model that you're running. This is already being demonstrated by folks at Anthropic, right? That built a compiler in two weeks. So I think there's a lot of optimizations that you can do when you're building just-in-time custom software to support the model you wanna run on the workload you wanna run on your custom hardware.</span></div><div class="tline" data-t="1299"><span class="ts">21:39</span><span class="tx">And referring back to the previous slide, using agents to continue to help us to build, you know, more custom silicon and helping speed up the tape-out process.</span></div><div class="tline" data-t="1309"><span class="ts">21:49</span><span class="tx">And finally, this is the non-very technical part, but all of the things that surround what it takes to serve inference, all the procurement, all the legal, all of the things that are in the back office, all of these things combined with agentic workflows are able to be optimized. So when we do all of this, I'm really optimistic about the future and all the things we can accomplish to serve tokens faster and cheaper. So next slide, please. Thank you so much for coming to our talk. Uh, we are working both very, very hard to give you faster and cheaper tokens.</span></div><div class="tline" data-t="1339"><span class="ts">22:19</span><span class="tx">And yeah, let us know if you have any questions. We'll be around after the talk.</span></div><div class="tline" data-t="1342"><span class="ts">22:22</span><span class="tx">Yeah, and go eat tokens.</span></div><div class="tline" data-t="1343"><span class="ts">22:23</span><span class="tx">Yay.</span></div><div class="tline" data-t="1344"><span class="ts">22:24</span><span class="tx">We're making more tokens for you so you can also generate gifs like this.</span></div><div class="tline" data-t="1347"><span class="ts">22:27</span><span class="tx">Yeah.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

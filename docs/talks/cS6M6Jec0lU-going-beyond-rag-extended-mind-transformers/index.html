@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>超越 RAG：扩展心智 Transformer | AI 工程师中文版</title>
+<meta name="description" content="扩展心智 Transformer 在注意力内部检索缓存的 token 表示，把记忆与提示词分开，并实现了检索追踪和由不确定性驱动的重新生成。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>超越 RAG：扩展心智 Transformer</h1>
+    <div class="orig-title">Going beyond RAG: Extended Mind Transformers</div>
+    <div class="meta"><span class="speaker">Phoebe Klett</span> · AI Engineer World's Fair 2024 · 16:04</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=search-and-retrieval">搜索与检索</a><a class="tag" href="../../index.html#topic=transformers-and-attention">Transformer 与注意力</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/cS6M6Jec0lU-going-beyond-rag-extended-mind-transformers" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="cS6M6Jec0lU"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=cS6M6Jec0lU" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">为什么要区分记忆和提示词？</div></div>
+      <div class="label row">章节跳转 <span>共 10 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="64"><span class="ts">1:04</span><span>为什么要区分记忆和提示词？</span></li><li data-t="212"><span class="ts">3:32</span><span>在注意力内部检索记忆</span></li><li data-t="277"><span class="ts">4:37</span><span>让检索到的 token 适配位置编码方案</span></li><li data-t="376"><span class="ts">6:16</span><span>测试的是检索而不是死记硬背</span></li><li data-t="447"><span class="ts">7:27</span><span>仅查询检索，再加上 RAG 检索</span></li><li data-t="538"><span class="ts">8:58</span><span>把一个答案 token 与检索到的证据关联起来</span></li><li data-t="627"><span class="ts">10:27</span><span>当生成变得不确定时检索更多</span></li><li data-t="713"><span class="ts">11:53</span><span>分别调优记忆构建和检索</span></li><li data-t="795"><span class="ts">13:15</span><span>别让无关的匹配进入注意力</span></li><li data-t="882"><span class="ts">14:42</span><span>把记忆用作模型输入</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 11 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Agenda" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agenda</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Phoebe outlines the retrieval method and experiments, then turns to citations, active learning, and practical EMT parameters and usage.
+
+[0:29](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=29s) [Agenda covering introduction, methods, experiments, citations, active learning, application parameters, and how to use the method.](https://assets.ai.engineer/sites/aiecode2025/sha256/221629ce2c822a88e6ab41211c2b9862ebc4a1d17c83e44b5c8567b2517fec74.webp)
+
+AGENDA
+
+01 Introduction
+02 Methods
+03 Experiments
+04 Citations
+05 Active Learning
+06 Application Parameters
+07 How to Use
+
+2024 - AI Engineer World's Fair
+Normal Computing</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Extended Mind Attention" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Extended Mind Attention</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Memory tokens are saved as key-value pairs. During generation, each query token retrieves memories using cosine similarity and attends to them; red outlines mark the retrieved tokens.
+
+[3:30](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=210s) [Slide describing attention to an external cache of key-value memories, with a schematic of token retrieval.](https://assets.ai.engineer/sites/aiecode2025/sha256/672113127b65296aa66f42e4a6b2a922e4491d30ec2220f2a4e80ab5836dff1e.webp)
+
+METHODS
+2024 - AI Engineer World's Fair
+
+Extended Mind Attention
+
+Extended Mind Transformers retrieve and attend to an external cache of key value pairs (or memories) without fine-tuning. They address both the issue of extending the maximum input token sequence length (the memory cache is unlimited) and integrating retrieval into generation.
+
+Normal Computing
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Position Information" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Position Information</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>RoPE rotates pairs of embedding dimensions, while ALiBi applies a linear bias that reduces attention to distant information. Both methods were tested with retrieved tokens.
+
+[5:15](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=315s) [Slide introducing relative position information and listing RoPE and ALiBi, with illustrations of both methods.](https://assets.ai.engineer/sites/aiecode2025/sha256/79f21faeb77c09342f2b478c82bd34edacb1d4cc7372c3e41871c3d23c8ed718.webp)
+
+METHODS
+Position Information
+
+Relative position embeddings enable models to use past key-values retrieved within decoder layers.
+
+Two Methods:
+• Rotary position embeddings (RoPe)
+• Attention with Linear Biases (ALiBi)
+
+2024 - AI Engineer World's Fair
+
+RoPE diagram:
+θ₁
+Constant
+(x₁, x₂)
+Query / Key
+m
+Position
+d=2
+x₁, x₂, x′₁, x′₂
+mθ₁
+(x′₁, x′₂)
+Position Encoded Query / Key
+Enhanced Transformer with Rotary Position Embedding
+Query / Key
+Position: 1, 2, 3, 4, 5, 6
+Position Encoded Query / Key
+
+ALiBi diagram:
+q₁·k₁
+q₂·k₁  q₂·k₂
+q₃·k₁  q₃·k₂  q₃·k₃
+q₄·k₁  q₄·k₂  q₄·k₃  q₄·k₄
+q₅·k₁  q₅·k₂  q₅·k₃  q₅·k₄  q₅·k₅
++
+0
+−1  0
+−2  −1  0
+−3  −2  −1  0
+−4  −3  −2  −1  0
+·m
+
+Normal Computing
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="New Counterfactual Retrieval Benchmark" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>New Counterfactual Retrieval Benchmark</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The benchmark replaces answers in Wikipedia context with plausible wrong answers, then tests whether models retrieve the supplied answer rather than a memorized fact. Context lengths range from 2,000 to 16,000 tokens.
+
+[6:15](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=375s) [Slide describing an edited long-context Wikipedia benchmark, its context-length splits, and an example of replacing an answer with a plausible counterfactual.](https://assets.ai.engineer/sites/aiecode2025/sha256/f19abf5a54ca22c1c62a125a236648eeb426257201f07b49de31162e9cc2cd4b.webp)
+
+RESULTS
+New Counterfactual Retrieval Benchmark
+2024 - AI Engineer World's Fair
+HUGGINGFACE
+
+Edited long-context Wikipedia benchmark to control for fact memorized during training.
+
+SPLITS: 2K  4K  8K  16K
+
+QUERY: &quot;WHO WROTE THE SONG, THESE SHOES WERE MADE FOR WALKING?&quot;
+ANSWER: &quot;LEE HAZLEWOOD&quot; → NEW ANSWER: &quot;TERRY ALLEN&quot;
+plausible
+
+Normal Computing
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Retrieval benchmark: 7-billion-parameter models" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Retrieval benchmark: 7-billion-parameter models</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At 2k, Extended Mind Llama beats both fine-tuned models. It remains competitive through 16k, where the base model’s score drops sharply. The speaker says Extended Mind was not fine-tuned.
+
+[7:26](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=446s) [Bar chart compares question-answer accuracy across document lengths for four 7-billion-parameter models.](https://assets.ai.engineer/sites/aiecode2025/sha256/61b2783757470468f8d614fffe714a37c43c2a13e4d5a8785fb3f3ad2ad3ab87.webp)
+
+RESULTS
+EMTs achieve SoTA on retrieval benchmark
+2024 - AI Engineer World's Fair
+
+Extended Mind Llama:
+• outperforms both fine-tuned models on short inputs
+• outperforms baseline model on long inputs, competitive with the fine-tuned models
+• outperforms GPT-4 by a large margin (6% on average) when combined with RAG
+
+Question Answer Results, 7-billion parameter models
+Y-axis: % Correct QA
+Y-axis ticks: 0.00, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40
+X-axis: Document length
+X-axis ticks: 2k, 4k, 8k, 16k
+Legend: Chat Llama-2; Nous 64k; Together 32k; Extended Mind Chat Llama-2
+
+7 BILLION PARAM
+Normal Computing
+
+Interface text: AIE; Microsoft; smol ai; aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Retrieval benchmark: 70-billion-plus-parameter models" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Retrieval benchmark: 70-billion-plus-parameter models</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Extended Mind Chat Llama-2 with RAG scores above GPT-4 at every document length shown. The speaker says RAG adds context while the model still relies mostly on its internal retrieval mechanism.
+
+[8:39](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=519s) [Bar chart compares GPT-4 and two Llama-based models across document lengths, including Extended Mind with RAG.](https://assets.ai.engineer/sites/aiecode2025/sha256/7c452560e3371bcfa9c5fe34dfb72e96bbf4211bb51adbd95ffa5c3a1f0cc629.webp)
+
+RESULTS
+
+EMTs achieve SoTA on retrieval benchmark
+
+Extended Mind Llama:
+• outperforms both fine-tuned models on short inputs
+• outperforms baseline model on long inputs, competitive with the fine-tuned models
+• outperforms GPT-4 by a large margin (6% on average) when combined with RAG
+
+Question Answer Results, 70-billion(+) parameter models
+Legend: GPT-4; Chat Llama-2 + RAG; Extended Mind Chat Llama-2 + RAG
+Y-axis: % Correct QA
+Y-axis ticks: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6
+X-axis: Document length
+X-axis ticks: 2k, 4k, 8k, 16k
+
+70 BILLION+ PARAM
+2024 - AI Engineer World's Fair
+Normal Computing
+
+Interface text: AIE; Microsoft; smol ai; aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Citations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Citations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Blue highlights identify biography tokens retrieved and attended to as the model generates 1971, offering a more direct citation than reporting similar in-context text.
+
+[9:01](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=541s) [A citations example highlights retrieved tokens in a biography and a completion answering that citizenship was obtained in 1971.](https://assets.ai.engineer/sites/aiecode2025/sha256/9968cdaeef7e5f069e86b5237536c61101ca73cd2e91dd1c64d81a2f8a6cec43.webp)
+
+Citations
+Extended Mind Transformers enable better, causal citations.
+
+Memories: Alexander Grothendieck ([illegible]; German pronunciation: [illegible] (listen); French: [illegible]; 28 March 1928 - 13 November 2014) was a stateless (and then, since 1971, French) mathematician who became the leading figure in the creation of modern algebraic geometry. [7][8] His research extended the scope of the field and added elements of commutative algebra, homological algebra, sheaf theory, and category theory to its foundations, while his so-called &quot;relative&quot; perspective led to revolutionary advances in many areas of pure mathematics. [7][9] He is considered by many to be the greatest mathematician of the twentieth century.
+
+Grothendieck began his productive and public career as a mathematician in 1949. In 1958, he was appointed a research professor at the Institut des hautes études scientifiques (IHES) and remained there until 1970...
+
+Prompt: When did Alexander Grothendieck get his French citizenship?
+Completion: I think he got it in 1971.
+
+Today's solution
+• Local attention weights are difficult to interpret.
+• Reporting similar in-context information (for instance, as retrieved by RAG) has no guaranteed causal relation to what information was used during generation.
+
+Look-up citations
+• We can now easily report which memories were retrieved at each step of the generation.
+• This gives us a much better idea of which information the model used to generate each next token.
+• We enable this in our open-source models.
+
+2024 - AI Engineer World's Fair
+COLAB NOTEBOOK
+Normal Computing</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Active learning generation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Active learning generation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>When a generated token is uncertain, the model can regenerate it using more memories. In the example, the baseline answers 1993; regeneration answers 1971.
+
+[10:33](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=633s) [A diagram and examples compare a baseline answer of 1993 with a regenerated answer of 1971 using more memories.](https://assets.ai.engineer/sites/aiecode2025/sha256/0ee1eecfad8a58b6d2dc357cac7c2fc2d96c50a4cffb8474df7b337e295712b8.webp)
+
+Active learning generation
+
+Extended Mind Transformers reduce hallucinations.
+Detect when the model is uncertain, and allow the model to regenerate using more memories.
+
+RETRIEVAL AUGMENTED GENERATION
+'&lt;s&gt; When did Alexander Grothendieck become a French citizen?\n\nAnswer: Alexander Grothendieck became a French citizen in 1993.\n\nExplanation: Alexander Grothendieck was born in Germany in 1928, but he spent most of his life in France, where he became a
+
+ACTIVE LEARNING GENERATION
+'&lt;s&gt; When did Alexander Grothendieck become a French citizen?\n\nAlexander Grothendieck was born in Germany in 1928, but he became a French citizen in 1971, after France granted him citizenship in recognition of his contributions to mathematics and his status as a stateless
+
+2024 - AI Engineer World's Fair
+Normal Computing
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws
+
+[10:39](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=639s) [Comparison of retrieval augmented generation with active learning generation using an uncertainty-driven memory retrieval example.](https://assets.ai.engineer/sites/aiecode2025/sha256/2f7cda663bc77bc00414c53ee893c1ac1d030eaff64eb62c57dc653961a5fbe6.webp)
+
+Active learning generation
+
+Extended Mind Transformers reduce hallucinations.
+Detect when the model is uncertain, and allow the model to regenerate using more memories.
+
+RETRIEVAL AUGMENTED GENERATION
+'&lt;s&gt; When did Alexander Grothendieck become a French citizen?\n\nAnswer: Alexander Grothendieck became a French citizen in 1993.\n\nExplanation: Alexander Grothendieck was born in Germany in 1928, but he spent most of his life in France, where he became a
+
+ACTIVE LEARNING GENERATION
+'&lt;s&gt; When did Alexander Grothendieck become a French citizen?\n\nAlexander Grothendieck was born in Germany in 1928, but he became a French citizen in 1971, after France granted him citizenship in recognition of his contributions to mathematics and his status as a stateless
+
+2024 - AI Engineer World's Fair
+Normal Computing
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Application Parameters" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Application Parameters</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Smaller strides produce higher-quality memory representations at greater computational cost. Top-k controls retrieval per query token; regularization masks weak matches and removes unknown tokens.
+
+[11:51](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=711s) [Slide describing stride length, top-k, and regularization parameters.](https://assets.ai.engineer/sites/aiecode2025/sha256/58a00d215bb213b4f070dbc157591128d025bbc148bcc0107e365ace612e3f7f.webp)
+
+Application Parameters
+
+1. STRIDE LENGTH
+model.generate_cache(input_ids, stride=512, max_len=3072)
+Smaller strides generate higher-quality representations, while larger strides require fewer computations.
+
+2. TOP-K
+topk (`int`, *optional*, defaults to `10`)
+Dynamically set for datasets with varying input lengths. Ratio of 2:1 for active learning generation.
+
+3. REGULARIZATION
+mask_by_sim (`bool`, *optional*, defaults to `True`)
+remove_special_tokens (`bool`, *optional*, defaults to `True`)
+Similarity masking works best for ALiBi models, Token masking effective for models trained using RoPe.
+
+2024 - AI Engineer World's Fair
+Normal Computing
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="How to Use" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How to Use</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example tokenizes a Wikipedia entry as external memory when loading the model, then asks when Grothendieck became a French citizen. The speaker says memories can also be changed later. The code is on GitHub.
+
+[14:40](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=880s) [Code example loading an Extended Mind Transformer with external memories and generating an answer.](https://assets.ai.engineer/sites/aiecode2025/sha256/617aaae60114b74c42331fe47a4288153364a3d1b84084aaa90d7fa43e00c904.webp)
+
+How to Use
+2024 - AI Engineer World's Fair
+https://github.com/normal-computing/extended-mind-transformers
+
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+ag_wiki_entry = &quot;&quot;&quot;Alexander Grothendieck ([illegible]; German pronunciation: [illegible] (listen); French: [illegible]; 28 March 1928 – 13 November 2014) was a stateless (and then, since 1971, French) mathematician who became the leading figure in the creation of modern algebraic geometry.[7][8] His research extended the scope of the field and added elements of commutative algebra, homological algebra, sheaf theory, and category theory to its foundations, while his so-called &quot;relative&quot; perspective led to revolutionary advances in many areas of pure mathematics.[7][9] He is considered by many to be the greatest mathematician of the twentieth century.[10][11]&quot;&quot;&quot;
+
+tokenizer_hf = AutoTokenizer.from_pretrained(&quot;normalcomputing/extended-mind-llama-2-7b&quot;)
+memories = tokenizer_hf(ag_wiki_entry).input_ids
+
+model_hf = AutoModelForCausalLM.from_pretrained(&quot;normalcomputing/extended-mind-llama-2-7b&quot;,
+external_memories=memories, trust_remote_code=True)
+
+inputs = tokenizer(&quot;When did Alexander Grothendieck become a French citizen?&quot;,
+return_tensors=&quot;pt&quot;).input_ids
+
+outputs = model.generate(inputs, max_length=40, topk=2)
+tokenizer.decode(outputs_hf['sequences'][0], skip_special_tokens=True)
+
+arXiv
+Normal Computing
+
+Interface text:
+AIE
+Microsoft
+smol ai
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Conclusion" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Conclusion</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The presenter reports state-of-the-art retrieval, exact, casual citations, and active-learning-inspired hallucination reduction. The models require no fine-tuning and can run using open-source models and code.
+
+[15:18](https://www.youtube.com/watch?v=cS6M6Jec0lU&amp;t=918s) [Conclusion slide summarizing retrieval performance, citations, hallucination reduction, and open-source availability.](https://assets.ai.engineer/sites/aiecode2025/sha256/7fca900c3b4b08f2afa91ede0efafc4cb66d67a59e1dbe75691b7fbde98518f5.webp)
+
+Conclusion
+
+EXTENDED MIND TRANSFORMERS
+
+• achieve SoTA performance on retrieval tasks
+• enable exact, casual citations
+• enable active learning generation for hallucination reduction
+• do not require fine-tuning
+• can be run easily using open-sourced models and code
+
+2024 - AI Engineer World's Fair
+HUGGINGFACE
+GITHUB
+Normal Computing</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">为什么要区分记忆和提示词？</a></li><li><a href="#sec-2">在注意力内部检索记忆</a></li><li><a href="#sec-3">让检索到的 token 适配位置编码方案</a></li><li><a href="#sec-4">测试的是检索而不是死记硬背</a></li><li><a href="#sec-5">仅查询检索，再加上 RAG 检索</a></li><li><a href="#sec-6">把一个答案 token 与检索到的证据关联起来</a></li><li><a href="#sec-7">当生成变得不确定时检索更多</a></li><li><a href="#sec-8">分别调优记忆构建和检索</a></li><li><a href="#sec-9">别让无关的匹配进入注意力</a></li><li><a href="#sec-10">把记忆用作模型输入</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">超越 RAG：扩展心智 Transformer</h2>
+      <div class="lede"><p>扩展心智 Transformer 在注意力内部检索缓存的 token 表示，把记忆与提示词分开，并实现了检索追踪和由不确定性驱动的重新生成。</p><p>熟悉 Transformer 注意力、token 生成和检索增强生成会有帮助；文中讲解记忆机制时不需要其数学推导。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="64">▶ 1:04</button></div>
+      <h3>为什么要区分记忆和提示词？</h3>
+      <p>How much of a codebase does a model need to answer one question? Pretraining supplies general knowledge, but an application also needs specific, current information. Long context makes room for that information by extending the sequences a transformer can accept. Phoebe Klett points to two costs: extending a model beyond its training context can require expensive fine-tuning, and filling the prompt can introduce irrelevant information. A question about a repository usually needs only a subset of its function definitions.</p>
+<p>Conventional retrieval-augmented generation, or <strong>RAG</strong>, selects that subset before generation. In the setup discussed here, an external retriever decides what matters once, upfront, using representations that are coarser than the token representations the transformer uses internally. The selection cannot respond to what the model discovers it needs while writing its answer.</p>
+<p><strong>Separating memory from the inference prompt makes retrieval available during generation.</strong> That separation enables two further capabilities: tracing which memory tokens were retrieved for an answer, and retrieving more information when the model becomes uncertain.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/40204666138dd1095bfb8f9fa67fac1a6a931ba388a3e5c08a380b35f8361a42" alt="Introduction slide with red and black token bars, curved retrieval arrows, and a comparison table using green checks and red crosses." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Long context, RAG, and extended memory compared alongside a token-retrieval diagram.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="212">▶ 3:32</button></div>
+      <h3>在注意力内部检索记忆</h3>
+      <p><a href="https://arxiv.org/html/2406.02332v1" target="_blank" rel="noopener"><strong>Extended Mind Transformers</strong></a>, or EMTs, modify the transformer's existing attention mechanism. Within each decoder layer, tokens already have <strong>key-value representations</strong>: keys participate in selecting information, and values carry the information attention combines. These internal representations provide the basis for memory retrieval.</p>
+<p>The process has two phases:</p>
+<p>1. <strong>Construct memory.</strong> Pass the memory tokens through the model and save their key-value representations.
+2. <strong>Retrieve during generation.</strong> Let each query token use cosine similarity to select a configured number of cached memory tokens, then attend to their representations.</p>
+<p>Retrieval therefore uses representations formed inside the model, and its selections can change as generation proceeds. In the diagram, the red-highlighted entries are the retrieved tokens.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ca604e6e39515ad2baef345a0cf4df72a19c73bec53d2343e26b1918ff8d69fc" alt="Extended Mind Attention slide showing input tokens, a black model block, and rows of cached tokens with selected entries outlined in red." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Extended Mind Attention retrieves from an external cache of key-value memories.</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="277">▶ 4:37</button></div>
+      <h3>让检索到的 token 适配位置编码方案</h3>
+      <p>The difficult integration question is how to assign position information to retrieved tokens. Attention needs a way to distinguish token order. Klett attributes part of earlier approaches' need for fine-tuning to their use of absolute position embeddings: the model had to learn how to use memory tokens introduced into that positional scheme. The relative-position approaches tested for EMT allow the modified models to use retrieved representations without additional fine-tuning.</p>
+<p>| Tested model family | Position mechanism | How position enters attention |
+| --- | --- | --- |
+| <strong>Llama</strong> | Rotary position embeddings, or <strong>RoPE</strong> | Rotates pairs of embedding coordinates to encode relative position |
+| <strong>MPT</strong> | <strong>ALiBi</strong> | Applies linear attention biases that penalize greater distance |</p>
+<p>ALiBi is not a position embedding: it changes attention scores directly. The distinction matters because accommodating memory requires working with the model's particular position mechanism, even when no weight updates are needed.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="376">▶ 6:16</button></div>
+      <h3>测试的是检索而不是死记硬背</h3>
+      <p>A model can answer a factual question correctly without reading the supplied document. To distinguish retrieval from memorization, the <a href="https://huggingface.co/datasets/normalcomputing/wikiqa-counterfactual" target="_blank" rel="noopener">counterfactual WikiQA benchmark</a> pairs questions with supporting contexts containing deliberately altered facts. Supporting contexts span approximately 2,000–16,000 tokens.</p>
+<p>The songwriting example asks who wrote <em>These Boots Are Made for Walkin'</em>. The original answer is Lee Hazlewood. The benchmark replaces every occurrence of his name in the supplied context with Terry Allen, a plausible but deliberately incorrect alternative. The expected benchmark answer then becomes Terry Allen. This tests whether the model prioritizes inference-time evidence over facts memorized during pretraining or fine-tuning; it does not make the substituted answer historically true.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="447">▶ 7:27</button></div>
+      <h3>仅查询检索，再加上 RAG 检索</h3>
+      <p>The first comparison includes models fine-tuned for longer context and a base Llama model using interpolated position embeddings. Klett describes the base model as trained on 2,048-token sequences; that is the talk's characterization, rather than a general specification for the Llama family. In the reported counterfactual retrieval comparison, the base model remains reasonably effective around 8K tokens but declines sharply at 16K.</p>
+<p>EMT performs better than the fine-tuned comparators on shorter inputs and remains competitive through 16K without additional fine-tuning. Klett interprets the shorter-input results as evidence that long-context fine-tuning can degrade attention on shorter sequences, not as a universal finding about every long-context model.</p>
+<p>For EMT in this first experiment, the supporting document stays in memory: the prompt contains the question rather than the document. The paper specifies one-shot prompting, so “query only” describes where the supporting evidence goes, not the absence of all other prompt scaffolding. Answering the counterfactual songwriting question requires the internal retriever to find the substituted name.</p>
+<p>The second experiment adds RAG context to the prompt while retaining the entire supporting document in memory. The paper describes retrieving five nonoverlapping 500-token chunks using Ada embeddings. In the June 2024 counterfactual fact-retrieval experiment, EMT combined with RAG outperforms the tested <strong>GPT-4</strong> baseline. This is a result for that benchmark and setup, not a claim of general superiority; the inspected evaluation does not identify the exact GPT-4 snapshot. The combination also shows that prompt retrieval and memory attention can complement each other.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="538">▶ 8:58</button></div>
+      <h3>把一个答案 token 与检索到的证据关联起来</h3>
+      <p>Citations help users assess an answer, but matching an output to a supplied passage leaves a gap. If a date appears in both the prompt and the completion, that agreement supports the answer without establishing which information the model used. EMT exposes the memory tokens retrieved and attended to during generation. Klett calls these <strong>causal citations</strong>; more precisely, the paper reports retrieval provenance, including tokens most frequently retrieved across layers, rather than an intervention-based proof of causality.</p>
+<p>The demonstration stores a Wikipedia passage about Alexander Grothendieck and asks when he received French citizenship. Its supplied answer is 1971. When the model generates that date, the display highlights retrieved tokens containing 1971 and parts of Grothendieck's name. The trace connects the generated date to specific memory content, giving the reader a more granular account of retrieval than a document-level citation alone.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="627">▶ 10:27</button></div>
+      <h3>当生成变得不确定时检索更多</h3>
+      <p>Memory access can also respond to uncertainty. The simplest signal discussed is <strong>token-level entropy</strong> over the output distribution. Other uncertainty measures can serve the same purpose. Klett mentions Bayesian fine-tuning work at Normal Computing as another way to estimate uncertainty, but it is not a requirement for this loop. When uncertainty is detected, the model can regenerate the affected step with more information from memory.</p>
+<p>The citizenship example makes the sequence concrete:</p>
+<p>1. <strong>Start with a default retrieval budget.</strong> Each query token can retrieve a baseline number of memory entries.
+2. <strong>Observe an incorrect answer.</strong> Under that budget, the demonstration produces 1993 instead of its target, 1971.
+3. <strong>Expand retrieval and regenerate.</strong> For uncertain tokens, retrieve more cached information and regenerate a subset of the output. The revised example produces 1971.</p>
+<p>This is an active-learning-inspired demonstration of hallucination reduction; the paper defers full-scale experiments. Efficiency gains are also conditional: avoiding a large retrieval budget everywhere must save more computation than the extra retrieval and regeneration consume.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b340505191138efe1889b7742907071747d122a63f12ebd86c39c8a8e8286d0f" alt="Active learning generation slide with two memory diagrams and stacked answer boxes about Alexander Grothendieck's French citizenship; the lower answer has a green check." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The citizenship example contrasts a 1993 answer with a 1971 answer marked by a green check.</figcaption></figure>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="713">▶ 11:53</button></div>
+      <h3>分别调优记忆构建和检索</h3>
+      <p><strong>Stride length</strong> controls how memory representations are constructed. The source text must pass through a model with a fixed context length, so processing advances through it in windows. Overlapping windows give tokens preceding context when the model forms their cached key-value representations. Smaller strides improve representation quality in the described setup, but require more computation because the model processes more overlapping text.</p>
+<p><strong><code>top-k</code></strong> controls generation-time access: it is the number of memory key-value pairs each query token may retrieve and attend to. Klett identifies it as the most important retrieval parameter and recommends adapting it to memory length. Longer memories generally benefit from retrieving more entries. Stride determines the quality and construction cost of the stored representations; <code>top-k</code> determines how much of that memory a generation step can consult.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="795">▶ 13:15</button></div>
+      <h3>别让无关的匹配进入注意力</h3>
+      <p>Increasing retrieval indiscriminately can recreate the problem of an overloaded prompt. The implementation therefore includes <strong>similarity masking</strong>: retrieve candidate entries, then mask those whose query-key similarity falls below a threshold. Klett gives 0.25 as an illustrative threshold, not a universal setting. This permits a broad initial selection while withholding weak matches from attention. The paper did not use similarity masking in its reported retrieval experiments.</p>
+<p>A second filter removes <strong>unknown-token entries</strong>, particularly for models using RoPE. Messy Wikipedia-derived text can contain unknown tokens whose representations match many queries without carrying useful information. Those entries are removed from the constructed memory before retrieval begins. The paper's pruning also includes beginning- and end-of-sequence special tokens. Unlike similarity masking, this changes the pool of available entries rather than filtering the results of an individual query.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="882">▶ 14:42</button></div>
+      <h3>把记忆用作模型输入</h3>
+      <p>The released <a href="https://github.com/normal-computing/extended-mind-transformers" target="_blank" rel="noopener">implementation</a>, dataset, paper, and Hugging Face models provide the starting points for using EMT. One released model is <a href="https://huggingface.co/normalcomputing/extended-mind-llama-2-7b-chat" target="_blank" rel="noopener"><strong>Extended Mind Llama-2-7B Chat</strong></a>. These are the research implementation and interfaces presented in 2024, rather than a verified current serving recipe.</p>
+<p>The usage pattern is to tokenize the memory, supply those tokens when instantiating the model, and set the model configuration for memory retrieval. Memories can also be changed dynamically after instantiation. This makes the memory a separately managed input rather than information that must always accompany the question in the prompt.</p>
+<p>That separation carries through the practical benefits demonstrated here: retrieval can supply facts without additional fine-tuning, its traces can expose the memory tokens associated with an answer, and uncertainty can trigger another retrieval attempt during generation. The open-source models and code make those capabilities available together as changes to attention and memory handling.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/73786010af7dfb2441c6b3efdc147a10c521c79a2de5829a79b72ed04faf1d87" alt="Conclusion slide with five bullets about Extended Mind Transformers and Hugging Face and GitHub icons." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Closing claims cover retrieval performance, citations, hallucination reduction, and open-source availability without fine-tuning.</figcaption></figure>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://arxiv.org/html/2406.02332v1" target="_blank" rel="noopener">Extended Mind Transformers</a> — Original research paper covering memory attention, positional handling, experiments and implementation parameters.</li><li><a href="https://cdn.normalcomputing.ai/Extended_Mind_Transformers.pdf" target="_blank" rel="noopener">Extended Mind Transformers conference slides</a> — Companion slides with benchmark comparisons, citation examples and tuning guidance.</li><li><a href="https://github.com/normal-computing/extended-mind-transformers" target="_blank" rel="noopener">Extended Mind Transformers implementation</a> — Official code, Llama and MPT demonstration notebooks, and memory configuration examples.</li><li><a href="https://huggingface.co/datasets/normalcomputing/wikiqa-counterfactual" target="_blank" rel="noopener">Counterfactual WikiQA benchmark</a> — Question-answer examples with deliberately substituted facts for testing reliance on supplied documents.</li><li><a href="https://huggingface.co/normalcomputing/extended-mind-llama-2-7b-chat" target="_blank" rel="noopener">Extended Mind Llama-2-7B Chat</a> — Model card for a released chat model with external memory attention.</li><li><a href="https://arxiv.org/abs/2203.08913" target="_blank" rel="noopener">Memorizing Transformers</a> — Predecessor research on retrieving cached representations inside transformers.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] I'm Phoebe. I'm a machine learning engineer at Normal Computing, and I'm really excited to tell you guys about some of our recent research, uh, and in particular, Extended Mind Transformers.</span></div><div class="tline" data-t="23"><span class="ts">0:23</span><span class="tx">All right, so just to briefly cover what we're gonna go over in today's talk, uh, we'll introduce the problem, which I think will be quite familiar given the amazing talks which came before mine, uh, and then dive right into the method.</span></div><div class="tline" data-t="33"><span class="ts">0:33</span><span class="tx">So, uh, what is the retrieval mechanism that Extended Mind Transformers implement? Uh, and then we'll dive into some experiments which give us confidence that these methods are actually performant.</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">After that, we'll get into two of my favorite and I think most compelling features that Extended Mind Transformers enable. This is a new kind of citation, uh, as well as a new kind of generation paradigm, which is active learning inspired.</span></div><div class="tline" data-t="54"><span class="ts">0:54</span><span class="tx">Uh, and then we'll go over the most important parameters to tune when implementing, uh, EMTs in your applications, and generally, how to use them.</span></div><div class="tline" data-t="64"><span class="ts">1:04</span><span class="tx">All right. So we pre-train language models, uh, so that they have general knowledge. But as we've been discussing all this conference, that's not enough. We need a lot of application-specific information and a topical, uh, description of the world in order to make these things useful.</span></div><div class="tline" data-t="80"><span class="ts">1:20</span><span class="tx">Um, I am not going to belabor the two most popular methods, um, which try to load this description into the language model, those being long context and RAG, as I think, yeah, we've heard a lot about those, um, great methods already.</span></div><div class="tline" data-t="94"><span class="ts">1:34</span><span class="tx">But I'd like to point out that they solve the problem in different ways and they suffer from different downsides. So long context seeks to extend the context window of the transformer model.</span></div><div class="tline" data-t="104"><span class="ts">1:44</span><span class="tx">So we train language models, we train them on sequences of a fixed length, and then we're trying to say, &quot;Well, can we, can we extend that so we can include more in the context, more in the prompt during inference time?&quot;</span></div><div class="tline" data-t="116"><span class="ts">1:56</span><span class="tx">Uh, fine-tuning is usually how this is done, and that's awfully expensive. Uh, and more so than that, including all of that context in your prompt can confuse the model with a lot of irrelevant information.</span></div><div class="tline" data-t="128"><span class="ts">2:08</span><span class="tx">Um, and kind of beyond that, just conceptually speaking, it seems a little, like, wasteful, right? Like, if we're trying to do question answering over a big code base, uh, our query is most usually, does not need to reference, like, all of those different function definitions, but just needs some subset of them to answer the query correctly.</span></div><div class="tline" data-t="145"><span class="ts">2:25</span><span class="tx">Um, okay, so this is what RAG tries to do, right? Let's try to subset that information down and just include the most relevant context in our prompt. Um, so what are the issues here?</span></div><div class="tline" data-t="156"><span class="ts">2:36</span><span class="tx">Well, these, these mechanisms which are external to the transformer are kind of, like, necessarily limited by being external to the model. So we make this choice of what's relevant once and up front before the generation starts, and we're also making this choice about what's relevant using kind of the least granular representation of that data, and often ones</span></div><div class="tline" data-t="177"><span class="ts">2:57</span><span class="tx">that are disjoint from the way that the model will reason about that data. Um, kind of also just conceptually, neither of these methods make a difference, uh, or make a distinction between things that should go in memory and things that should be included along with your inference query.</span></div><div class="tline" data-t="193"><span class="ts">3:13</span><span class="tx">And this is more than just aesthetics. It's actually gonna enable us to... Oh.</span></div><div class="tline" data-t="199"><span class="ts">3:19</span><span class="tx">It's gonna enable us to have these, like, more granular causal citations, uh, and allow the model to retrieve more information when we can tell it's uncertain, kind of actively within the generation.</span></div><div class="tline" data-t="212"><span class="ts">3:32</span><span class="tx">All right, so how do we do this? Extended Mind Attention is a very simple edit to the attention mechanism of the transformer. I'm not gonna get too much into the math because we don't have a ton of time today, but would love for anyone to check out the paper and let me know what you think.</span></div><div class="tline" data-t="225"><span class="ts">3:45</span><span class="tx">Um, so, but I'll just go over kind of, yeah, from a qualitative perspective how this works. So the model represents data within each decoder layer. Most of the transformers that we're using today are decoder-only transformers.</span></div><div class="tline" data-t="239"><span class="ts">3:59</span><span class="tx">And within each of those decoder layers, the model will represent that data as a key-value pair. So it actually already has this retrieval mechanism built into the transformer. All we have to do is kind of hack around it.</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">Um, so we pass all of the memory tokens through the model and save off those key-value representations. And then during generation time, we allow each query token, just like RAG, using cosine similarity, to go retrieve a particular number of those memory tokens and attend to them.</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">So this, in this picture, these kind of red tokens, red highlighted tokens, are meant to, uh, represent those retrieved tokens.</span></div><div class="tline" data-t="277"><span class="ts">4:37</span><span class="tx">Uh, again, this actually ends up being a very simple change to the transformer model. What's difficult, uh, was figuring out how to assign position information to those tokens. So this, uh, work is based on research from a couple years ago, but they needed to fine-tune their model in order to kind of teach the model how to leverage</span></div><div class="tline" data-t="296"><span class="ts">4:56</span><span class="tx">these retrieved tokens, and that's, uh, in large part due to the absolute position embeddings that were popular during that time. So because transformer models are position agnostic, we have to figure out how to kind of tell them, like, &quot;Okay, this token is position zero, this one is to position one,&quot; et cetera, et cetera.</span></div><div class="tline" data-t="313"><span class="ts">5:13</span><span class="tx">Um, but due to today's more kind of like their softer position embeddings, this allows us to really leverage this method without any further fine-tuning. So in particular, these relative position embeddings that have become popular, and I'll talk about two different methods that we've tested and implemented this on, um, really enable the model to kind of generalize, um,</span></div><div class="tline" data-t="336"><span class="ts">5:36</span><span class="tx">to these retrieved tokens. The first one, uh, that we tested on is present in all of the Llama models. These are the rotary position embeddings, and this generalizes the principle of using kind of, like, an angle between two vectors as a distance metric.</span></div><div class="tline" data-t="350"><span class="ts">5:50</span><span class="tx">So we kind of take the whole embedding and we rotate kind of two positions at a time. The other one that we implemented, um, this method into is the ALiBi, uh, linear biases.</span></div><div class="tline" data-t="361"><span class="ts">6:01</span><span class="tx">These actually aren't position embeddings at all. It just kind of linearly damps down, uh, information which is further away. And these are, uh, the way that all of the Mosaic's MPT models are trained.</span></div><div class="tline" data-t="376"><span class="ts">6:16</span><span class="tx">Okay, so let's talk about some evaluations. Um, we also just open sourced a new counterfactual retrieval benchmark, and I'm just gonna briefly describe what that benchmark looks like. So this is a long context benchmark, so our input context is our query answer pairs.</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">Uh, and the context to answer those questions range from about two thousand tokens to all the way up to sixteen thousand tokens. And the... Again, these are like queries, so, like, the question might be, &quot;Who wrote the song, 'These Shoes Are Made for Walking?'&quot; And then the corresponding Wikipedia snippet.</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">Um, we wanted to control for facts memorized during pre-training, though, and actually any fine-tuning also. So what we did was we looked up, for instance, in this case, the answer is Lee Hazlewood.</span></div><div class="tline" data-t="418"><span class="ts">6:58</span><span class="tx">We did a little bit of research. We figured out, okay, well, Terry Allen is a similar songwriter. This is a plausible answer, but it's wrong. We went in, and we replaced all the instances of Lee Hazlewood with Terry Allen, and now we ask the model to retrieve this new, you know, not factually correct, but in the sense</span></div><div class="tline" data-t="435"><span class="ts">7:15</span><span class="tx">that we're trying to test whether it's prioritizing what's being provided at inference time. Um, so now we're asking it to retrieve this Terry Allen answer.</span></div><div class="tline" data-t="447"><span class="ts">7:27</span><span class="tx">All right. So how do Extended Mind Transformers stack up? Here we're comparing it with fine-tuned models as well as the base Llama model with, uh, ex- interpolated position embeddings.</span></div><div class="tline" data-t="458"><span class="ts">7:38</span><span class="tx">So we can see here in the green that the base model does a pretty good job extrapolating even, like, many times more. So this was a model trained up to, like, twenty forty-eight tokens, uh, during pre-training.</span></div><div class="tline" data-t="471"><span class="ts">7:51</span><span class="tx">And you can see even up to eight K, it's, like, doing okay. Sixteen K, it really falls off. The position embeddings can't extrapolate that far. The fine-tune models, you can see, actually perform worse than the Extended Mind model on these shorter inputs.</span></div><div class="tline" data-t="485"><span class="ts">8:05</span><span class="tx">And this is another data point that suggests that fine-tuning on super long context actually degrades the quality of attention that you get on shorter inputs. And Extended Mind Transformers continue to be competitive with those fine-tuned models all the way up to sixteen K.</span></div><div class="tline" data-t="498"><span class="ts">8:18</span><span class="tx">Again, our models are not fine-tuned at all.</span></div><div class="tline" data-t="502"><span class="ts">8:22</span><span class="tx">And in this particular experiment, so what the Extended Mind model sees in context is the query only. So it only sees the, like, &quot;Who wrote the song, 'These Shoes Are Made for Walking?'&quot; And relies heavily on that internal retrieval mechanism to go look up that new information.</span></div><div class="tline" data-t="519"><span class="ts">8:39</span><span class="tx">In this second experiment, we seed it with a little bit more information in context, uh, using RAG. But again, mostly relying on that, uh, internal mechanism still. Uh, and you can see we're outperforming GPT-4 here now when we combine it with that more information in context as well.</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">Okay, now we're gonna talk about citations. So I think, uh, this will be a topic that lots of you here can empathize with. Uh, as AI engineers, I think this is one of the most important things to provide in an application, such that people can learn to trust the model outputs.</span></div><div class="tline" data-t="553"><span class="ts">9:13</span><span class="tx">In fact, you might actually use RAG just to get citations. Um, so with RAG, though, the citations that you get are a little bit kind of like post-hoc rationalization.</span></div><div class="tline" data-t="563"><span class="ts">9:23</span><span class="tx">So maybe if, like, the date appears in the output, and we knew it was also in the input to the language model, we feel pretty confident that that date is not hallucinated.</span></div><div class="tline" data-t="571"><span class="ts">9:31</span><span class="tx">Um, but again, this is not really, like, a causally related to what information the model used during the generation. Now, with Extended Mind Transformers, we can look up exactly which tokens were retrieved from tho- from those memories and used during generation.</span></div><div class="tline" data-t="586"><span class="ts">9:46</span><span class="tx">So in this example, on the top left here, we have the memories. This is a snippet from Wikipedia about one of my favorite mathematicians, Alexander Grothendieck. And the query is, &quot;When did he get his French citizenship?&quot;</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">And then, in the bottom, you can see the completion with the correct date. I think he got it in nineteen seventy-one. So the blue highlighted tokens here, uh, importantly the nineteen seventy-one, as well as some of the Alexander Grothendieck tokens, uh, those are the ones that the model retrieved and attended to when generating that nineteen seventy-one correct</span></div><div class="tline" data-t="617"><span class="ts">10:17</span><span class="tx">token. And so being able to report that, uh, gives a lot of confidence and also just insight into how the model is using those retrieved tokens.</span></div><div class="tline" data-t="627"><span class="ts">10:27</span><span class="tx">Okay. We can also use Extended Mind Transformers to reduce hallucinations. So how do we do this? So right now we have access to, in the, like, simplest case, just kind of token level entropy over that output distribution.</span></div><div class="tline" data-t="641"><span class="ts">10:41</span><span class="tx">And if you wanted to get fancier, we're also doing some Bayesian fine-tuning of language models at Normal. But you can use any uncertainty metric to determine kind of how certain the model is about a generated token.</span></div><div class="tline" data-t="652"><span class="ts">10:52</span><span class="tx">And if we kind of can detect that the model is uncertain about that token, we can regenerate that step using more information from these memories. Uh, so okay, so in the top right here, we can see, uh, this is...</span></div><div class="tline" data-t="664"><span class="ts">11:04</span><span class="tx">We just set, like, a baseline default number of memories that each query token is allowed to retrieve and attend to. And you can see it wasn't quite enough information, uh, to get this query right.</span></div><div class="tline" data-t="674"><span class="ts">11:14</span><span class="tx">So if you remember from the previous slide, the correct answer here is nineteen seventy-one. And you can see we've got nineteen ninety-three here. So wasn't enough. [laughs] We didn't attend to that memory quite enough to get this question right.</span></div><div class="tline" data-t="686"><span class="ts">11:26</span><span class="tx">And in the bottom example, we allow it to regenerate some subset of those tokens using more information from the cache when we can tell the model is uncertain.</span></div><div class="tline" data-t="697"><span class="ts">11:37</span><span class="tx">And again, got this right. So it's kind of like kind of a nice intuition for, uh, when the model's uncertain, and then, okay, if it's really uncertain, let's go use more information and also can be more efficient, kind of depending on how the math works out.</span></div><div class="tline" data-t="713"><span class="ts">11:53</span><span class="tx">All right, so now I'm gonna tell you guys about the most important, uh, parameters to set when using Extended Mind Transformers. So you may have heard of something called stride length before</span></div><div class="tline" data-t="722"><span class="ts">12:02</span><span class="tx">Uh, and this is, um, a parameter that comes up a lot, even just kind of in regular perplexity computations. So when we compute the memories that we're going to attend to, we pass them through the model and then again save off these key value representations that the model saves internally.</span></div><div class="tline" data-t="738"><span class="ts">12:18</span><span class="tx">Um, but again, the models that we're using are trained on this fixed context length. So we need to kind of pass over them with some stride such that each of those tokens has an appropriate amount of context, um, to generate the representation.</span></div><div class="tline" data-t="754"><span class="ts">12:34</span><span class="tx">So if the stride is smaller, uh, you're gonna get more, uh, high-quality representations, but also it will require more computations. Um, so you can kind of tune this, and there are some graphs in the paper as well that kind of d- represent this trade-off.</span></div><div class="tline" data-t="768"><span class="ts">12:48</span><span class="tx">Um, but this is an important parameter to set when, yeah, generating the memories themselves. top-k is, uh, probably the most important parameter to think about. So this is the number of key value pairs or memories that each query token is allowed to retrieve and attend to.</span></div><div class="tline" data-t="784"><span class="ts">13:04</span><span class="tx">Um, when your memory is quite long, kind of the more the better. Um, but again, uh, yeah, this is kind of, should be dynamically set based on how long your memory is.</span></div><div class="tline" data-t="795"><span class="ts">13:15</span><span class="tx">Um, okay, yeah. So lastly, uh, we wanna retrieve as much information as we can from the memory without confusing the model. So making analogy back to kind of putting everything into context, we don't wanna just throw everything in there 'cause that will be confusing to the model.</span></div><div class="tline" data-t="811"><span class="ts">13:31</span><span class="tx">Um, so we have two different regularization techniques that we implement that we have found to be especially effective. Um, the first one is called similarity masking. So again, we, we retrieve these tokens, uh, based on similarity with our query token and the key that we are retrieving from.</span></div><div class="tline" data-t="829"><span class="ts">13:49</span><span class="tx">And so we might say like, &quot;Well, if we don't hit some similarity threshold, like we'll retrieve a lot of them, but then if they, you know, if they're not at least like .25 similar, then we'll just throw them out.&quot;</span></div><div class="tline" data-t="838"><span class="ts">13:58</span><span class="tx">So we can retrieve and then just mask the ones that end up being less important. Uh, another, [laughs]</span></div><div class="tline" data-t="844"><span class="ts">14:04</span><span class="tx">another important regularization technique, in particular for models that are trained using RoPE, uh, is to eliminate tokens from the memory that correspond to unknown tokens. So especially if your data is super messy, a lot of the Wikipedia-based benchmarks are like really way more messy than I even knew before I started working on this stuff.</span></div><div class="tline" data-t="862"><span class="ts">14:22</span><span class="tx">Uh, they have a lot of like, just unknown tokens, and so they're kind of like poorly represented by the models often because they're unknown. They end up having a lot of matches with your query tokens, but then they're n- not actually containing a lot of useful information.</span></div><div class="tline" data-t="875"><span class="ts">14:35</span><span class="tx">Um, so we just eliminate those from the memory before we allow it to start retrieving.</span></div><div class="tline" data-t="882"><span class="ts">14:42</span><span class="tx">All right, so we have a whole collection of these models on Hugging Face. All of the, uh, code is on GitHub as well as that dataset. Um, and encourage you all to read the paper if you're curious about more of the technical details.</span></div><div class="tline" data-t="893"><span class="ts">14:53</span><span class="tx">Uh, as I hope you can see here, it's actually pretty easy to use these things. So it's as simple as passing those memories in as inputs, uh, as tokens into the model during instantiation.</span></div><div class="tline" data-t="904"><span class="ts">15:04</span><span class="tx">Um, you can dynamically change them after that as well, but it's the easiest way to do it. Uh, and then making sure your config is set up correctly.</span></div><div class="tline" data-t="913"><span class="ts">15:13</span><span class="tx">All right, so just to conclude here, uh, I hope you all will take away that these new kinds of models, um, impre- in- achieve impressive performance on retrieval tasks.</span></div><div class="tline" data-t="922"><span class="ts">15:22</span><span class="tx">They enable these great new kind of citations. Um, they also enable this new kind of hallucination reduction technique, which is inspired by active learning. They do not require fine-tuning unlike kind of long context methods, uh, and they can be easily run using our open source models and code.</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">Thanks so much and, uh, find me after for questions. [audience applauding] [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>在本地运行 LLM：DGX Spark 上的实际 LLM 性能 —— Mozhgan Kabiri chimeh，NVIDIA | AI 工程师中文版</title>
+<meta name="description" content="在 DGX Spark 上对 Qwen 进行的本地基准测试，展示了可重复的服务配置和量化如何同时影响生成速度和等待响应开始的时间。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>在本地运行 LLM：DGX Spark 上的实际 LLM 性能 —— Mozhgan Kabiri chimeh，NVIDIA</h1>
+    <div class="orig-title">Running LLMs locally: Practical LLM Performance on DGX Spark — Mozhgan Kabiri chimeh, NVIDIA</div>
+    <div class="meta"><span class="speaker">Mozhgan Kabiri Chimeh</span> · AI Engineer Europe 2026 · 10:16</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=distillation">蒸馏</a><a class="tag" href="../../index.html#topic=gpu-programming-and-kernel-optimization">GPU 编程与内核优化</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=local-inference">本地推理</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=quantization">量化</a><a class="tag" href="../../index.html#topic=reasoning-and-test-time-compute">推理能力与测试时计算</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/c5-kx2bwoCk-running-llms-locally-practical-llm-performance-on" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="c5-kx2bwoCk"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=c5-kx2bwoCk" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">是什么让 AI 工作负载离不开云而上不了桌面？</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="1"><span class="ts">0:01</span><span>是什么让 AI 工作负载离不开云而上不了桌面？</span></li><li data-t="99"><span class="ts">1:39</span><span>一个拥有可移植软件栈的桌面系统</span></li><li data-t="160"><span class="ts">2:40</span><span>让每次基准运行都可检查</span></li><li data-t="253"><span class="ts">4:13</span><span>测量响应何时开始</span></li><li data-t="334"><span class="ts">5:34</span><span>模型大小和精度对生成速度的影响</span></li><li data-t="451"><span class="ts">7:31</span><span>装得下一个模型不等于能快速喂饱它</span></li><li data-t="563"><span class="ts">9:23</span><span>在本地迭代，再扩展工作流</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 8 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Challenges Facing Local AI Development" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Challenges Facing Local AI Development</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Insufficient local memory or a missing software stack pushes AI work to the cloud or a datacenter, where competing workloads can delay development.
+
+[0:36](https://www.youtube.com/watch?v=c5-kx2bwoCk&amp;t=36s) [Two monitor illustrations show insufficient memory and missing software, with workloads moving to the cloud or a datacenter.](https://assets.ai.engineer/sites/aiecode2025/sha256/ae51ef8c22ae8cbde9ecc66daf34a671668c1c887f7cc8f8b9e4e990bd678db8.webp)
+
+Challenges Facing Local AI Development
+
+Local system does not provide enough memory for AI Workloads
+
+Local system does not provide the required software stack
+
+Work that can’t run locally must be moved to cloud or datacenter
+
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="DGX Spark" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>DGX Spark</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>DGX Spark pairs local memory with NVIDIA’s AI software stack in a compact system. It can run standalone or serve as a network-connected compute resource.
+
+[1:37](https://www.youtube.com/watch?v=c5-kx2bwoCk&amp;t=97s) [DGX Spark features include local memory, NVIDIA AI software support, a compact form factor, and standalone or network use.](https://assets.ai.engineer/sites/aiecode2025/sha256/8541c6aabe3ce2ca7b67addc88c77984517b7f092fbb080210f449ed40052f5f.webp)
+
+DGX Spark
+Designed to build and run AI
+
+• Large local memory
+• Support for NVIDIA AI software stack
+• Compact, power efficient form factor
+• Configure as standalone system or network connected compute resource
+
+Interface text:
+NVIDIA DGX Spark
+jupyterlab
+[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="NVIDIA GB10 Grace Blackwell Superchip" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>NVIDIA GB10 Grace Blackwell Superchip</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GB10 combines a Blackwell GPU and 20-core Arm CPU with 128 GB of shared memory. The speaker says that memory and FP4 support enable local work with models of up to around 200 billion parameters.
+
+[1:46](https://www.youtube.com/watch?v=c5-kx2bwoCk&amp;t=106s) [A chip image accompanies specifications for the GPU, CPU, NVLink interface, and 128 GB of unified memory.](https://assets.ai.engineer/sites/aiecode2025/sha256/bdc2b5253335fc8324385b69ddeedeff45c2297c5a29ee7c715b3d534e7c7ba4.webp)
+
+NVIDIA GB10 Grace Blackwell Superchip
+
+• NVIDIA Blackwell GPU
+  • Support for FP4 data format, provides up to 1 petaFLOP of AI performance
+• 20 Core Arm CPU
+  • 10 high performance + 10 efficiency cores
+• NVIDIA NVLink C2C Interface
+  • ~5x PCIe bandwidth
+• 128GB LPDDR5x Coherent Unified System Memory
+  • GPU &amp; CPU can share all memory
+
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Methodology: The Reproducible Harness" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Methodology: The Reproducible Harness</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The harness logs GPU metrics while running two benchmarks, then saves the model response, metadata and results in a timestamped run directory. The slide also shows commands to start vLLM and run the harness.
+
+[2:38](https://www.youtube.com/watch?v=c5-kx2bwoCk&amp;t=158s) [Code excerpts illustrate benchmark execution, GPU logging, saved run artifacts, and example startup commands.](https://assets.ai.engineer/sites/aiecode2025/sha256/bcadb0fa48641f5d836bf61a14820250a7abd5845ee2bbfba52ad4c35a0387eb.webp)
+
+Methodology: The Reproducible Harness
+
+echo &quot;Saving model info...&quot;
+curl -s &quot;http://localhost:${PORT}/v1/models&quot; &gt; &quot;${RUN_DIR}/models.json&quot;
+
+cat &gt; &quot;${RUN_DIR}/run_metadata.txt&quot; &lt;&lt;EOF
+model=${MODEL}
+model_safe=${MODEL_SAFE}
+port=${PORT}
+max_model_len=${MAX_MODEL_LEN}
+run_dir=${RUN_DIR}
+timestamp=$(date +&quot;%F %T&quot;)
+host=$(hostname)
+EOF
+
+echo &quot;Saving initial metrics...&quot;
+./05_collect_metrics.sh before
+mv metrics_before.txt &quot;$RUN_DIR/&quot;
+
+echo &quot;Starting GPU logger...&quot;
+./02_log_gpu.sh &quot;$RUN_DIR/gpu_metrics.log&quot; &gt;/dev/null 2&gt;&amp;1 &amp;
+GPU_LOG_PID=$!
+
+cleanup() {
+  echo &quot;Stopping GPU logger...&quot;
+  kill &quot;$GPU_LOG_PID&quot; &gt;/dev/null 2&gt;&amp;1 || true
+}
+trap cleanup EXIT
+
+echo &quot;Running basic benchmark...&quot;
+MODEL=&quot;$MODEL&quot; python 03_basic_benchmark.py
+mv bench_results.txt &quot;$RUN_DIR/&quot;
+
+echo &quot;Running TTFT benchmark...&quot;
+MODEL=&quot;$MODEL&quot; python 04_ttft_benchmark.py
+mv ttft_results.txt &quot;$RUN_DIR/&quot;
+
+vllm_run_20260402_154351_Qwen_Qwen2.5-Math-1.5B-Instruct/  &lt;-- ANNOTATED
+├── models.json       &lt;-- Saved /v1/models response
+├── run_metadata.txt  &lt;-- All model/hparams in a clean text file
+├── gpu_metrics.log   &lt;-- The long CSV from 02_log_gpu.sh
+├── bench_results.txt &lt;-- Text results from the E2E benchmark
+├── ttft_results.txt  &lt;-- Text results from the TTFT benchmark
+
+export MODEL=&quot;Qwen/Qwen2.5-Math-1.5B-Instruct&quot;
+export MAX_MODEL_LEN=4096
+./01_start_vllm.sh
+./07_run_all.sh
+
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Measuring UX: The TTFT Script" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Measuring UX: The TTFT Script</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The script starts a timer before a streaming request and timestamps the first nonempty content chunk to calculate time to first token. If no content arrives, it uses the end time.
+
+[4:11](https://www.youtube.com/watch?v=c5-kx2bwoCk&amp;t=251s) [A streaming response script highlights the start time, request, response content, and time-to-first-token calculation.](https://assets.ai.engineer/sites/aiecode2025/sha256/2fdd0331ee7f2c9eaaea38b0e9eb2b6fa0e7272da09bdd8b19b43605f8f9a1ae.webp)
+
+Measuring UX: The TTFT Script
+
+def stream_once() -&gt; Tuple[float, float, int]:
+    start = time.perf_counter()
+    first_token_time = None
+    total_chars = 0
+
+with requests.post(URL, headers=HEADERS, json=PAYLOAD, stream=True, timeout=180) as r:
+        r.raise_for_status()
+
+for raw_line in r.iter_lines(decode_unicode=True):
+            if not raw_line:
+                continue
+
+line = raw_line.strip()
+            if not line.startswith(&quot;data: &quot;):
+                continue
+
+data = line[len(&quot;data: &quot;):]
+
+if data == &quot;[DONE]&quot;:
+                break
+
+try:
+                obj = json.loads(data)
+            except json.JSONDecodeError:
+                continue
+
+choices = obj.get(&quot;choices&quot;, [])
+            if not choices:
+                continue
+
+delta = choices[0].get(&quot;delta&quot;, {})
+            content = delta.get(&quot;content&quot;, &quot;&quot;)
+
+if content and first_token_time is None:
+                first_token_time = time.perf_counter()
+
+total_chars += len(content)
+
+end = time.perf_counter()
+
+if first_token_time is None:
+        first_token_time = end
+
+ttft = first_token_time - start
+    e2e = end - start
+    return ttft, e2e, total_chars
+
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Performance Deep-Dive: Throughput" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Performance Deep-Dive: Throughput</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In local vLLM tests on DGX Spark, the 14B NVFP4 model reached 20.19 tokens per second, compared with 8.40 for 14B Base. The smaller 1.5B Instruct model reached 61.73.
+
+[5:01](https://www.youtube.com/watch?v=c5-kx2bwoCk&amp;t=301s) [Bar chart compares throughput across six model variants, ranging from 8.40 to 61.73 tokens per second.](https://assets.ai.engineer/sites/aiecode2025/sha256/2d80a64213be588112803fe1f9f8b834d764ceec0edca7bc1e44a9e077e02a99.webp)
+
+Performance Deep-Dive: Throughput
+
+Y-axis: Tokens / sec
+Y-axis ticks: 0, 10, 20, 30, 40, 50, 60
+X-axis: Model
+1.5B Instruct: 61.73
+8B FP8: 23.88
+8B Base: 14.60
+14B FP8: 14.78
+14B NVFP4: 20.19
+14B Base: 8.40
+
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="The UX Reality: Latency &amp; TTFT" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The UX Reality: Latency &amp; TTFT</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Time to first token measures how quickly a model starts responding. The 14B NVFP4 model reaches its first token in a median 0.07 seconds, versus 0.24 seconds for 14B Base: 3.4x faster.
+
+[7:28](https://www.youtube.com/watch?v=c5-kx2bwoCk&amp;t=448s) [Bar chart compares median time to first token across six models, highlighting 0.07 seconds for 14B NVFP4 versus 0.24 seconds for 14B Base.](https://assets.ai.engineer/sites/aiecode2025/sha256/6bf1ee6a56b202f86228733c29132a892d0094b5b46c1839cc6a56d3efbb9645.webp)
+
+The UX Reality: Latency &amp; TTFT
+
+Y-axis: TTFT p50 (seconds)
+Y-axis ticks: 0.00, 0.05, 0.10, 0.15, 0.20
+X-axis: Model
+1.5B Instruct: 0.03
+8B FP8: 0.06
+8B Base: 0.08
+14B FP8: 0.09
+14B NVFP4: 0.07
+14B Base: 0.24
+
+3.4x faster
+
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Accelerate Your AI Developer Journey" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Accelerate Your AI Developer Journey</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>DGX Spark supports local prototyping and fine-tuning with the same software stack used in DGX Cloud. The speaker points to build.nvidia.com/spark for playbooks and software before scaling to a data center or cloud.
+
+[9:21](https://www.youtube.com/watch?v=c5-kx2bwoCk&amp;t=561s) [Slide promotes local prototyping and cloud scaling, with a screenshot of NVIDIA's DGX Spark developer resources and the build.nvidia.com/spark address.](https://assets.ai.engineer/sites/aiecode2025/sha256/dd75d760f3e2104890cb421cd90d78fcee3d4a15dd4ecff91ededdaa954da970.webp)
+
+Accelerate Your AI Developer Journey
+Prototype locally. Scale in the cloud
+
+Start Building on DGX Spark
+Find instructions and examples to customize and run AI workloads on DGX Spark
+
+Connecting Remotely?
+Get started with NVIDIA Sync
+Set Up Remote Access to your DGX Spark
+NVIDIA Sync helps set up and configure SSH access
+10 MIN
+Configure Now
+
+First Time Here?
+Try these developer quickstarts
+
+Comfy UI — 45 MIN
+Install and use ComfyUI to generate images
+
+DGX Dashboard — 45 MIN
+Monitor your DGX system and launch JupyterLab
+
+Open WebUI with Ollama — 30 MIN
+Install Open WebUI and use Ollama to chat with models on your Spark
+
+VS Code — 5 MIN
+Install and use VS Code locally or remotely
+
+See More Playbooks Below
+
+Explore Playbooks
+Detailed instructions to set up and run popular AI workflows on DGX Spark
+
+Optimized JAX — 2 HOURS
+Optimize JAX to Run on Spark
+
+Build and Deploy a Multi-Agent Chatbot — 30 MIN
+Deploy a multi-agent chatbot system and chat with agents on yo...
+
+NVFP4 Quantization — 1 HOUR
+Optimize models to use NVFP4 to run on Spark
+
+AI Workbench — 10 MIN
+Install and use AI Workbench to clone and run a reproducible RAG...
+
+TRT LLM — 1 HOUR
+Install and configure TRT LLM to run on a single Spark or on two...
+
+build.nvidia.com/spark
+NVIDIA
+
+Interface text:
+NVIDIA
+Explore
+Models
+Blueprints
+GPUs
+Docs
+Search
+?
+Login</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">是什么让 AI 工作负载离不开云而上不了桌面？</a></li><li><a href="#sec-2">一个拥有可移植软件栈的桌面系统</a></li><li><a href="#sec-3">让每次基准运行都可检查</a></li><li><a href="#sec-4">测量响应何时开始</a></li><li><a href="#sec-5">模型大小和精度对生成速度的影响</a></li><li><a href="#sec-6">装得下一个模型不等于能快速喂饱它</a></li><li><a href="#sec-7">在本地迭代，再扩展工作流</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">在本地运行 LLM：DGX Spark 上的容量、吞吐量与响应速度</h2>
+      <div class="lede"><p>在 DGX Spark 上对 Qwen 进行的本地基准测试，展示了可重复的服务配置和量化如何同时影响生成速度和等待响应开始的时间。</p><p>熟悉 LLM 推理、模型参数量和基础 Python，有助于理解基准测试和流式示例。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="1">▶ 0:01</button></div>
+      <h3>是什么让 AI 工作负载离不开云而上不了桌面？</h3>
+      <p>What happens when an AI experiment outgrows your development machine? Often, one of two constraints forces the move: the model does not fit in memory, or the required software stack is unavailable locally. Mozhgan Kabiri Chimeh, NVIDIA Developer Relations Manager, approaches that problem through hands-on experiments aimed at finding what is practical on a single system.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/017b75b3587d5b743047bb5d5a2b3ed769d70d67079d6ca68ab81a034a1a6b65" alt="Slide showing two monitors: one marked with a red cross for insufficient memory, the other with a warning for the required software stack. A line below says work that cannot run locally must move to cloud or datacenter." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Local AI development faces memory and software-stack constraints.</figcaption></figure>
+<p>Moving the workload to shared infrastructure introduces another dependency. Cost predictability, data residency, and deterministic latency become concerns as experiments approach production, while competing workloads can delay the next development run. The practical question is whether more of that iteration can happen where the developer works, without waiting for shared resources.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="99">▶ 1:39</button></div>
+      <h3>一个拥有可移植软件栈的桌面系统</h3>
+      <p><a href="https://www.nvidia.com/en-gb/products/workstations/dgx-spark/" target="_blank" rel="noopener">DGX Spark</a> is a standalone system built around the <strong>GB10 Grace Blackwell Superchip</strong>, combining CPU and GPU with unified memory. Its 128 GB of unified memory and FP4 support underpin the advertised capacity to work with models of up to around 200 billion parameters. That is a model-capacity claim, not a measured generation rate or a guarantee for every context length and concurrency setting.</p>
+<p>The other part of the proposition is software continuity. Spark runs the NVIDIA AI software stack used in production environments, allowing workflows to move from the desktop to a data center or cloud with minimal changes. Local hardware supplies a place to develop and iterate; cloud resources remain part of the eventual scaling path.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="160">▶ 2:40</button></div>
+      <h3>让每次基准运行都可检查</h3>
+      <p>The experiment serves <strong>Qwen</strong> models locally through <a href="https://build.nvidia.com/spark/vllm" target="_blank" rel="noopener">vLLM</a>, using an NVIDIA-optimized container across model sizes and precision formats. The container establishes a consistent software environment intended to match the data-center serving stack. The linked serving guide is a living resource; its current recipes do not identify the exact container or software versions used for these measurements.</p>
+<p>An automated harness applies the same protocol to models ranging from 1.5B to 14B parameters:</p>
+<p>1. <strong>Isolate the environment</strong> with Docker.
+2. <strong>Perform three mandatory warm-up runs</strong> before measurement.
+3. <strong>Log GPU metrics every second</strong> in the background.
+4. <strong>Create a unique run directory</strong> from a precise timestamp and a sanitized model ID.
+5. <strong>Save the evidence</strong>: full model endpoint responses, metrics, metadata, and benchmark test results.</p>
+<p>This makes each result traceable to a particular execution. A throughput number is useful only if the surrounding run information survives with it.</p>
+<p>The methodology slide pairs the orchestration script with its resulting directory of artifacts and example startup commands. The directory is as important as the launcher: it preserves the information needed to inspect a run after the server has stopped.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c25f673030ae3fc3fc5477c57aeb8de21bfce73af1ac61930b59cdd72e7e18cc" alt="Methodology slide with a script on the left, an annotated run-directory listing on the right, and example launch commands below. Yellow outlines highlight GPU logging and benchmark calls." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The reproducible harness pairs an orchestration script with saved run artifacts and startup commands.</figcaption></figure>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="253">▶ 4:13</button></div>
+      <h3>测量响应何时开始</h3>
+      <p>End-to-end latency measures how long a request takes to finish. <strong>Time to first token</strong> addresses a different part of the experience: how long the user waits before the response begins. A fast first response can make an application feel responsive even while the rest of the answer is still being generated.</p>
+<p>The demonstrated <code>stream_once</code> function explicitly consumes the vLLM streaming response and timestamps its first chunk. The essential Python timing pattern is:</p>
+<p>```python
+from time import perf_counter
+from openai import OpenAI</p>
+<p>def stream_once(client: OpenAI, model: str, prompt: str) -&gt; dict:
+    started = perf_counter()
+    first_chunk_at = None
+    parts = []</p>
+<p>stream = client.chat.completions.create(
+        model=model,
+        messages=[{&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: prompt}],
+        stream=True,
+    )
+    try:
+        for chunk in stream:
+            if first_chunk_at is None:
+                first_chunk_at = perf_counter()
+            for choice in chunk.choices:
+                content = choice.delta.content
+                if content:
+                    parts.append(content)
+    finally:
+        stream.close()</p>
+<p>finished = perf_counter()
+    return {
+        &quot;first_chunk_s&quot;: (
+            None if first_chunk_at is None
+            else first_chunk_at - started
+        ),
+        &quot;end_to_end_s&quot;: finished - started,
+        &quot;text&quot;: &quot;&quot;.join(parts),
+    }
+```</p>
+<p>Here the timer records the first yielded chunk, even if it contains no visible text. That preserves the described first-chunk proxy; the talk does not specify token-event filtering. Current <a href="https://docs.vllm.ai/en/latest/features/per_request_metrics/" target="_blank" rel="noopener">vLLM per-request metrics</a> define server-side TTFT from scheduling to the first generated output token, so that metric is not interchangeable with this client-side measurement.</p>
+<p>The comparison then runs smaller instruction models and larger optimized variants under the same local setup. Its target is realistic developer behavior, rather than the theoretical limits of the hardware. Keeping that scope in view matters when interpreting the results: these are measurements of a serving workflow, not a universal ranking of model sizes or precision formats.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="334">▶ 5:34</button></div>
+      <h3>模型大小和精度对生成速度的影响</h3>
+      <p>The completion-throughput chart starts with the <strong>1.5B Instruct</strong> model at 61.73 tokens/s. The <strong>14B NVFP4</strong> model, despite having nearly ten times as many parameters, delivers 20.19 tokens/s in the same local test suite.</p>
+<p><strong>NVFP4</strong>, NVIDIA’s <a href="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/" target="_blank" rel="noopener">four-bit floating-point quantization format</a>, is central to this operating point. Kabiri Chimeh describes the 14B result as retaining a sophisticated model at a generation rate faster than average human reading speed. Those are her practical assessments; the benchmark does not include a task-quality evaluation or a reading-speed study.</p>
+<p>The <strong>14B Base</strong> model makes the precision comparison more concrete:</p>
+<p>| Model variant | Completion throughput |
+| --- | ---: |
+| 1.5B Instruct | 61.73 tokens/s |
+| 14B NVFP4 | 20.19 tokens/s |
+| 14B Base | 8.40 tokens/s |</p>
+<p>These are Kabiri Chimeh’s reported DGX Spark/vLLM results. The 14B base result shows why parameter count alone cannot predict usable speed: at the same nominal model size, the optimized variant produces substantially more completion tokens per second.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ebc27d6a1f9478393587290ed30bd063bede3b4fa43bec19850e8d79e13d32e6" alt="Six-bar throughput chart: 1.5B Instruct 61.73, 8B FP8 23.88, 8B Base 14.60, 14B FP8 14.78, 14B NVFP4 20.19, and 14B Base 8.40 tokens per second. Yellow annotations highlight the first value and connect the final two bars." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Throughput chart shows 20.19 tokens per second for 14B NVFP4 versus 8.40 for 14B Base.</figcaption></figure>
+<p>For this experiment, precision format is a consequential part of the hardware choice. Spark makes it possible to test that trade-off locally and see how it affects the prototype. The gain should remain scoped to this setup: exact checkpoints, baseline precision, prompt and output lengths, concurrency, and the throughput denominator are not specified, so the chart is not a promise of the same rates in another application.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="451">▶ 7:31</button></div>
+      <h3>装得下一个模型不等于能快速喂饱它</h3>
+      <p>Throughput describes how quickly the answer continues; first-token latency describes how quickly it starts. Larger models generally require more computation before producing their first token, and the next chart examines that initial wait.</p>
+<p>The displayed TTFT p50 is 0.07 seconds for 14B NVFP4 and 0.24 seconds for 14B Base. Kabiri Chimeh reports the 14B NVFP4 model as 3.4 times faster to first token than the unoptimized 14B base model. These values describe the local experiment and its first-chunk timing approach.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f7c28f7007c6d09af1f2673f04b411a607904293c648a89d245639f2a0c72b8b" alt="Bar chart labeled TTFT p50 in seconds compares six models, with values 0.03, 0.06, 0.08, 0.09, 0.07, and 0.24. A yellow arrow between the 14B Base and NVFP4 bars is labeled “3.4x faster.”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The first-token chart highlights 0.07 seconds for 14B NVFP4 versus 0.24 for 14B Base.</figcaption></figure>
+<p><strong>Memory capacity is not memory bandwidth.</strong> Capacity determines whether the model can fit; performance also depends on how efficiently the system moves the data needed to run it. The large unified-memory pool therefore answers a different question from either of the performance charts.</p>
+<p>Reducing the representation size with NVFP4 helps explain the observed improvement: a more compact representation reduces the data burden associated with model values. Kabiri Chimeh describes this as increasing intelligence per byte, making a 14B model feel more like a smaller one. That is an interpretation of responsiveness, rather than a separate measurement of equivalent model quality or identical latency.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="563">▶ 9:23</button></div>
+      <h3>在本地迭代，再扩展工作流</h3>
+      <p>The experiments lead Kabiri Chimeh to three recommended uses:</p>
+<p>- <strong>Steady-state workloads:</strong> recurring work that can use dedicated local resources.
+- <strong>Privacy-sensitive data:</strong> development where keeping data local matters.
+- <strong>Rapid prototyping:</strong> frequent iterations that benefit from immediate access to the system.</p>
+<p>The broader workflow includes building and fine-tuning locally with the software stack also used in DGX Cloud. The measurements here establish inference behavior, not fine-tuning performance.</p>
+<p>The practical handoff is the <a href="https://build.nvidia.com/spark" target="_blank" rel="noopener">DGX Spark playbook collection</a>, which Kabiri Chimeh points to for the software and workflows behind local development. Start with a local workload, measure its behavior, and iterate while the system is directly available. When the application is ready for more resources, carry the workflow to a data center or cloud.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://build.nvidia.com/spark" target="_blank" rel="noopener">DGX Spark playbooks</a> — NVIDIA's practical guides for local inference, fine-tuning, and other AI workflows on DGX Spark.</li><li><a href="https://build.nvidia.com/spark/vllm" target="_blank" rel="noopener">Serve LLMs with vLLM</a> — Current instructions for serving models in an NVIDIA container with an OpenAI-compatible endpoint and hardware-specific launch recipes.</li><li><a href="https://developer.nvidia.com/blog/introducing-nvfp4-for-efficient-and-accurate-low-precision-inference/" target="_blank" rel="noopener">How NVFP4 represents model values</a> — NVIDIA's explanation of four-bit floating-point values, micro-block scaling, and accuracy trade-offs.</li><li><a href="https://www.nvidia.com/en-gb/products/workstations/dgx-spark/" target="_blank" rel="noopener">DGX Spark hardware specifications</a> — Specifications for GB10, unified memory, memory bandwidth, and supported development workloads.</li><li><a href="https://forums.developer.nvidia.com/t/nvfp4-performance-update/367781" target="_blank" rel="noopener">NVFP4 performance update for DGX Spark</a> — An April 2026 account of GB10 NVFP4 support and ongoing improvements to inference kernels and frameworks.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="1"><span class="ts">0:01</span><span class="tx">Hello, everyone. I'm Mozhgan Kabiri Chimeh, Developer Relations Manager at NVIDIA, where I work closely with developers building and deploying AI systems. Today, we're looking at running LLMs locally, practical LLM performance on DGX Spark.</span></div><div class="tline" data-t="20"><span class="ts">0:20</span><span class="tx">This isn't a theoretical talk, it's a data-backed journey through the trade-offs of modern AI infrastructure. Findings are based on hands-on experiments with the goal of understanding what's actually practical on a single system.</span></div><div class="tline" data-t="38"><span class="ts">0:38</span><span class="tx">The evolution in AI puts greater demand on developer systems, creating two main challenges. You either run out of memory or you do not have access to the right software stack, then you end up on pushing everything to the cloud or data center.</span></div><div class="tline" data-t="57"><span class="ts">0:57</span><span class="tx">As models move from experiments to production, concerns like cost predictability, data residency, and deterministic latency take center stage. And iteration speed often depends, often depends on access to shared infrastructure.</span></div><div class="tline" data-t="76"><span class="ts">1:16</span><span class="tx">And since your work will be scheduled against other competing workloads, it causes delays in development work as well. So the question becomes: Can we bring some of that workflow closer to where development actually happens?</span></div><div class="tline" data-t="91"><span class="ts">1:31</span><span class="tx">To maximize developer productivity, local solutions to these challenges are required.</span></div><div class="tline" data-t="99"><span class="ts">1:39</span><span class="tx">DGX Spark is designed from the ground up to build and run AI and can be used as a standalone system.</span></div><div class="tline" data-t="108"><span class="ts">1:48</span><span class="tx">It's powered by the GB10 Grace Blackwell Superchip, combining CPU and GPU with a unified memory architecture. With hundred and twenty-eight gigabyte of unified memory and FP4 support, it enables developers to work with models of up to around two hundred billion parameters locally on a system that fits under the, under a desk</span></div><div class="tline" data-t="133"><span class="ts">2:13</span><span class="tx">or on top of your desk. It runs the same NVIDIA AI software stack used in production environments, meaning workflows can move from desktop to data center or cloud with minimal changes.</span></div><div class="tline" data-t="149"><span class="ts">2:29</span><span class="tx">The key idea here is not replacing the cloud, but bringing powerful AI development closer to the developer.</span></div><div class="tline" data-t="160"><span class="ts">2:40</span><span class="tx">This is my setup. Everything runs locally and is reproducible. To serve the models, I used vLLM.</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">With the set of Qwen models across different sizes and precision formats, I ran this inside an NVIDIA optimized container. This would ensure that our environment is identical to what you would deploy in a data center.</span></div><div class="tline" data-t="184"><span class="ts">3:04</span><span class="tx">Instead of just showing raw results, I want to show you the how.</span></div><div class="tline" data-t="189"><span class="ts">3:09</span><span class="tx">I built an automated benchmarking harness. Every model run from one point five billion to fourteen billion follows the same strict protocol: environment isolation via Docker, three mandatory warm-up runs, and background GPU metrics logging at one-second interval.</span></div><div class="tline" data-t="208"><span class="ts">3:28</span><span class="tx">On the left, you are looking at the orchestrator script. For every execution, the script automatically generates a unique directory using a precise timestamp and a sanitized model ID.</span></div><div class="tline" data-t="224"><span class="ts">3:44</span><span class="tx">For every model run, it captures the full model's endpoint response and necessary metrics. On the right, you see the result, a clean versioned artifact of the run. It contains everything to verify the findings, the metadata, and the test results from the benchmarks.</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">On the lower right, you can see an example command for getting things started.</span></div><div class="tline" data-t="253"><span class="ts">4:13</span><span class="tx">Now, let's look at the actual measurement logic. In an AI application, end-to-end latency is important, but time to first token is the metric that defines the user's perceived performance.</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">If the first token arrives instantly, the application feels responsive, and the script here shows how we timestamp the very first chunk of a streaming response. In this script, we are not just calling an API and waiting for a result, we are explicitly handling the streaming response from the vLLM server.</span></div><div class="tline" data-t="294"><span class="ts">4:54</span><span class="tx">If you look at the highlighted block in the stream_once function, you'll see the timestamping logic.</span></div><div class="tline" data-t="303"><span class="ts">5:03</span><span class="tx">To explore this in practice, I ran a series of experiments using vLLM on DGX Spark. I tested different models from the smaller instruction models to larger optimized variants, all under the same setup.</span></div><div class="tline" data-t="319"><span class="ts">5:19</span><span class="tx">Everything was served locally. The goal here wasn't to push theoretical limits, but to understand realistic behavior in a developer workflow. Let's dive into the raw performance data I captured.</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">This bar chart represents the completion token per second across the test suite.</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">At the far left, you see the one point five billion instruct model delivering a massive sixty-one point seventy-three tokens per second. But the most interesting data point for us is the fourteen billion NVFP4 model Despite being nearly ten times larger than</span></div><div class="tline" data-t="367"><span class="ts">6:07</span><span class="tx">the one point five billion model, it still achieves twenty point nineteen tokens per second.</span></div><div class="tline" data-t="376"><span class="ts">6:16</span><span class="tx">I would say this is a critical engineering sweet spot. By leveraging NVIDIA's NVFP4 four-bit floating-point quantization, we were-- we are able to maintain a sophisticated high-intelligent model at a throughput that is still faster than the average human reading speed.</span></div><div class="tline" data-t="399"><span class="ts">6:39</span><span class="tx">What becomes very clear here is how aggressively throughput drops as model scale-- as models scale and how much quantization helps. Have a look at the fourteen billion base model.</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">It drops to just eight point forty tokens per second.</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">This proves that on Blackwell archite-- on Blackwell hardware, the choice of quantization format is just as important as the hardware itself. It's what allows the DGX Spark to bridge the gap between research toy and production prototyping engine.</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">The Spark allowed me to experiment with different precision formats locally and understand the trade-offs in the real-time.</span></div><div class="tline" data-t="451"><span class="ts">7:31</span><span class="tx">While throughput is a measure of raw power, time to first token is the metric that defines user experience. It determines whether an application feels instant or broken. In other words, it reflects how quickly the model starts responding.</span></div><div class="tline" data-t="471"><span class="ts">7:51</span><span class="tx">As we see in the results, the DGX Spark delivers exceptional responsiveness.</span></div><div class="tline" data-t="478"><span class="ts">7:58</span><span class="tx">The increase for larger models is expected. More parameters mean more computation before the first token is generated.</span></div><div class="tline" data-t="487"><span class="ts">8:07</span><span class="tx">Out of all from this chart, the interesting ones is a comparison between the fourteen billion parameter models, the base model, and the NVFP4 model. As we can see, as we can see, the fourteen billion NVFP4 is three point four times faster to first token than</span></div><div class="tline" data-t="513"><span class="ts">8:33</span><span class="tx">the unoptimized fourteen base model. A key takeaway here from this data is that memory capacity is not the same as the memory bandwidth. While the DGX Spark's hundred and twenty-eight gigabytes of unified memory allows us to fit massive models up to two hundred billion parameters, our throughput</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">is still governed by how efficiently we can move data.</span></div><div class="tline" data-t="544"><span class="ts">9:04</span><span class="tx">This is why NVFP4 is the hero here.</span></div><div class="tline" data-t="550"><span class="ts">9:10</span><span class="tx">It effectively increases our intelligence per byte, allowing a fourteen billion model to feel as responsive as much smaller one.</span></div><div class="tline" data-t="563"><span class="ts">9:23</span><span class="tx">After running all of these, three things stood out to me on when to use the DGX Spark. For steady-state workloads, privacy-sensitive data, and rapid prototyping. It allows you to build and fine-tune locally with the exact same software stack used in DGX Cloud.</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">Visit build.nvidia.com/spark to access the playbooks and software stack I used for these benchmarks. And in one line, run locally, iterate quickly, and when ready, scale to data center or cloud.</span></div><div class="tline" data-t="604"><span class="ts">10:04</span><span class="tx">That's the workflow DGX Spark enables.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

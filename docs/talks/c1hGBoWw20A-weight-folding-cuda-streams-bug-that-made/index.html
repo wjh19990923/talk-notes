@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>权重折叠、CUDA 流，以及让我的模型倒着说话的那个 bug —— Filip Makraduli | AI 工程师中文版</title>
+<meta name="description" content="Filip Makraduli 讲解了 FlashNorm 如何把工作移出 RMSNorm 的关键路径——以及 CUDA 流之间缺失的一个依赖，如何把一个代数上完全正确的优化变成了过时的模型输出。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>权重折叠、CUDA 流，以及让我的模型倒着说话的那个 bug —— Filip Makraduli</h1>
+    <div class="orig-title">Weight Folding, CUDA Streams, and the Bug That Made My Model Speak Backwards — Filip Makraduli</div>
+    <div class="meta"><span class="speaker">Filip Makraduli</span> · AI Engineer World's Fair 2026 · 17:18</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=gpu-programming-and-kernel-optimization">GPU 编程与内核优化</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/c1hGBoWw20A-weight-folding-cuda-streams-bug-that-made" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="c1hGBoWw20A"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=c1hGBoWw20A" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">为什么一个几乎没有算术的层也会花掉真实的时间</div></div>
+      <div class="label row">章节跳转 <span>共 6 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>为什么一个几乎没有算术的层也会花掉真实的时间</span></li><li data-t="262"><span class="ts">4:22</span><span>折叠增益，再移动标量除法</span></li><li data-t="400"><span class="ts">6:40</span><span>那段不断重复“because”的续写</span></li><li data-t="551"><span class="ts">9:11</span><span>后缩放必须等待两条流</span></li><li data-t="640"><span class="ts">10:40</span><span>一个折叠后的检查点给了你什么</span></li><li data-t="792"><span class="ts">13:12</span><span>算子实验需要对推理的控制权</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 25 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Weight folding, CUDA streams, and a GPU bug" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Weight folding, CUDA streams, and a GPU bug</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Filip Makraduli introduces FlashNorm’s two-line algebraic change to make RMSNorm cheaper, alongside a parallel-kernel bug and its lessons for self-hosted inference.
+
+[0:22](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=22s) [Title slide introducing a FlashNorm retrospective and parallel-kernel bug.](https://assets.ai.engineer/sites/aiecode2025/sha256/a53f881c429eb7cbbe073e6102f283da779adeea009e9d699a3c24ace149b903.webp)
+
+A FLASHNORM RETROSPECTIVE
+
+Weight folding, CUDA streams, and the bug that made my GPU speak backwards
+
+Two lines of algebra to speed up RMSNorm, one parallel-kernel bug, and what it taught me about self-hosted inference.
+
+FILIP MAKRADULI · MEMBER OF TECHNICAL STAFF
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+1 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Two lines of algebra that make RMSNorm cheaper" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Two lines of algebra that make RMSNorm cheaper</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>FlashNorm folds the gain and defers division to make RMSNorm followed by a linear layer cheaper, with no approximation or retraining.
+
+[0:29](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=29s) [Section slide introduces folding the gain and deferring the divide.](https://assets.ai.engineer/sites/aiecode2025/sha256/9031e3fdaa2c7cd4892ee101bd36df45c15118fb44f05cb2ca88fb73b82a6e75.webp)
+
+ACT 1 · THE PAPER
+
+Two lines of algebra that make RMSNorm cheaper
+
+FlashNorm rewrites RMSNorm-then-linear exactly: fold the gain, defer the divide. No approximation, no retraining.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+2 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="It began with an open-source paper: FlashNorm" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>It began with an open-source paper: FlashNorm</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Filip Makraduli co-authored FlashNorm with Nils Graef and others. The paper folds normalization weights into the next linear layer and defers the RMS divide, allowing the operations to run in parallel.
+
+[1:05](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=65s) [A screenshot of the FlashNorm paper appears above a note connecting it to the talk.](https://assets.ai.engineer/sites/aiecode2025/sha256/da669ba4292526f693446f9de4fb92b64c23d2731829656e70866098a9f8922f.webp)
+
+WHERE THIS STARTED
+
+It began with an open-source paper: FlashNorm
+
+[Submitted on 12 Jul 2024 (v1), last revised 24 Apr 2026 (this version, v5)]
+FlashNorm: Fast Normalization for Transformers
+Nils Graef, Filip Makraduli, Andrew Wasielewski, Matthew Clapp
+
+Normalization layers are ubiquitous in large language models (LLMs) yet represent a compute bottleneck: on hardware with distinct vector and matrix execution units, the RMS calculation blocks the subsequent matrix multiplication, preventing parallel execution.
+
+We present FlashNorm, an exact reformulation of RMSNorm followed by a linear layer that (i) eliminates the normalization weights by folding them into the subsequent linear layer, and (ii) defers the scalar RMS normalization to the output of the matrix multiplication, enabling the two operations to execute in parallel.
+
+Additionally, by the scale invariance of RMS, an RMSNorm followed by a linear layer followed by another RMSNorm allows the first RMSNorm to be eliminated entirely -- a mathematically identical simplification that removes the pre-attention RMSNorm in models using QKV-normalization (e.g., Gemma-4) and in MLA-models with latent normalization (e.g., DeepSeek-V2, Mistral Small 4, and OpenMythos).
+
+The same techniques extend to LayerNorm, Dynamic Tanh (DyT), feed-forward networks with GLU variants, and RoPE-based attention.
+
+On an NVIDIA T4 GPU, FlashNorm achieves 33 - 35% lower latency on the norm-then-project operation in the compute-bound (prefill) regime at SmolLM2-135M scale, and 12 - 14% at Llama-7B scale. We verify zero-loss weight folding on three models.
+
+Beyond inference speed, FlashNorm simplifies model implementations by reducing parameter tensor count.
+
+Watch our explainer video this https URL and see this https URL for code.
+
+Subjects: Machine Learning (cs.LG)
+Cite as: arXiv:2407.09577 [cs.LG]
+(or arXiv:2407.09577v5 [cs.LG] for this version)
+https://doi.org/10.48550/arXiv.2407.09577
+
+A few months ago I was digging into FlashNorm (arXiv:2407.09577): two lines of algebra to speed up RMSNorm, a hardware analysis, and a fused-kernel appendix. Everything in this talk traces back to this paper.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+3 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="FlashAttention defers the softmax, FlashNorm defers the RMS" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>FlashAttention defers the softmax, FlashNorm defers the RMS</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>FlashAttention normalizes after multiplying, avoiding a huge score matrix in memory. FlashNorm similarly defers the RMS divide until after the weight multiply, so the matmul can start sooner.
+
+[1:31](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=91s) [Two columns compare deferred normalization in FlashAttention and FlashNorm.](https://assets.ai.engineer/sites/aiecode2025/sha256/efccaac201c618d9aff9f6b59bb84f887c274c63e31697bc153dcee608d01b9a.webp)
+
+THE SAME MOVE, ONE LAYER OVER
+
+FlashAttention defers the softmax, FlashNorm defers the RMS
+
+FLASHATTENTION
+
+The softmax waits until after the multiply
+
+Attention normally finishes the softmax before it can use the scores. FlashAttention multiplies first and normalizes at the end, so the huge score matrix never has to exist in memory.
+
+FLASHNORM
+
+The RMS divide waits until after the multiply
+
+RMSNorm normally divides before the matmul can start. FlashNorm multiplies by the weights first and divides at the end, so the norm stops holding up the matmul. Same move, one layer over.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+4 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="RMSNorm's share of math and time" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>RMSNorm's share of math and time</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For Llama-3.2-1B-Instruct bf16 decoding on an A100, RMSNorm takes 24.6% of the time despite an estimated ~2.5% of the math. A decode step runs it 33 times, and each layer’s matmul waits for its norm.
+
+[2:14](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=134s) [Bars compare approximately 2.5% of the math with 24.6% of the time for the stated decode example.](https://assets.ai.engineer/sites/aiecode2025/sha256/1a98b2fa433266a898dd4460ba4c6a098e9bf3598b88e51bd85b192d683f1d32.webp)
+
+WHERE THE TIME GOES
+
+RMSNorm does almost none of the math but takes a quarter of the time
+
+ITS SHARE OF THE MATH
+~2.5%
+
+ITS SHARE OF THE TIME
+10X MORE TIME THAN MATH
+RMSNORM
+24.6%
+
+One decode step runs RMSNorm 33 times, and each run costs more to launch than to compute. And in every layer, the big matmul has to wait for the norm in front of it.
+
+Llama-3.2-1B-Instruct, bf16, decode on A100. Source: FlashNorm, arXiv:2407.09577 (Table 5); FLOP bar derived from the paper’s “an order of magnitude above their FLOP share”.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+5 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="The three costs around GPU math" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The three costs around GPU math</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GPU time goes into launching work, reading weights and waiting for normalization. Fusing reduces launches and memory trips, folding reduces reads, and deferring the divide lets normalization and matmul run in parallel.
+
+[3:05](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=185s) [Three columns explain starting work, moving data, and waiting for normalization.](https://assets.ai.engineer/sites/aiecode2025/sha256/3770e0efd4c80d7ace81e0ac3cbc9ce646feb29e36e9485f6ed77047164f47be.webp)
+
+WHY · THE THREE COSTS
+
+The GPU is not slow at math, it is slow at everything around it
+
+01
+STARTING WORK
+Every piece of GPU work costs about 10 microseconds just to start, and RMSNorm’s math takes about 1. One decoded token starts RMSNorm 33 times. Fusing each norm into the matmul next to it removes those starts.
+
+02
+MOVING DATA
+Making one token means reading every weight in the model from memory and using each one once. The math finishes instantly; the reading does not. Folding means less to read, fusing means fewer trips.
+
+03
+WAITING IN LINE
+The matmul cannot start until the norm in front of it finishes, in every layer, for every token. Deferring the divide removes the queue: norm and matmul run at the same time.
+
+Bigger batches share the weight reading across requests, but the norm still runs for every token and the matmul still waits for it.
+Source: FlashNorm, arXiv:2407.09577.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+6 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Three FlashNorm rewrites" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Three FlashNorm rewrites</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>FlashNorm folds the gain into the weight matrix, moves the RMS divide after a bias-free matmul, and removes the first normalization when a second RMSNorm follows.
+
+[4:22](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=262s) [Equations summarize weight folding, deferred normalization, and cancellation of pre-normalization.](https://assets.ai.engineer/sites/aiecode2025/sha256/2ace68c436175da75f160e3d9bdf13e501ec03cd5eff3ce9465d39bb8a030cde.webp)
+
+THE THREE REWRITES
+
+FlashNorm: three exact rewrites of RMSNorm → linear
+
+z = RMSNorm(a) W,   RMSNorm(a)ᵢ = aᵢ/RMS(a) gᵢ,   RMS(a) = √(1/n ∑ᵢ aᵢ²),   W*ᵢ,ⱼ = gᵢ Wᵢ,ⱼ   (i.e. W* = diag(g) W).
+
+Proposition 1: Weightless normalization
+fold the gain into the weight
+
+W* = diag(g) W  ⟹  z = a/RMS(a) W*.
+
+The gain g is deleted from the checkpoint, saving one weight and one multiply. Holds with or without a bias.
+
+Proposition 2: Deferred normalization
+defer the divide past the matmul
+
+z = a/RMS(a) W* = (a W*) · 1/RMS(a).
+
+Bias-free layer. Now the matmul aW* and the reduction 1/RMS(a) are independent, so run them in parallel and combine with one scalar multiply.
+
+Proposition 3: Cancellation of pre-normalization
+drop a whole RMSNorm
+
+RMSNorm(a/RMS(a) W*) = RMSNorm(a W*).
+
+In the pattern RMSNorm → linear → RMSNorm the first norm is redundant (RMS is scale-invariant), so it can be removed entirely.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+7 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Fold the gain into the next layer" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fold the gain into the next layer</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The gain g folds into the next layer’s weight W offline, producing W* = diag(g) W. RMSNorm then needs one less weight load and one less multiply.
+
+[4:57](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=297s) [Before-and-after diagrams show the normalization gain folded into the linear weight matrix.](https://assets.ai.engineer/sites/aiecode2025/sha256/9caea08a93e18a37c8b0996b5ea31473a0d5c068570dd00c416d77115408899d.webp)
+
+PROPOSITION 1 · WEIGHT FOLDING
+
+Fold the gain into the next layer, delete the norm weights
+
+× g ≡ × diag(g)
+
+Before (2 steps)
+a → ÷ RMS → × g → W → z
+
+fold in
+
+After (folded)
+a → ÷ RMS → W* → z
+
+W* = diag(g) W
+
+The gain g and the weight W fold into one matrix W*, computed once offline. RMSNorm becomes weightless: one less weight load and one less multiply per norm.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+8 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Defer the scalar divide" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Defer the scalar divide</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The matmul and 1/RMS(a) run in parallel, then their results are multiplied. Because RMS is one scalar per token, moving the divide after the matmul gives the same answer.
+
+[5:26](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=326s) [Diagrams compare serial normalization and matrix multiplication with parallel matrix multiplication and RMS reduction.](https://assets.ai.engineer/sites/aiecode2025/sha256/3cc8d28f89fd7dc7bc162b10d532f0d5f8e86f6cb04ce67ef3ace3a428d75197.webp)
+
+PROPOSITION 2 · DEFERRED NORMALIZATION
+
+Defer the scalar divide so the matmul and the norm run at once
+
+Before (serial): a → ÷ RMS → · W* → z
+waits
+
+After (parallel): a → a W* and 1/RMS(a) → × → z
+scalar
+
+1/RMS is just one number per token, and multiplying by one number gives the same answer before or after the matmul. So do the matmul first and divide after: the norm stops blocking the matmul.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+9 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Cancellation of pre-normalization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Cancellation of pre-normalization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A later RMSNorm removes the effect of the first norm’s scaling, so the diagram drops the first norm across a linear layer. The slide names Gemma 4 QKV normalization and DeepSeek-V2 MLA latent norm as examples.
+
+[5:47](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=347s) [A before-and-after diagram illustrates removing the first normalization when another RMSNorm follows a linear layer.](https://assets.ai.engineer/sites/aiecode2025/sha256/6b21765e6ee54d1dcb3340fcbb961c47580799b332166071b6fd389e6665bfda.webp)
+
+PROPOSITION 3 · CANCELLATION
+
+If another RMSNorm follows, the first one drops
+
+Before (2 norms)
+a → ÷ RMS → W* → ÷ RMS → y
+scale-invariant
+drop
+
+After (1 norm)
+a → W* → ÷ RMS → y
+
+RMSNorm ignores input scale, so in the pattern RMSNorm then linear then RMSNorm the first norm is redundant. It fires in Gemma 4 QKV-normalization and DeepSeek-V2 MLA latent norm, saving one full norm per block. (Gemma 3's QK-norm skips V, so there the pre-norm survives.)
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+10 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Making Proposition 2 real" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Making Proposition 2 real</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Makraduli built a two-stream CUDA prototype for deferred normalization. Implementing Proposition 2 required kernel work, and the prototype led to a bug.
+
+[6:09](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=369s) [Act 2 introduces a two-stream CUDA prototype of deferred normalization and a subsequent bug.](https://assets.ai.engineer/sites/aiecode2025/sha256/76a17d910f529d6a196157af21ef88752a7031d1a4b5bc4dcf804311a2a44947.webp)
+
+ACT 2 · THE BUG
+
+Then I tried to make Proposition 2 real
+
+A two-stream CUDA prototype of deferred normalization. The algebra was exact. What happened next was not.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+11 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="The model's one-step lag" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The model's one-step lag</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The output repeats “because” and trails by one decode step during long greedy decoding. A missing GPU stream barrier caused the lag; the fix took two lines of CUDA.
+
+[6:34](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=394s) [A prompt and expected continuation are compared with output that repeats the prompt's final word; the slide attributes the lag to a missing GPU stream barrier.](https://assets.ai.engineer/sites/aiecode2025/sha256/b786301f71ce74d34eec5ef112e4638f9c3b5a0f9822f43e3dc68034ebeaa40e.webp)
+
+THEN, WHILE I WAS TESTING IT
+
+One morning my model started speaking backwards
+
+PROMPT
+The transformer architecture revolutionized NLP because
+
+EXPECTED
+it allowed parallel processing of input sequences with self-attention…
+
+WHAT I GOT
+because it allowed parallel processing of input sequences with…
+ONE-STEP LAG
+
+Every token one decode step late, a stuttering echo that drifts further the longer it runs. Only on long greedy decode, never in the unit tests. The cause was a missing GPU stream barrier; the fix was two lines of CUDA. Getting there is the talk.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+12 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Tensor cores and CUDA cores" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tensor cores and CUDA cores</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Tensor cores run the matmul while CUDA cores can compute the 1/RMS reduction. Using the separate hardware in parallel lets deferred normalization fill otherwise idle CUDA cores.
+
+[7:16](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=436s) [Two columns describe tensor cores running matrix multiplication and CUDA cores running the RMS reduction.](https://assets.ai.engineer/sites/aiecode2025/sha256/f4c23f625e08ff4352abd241456357f34953875b8a5efe71fe7235c395f92ca0.webp)
+
+WHY IT CAN OVERLAP
+
+Tensor cores and CUDA cores are separate silicon
+
+TENSOR CORES
+Run the matmul
+Dedicated matrix-multiply hardware: blazing fast at matmuls and useless at everything else.
+
+CUDA CORES
+Run the 1/RMS reduction
+General vector lanes: elementwise ops, reductions, square roots. They sat idle during the matmul, so deferred normalization fills them.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+13 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Sequential and FlashNorm schedules" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Sequential and FlashNorm schedules</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>FlashNorm overlaps the matmul with RMS computation, then scales the output. In the paper’s n = 512, m = 128 example, the schedule falls from 24 cycles to 17 cycles.
+
+[7:57](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=477s) [Timeline compares a 24-cycle sequential schedule with a 17-cycle FlashNorm schedule that overlaps matrix multiplication and RMS computation.](https://assets.ai.engineer/sites/aiecode2025/sha256/4c2102679df063a002728d655e95ea25cb6718663a5b3823e914a8a785d12a30.webp)
+
+SET THE SCENE · WHAT OVERLAP BUYS
+
+Sequentially, the matrix unit idles while RMS computes
+
+SEQUENTIAL  24 cycles
+MATRIX UNIT: IDLE, WAITING FOR RMS | MATMUL A · W*
+VECTOR UNIT: RMS + SCALE
+
+FLASHNORM  17 cycles · 29% fewer
+MATRIX UNIT: MATMUL A · W*
+VECTOR UNIT: RMS | SCALE | SAVED
+
+Same arithmetic, two schedules: the scalar 1/RMS gates the matmul, and FlashNorm removes the gate. Paper example, n = 512, m = 128. Source: FlashNorm Fig 8, arXiv:2407.09577.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON  SUPERLINKED.COM
+
+Interface text:
+14 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Two streams and a join" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Two streams and a join</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Matrix multiplication and RMS reduction run on separate CUDA streams, followed by post-scaling. The join was implicit, allowing a race when matrix multiplication had not finished.
+
+[8:31](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=511s) [CUDA example launches matrix multiplication and RMS reduction on separate streams, then launches post-scaling on a join stream.](https://assets.ai.engineer/sites/aiecode2025/sha256/8acbeb49e4849d9b3ed333f85249107939638aacf20512b0f85f0a2438957a3d.webp)
+
+THE REALIZATION
+
+The parallel plan is two streams and a join
+
+CUDA
+
+// a stream is an ordered queue of GPU work; separate streams may overlap,
+// and NOTHING orders work across streams unless you say so.
+// plan: matmul and RMS reduction on two streams at once, then post-scale
+// the matmul output by the per-token scalar 1/RMS.
+matmul&lt;&lt;&lt;grid, block, 0, stream_A&gt;&gt;&gt;(x, W_star, y_unscaled);  // tensor cores
+rms_recip&lt;&lt;&lt;grid, block, 0, stream_B&gt;&gt;&gt;(x, s);               // CUDA cores
+
+// join: y = y_unscaled * s  (this is where it went wrong)
+post_scale&lt;&lt;&lt;grid, block, 0, post_stream&gt;&gt;&gt;(y_unscaled, s, y);
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON  SUPERLINKED.COM
+
+Interface text:
+15 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="The long-generation bug" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The long-generation bug</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A single forward pass and short perplexity checks passed, but long generation exposed a one-step lag. An implicit join let the code read from an unfinished matrix multiplication.
+
+[8:56](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=536s) [Three columns describe a matching forward pass, normal short quality checks, and a one-step lag during long generation.](https://assets.ai.engineer/sites/aiecode2025/sha256/6051da3981459986658b7ae4f58fe9e2a2047a0d3bc49f39db11ceb0e0fbcd46.webp)
+
+THE BUG
+
+Every test passed, only real generation broke
+
+01
+ONE FORWARD PASS
+Run the model once, compare the numbers against the reference: perfect match. The math was right.
+
+02
+SHORT QUALITY CHECKS
+Perplexity on short runs came back normal. Nothing looked wrong anywhere.
+
+03
+LONG GENERATION
+Only generating hundreds of tokens in a row broke. And even then the output looked fine, just one step late.
+
+The worst kind of bug: output that looks right and is wrong. You only catch it by comparing every token against a reference.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON  SUPERLINKED.COM
+
+Interface text:
+16 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="The join read old data" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The join read old data</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>With no barrier between streams, post-scaling could read the reused buffer before the current matrix multiplication finished. It picked up the previous step’s output, producing a one-step echo.
+
+[9:13](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=553s) [A stream timeline shows post-scaling reading a reused buffer before the current matrix multiplication finishes.](https://assets.ai.engineer/sites/aiecode2025/sha256/7b8ab7eed26fd59fa238b5eccf68193ddd087e242cf61582165799f9118f6ec3.webp)
+
+THE DIAGNOSIS · IN ONE PICTURE
+
+Why it spoke backwards: the join ran early and read old data
+
+The algebra was exact. The bug was the order the three kernels ran in.
+
+stream A
+ tensor cores
+matmul: y[t] = a W*
+writes y here
+
+stream B
+ CUDA cores
+s[t] = 1/RMS(a)
+
+join stream
+post_scale: z = y · s
+
+reads y here, before this step is written
+so it gets last step’s y (the buffer is reused)
+
+no barrier: nothing forces it to wait
+
+time →
+
+Result: every token comes out one step late. An echo, not garbage.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+17 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="The implicit join" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The implicit join</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Post-scaling could run before the matrix multiplication finished and read the previous step’s output from a reused buffer. The result was a one-step delay in emitted tokens.
+
+[9:53](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=593s) [CUDA code and comments explain how post-scaling could read the previous step's output from a reused buffer.](https://assets.ai.engineer/sites/aiecode2025/sha256/88bac5ccc14a2a38599a088e8c6a536083f1332094fa05225adc39da9d0f026c.webp)
+
+THE DIAGNOSIS
+The join was implicit, so the post-scale read a stale buffer
+
+CUDA
+// I assumed the post-scale would wait for the latest matmul on stream A.
+// CUDA does NOT order work across streams unless you tell it to.
+
+post_scale&lt;&lt;&lt;grid, block, 0, post_stream&gt;&gt;&gt;(y_unscaled, s, y);
+//                                          ^^^^^^^^^^
+        // post_stream could run before stream_A finished y_unscaled for step t.
+        // because the decode buffer was reused, it could consume step t-1's output.
+        // logits were internally consistent and often argmax-robust,
+        // so each emitted token lagged one step: a delayed echo. it &quot;spoke backwards&quot;.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+18 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Two events, and the model spoke forward again" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Two events, and the model spoke forward again</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The fix records events after the matmul and RMS reduction, then makes post-scaling wait for both. The result matched the reference byte-for-byte at every length.
+
+[10:05](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=605s) [CUDA code records two events and makes the post-scale stream wait for both.](https://assets.ai.engineer/sites/aiecode2025/sha256/291ee821470c1f70844328cca19e401397a059f33b2a0d1632d55de4963517cd.webp)
+
+THE FIX
+Two events, and the model spoke forward again
+
+CUDA
+
+// dependency-only events are created with cudaEventDisableTiming elsewhere.
+cudaEventRecord(event_A, stream_A);              // mark end of matmul
+cudaEventRecord(event_B, stream_B);              // mark end of RMS reduction
+cudaStreamWaitEvent(post_stream, event_A);       // post-scale waits for A
+cudaStreamWaitEvent(post_stream, event_B);       // post-scale waits for B
+
+post_scale&lt;&lt;&lt;grid, block, 0, post_stream&gt;&gt;&gt;(y_unscaled, s, y);  // now safe
+
+// ~5 lines. byte-for-byte against the reference at every length. it spoke forward.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+19 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="What ships today, and where to run it" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What ships today, and where to run it</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk moves from fixing the model to deployment: fold weights now, fuse a kernel for the remaining work, and serve Hugging Face models on your own GPUs with SIE.
+
+[10:32](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=632s) [Act 3 title introducing weight folding, fused kernels, and serving models.](https://assets.ai.engineer/sites/aiecode2025/sha256/5c9dbefb7feb7ed16fcad3830a280734c96f478653cf036a936f77d21eaf1073.webp)
+
+ACT 3 · RUNNING IT
+
+What ships today, and where to run it
+
+Fold your model's weights this afternoon; fuse a kernel for the rest; serve any Hugging Face model on your own GPUs with SIE.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+20 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Folding ships today, the stream trick needs a fused kernel" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Folding ships today, the stream trick needs a fused kernel</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Weight folding delivers a 12.77% gain with an offline fold and one-line runtime swap. Two streams slow decode because starting and joining them costs more than the overlap saves; the parallel approach needs a fused kernel.
+
+[10:58](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=658s) [The slide reports slower decode with two streams and a 12.77% gain from weight folding.](https://assets.ai.engineer/sites/aiecode2025/sha256/adfc5e7a60617a3f7659d7eb58f695c19f10f26fdc4ac02a691d99c4c7cfb431.webp)
+
+Folding ships today, the stream trick needs a fused kernel
+
+THE HONEST RESULT
+
+THE STREAM TRICK
+Slower, not faster, at decode
+Starting two streams and joining them costs more time than the overlap saves. The idea is right; the packaging is wrong. It only pays once everything lives inside one kernel.
+
+WEIGHT FOLDING
++12.77% today, one line of code
+Fold the weights once, offline. Swap one line at runtime. No retraining, no quality change. That ships this afternoon; the parallel trick ships when it moves into a fused kernel.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+21 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Three measured speedups, and one of them ships today" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Three measured speedups, and one of them ships today</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Weight folding delivers a 12.77% end-to-end gain on Llama-3.2-1B with an A100; the larger ranges measure one operation. The H100 fused kernel beats stock HuggingFace, but a hand-tuned baseline wins 8 of 18 shapes.
+
+[11:23](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=683s) [Bars compare a 12.77% whole-model gain with single-operation gains of 33–35% and 28–82%.](https://assets.ai.engineer/sites/aiecode2025/sha256/efb77434d29a040db1c7b10566178af3ce5af3f4f256cc240f05647fdbb8c584.webp)
+
+WHAT WE MEASURED
+
+Three measured speedups, and one of them ships today
+
+Weight folding + one-line swap — SHIPS TODAY — the whole model, end to end (Llama-3.2-1B, A100)
++12.77%
+
+Deferred normalization — one operation: norm then matmul (T4, big batches)
++33 to 35%
+
+Fused kernel — one operation: norm then matmul (H100, vs stock HuggingFace)
++28 to 82%
+
+Only the top row speeds up the whole model; the other two measure a single operation. The H100 kernel beats stock HuggingFace everywhere, but a hand-tuned baseline still wins 8 of 18 shapes, so what's left is wiring the kernel into real inference stacks; the math is done. Source: FlashNorm, arXiv:2407.09577.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+22 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="It adds to your stack instead of replacing anything" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>It adds to your stack instead of replacing anything</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Weight folding changes model weights, so it can stack with torch.compile and FlashAttention; it happens before quantization. The slide says fp32 is bit-identical, while a rare fp16 tie can flip one token.
+
+[11:53](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=713s) [Three columns discuss compatibility with torch.compile, FlashAttention, and quantization.](https://assets.ai.engineer/sites/aiecode2025/sha256/b60ed3633f895c18435ad5fd91b569da532f05fe591e781e438bc4893dc2c9f3.webp)
+
+It adds to your stack instead of replacing anything
+
+IT STACKS
+
+01
+TORCH.COMPILE
+
+torch.compile speeds up how the code runs; folding changes the model’s weights themselves. They touch different things. Use both.
+
+02
+FLASHATTENTION
+
+FlashAttention defers the softmax, FlashNorm defers the norm: the same trick applied to two different operations, so they stack.
+
+03
+QUANTIZATION
+
+Folding happens before you quantize, so GGUF and friends work exactly as before. fp32 is bit-identical; at fp16 a rare tie can flip a single token.
+
+Nothing to rip out, nothing to trade off. Source: FlashNorm, arXiv:2407.09577.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+
+Interface text:
+23 / 35</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="The paper, the flashify tool, and the kernels are one repo" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The paper, the flashify tool, and the kernels are one repo</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Transformer Tricks repo brings together the paper, flashify adapter, reproducibility notebooks, and T4 / A100 / H100 kernels. It also contains other algebraic tricks.
+
+[12:26](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=746s) [A repository screenshot accompanies a description of the adapter, notebooks, and GPU kernels.](https://assets.ai.engineer/sites/aiecode2025/sha256/0cdba2e04ac446041cc7f5eab9b17e0bf7f3c7a5b42b5bf34d66f0c943d0ce0d.webp)
+
+IT'S ALL OPEN
+
+The paper, the flashify tool, and the kernels are one repo
+
+github.com/OpenMachine-ai/transformer-tricks: the flashify adapter, the reproducibility notebooks, and the T4 / A100 / H100 kernels.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON
+SUPERLINKED.COM
+24 / 35
+
+Interface text:
+OpenMachine-ai / transformer-tricks
+Public
+Code  Issues  Pull requests  Actions  Projects  Security and quality  Insights
+main  11 Branches  0 Tags
+Code
+doc
+notebooks
+tex
+util
+LICENSE
+README.md
+flashNorm_example.py
+flashNorm_modeling_llama.py
+flashNorm_test.py
+pyproject.toml
+requirements.txt
+slimAttn_paper.py
+transformer_tricks.py
+
+About
+A collection of tricks and tools to speed up transformer models
+Readme
+MIT license
+Activity
+Custom properties
+208 stars
+8 watching
+13 forks
+Releases
+No releases published
+Packages
+No packages published</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="24" data-cap="FlashNorm models on Hugging Face" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>FlashNorm models on Hugging Face</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Makraduli points to FlashNorm models on Hugging Face for testing, then suggests serving open models in production on the Superlinked Inference Engine in your own cloud.
+
+[12:42](https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=762s) [Slide showing the OpenMachine Hugging Face model page and suggesting production deployment with the Superlinked Inference Engine.](https://assets.ai.engineer/sites/aiecode2025/sha256/d1b445fa5ec42a113312e7b62b9eae00102063ab01f41d3fd6748e6656caa258.webp)
+
+TRY IT, THEN BUILD IT
+
+Pull the FlashNorm models on Hugging Face, build them on SIE
+
+OpenMachine
+AI &amp; ML interests
+None defined yet.
+Team members 2
+
+Models 8
+open-machine/FlashNorm
+open-machine/Qwen3-8B-FlashNorm
+open-machine/Qwen3-1.7B-FlashNorm
+open-machine/Llama-3.1-8B-FlashNorm
+open-machine/Llama-3.2-1B-FlashNorm
+open-machine/SmolLM2-135M-FlashNorm
+open-machine/Llama-3.1-8B-FlashNorm-test
+open-machine/Llama-3.2-1B-FlashNorm-test
+
+Datasets 0
+None public yet
+
+Try any open model on the Hub. When you want to run it in production, serve it on the Superlinked Inference Engine, in your own cloud.
+
+Superlinked
+RESEARCH YOU CAN PULL, GPUS YOU CAN RUN IT ON SUPERLINKED.COM
+25 / 35
+
+Interface text:
+Hugging Face
+Search models, datasets, users...
+Models  Datasets  Spaces  Buckets  Docs  Pricing  Log In  Sign Up
+Company
+https://www.openmachine.ai
+Activity Feed  Follow
+Sort: Recently updated
+System theme  TOS  Privacy  About  Careers</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">为什么一个几乎没有算术的层也会花掉真实的时间</a></li><li><a href="#sec-2">折叠增益，再移动标量除法</a></li><li><a href="#sec-3">那段不断重复“because”的续写</a></li><li><a href="#sec-4">后缩放必须等待两条流</a></li><li><a href="#sec-5">一个折叠后的检查点给了你什么</a></li><li><a href="#sec-6">算子实验需要对推理的控制权</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">权重折叠、CUDA 流，以及让我的模型倒着说话的那个 bug</h2>
+      <div class="lede"><p>Filip Makraduli 讲解了 FlashNorm 如何把工作移出 RMSNorm 的关键路径——以及 CUDA 流之间缺失的一个依赖，如何把一个代数上完全正确的优化变成了过时的模型输出。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>为什么一个几乎没有算术的层也会花掉真实的时间</h3>
+      <p>RMSNorm performs only a small share of a transformer’s arithmetic, yet it can occupy a meaningful share of inference time. Filip Makraduli opens with this discrepancy in work he co-authored with Nils Graef: making normalization cheaper requires looking beyond the amount of math to the work surrounding it. <a href="https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=122s" target="_blank" rel="noopener">2:02</a></p>
+<p>In some of the experiments, one decode step starts RMSNorm thirty-three times. That count depends on the model, but it explains how a small operation becomes expensive through repetition. Each launch starts work; intermediate values move through memory; subsequent matrix multiplication waits for normalization to finish. A GPU’s arithmetic can be fast while this sequence still takes substantial wall time.</p>
+<p>FlashAttention supplies the opening analogy: reducing communication between memory and computation can matter as much as reducing arithmetic. FlashNorm applies that way of thinking to normalization and its following projection. Fusion reduces separate launches, weight folding removes runtime work involving the normalization gain, and deferred division shortens the wait before matrix multiplication can begin.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="262">▶ 4:22</button></div>
+      <h3>折叠增益，再移动标量除法</h3>
+      <p>The first two propositions change where normalization work happens. The learned gain can move into the projection weights before inference. The input-dependent scalar division must still happen at runtime, but it can move after the matrix multiplication. These changes have different implementation costs. <a href="https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=298s" target="_blank" rel="noopener">4:58</a></p>
+<p>- <strong>Weightless normalization:</strong> Fold the normalization gain and projection weights into one matrix, \(W^*\), offline. The projection then absorbs the gain multiplication that previously belonged to normalization. “Weightless” describes the normalization operation after this transformation; the learned gain’s effect remains in the folded matrix.
+- <strong>Deferred normalization:</strong> Compute the projection and the RMS scalar independently, then apply the scalar division to the projection’s result. Matrix multiplication can start immediately instead of waiting for the normalized input.
+- <strong>Canceling pre-normalization:</strong> In the double-normalization configurations discussed in the talk, scale invariance allows one normalization to be removed. This depends on the architecture and implementation; it is not a general rule that any two RMSNorm layers can be collapsed.</p>
+<p>What makes the projection independent of the RMS calculation? Using a column-vector convention, let \(x\) be the input, \(g\) the learned gain, \(W\) the projection matrix, and \(r(x)\) the scalar RMS denominator. The rearrangement is:</p>
+<p>\[
+y = W\left(\frac{g\odot x}{r(x)}\right)
+  = \frac{W\,\operatorname{diag}(g)\,x}{r(x)}
+  = \frac{W^*x}{r(x)}.
+\]</p>
+<p>The gain is fixed, so \(W^*=W\operatorname{diag}(g)\) can be prepared offline. Both remaining calculations depend on \(x\), but neither needs the other’s result. Only the final division needs both.</p>
+<p>Transformer Tricks provides the straightforward checkpoint transformation for weight folding. Realizing the second proposition’s parallel execution requires kernel work. Algebra removes the dependency between the two calculations; the implementation still has to schedule them concurrently and combine their results correctly.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="400">▶ 6:40</button></div>
+      <h3>那段不断重复“because”的续写</h3>
+      <p>The implementation problem first appeared as a language problem. A prompt about how the transformer architecture revolutionized NLP ended with “because.” The continuation repeated that word, and longer generation showed repetition with a one-step lag. The model seemed to produce outputs from the past. <a href="https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=400s" target="_blank" rel="noopener">6:40</a></p>
+<p>Deferred normalization divides the work between hardware suited to different operations. Tensor cores perform the matrix multiplication. CUDA cores handle operations such as reductions, square roots, and element-wise calculations needed for the RMS path. In the sequential arrangement, the matrix unit waits while the vector unit computes normalization and scaling. FlashNorm aims to overlap the projection with the RMS calculation.</p>
+<p>Makraduli implemented this overlap in CUDA. The code initially looked plausible: unit tests passed, and perplexity testing suggested similar quality. Long generation exposed the failure those checks had missed. The optimization had introduced a timing dependency that the successful tests did not establish was correct.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="551">▶ 9:11</button></div>
+      <h3>后缩放必须等待两条流</h3>
+      <p>The join between the two CUDA streams was implicit. Post-scaling could read its input before one stream had finished the current matrix multiplication. The buffer still contained an old value, so the final operation consumed stale data. That race condition explains the observed lag: the arithmetic transformation was valid, but the result being scaled did not necessarily belong to the current work. <a href="https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=551s" target="_blank" rel="noopener">9:11</a></p>
+<p>The fix makes completion explicit. Mark the end of the matrix multiplication, mark the end of the RMS calculation, and make post-scaling wait for both streams. The two producers can still run in parallel. Their consumer simply cannot start until both required results are ready. <a href="https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=610s" target="_blank" rel="noopener">10:10</a></p>
+<p>Where does parallelism end and synchronization become necessary? The diagram separates the independent calculations from their shared consumer. Neither calculation has to wait for the other; post-scaling has to wait for both. This is the dependency the implicit join failed to enforce.</p>
+<p>With those waits in place, Makraduli reports that the bug disappeared—the model could “speak forwards instead of backwards.” The title’s backwards speech refers to stale, lagging outputs, rather than text generated in reverse order. The developing example ends with a scheduling repair, without changing the intended normalization algebra.</p>
+<p>Independent producers, one synchronized consumer
+Projection and RMS calculation overlap. Explicit completion markers make post-scaling wait for both current results before reading them.
+- Current input — Supplies the projection and RMS calculation.
+- Matrix multiplication — Tensor cores compute the projection.
+- Projection complete — Explicitly marks the end of matrix multiplication.
+- RMS calculation — CUDA cores perform reductions and related scalar operations.
+- RMS complete — Explicitly marks the end of the RMS calculation.
+- Post-scaling — Waits for both streams, then scales the current projection result.
+- Current input → Matrix multiplication (Projection path)
+- Current input → RMS calculation (Concurrent RMS path)
+- Matrix multiplication → Projection complete (Mark completion)
+- RMS calculation → RMS complete (Mark completion)
+- Projection complete → Post-scaling (Required wait)
+- RMS complete → Post-scaling (Required wait)</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="640">▶ 10:40</button></div>
+      <h3>一个折叠后的检查点给了你什么</h3>
+      <p>The experiments return to the distinction between changing weights and changing execution. Most tests discussed use <strong>Llama</strong> models, with separate experiments for deferred normalization and a fully fused kernel. Even weight folding alone shows improvement. The practical first step is therefore smaller than implementing the complete CUDA optimization. <a href="https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=640s" target="_blank" rel="noopener">10:40</a></p>
+<p>The recording’s description reports a 33–35 percent speedup for the normalization-plus-projection operation. That is an operation-level result, not a whole-model inference speedup. The benchmark conditions behind that range are not specified here, so it should not be treated as a prediction for every model or deployment.</p>
+<p>- <strong>Checkpoint transformation:</strong> The repo’s Flashify operation applies weight folding. The result behaves as a new checkpoint and works with <code>torch.compile</code>; Makraduli also reports compatibility with quantized models.
+- <strong>Execution transformation:</strong> Deferred normalization needs the lower-level implementation that overlaps RMS calculation and matrix multiplication. Loading folded weights alone does not supply that scheduling change.</p>
+<p>Transformer Tricks collects the algebraic transformations and the associated paper. Makraduli also describes publishing transformed models on Hugging Face so others can try a prepared checkpoint. That makes the weight-folding portion easier to adopt, while the stream bug illustrates the additional engineering required to turn deferred normalization into a correct runtime implementation.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="792">▶ 13:12</button></div>
+      <h3>算子实验需要对推理的控制权</h3>
+      <p>A modified checkpoint raises the next question: how do you deploy it without rebuilding the surrounding infrastructure? Superlinked’s inference engine provided Makraduli a way to put custom Hugging Face checkpoints on a cluster. He describes hackathon participants bringing fine-tuned checkpoints, as well as using this route to test research transformations such as FlashNorm. <a href="https://www.youtube.com/watch?v=c1hGBoWw20A&amp;t=792s" target="_blank" rel="noopener">13:12</a></p>
+<p>Kernel changes require more control than an ordinary model request. With open-source cluster software and open-source inference, an experiment can modify the execution path as well as the weights. A rented endpoint that does not expose its inference implementation makes that work much harder. The desired combination is portability, freedom to modify kernels, and enough production infrastructure to test the result at scale.</p>
+<p>PSI adds several capabilities around that experiment:</p>
+<p>- <strong>Multiple-model workflows:</strong> A Flashified model can run alongside other models in an agentic task, allowing the optimization to be tried inside a larger use case.
+- <strong>Queuing and GPU sharing:</strong> Smaller models can use the same GPU, with models switched around to manage GPU costs. Makraduli found this useful while working with smaller Llama models and small agents.
+- <strong>API control:</strong> Model configurations and the cluster can be controlled through an API, reducing the infrastructure work needed to support research.
+- <strong>Other model types:</strong> The catalog includes embedding and re-ranking models, extending the deployment setup beyond generation.</p>
+<p>The ending connects two kinds of ownership: open weights let you fold the gain into a checkpoint; control over inference lets you change how that checkpoint executes. Makraduli closes by inviting <a href="https://www.linkedin.com/in/filipmakraduli/" target="_blank" rel="noopener">questions and contributions through LinkedIn</a>, pointing to the paper, Transformer Tricks, PSI, and work appearing in pull requests around vLLM and Hugging Face. The research becomes useful through both a correct kernel and a deployment environment that permits it to run.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>RMSNorm’s inference cost includes repeated launches, memory movement, and waiting. Its small arithmetic share does not imply a small wall-time cost.</li><li>Weight folding absorbs the learned gain into projection weights offline. Deferring the scalar division then allows projection and RMS calculation to run concurrently.</li><li>Post-scaling must explicitly wait for both CUDA streams. Without those dependencies, it can consume an old buffer value even when unit tests and perplexity checks pass.</li><li>A folded checkpoint works with familiar tooling, but kernel-level overlap requires control over the inference implementation as well as the model weights.</li></ul></section>
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://www.linkedin.com/in/filipmakraduli/" target="_blank" rel="noopener">Filip Makraduli on LinkedIn</a> — The contact route Makraduli recommends for questions or contributions concerning the normalization research and deployment work.</li><li><strong>Related talks</strong></li><li><a href="https://ai.engineer/talks/qdh_x-uRs9g-small-model-infrastructure-nobody-built-so" target="_blank" rel="noopener">The Small Model Infrastructure Nobody Built (So We Did) — Filip Makraduli, Superlinked</a> — A companion talk on the small-model infrastructure that occupies the deployment portion of this recording.</li><li>[[Full Workshop] Reinforcement Learning, Kernels, Reasoning, Quantization &amp; Agents — Daniel Han](https://ai.engineer/talks/OkEGJ5G3foU-rl-quantization-agents) — Related workshop material for readers interested in the kernel and quantization topics touched on here.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Hello, everyone. Uh, thank you for coming and, uh, I'll start the talk now. So, this talk is, uh, around a paper that I did, um, which is very simple. The proposition is very clear. It's basically two lines of algebra that make, uh, the RMS Norm layer in</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">transformers cheaper, quicker, and kind of improve, improve it as like a layer in the transformer architecture. Similar to how Layer Norm once used to be the standard and then it was substituted by RMSNorm, this follows along, um, this way of thinking. And I got the chance to kind of meet some people from the open source world and,</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">um, I co-authored this paper together with, uh, Nils Graef, who was the kind of the creator of this, and the work follows from there. So y- this is, uh, presented on arXiv. You can have a look, read it, test it out. There is a repo as well.</span></div><div class="tline" data-t="92"><span class="ts">1:32</span><span class="tx">And the concept, the... Let's say the idea and the way of thinking, it's easiest to explain with maybe FlashAttention. So in a similar way of how, um, FlashAttention kind of waits until there's a multiplication and tries to limit this, uh, communications between memory so that the whole process is faster. This is kind of a similar thought along those lines, and it does certain improvements that make,</span></div><div class="tline" data-t="122"><span class="ts">2:02</span><span class="tx">um, the RMS, um, Norm process, uh, much quicker and, um, in, in effect, improve the whole, um, transformer. And one question is, okay, why RMSNorm, since that layer does almost no- none of the math? And that's true, so the share of the kind of math portion, if you look at it, is quite small. However, the</span></div><div class="tline" data-t="153"><span class="ts">2:33</span><span class="tx">clock time or wall time, as they say, is quite big. And for example, in one decode step, so right when like inference is performed, um, the RMSNorm can be started like thirty-three times. Of course, it depends on the model and so on. Uh, in the paper you have the specific models and how this was tested. Um, and the question is, um, how this can be improved and how this wait for the matrix multiplication,</span></div><div class="tline" data-t="183"><span class="ts">3:03</span><span class="tx">um, can be kind of avoided. And the reason why this is slow is because the GPUs are not slow or bad at math, but they're bad at everything else around the actual math. So that means starting the work, the actual work. So, for example, starting the process, um, as it happens in some of the experiments thirty-three times, that</span></div><div class="tline" data-t="213"><span class="ts">3:33</span><span class="tx">takes a long time. Um, and for example, fusing, um, each normalization into the matrix multiplication can help avoid this. Also, doing weight folding can help in kind of moving data between, uh, memory and, um, that's a process that's also slow for GPUs. And also waiting, uh, so for example, deferring the division that's done in the RMSNorm layer is</span></div><div class="tline" data-t="243"><span class="ts">4:03</span><span class="tx">also a way to avoid this waiting step. So basically, what this paper does is it improves all these three aspects by doing a few algebraic tricks in the way RMSNorm is computed. That's it.</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">And math-wise, these are the tricks. Uh, it's mainly around the first two propositions. One is weightless normalization, uh, you can see that here, um, and deferred normalization. So, um, that's the second one. And now in more newer architectures, there is a situation where, um, RMS can be kind of-- can appear twice. Uh, for example, in Gemma Four, this happens. So canceling the pre-normalization also</span></div><div class="tline" data-t="292"><span class="ts">4:52</span><span class="tx">works, um, and all of this is algebraically proven in the paper.</span></div><div class="tline" data-t="298"><span class="ts">4:58</span><span class="tx">And the first proposition is this, where kind of the, the gain and the weight fold, fold into one matrix, W, uh, you can see here with an asterisk. And that is computed offline, similar to how maybe in FlashAttention you compute some stuff on the side so that there is no, uh, communication between memory all the time. So this is one step that's kind of, um, done, this weight folding. And the other step is, um,</span></div><div class="tline" data-t="328"><span class="ts">5:28</span><span class="tx">deferring, um, the scalar, the scalar divide of the matmul so that they can be done in parallel. So in a normal case, you would have to compute once, then wait, and compute again. In this case, the idea is to kind of split this so that it can be parallelized. And the third one, which is kind of a version of this, is that, um, there is kind of if there are two, um, because this is scale-invariant, one of them</span></div><div class="tline" data-t="358"><span class="ts">5:58</span><span class="tx">can be dropped and this still works. And this is applicable to newer models, um, that kind of have this architecture and implementation.</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">So in order to make this happen in real life, especially this proposition number two, um, so for this one, for example, it's easy. There is a repo called Transformer Tricks. You can just apply this to any model and it works. But in order to do this, there is some kernel work, so it's not as straightforward to do. So in order for me to do that, I was implementing this and I</span></div><div class="tline" data-t="400"><span class="ts">6:40</span><span class="tx">came out with this experiment once. So it looks okay in general, where it's like, okay, the prompt is the transformer architecture, revolutionary- revolutionized NLP because, and then there is some kind of expected output. But in the output I got, I saw this repetition and one-step lag. As you can see here, the word &quot;because&quot; appears again. And there was something happening with the GPU streams, and I was trying to figure out what was happening.</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">And I was getting this one-step lag and kind of, um, outputs that were from the past in a way. Um, and in debugging all of this, I realized that, um, in the process of building something like this, so as I explained the proposition two or deferring these two operations, um, in CUDA you can do two things. You can do like tensor cores that do one part of the matrix multiplication, and you can do CUDA cores that</span></div><div class="tline" data-t="461"><span class="ts">7:41</span><span class="tx">kind of run stuff like element-wise operations, reductions, square roots and so on. So the idea was to do this in parallel and get the benefit of what I was explaining in the paper to actually test out this concept. So this is how it was supposed to look like. So there is... If you do things sequentially, there is this idle waiting time when you-- when the vector unit computes the RMS and scaling, and then there is a matrix</span></div><div class="tline" data-t="491"><span class="ts">8:11</span><span class="tx">multiplication. So the idea was, okay, with FlashNorm, which is the technique in the paper, you're supposed to do those both in parallel. So the matrix unit computes the matmul and the vector unit computes the RMS. So in that way you save, uh, time. However, you cannot just do this in Python, you have to go a bit lower. And I did that with CUDA code like this, and this looked in general okay at my, uh, at that</span></div><div class="tline" data-t="521"><span class="ts">8:41</span><span class="tx">time. However, um, I realized that I did something slightly wrong, and that thing was that the join in the end where you're supposed to join the two streams was implicit in my case. And when I tested this out, the unit test worked, the quality seemed similar, like perplexity testing and so on, because it's just like, um, similar generation. But over long generation I was able to see this problem.</span></div><div class="tline" data-t="551"><span class="ts">9:11</span><span class="tx">So I had no idea what this was. And the reason was that when I was doing this, uh, implicit, um, join, basically one of the streams hadn't finished the work, so I got race conditions that kind of read the past from the unfinished matrix multiplication. So the idea that I had to fix this was, um, around the fact that I had to be explicit about the join and</span></div><div class="tline" data-t="580"><span class="ts">9:40</span><span class="tx">wait until one of the operations is finished so that I'm certain that when I join, I'm not reading from the past. So that was the realization, um, in this exploration of CUDA Streams. And this is how I had things done. So the join was implicit, so the post, um, scale read like an old, uh, buffer value. And how this is fixed is with this, where basically you need to</span></div><div class="tline" data-t="610"><span class="ts">10:10</span><span class="tx">mark the end of the matrix multipl- multiplication, then mark the end of the RMS, and then post scale wait for the first stream, and then wait for the second stream. And that fixed the bug and made kind of the paper work and the model speak forwards instead of backwards. And that was the cool maybe academic perspective, but I also wanted to try things, right?</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">Deploy this, test it out, see how I can make it work, um, in maybe a more production setting. Uh, you can also read the paper and see all the tests. Um, some are done... Most are done around Llama models, but, like, this works for other architectures as well. Um, so what you can do for this specific paper is, um, for example, the weight folding that I explained, the proposition one, you can just do it with, uh, some code in the repo</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">that's like Flash... You say Flashify and it does that. However, with this second thing that I mentioned, you need to do a bit of kernel work if you wanna do that, uh, like I explained in my example. And these are some results that are based on Llama models, and there are different kind of details that you can have a look at as well, as well. Like what happens if you do only deferred normalization? What happens if you do a full fused kernel? Um, so there are a lot of experiments of going lower here to test all the</span></div><div class="tline" data-t="700"><span class="ts">11:40</span><span class="tx">propositions, and these have been our results, um, in different, let's say, levels of, um, scrutiny and detail. But even the simple one with like weight folding, um, shows some improvement. And this also works with like the day-to-day tools that you use in a model. So it's not like you have to reinvent the wheel or, you know, do things from scratch. So it works with, uh, torch compile, um, because</span></div><div class="tline" data-t="730"><span class="ts">12:10</span><span class="tx">the-- it's kind of like a new checkpoint and that's it. FlashAttention does similar tricks at a different layer, and also it works with quantized models. So it's totally cool to actually apply this and you can get a model that has this cool new normalization layer. And where you can get this, um, details and codes to actually run this is this Transformer Tricks repo. So, uh, it has different algebraic tricks like I explained, as well as this paper</span></div><div class="tline" data-t="760"><span class="ts">12:40</span><span class="tx">that I mentioned.</span></div><div class="tline" data-t="763"><span class="ts">12:43</span><span class="tx">And also there is the GitHub, uh, not the GitHub, but the Hugging Face, uh, model repo where I've done this with some models and you can have a Hugging Face link to that model and test it out. Um, and what you also can do with this Hugging Face models is to deploy them in production. So when I was thinking about doing this, um, I realized that, okay, now that let's say the science is done and there is a link to a Hugging Face model, um,</span></div><div class="tline" data-t="792"><span class="ts">13:12</span><span class="tx">Superlinked's, um, inference engine was a cool way to actually deploy any, um, uh, Hugging Face model. And we've done this at hackathons where people would bring like a custom Hugging Face model or checkpoint that they have with their fine-tune stuff. And you can test out like even if you have some version of this algebraic tricks that you want to improve a model and test own-- test your own research ideas, you can actually try that out, um, and have a deployed version on a cluster of this</span></div><div class="tline" data-t="822"><span class="ts">13:42</span><span class="tx">model and not have to worry about this glue code around, um, deploying models. So that's, um, pretty cool. And the, the point is that if you have the full cluster open source and the model inference open source, you can actually test out this kind of, uh, maybe more novel research ideas where if you want to, um, do kernel manipulation or, uh, FlashNorm and, uh, things like</span></div><div class="tline" data-t="852"><span class="ts">14:12</span><span class="tx">that, it's much more difficult to do it, do this at a rented endpoint where you don't own the inference. It's-- you want something that's portable and flexible to actually allow you to do this stuff, but it's also production ready enough so that you can test things out at scale.</span></div><div class="tline" data-t="869"><span class="ts">14:29</span><span class="tx">And you can, for example, use PSI to combine this with other models. Like, as you can see in the top left there is-- you can have this Flashified models with different other models to do agentic tasks if you want, and kind of do that end-to-end bigger use case. And the way PSI works is this production cluster helps you deploy the models, so you can have a look at PSI's repo as well for more details on this. Um, and also there is a</span></div><div class="tline" data-t="899"><span class="ts">14:59</span><span class="tx">smarter queuing mechanism that helps you, especially if you work with smaller models, 'cause when doing the FlashNorm stuff, I worked with like smaller Llama models and also with small agents from Hugging Face. So having a way to deploy, um, smaller models that can also work on like the same GPU so that you don't have to, um, spend your money on GPU costs, but actually kind of, uh, switch models around, especially smaller models. It was quite</span></div><div class="tline" data-t="929"><span class="ts">15:29</span><span class="tx">useful. And you can also control the model configs through an API as well as the cluster, which is also pretty convenient without having like an infra guy supporting you in your open source research. So that's cool as well. Um, and you own your cloud, which is useful if you want open weights, open models, open source. And there's also like a catalog that PSI has of different models, um, not just the ones I mentioned, but you can have a look.</span></div><div class="tline" data-t="959"><span class="ts">15:59</span><span class="tx">There's also re-ranking embedding models if you're building something along those lines. And with that, I'm kind of finishing this story of my research journey where I co-authored this paper, um, around the technique that improves the transformer, but also found a way kind of to bring this to, let's say, production and test it out and find a way to play around with this open source models. And feel free to contact me on LinkedIn maybe if you have any questions</span></div><div class="tline" data-t="989"><span class="ts">16:29</span><span class="tx">or contributions. A lot of this stuff that I've mentioned, like some of them are PRs on like vLLM or on Hugging Face. You might find them all around. You can also see the-- check out the paper. That's the arXiv link that you have there. Um, and you also have the PSI repo and my LinkedIn. Um, so thank you very much for attending.</span></div><div class="tline" data-t="1017"><span class="ts">16:57</span><span class="tx">And you can catch me for questions. We'll be here close by.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

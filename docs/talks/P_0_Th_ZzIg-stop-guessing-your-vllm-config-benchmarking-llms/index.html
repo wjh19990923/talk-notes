@@ -1,0 +1,1371 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>别再猜你的 vLLM 配置：在 Runpod 上对 LLM 做基准测试 —— Chris Vela，Runpod | AI 工程师中文版</title>
+<meta name="description" content="Chris Vela 演示了 BenchPod——一个用于比较 vLLM 配置的仪表盘，并说明为什么调整批处理 token 数能加速长文本生成，却不会明显改变首 token 的等待时间。部署决策从工作负载和并发量出发，最后要问的是：到底需不需要最大的那个模型？" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>别再猜你的 vLLM 配置：在 Runpod 上对 LLM 做基准测试 —— Chris Vela，Runpod</h1>
+    <div class="orig-title">Stop Guessing Your vLLM Config: Benchmarking LLMs on Runpod - Chris Vela, Runpod</div>
+    <div class="meta"><span class="speaker">Chris Vela</span> · 16:29</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=benchmarks">基准测试</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=ai-cost-and-performance-engineering">AI 成本与性能</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/P_0_Th_ZzIg-stop-guessing-your-vllm-config-benchmarking-llms" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="P_0_Th_ZzIg"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=P_0_Th_ZzIg" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">一个能用的配方仍然留下了生产方面的问题</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>一个能用的配方仍然留下了生产方面的问题</span></li><li data-t="215"><span class="ts">3:35</span><span>BenchPod 把配置和测量结果放在一起</span></li><li data-t="364"><span class="ts">6:04</span><span>宣称的上下文长度和可用的上下文长度是不同的部署选择</span></li><li data-t="465"><span class="ts">7:45</span><span>现场演示从容量、错误和恢复开始</span></li><li data-t="587"><span class="ts">9:47</span><span>调整批处理 token 预算，再测试并发需求</span></li><li data-t="616"><span class="ts">10:16</span><span>在更高并发下，首 token 之后的 token 来得更快</span></li><li data-t="676"><span class="ts">11:16</span><span>在选出赢家之前先选定指标</span></li><li data-t="843"><span class="ts">14:03</span><span>你真的需要前沿模型吗？</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 20 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/bf7a570958db1f8fd3fb6c1a05c363c4df455c6218732af3500dc1490e029a30.webp" alt="Black slide listing Oracle AI Database, Sonar, WorkOS and exa as platinum sponsors." loading="lazy" data-lb="0" data-cap="Platinum Sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Platinum Sponsors</h3>
+        <p>Black slide listing Oracle AI Database, Sonar, WorkOS and exa as platinum sponsors.</p>
+        <details><summary>幻灯片原文</summary><pre>PLATINUM SPONSORS
+
+ORACLE
+AI Database
+
+Sonar
+Makers of SonarQube
+
+WorkOS
+
+exa</pre></details>
+        <button class="ts" data-t="8">▶ 0:08</button>
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="The Problem: LLM Serving Configurations Ship on Guesswork" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Problem: LLM Serving Configurations Ship on Guesswork</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide illustrates the cost of guessing vLLM settings: discovering problems at concurrency 40, in production, at 2am. Vela urges developers to size context limits and GPU resources around the task and expected concurrent users.
+
+[1:33](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=93s) [Slide describing incorrect vLLM versions, context lengths and parallelism as production risks, alongside a nighttime desert image.](https://assets.ai.engineer/sites/aiecode2025/sha256/3808aa7e07062f13c2c0af213c37a905c6490810de54c6bb5467c06062945b4a.webp)
+
+The problem
+
+LLM serving configs
+ship on guesswork.
+
+Wrong vLLM version, wrong max-model-len, wrong parallelism - and you find out at concurrency 40, in production, at 2am. Optimization takes unnecessary time.
+
+© 2026 Runpod Inc. All rights reserved. Confidential and proprietary.
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room
+
+Interface text:
+Chrome
+File
+Edit
+View
+History
+Bookmarks
+Profiles
+Tab
+Window
+Help
+73°F
+Tue Oct 13 3:21 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Move Fast...with Receipts" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Move Fast...with Receipts</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Vela pitches BenchPod as an unreleased template for A/B testing on one pod, workload and dashboard. The slide promises 30 minutes from raw model to trusted metrics, with zero infrastructure to manage.
+
+[3:46](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=226s) [Three cards advertise 30 minutes from raw model to trusted metrics, A/B testing in one pod and dashboard, and zero infrastructure to manage.](https://assets.ai.engineer/sites/aiecode2025/sha256/b3862139e1db5317698852498f868350a545d9a519ec60a5d157f25a8f563fbd.webp)
+
+Move fast...with receipts
+
+30 min
+Time from raw model to trusted metrics in one pod
+
+A/B
+One pod, one workload, one dashboard. Infinite tests.
+
+0
+Infrastructure you manage to find the truth
+
+© 2026 Runpod Inc. All rights reserved. Confidential and proprietary.
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room
+
+Interface text:
+Chrome
+File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+73°F
+Tue Oct 13 3:23 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="How BenchPod works" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How BenchPod works</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>BenchPod puts serving, monitoring and self-healing in one eight-GPU pod. The demo changes only max-num-batched-tokens, then repeats the same workload ladder to compare latency tradeoffs without changing pods.
+
+[5:02](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=302s) [BenchPod architecture diagram showing a serving container, boot payload, watchdog, dashboard, API endpoint and persistent storage beside a six-step benchmarking workflow.](https://assets.ai.engineer/sites/aiecode2025/sha256/af2c5102add03dcd15f5e2ac45b0fa047bbab500093f8730fec7b4f8600bbdda.webp)
+
+How BenchPod works
+
+One RunPod Pod (8 GPUs, tensor-parallel, TP=8)
+
+shim-&lt;vllm-tag&gt; image
+stock vllm-openai base,
+entrypoint cleared
+
+boot payload
+pulls payload at boot,
+installs packages
+
+boots
+
+watchdog
+self-healing: relaunches
+vLLM on crash / config change
+
+vllm serve
+Kimi K3, 1.45 TiB weights
+KV fp8 - max-len 524,288
+
+apply: write config, kill, heal
+
+dashboard :8090
+Serve tab / Metrics tiles -
+TTFT, tok/s, KV%, per-GPU
+
+nginx :8000
+OpenAI API
+(served model endpoint)
+
+/workspace persistent volume
+HF weights cache - vLLM compile cache - benchpod-state (configs, runs)
+
+The Demo (18 min)
+
+1 Pod boots idle
+nothing downloads until a config exists
+
+2 Paste Config A -&gt; Apply
+batch 16384 - watchdog relaunches serve (9 min load)
+
+3 Bench: workload ladder
+c1 / c8 / c64 / c192 - fixed seed - 3 repeats - cache reset
+
+4 Same pod: apply Config B
+ONLY max-num-batched-tokens: 16384 &gt; 32768
+
+5 Same ladder again
+same pod, same workload, provenance hashed
+
+6 Compare side by side
+TTFT +19% worse - ITL tail -60% smoother
+
+© 2026 Runpod Inc. All rights reserved. Confidential and proprietary.
+
+Interface text:
+Chrome
+File
+Edit
+View
+History
+Bookmarks
+Profiles
+Tab
+Window
+Help
+73°F
+Tue Oct 13 3:25 PM
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+runpod
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Why Kimi K3" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why Kimi K3</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Kimi K3 has a 1-million-token design, but this deployment serves 524,288 tokens on one eight-B300 pod. The slide pairs that long context with fp8 KV cache to support more concurrent long-context sessions per GPU.
+
+[6:06](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=366s) [Slide presenting long-context design, deployment on an eight-GPU pod and fp8 KV cache, with a configuration inset and a large purple graphic.](https://assets.ai.engineer/sites/aiecode2025/sha256/11174627f843f2003a3e3c367aabb2fa976f94844c84be8fa0153a20e41d4fb3.webp)
+
+Why Kimi K3
+
+1m-token design
+Serving today 524,288 context on one pod. Long context is where knobs bite hardest
+
+Foundation Model
+Kimi fits on one 8xB300 on RunPod
+
+fp8 KV Cache
+More concurrent long-context sessions per GPU
+
+model: moonshotai/Kimi-K3
+tensor-parallel-size: 8
+trust-remote-code: true
+load-format: fastsafetensors
+enable-prefix-caching: true
+enable-auto-tool-choice: true
+tool-call-parser: kimi_k3
+reasoning-parser: kimi_k3
+host: 0.0.0.0
+port: 8000
+kv-cache-dtype: fp8
+attention-config: '{&quot;use_prefill_query_quantization&quot;:true,&quot;mla_prefill_backend&quot;:&quot;flashinfer&quot;}'
+max-model-len: 524288
+max-num-batched-tokens: 16384
+enable-prompt-tokens-details: true
+
+© 2026 Runpod Inc. All rights reserved. Confidential and proprietary.
+
+Interface text:
+Chrome
+File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+73°F
+Tue Oct 13 3:26 PM
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+runpod
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="The Dashboard" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Dashboard</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The vLLM-based dashboard combines host-machine and live serving metrics with benchmarking, configuration management and a chat playground. Users can test a deployment before connecting a coding agent.
+
+[6:52](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=412s) [Dashboard overview listing host and vLLM metrics, benchmarking, serving, configuration management, self-healing and a chat playground beside an interface screenshot on a purple background.](https://assets.ai.engineer/sites/aiecode2025/sha256/aed41ed5d41e10fbc1bdaee9a8821308de143749921af52493f2db35c69260b5.webp)
+
+The Dashboard
+
+Our Dashboard is built on top of vLLM
+
+Key Features
+• In Depth Metrics to the Host Machine
+• Live Metrics from vLLM
+• Benchmark Tab
+• Serving Tab
+• Config Management
+• Self Healing
+• OpenAI Chat Playground
+
+Embedded dashboard screenshot:
+runpod
+vLLM BenchPod
+Overview
+Serve
+Playground
+Benchmarks
+SERVING
+admin
+Sign out
+
+STATE
+SERVING
+
+MODEL
+moonshotai/Kimi-K3
+
+CONFIG SOURCE
+custom
+[illegible]
+
+ENGINE
+0.29.0
+[illegible]
+
+SERVE AGE
+25.8h
+
+BENCH
+idle
+
+GPUS
+GPU 0 [illegible]
+GPU 1 [illegible]
+GPU 2 [illegible]
+GPU 3 [illegible]
+GPU 4 [illegible]
+GPU 5 [illegible]
+GPU 6 [illegible]
+GPU 7 [illegible]
+
+STARTUP CACHES
+refresh sizes
+[illegible]
+CACHE
+PATH
+PERSISTENT
+SIZE
+HF_HOME
+[illegible]
+VLLM_CACHE_ROOT
+/workspace/.cache/vllm
+[illegible]
+
+WEIGHTS CACHE (HF)
+refresh
+[illegible]
+CACHED REPO
+SIZE
+moonshotai/Kimi-K3
+[illegible]
+
+© 2026 Runpod Inc. All rights reserved. Confidential and proprietary.
+
+Interface text:
+Chrome
+File
+Edit
+View
+History
+Bookmarks
+Profiles
+Tab
+Window
+Help
+73°F
+Tue Oct 13 3:26 PM
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+runpod
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Live metrics: six-hour view" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Live metrics: six-hour view</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>BenchPod’s six-hour view shows brief bursts of cache use, requests and prompt throughput, with a 100% prefill / 0% decode split. The visible error-scan categories all show zero.
+
+[9:03](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=543s) [BenchPod dashboard with the six-hour range selected, showing cache usage, requests, token throughput, and partially visible latency and cache-hit charts.](https://assets.ai.engineer/sites/aiecode2025/sha256/bb787e935561b0ac56d224350db5424d0caf65c38fe13743b6a3d18f0d9f6bd1.webp)
+
+LIVE METRICS
+Timeframes: 1h, 6h, 24h
+
+KV cache usage
+Legend: kv cache %
+Y-axis ticks: 0, 2, 4, 6, 8, 10, 12
+Timeline: 2:28:59 PM, 2:36:41 PM, 2:44:19 PM, 2:51:57 PM, 2:59:34 PM, 3:07:12 PM, 3:14:50 PM, 3:22:28 PM
+
+Requests
+Legend: running, waiting
+Y-axis ticks: 0, 0.4, 0.8, 1.2, 1.6, 2.0
+Timeline: 2:28:59 PM, 2:36:41 PM, 2:44:19 PM, 2:51:57 PM, 2:59:34 PM, 3:07:12 PM, 3:14:50 PM, 3:22:28 PM
+
+Token throughput
+· window split 100% prefill / 0% decode
+Legend: prompt tok/s, gen tok/s
+Y-axis ticks: 0, 10,000, 20,000, 30,000, 40,000, 50,000, 60,000
+Timeline: 2:28:59 PM, 2:36:41 PM, 2:44:19 PM, 2:51:57 PM, 2:59:34 PM, 3:07:12 PM, 3:14:50 PM, 3:22:28 PM
+
+TTFT (per-interval mean)
+Legend: TTFT ms
+Y-axis ticks: 0, 200, 400, 600, 800, 1,000, 1,200, 1,400
+Timeline: [illegible]
+
+TPOT (per-interval mean)
+Legend: TPOT ms
+Y-axis ticks: 0, 0.2, 0.4, 0.6, 0.8, 1.0
+Timeline: [illegible]
+
+Prefix cache hit rate
+Legend: hit rate %
+Y-axis ticks: 0, 20, 40, 60, 80, 100
+Timeline: [illegible]
+
+CUDA error    0    –
+CUDA out of memory    0    –
+Engine died    0    –
+ERROR log lines    0    –
+NCCL warning/error    0    –
+Sequence preemption    0    –
+Timeout    0    –
+Python traceback    0    –
+
+Interface text:
+runpod
+vLLM BenchPod
+Overview
+Serve
+Playground
+Benchmarks
+SERVING
+admin
+Sign out
+
+Chrome
+File
+Edit
+View
+History
+Bookmarks
+Profiles
+Tab
+Window
+Help
+Benchpod Presentation.pptx
+My Pods
+RunPod · vLLM BenchPod
+runpod/vllm-benchpod: [illegible]
+Benchpod Presentation.pptx
+[illegible]-8090.proxy.runpod.net
+Ask Gemini
+Work
+72°F
+Tue Oct 13 3:29 PM
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Live metrics: 24-hour view" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Live metrics: 24-hour view</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>BenchPod’s 24-hour view lines up bursts in requests, KV cache usage and token throughput. The window split is 99% prefill / 1% decode, with a prominent spike in time to first token also visible.
+
+[9:07](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=547s) [BenchPod dashboard with the 24-hour range selected and historical activity plotted for cache usage, requests, and token throughput.](https://assets.ai.engineer/sites/aiecode2025/sha256/18dfcd97b1a634638ad33106c7cf89ccf0da6e65cfcbe6fd0e8d978b5754579f.webp)
+
+LIVE METRICS
+1h   6h   24h
+Selected range: 24h
+
+KV cache usage
+Legend: kv cache %
+Y-axis ticks: 0, 5, 10, 15, 20, 25, 30, 35, 40
+Timeline: 3:28:30 PM, 6:31:29 PM, [illegible], 12:38:41 AM, [illegible], [illegible], 9:47:00 AM, 12:50:09 PM
+
+Requests
+Legend: running; waiting
+Y-axis ticks: 0, 2, 4, 6, 8, 10, 12
+Timeline: 3:28:30 PM, 6:31:29 PM, [illegible], 12:38:41 AM, [illegible], [illegible], 9:47:00 AM, 12:50:09 PM
+
+Token throughput
+· window split 99% prefill / 1% decode
+Legend: prompt tok/s; gen tok/s
+Y-axis ticks: 0, 10,000, 20,000, 30,000, 40,000, 50,000, 60,000, 70,000
+Timeline: 3:28:30 PM, 6:31:29 PM, [illegible], 12:38:41 AM, [illegible], [illegible], 9:47:00 AM, 12:50:09 PM
+Tooltip:
+10:28:30 AM
+prompt tok/s: 0
+gen tok/s: 0
+
+TTFT (per-interval mean)
+Legend: TTFT ms
+Y-axis ticks: 0, 1,000, 2,000, 3,000, 4,000
+Timeline: [illegible; clipped]
+
+TPOT (per-interval mean)
+Legend: TPOT ms
+Y-axis ticks: 0, 0.2, 0.4, 0.6, 0.8, 1.0
+Timeline: [illegible; clipped]
+
+Prefix cache hit rate
+Legend: hit rate %
+Y-axis ticks: 0, 20, 40, 60, 80, 100
+Timeline: [illegible; clipped]
+
+CUDA error   0   –
+CUDA out of memory   0   –
+Engine died   0   –
+ERROR log lines   0   –
+NCCL warning/error   0   –
+Sequence preemption   0   –
+Timeout   0   –
+Python traceback   0   –
+
+Recording overlay:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room
+
+Interface text:
+Chrome
+File   Edit   View   History   Bookmarks   Profiles   Tab   Window   Help
+72°F
+Tue Oct 13 3:29 PM
+Benchpod Presentation.pptx
+My Pods
+RunPod · vLLM BenchPod
+runpod/vllm-benchpod: Run[illegible]
+Benchpod Presentation.pptx
+Ask Gemini
+[illegible]-8090.proxy.runpod.net
+Work
+runpod
+vLLM BenchPod
+Overview   Serve   Playground   Benchmarks
+SERVING
+admin
+Sign out</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Restart history and latency trend" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Restart history and latency trend</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Vela highlights roughly nine-minute cold starts after a GPU failure. BenchPod separates startup time from total outage—one row shows 8m 58s versus 22.7h—and plots recurring spikes in hourly time-to-first-token.
+
+[9:43](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=583s) [BenchPod overview showing watchdog activity, server logs, restart and cold-start records, and an hourly time-to-first-token trend.](https://assets.ai.engineer/sites/aiecode2025/sha256/db8a6240198ae33c0f512f62917e9c945d7547e3b884219908a47eed8b91db46.webp)
+
+Watchdog activity
+{&quot;t&quot;:1791897693,&quot;event&quot;:&quot;recovered&quot;,&quot;downs&quot;:0}
+{&quot;t&quot;:1791896773,&quot;event&quot;:&quot;restart_issued&quot;,&quot;downs&quot;:2}
+{&quot;t&quot;:1791896773,&quot;event&quot;:&quot;restart_begin&quot;,&quot;downs&quot;:2}
+{&quot;t&quot;:1791896753,&quot;event&quot;:&quot;unhealthy&quot;,&quot;downs&quot;:1}
+{&quot;t&quot;:1791827693,&quot;event&quot;:&quot;recovered&quot;,&quot;downs&quot;:0}
+{&quot;t&quot;:1791826773,&quot;event&quot;:&quot;restart_issued&quot;,&quot;downs&quot;:2}
+{&quot;t&quot;:1791826773,&quot;event&quot;:&quot;restart_begin&quot;,&quot;downs&quot;:2}
+{&quot;t&quot;:1791826753,&quot;event&quot;:&quot;unhealthy&quot;,&quot;downs&quot;:1}
+{&quot;t&quot;:1791826753,&quot;event&quot;:&quot;started&quot;,&quot;downs&quot;:0}
+{&quot;t&quot;:1791825921,&quot;event&quot;:&quot;restart_issued&quot;,&quot;downs&quot;:2}
+{&quot;t&quot;:1791825921,&quot;event&quot;:&quot;restart_begin&quot;,&quot;downs&quot;:2}
+{&quot;t&quot;:1791825901,&quot;event&quot;:&quot;unhealthy&quot;,&quot;downs&quot;:1}
+
+Server log
+refresh    full logs
+[illegible]
+(APIServer pid=57165) INFO: 127.0.0.1:58920 - &quot;GET /metrics HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58926 - &quot;GET /health HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58932 - &quot;GET /version HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58942 - &quot;GET /health HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58944 - &quot;GET /health HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58946 - &quot;GET /version HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58962 - &quot;GET /health HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58968 - &quot;GET /health HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58972 - &quot;GET /version HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58984 - &quot;GET /metrics HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58990 - &quot;GET /health HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:57972 - &quot;GET /health HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:57988 - &quot;GET /version HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:57998 - &quot;GET /metrics HTTP/1.1&quot; 200 OK
+(APIServer pid=57165) INFO: 127.0.0.1:58006 - &quot;GET /health HTTP/1.1&quot; 200 OK
+
+HISTORY
+median cold start 8m 58s · min 8m 49s · max 37m 5s · 10 restarts recorded · 90 failed
+
+Restarts / cold starts
+TIME (UTC) | COLD START | OUTAGE | SOURCE | RESULT
+10-13 13:15 | 8m 54s | 9m 29s | exp:base | up
+10-12 17:48 | 8m 58s | 22.7h | exp:base | up
+10-12 17:26 | – | – | custom | failed
+10-12 17:07 | – | – | custom | failed
+10-12 16:51 | – | – | custom | failed
+10-12 16:35 | – | – | custom | failed
+10-12 16:20 | – | – | custom | failed
+10-12 16:04 | – | – | custom | failed
+10-12 15:48 | – | – | custom | failed
+10-12 15:33 | – | – | custom | failed
+10-12 15:17 | – | – | custom | failed
+
+TTFT trend (hourly, all-time)
+Legend: TTFT ms (hourly mean); requests finished/h
+Left Y-axis: TTFT ms
+Left Y-axis ticks: 0, 4,000, 8,000, 12,000, 16,000
+Right Y-axis: req/h
+Right Y-axis ticks: 0, 200, 400, 600, 800, 1,000, 1,200, 1,400
+Timeline: 09-30 10:00, 10-01 00:00, 10-01 14:00, 10-02 04:00, 10-02 18:00, 10-03 10:00, 10-04 00:00, 10-04 14:00, 10-05 06:00, 10-05 20:00, 10-06 10:00, 10-07 00:00, 10-07 14:00, 10-08 06:00, 10-08 20:00, 10-09 10:00, 10-10 00:00, 10-10 14:00, 10-11 06:00, 10-11 20:00, 10-12 10:00, 10-13 00:00, 10-13 18:00
+
+Interface text:
+runpod
+vLLM BenchPod
+Overview    Serve    Playground    Benchmarks
+SERVING    admin    Sign out
+Chrome    File    Edit    View    History    Bookmarks    Profiles    Tab    Window    Help
+Benchpod Presentation.pptx
+My Pods
+RunPod · vLLM BenchPod
+runpod/vllm-benchpod: [illegible]
+Benchpod Presentation.pptx
+0snz68816fsiiv-8090.proxy.runpod.net
+Ask Gemini
+Work
+72°F
+Tue Oct 13 3:29 PM
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Baseline serving configuration" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Baseline serving configuration</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>BenchPod shows the baseline vLLM YAML with max-num-batched-tokens set to 16384. Vela opens the saved-experiment menu to prepare a batching comparison; the baseline remains staged, with an apply-and-restart control below.
+
+[9:51](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=591s) [Serve configuration page with the source menu open and baseline YAML displaying a maximum batched-token setting of 16384.](https://assets.ai.engineer/sites/aiecode2025/sha256/5ba842f3641d31745fbfc1fbf7491727ffdc6b326889101bcaa1ac0205d18e8a.webp)
+
+Serve configuration
+The YAML handed to vllm serve --config. Pick a saved config from the source list, or upload/paste your own: any edit saves as a custom staged config. “Apply &amp; restart” writes the serving sidecars and lets the watchdog fast-heal relaunch vLLM.
+
+Source
+✓ base (ui)
+base-increase-max-tokens (ui)
+custom (edited)
+
+Delete UI experiment
+
+Extra CLI args
+(appended after --config; CLI wins)
+--max-num-seqs 256
+
+Save as staged
+Apply &amp; restart serving
+
+Config YAML
+staged: exp:base
+
+model: moonshotai/Kimi-K3
+tensor-parallel-size: 8
+trust-remote-code: true
+load-format: fastsafetensors
+enable-prefix-caching: true
+enable-auto-tool-choice: true
+tool-call-parser: kimi_k3
+reasoning-parser: kimi_k3
+host: 0.0.0.0
+port: 8000
+kv-cache-dtype: fp8
+attention-config: '{&quot;use_prefill_query_quantization&quot;:true,&quot;mla_prefill_backend&quot;:&quot;flashinfer&quot;}'
+max-model-len: 524288
+max-num-batched-tokens: 16384
+enable-prompt-tokens-details: true
+
+Interface text:
+Chrome
+File
+Edit
+View
+History
+Bookmarks
+Profiles
+Tab
+Window
+Help
+72°F
+Tue Oct 13 3:29 PM
+Benchpod Presentation.pptx
+My Pods
+RunPod · vLLM BenchPod
+runpod/vllm-benchpod: Run[illegible]
+Benchpod Presentation.pptx
+Ask Gemini
+[illegible]-8090.proxy.runpod.net
+Work
+runpod
+vLLM BenchPod
+Overview
+Serve
+Playground
+Benchmarks
+SERVING
+admin
+Sign out
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="BenchPod serving configuration: increased batched tokens" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>BenchPod serving configuration: increased batched tokens</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Chris selects a saved experiment with max-num-batched-tokens set to 32768. BenchPod shows the staged vLLM YAML beside save and restart controls; this demo tests how changing the batch-token limit affects speed.
+
+[10:01](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=601s) [Serve configuration page with an increased-token experiment selected and staged YAML displaying a maximum batched-token setting of 32768 beside save and restart controls.](https://assets.ai.engineer/sites/aiecode2025/sha256/23bc15963b46770222f6e2079acdc10436edf7370240b813870bd526d43e6151.webp)
+
+Serve configuration
+
+The YAML handed to vllm serve --config. Pick a saved config from the source list, or upload/paste your own: any edit saves as a custom staged config. “Apply &amp; restart” writes the serving sidecars and lets the watchdog fast-heal relaunch vLLM.
+
+Source
+base-increase-max-tokens (ui)
+Save as new experiment...
+Upload config file...
+Delete UI experiment
+
+Extra CLI args
+(appended after --config; CLI wins)
+--max-num-seqs 256
+
+Save as staged
+Apply &amp; restart serving
+
+Config YAML
+staged: exp:base-increase-max-tokens
+
+model: moonshotai/Kimi-K3
+tensor-parallel-size: 8
+trust-remote-code: true
+load-format: fastsafetensors
+enable-prefix-caching: true
+enable-auto-tool-choice: true
+tool-call-parser: kimi_k3
+reasoning-parser: kimi_k3
+host: 0.0.0.0
+port: 8000
+kv-cache-dtype: fp8
+attention-config: '{&quot;use_prefill_query_quantization&quot;:true,&quot;mla_prefill_backend&quot;:&quot;flashinfer&quot;}'
+max-model-len: 524288
+max-num-batched-tokens: 32768
+enable-prompt-tokens-details: true
+
+Interface text:
+runpod
+vLLM BenchPod
+Overview
+Serve
+Playground
+Benchmarks
+SERVING
+admin
+Sign out
+Chrome
+File
+Edit
+View
+History
+Bookmarks
+Profiles
+Tab
+Window
+Help
+Benchpod Presentation.pptx
+My Pods
+RunPod - vLLM BenchPod
+runpod/vllm-benchpod: Run[illegible]
+Benchpod Presentation.pptx
+[illegible]-8090.proxy.runpod.net
+Ask Gemini
+Work
+72°F
+Tue Oct 13 3:29 PM
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room
+
+[10:02](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=602s) [BenchPod Serve tab with a staged YAML configuration, a maximum batched-token setting, and controls to save or apply and restart serving.](https://assets.ai.engineer/sites/aiecode2025/sha256/4c33a74aaa6cb7804b9a71b9283e661c3c7d8c76738a71be28d8e6552225d4fd.webp)
+
+Serve configuration
+
+The YAML handed to vllm serve --config. Pick a saved config from the source list, or upload/paste your own: any edit saves as a custom staged config. “Apply &amp; restart” writes the serving sidecars and lets the watchdog fast-heal relaunch vLLM.
+
+Source
+base-increase-max-tokens (ui)
+Save as new experiment...
+Upload config file...
+Delete UI experiment
+
+Extra CLI args
+(appended after --config; CLI wins)
+--max-num-seqs 256
+
+Save as staged
+Apply &amp; restart serving
+
+Config YAML
+staged: exp:base-increase-max-tokens
+
+model: moonshotai/Kimi-K3
+tensor-parallel-size: 8
+trust-remote-code: true
+load-format: fastsafetensors
+enable-prefix-caching: true
+enable-auto-tool-choice: true
+tool-call-parser: kimi_k3
+reasoning-parser: kimi_k3
+host: 0.0.0.0
+port: 8000
+kv-cache-dtype: fp8
+attention-config: '{&quot;use_prefill_query_quantization&quot;:true,&quot;mla_prefill_backend&quot;:&quot;flashinfer&quot;}'
+max-model-len: 524288
+max-num-batched-tokens: 32768
+enable-prompt-tokens-details: true
+
+Interface text:
+runpod
+vLLM BenchPod
+Overview
+Serve
+Playground
+Benchmarks
+SERVING
+admin
+Sign out
+Chrome
+File
+Edit
+View
+History
+Bookmarks
+Profiles
+Tab
+Window
+Help
+Benchpod Presentation.pptx
+My Pods
+RunPod - vLLM BenchPod
+runpod/vllm-benchpod: Run[illegible]
+Benchpod Presentation.pptx
+[illegible]-8090.proxy.runpod.net
+Ask Gemini
+Work
+72°F
+Tue Oct 13 3:30 PM
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+AI Engineer</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Benchmark results across concurrency levels" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Benchmark results across concurrency levels</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>As concurrency rises from 1 to 192, the increased-token run’s throughput grows from 114.9 to 3,131.6 tok/s, while median time to first token rises from 211.8 to 4,529.2 ms: more output, longer initial waits.
+
+[10:27](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=627s) [BenchPod benchmark table for concurrency levels 1, 8, 64, and 192, with charts for output throughput, median time to first token, and median time per output token.](https://assets.ai.engineer/sites/aiecode2025/sha256/d054f971d1e696dfccf3816369663b56cdd60f85e2faa891004cd935072a0e89.webp)
+
+Run a benchmark
+Drives bench/run.sh on the pod against the currently serving config: the workload ladder × 3 repeats + 1s DCGM/engine capture. One session at a time; serve restart is locked out while a session runs.
+base
+Run benchmark
+
+Runs
+EXPERIMENT | RUN ID | VLLM | CACHE RESETS | RESULTS
+base-increase-max-tokens | ui-20261008T231255Z | 0.29.0 | yes | ✓ | view
+base | ui-20261007T073649Z | 0.29.0 | yes | ✓ | view
+
+base-increase-max-tokens · ui-20261008T231255Z
+vllm 0.29.0 · cache resets: yes · 816180 /usr/bin/python3 /usr/local/bin/vllm serve --config /workspace/benchpod-state/experiments/base-increase-max-tokens/config.yaml --port 8000
+
+RUNG | CONC. | DONE | ERR | OUT TOK/S | TTFT MED (MS) | TPOT MED (MS) | ITL P99 (MS)
+c1 | 1 | 48 | 0 | 114.9 | 211.8 | 8.4 | 24.2
+c8 | 8 | 144 | 0 | 548.1 | 541.8 | 13.9 | 33.5
+c64 | 64 | 384 | 0 | 2,038.7 | 2,348 | 30.4 | 77.8
+c192 | 192 | 768 | 0 | 3,131.6 | 4,529.2 | 47.5 | 338.8
+
+Output throughput (tok/s)
+Y-axis ticks: 0, 500, 1,000, 1,500, 2,000, 2,500, 3,000, 3,500
+X-axis labels: c1, c8, c64, c192
+
+TTFT median (ms)
+Y-axis ticks: 0, 500, 1,000, 1,500, 2,000, 2,500, 3,000, 3,500, 4,000, 4,500, 5,000
+X-axis labels: c1, c8, c64, c192
+
+TPOT median (ms)
+Y-axis ticks: 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50
+X-axis labels: c1, c8, c64, c192
+
+Interface text:
+Chrome
+File | Edit | View | History | Bookmarks | Profiles | Tab | Window | Help
+72°F
+Tue Oct 13 3:30 PM
+Benchpod Presentation.pptx
+My Pods
+RunPod · vLLM BenchPod
+runpod/vllm-benchpod: [illegible]
+Benchpod Presentation.pptx
+Ask Gemini
+[illegible]-8090.proxy.runpod.net
+Work
+runpod
+vLLM BenchPod
+Overview | Serve | Playground | Benchmarks
+SERVING
+admin
+Sign out
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Baseline versus increased batched-token results" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Baseline versus increased batched-token results</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At 64 and 192 concurrent users, increasing batched tokens cuts p99 inter-token latency by 60.1% and 47.7%, while median time to first token rises about 20%. Throughput stays nearly flat.
+
+[10:55](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=655s) [Comparison table showing throughput and latency changes across four concurrency levels, including reduced tail inter-token latency and increased median time to first token at higher concurrency.](https://assets.ai.engineer/sites/aiecode2025/sha256/d2f14c6a515b094042c5eb80a58b26ca9c47c87d6e7df5108bcad0ad519b19f4.webp)
+
+Compare runs — tick two checkboxes in the runs table (results runs only)
+comparing base/ui-20261007T073649Z ↔ base-increase-max-tokens/ui-20261008T231255Z
+
+METRIC / RUNG | BASE · UI-20261007T073649Z | BASE-INCREASE-MAX-TOKENS · UI-20261008T231255Z | Δ (A→B)
+c1 · out tok/s | 113.12 | 114.9 | +1.6%
+c1 · TTFT med (ms) | 216.59 | 211.83 | −2.2%
+c1 · TPOT med (ms) | 8.41 | 8.44 | +0.4%
+c1 · ITL p99 (ms) | 20.29 | 24.23 | +19.4%
+c8 · out tok/s | 583.42 | 548.07 | −6.1%
+c8 · TTFT med (ms) | 542.45 | 541.85 | −0.1%
+c8 · TPOT med (ms) | 13.44 | 13.94 | +3.7%
+c8 · ITL p99 (ms) | 32.31 | 33.55 | +3.8%
+c64 · out tok/s | 2,004.03 | 2,038.66 | +1.7%
+c64 · TTFT med (ms) | 1,966.71 | 2,348.04 | +19.4%
+c64 · TPOT med (ms) | 30.93 | 30.36 | −1.9%
+c64 · ITL p99 (ms) | 195.08 | 77.78 | −60.1%
+c192 · out tok/s | 3,121.47 | 3,131.58 | +0.3%
+c192 · TTFT med (ms) | 3,781.46 | 4,529.15 | +19.8%
+c192 · TPOT med (ms) | 47.56 | 47.47 | −0.2%
+c192 · ITL p99 (ms) | 648.18 | 338.8 | −47.7%
+
+Left chart:
+Y-axis ticks: 0, 500, 1,000, 1,500, 2,000, 2,500, 3,000, 3,500
+X-axis labels: c1, c8, c64, c192
+
+Middle chart:
+Y-axis ticks: 0, 500, 1,000, 1,500, 2,000, 2,500, 3,000, 3,500, 4,000, 4,500, 5,000
+X-axis labels: c1, c8, c64, c192
+
+Right chart:
+Y-axis ticks: 0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50
+X-axis labels: c1, c8, c64, c192
+
+Interface text:
+runpod · vLLM BenchPod
+Overview · Serve · Playground · Benchmarks
+SERVING · admin · Sign out
+Chrome · File · Edit · View · History · Bookmarks · Profiles · Tab · Window · Help
+Benchpod Presentation.pptx · My Pods · RunPod - vLLM BenchPod · runpod/vllm-benchpod: Run[illegible] · Benchpod Presentation.pptx
+[illegible]-8090.proxy.runpod.net
+Ask Gemini · Work
+72°F · Tue Oct 13 3:31 PM
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="BenchPod runtime and benchmarking overview" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>BenchPod runtime and benchmarking overview</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Chris shows Kimi explaining BenchPod: a watchdog restarts serving after dashboard config changes, while benchmark sessions leave serving untouched and compare repeated runs using medians and spreads.
+
+[12:14](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=734s) [Terminal displaying a detailed BenchPod explanation with sections on serving, dashboard controls, benchmark sessions, persistent state, tests, and CI.](https://assets.ai.engineer/sites/aiecode2025/sha256/a056f462089f09ef3856e0ee4aed9beae391ebb669438b294b00431db0531a95.webp)
+
+5. Otherwise it preflights weights (hf download only if not in the HF cache), records /run/benchpod-active-config, and execs scripts/serve.sh — a flock’d vllm serve self-healed by scripts/watchdog.sh.
+
+Serving surface and the restart contract
+• 8000 = OpenAI API direct · 8001 = same API behind nginx (friendly 503 while loading) · 8090 = dashboard (nginx → FastAPI on 8099). Auth everywhere is Bearer $VLLM_API_KEY; the template default renders to sk-&lt;pod-id&gt; per pod.
+• The dashboard never launches vLLM or touches GPUs. &quot;Apply &amp; restart&quot; writes the sidecars (/run/benchpod-active-config + /run/benchpod-extra-args) and kills vllm serve; the watchdog's fast-heal relaunches serve.sh from the sidecars, skipping weights preflight. Restart is refused while a bench session runs.
+
+Dashboard (8090) — one FastAPI process plus a static SPA, no added dependencies. Metrics (5s sampling of vLLM /metrics: KV-cache %, queue depth, token rates, TTFT; per-GPU tiles; 1h/6h/24h charts), Serve tab (edit or pick a config, extra args, staged → apply, save-as-experiment), History (boot journal with cold-start/outage timing, hourly TTFT trend, OOM scan of the server log), Bench tab (runs the harness with a live console, side-by-side run comparison, built-in quickstart workload, in-tab docs), Playground (chat proxy — the Bearer key is injected server-side; thinking traces fold), and Storage (cache dirs + whether they survive restarts, error scan).
+
+Bench harness
+• Drivers: bash /opt/benchpod/bench/run.sh &lt;name&gt; [run-id] on the pod, or bench/session.sh from a laptop (POD_ID + RUNPOD_TEAM_API_KEY; the run dir is pulled back locally).
+• The workload is a ladder of bench params: every non-underscore key passes through to vllm bench serve, _benchmark_name is unique per rung; saved experiments can carry their own workload.json.
+• Per rung × 3 repeats: one vllm bench serve, a /metrics snapshot, a prefix-cache reset — all sampled at 1s (dcgm-exporter DCP counters, nvidia-smi dmon fallback, engine gauges). Output lands in the state-dir experiments tree as results.json (per-rung medians + spreads) plus a serving.json provenance record, rendered in the dashboard; never committed to git.
+• Hard rules: a session is health-gated and refuses a broken server; it never pauses, restarts, or reconfigures serving. Comparing configs = serve A, run it, serve B, run again — a delta is real only when it exceeds both runs' spreads. No automated winner selection; analysis is a human(+assistant) reading.
+
+State, tests, CI
+• Everything persistent lives under /workspace/benchpod-state/ on the pod volume — staged config, experiments, metrics/boot journals, run index — and the pod never writes back to git. Stop keeps the volume (warm reboot); terminate wipes it. The template env also pins weights (HF_HOME) and vLLM's compile caches (VLLM_CACHE_ROOT) onto /workspace so restarts skip re-download and re-compile.
+• Tests: offline unit tests in tests/unit; the tier-1 integration suite runs from outside against a live pod (BENCHPOD_BASE_URL/BENCHPOD_API_KEY), with BENCHPOD_HAS_TOOLS=1/BENCHPOD_HAS_REASONING=1 gating parser-dependent suites.
+• CI: build.yml publishes payload + shim on push, shim-matrix.yml keeps a shim per upstream release daily, support-tag.yml builds any single requested tag. CI holds only Docker Hub credentials; HF_TOKEN exists only as pod env.
+
+In one line: BenchPod is the run-any-vLLM-model-on-a-pod template whose whole design — shim for bootability, payload for iteration, dashboard for control, bench for comparison — exists to make &quot;whatever model + whatever vLLM tag&quot; a template choice instead of a build.
+
+Interface text:
+kimi (kimi-code) #1
+[illegible]presentation (-zsh) #2
+can you explain Runpod? (kimi) #3
++
+&gt;
+Kimi K3 (Runpod) thinking: max
+~/Projects/vllm-benchpod master [+1 -1]
+ctrl+o expand
+context: 23% (92.8k/420k)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Concise BenchPod explanation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Concise BenchPod explanation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Kimi answers a BenchPod question in the terminal: one GPU pod combines model serving, a dashboard and benchmarks. Its explanation separates the shim that boots a vLLM tag from the payload that supplies the runtime.
+
+[12:27](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=747s) [Terminal answer describing BenchPod as a GPU-pod template with a model-serving API, dashboard, benchmark harness, and a shim-and-payload architecture.](https://assets.ai.engineer/sites/aiecode2025/sha256/d2a128595d45549f770f03175534fa9caf6b3cf1e83abe1502ee498e119fde1d.webp)
+
+gauges). Output lands in the state-dir experiments tree as results.json (per-rung medians + spreads) plus a serving.json provenance record, rendered in the dashboard; never committed to git.
+• Hard rules: a session is health-gated and refuses a broken server; it never pauses, restarts, or reconfigures serving. Comparing configs = serve A, run it, serve B, run again — a delta is real only when it exceeds both runs' spreads. No automated winner selection; analysis is a human(+assistant) reading.
+
+State, tests, CI
+• Everything persistent lives under /workspace/benchpod-state/ on the pod volume — staged config, experiments, metrics/boot journals, run index — and the pod never writes back to git. Stop keeps the volume (warm reboot); terminate wipes it. The template env also pins weights (HF_HOME) and vLLM's compile caches (VLLM_CACHE_ROOT) onto /workspace so restarts skip re-download and re-compile.
+• Tests: offline unit tests in tests/unit; the tier-1 integration suite runs from outside against a live pod (BENCHPOD_BASE_URL/BENCHPOD_API_KEY), with BENCHPOD_HAS_TOOLS=1/BENCHPOD_HAS_REASONING=1 gating parser-dependent suites.
+• CI: build.yml publishes payload + shim on push, shim-matrix.yml keeps a shim per upstream release daily, support-tag.yml builds any single requested tag. CI holds only Docker Hub credentials; HF_TOKEN exists only as pod env.
+
+In one line: BenchPod is the run-any-vLLM-model-on-a-pod template whose whole design — shim for bootability, payload for iteration, dashboard for control, bench for comparison — exists to make &quot;whatever model + whatever vLLM tag&quot; a template choice instead of a build.
+
+✦ What is benhpod
+
+The user asks &quot;what is benhpod&quot; — a typo for &quot;benchpod&quot; (letters transposed: b-e-n-h-p-o-d). Given the conversation context, they're asking about benchpod again. This is the third time: &quot;also explain benchpod in a concise way&quot;, then &quot;explain benchpod&quot;, now &quot;what is benhpod&quot;.
+… (6 more lines, ctrl+o to expand)
+
+BenchPod (spelled &quot;benchpod&quot; — the repo vllm-benchpod) is a public Runpod template: one GPU pod that can serve and benchmark any Hugging Face model with vLLM, with no repo checkout needed.
+
+In practice a user picks a shim-&lt;vllm-tag&gt; image on a Runpod pod template, deploys, and gets on that pod:
+• vllm serve behind an OpenAI-compatible API (watchdog-supervised, weights + compile caches persisted on /workspace),
+• a dashboard (port 8090) for metrics, serving-config control, and a playground,
+• a benchmark harness that runs health-gated sessions against whatever is currently serving.
+
+Mechanically it works via a shim + payload split: the shim image makes any upstream vLLM tag bootable as a pod, and the boot payload delivers this repo's runtime (dashboard, bench, scripts) as a small scratch image, so nothing is ever cloned or rebuilt per model.
+
+The two earlier answers above cover the same thing in short and long form if you want depth.
+
+Interface text:
+kimi (kimi-code) [illegible]1
+…presentation (-zsh) [illegible]2
+can you explain Runpod? (kimi) [illegible]3
++
+&gt;
+Kimi K3 (Runpod) thinking: max ~/Projects/vllm-benchpod master [+1 -1]
+ctrl+o expand
+context: 23% (93.3k/420k)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="One pod. Two configs. Proof." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One pod. Two configs. Proof.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Longer batch tokens trade higher first-token latency for smoother streaming at c64: median TTFT rises 19.4%, while p99 inter-token latency falls from 195 to 78 ms. Output throughput increases only 1.7%.
+
+[13:14](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=794s) [Table comparing baseline and longer-batch-token configurations across first-token latency, time per output token, throughput, and tail inter-token latency, with mixed positive and negative deltas.](https://assets.ai.engineer/sites/aiecode2025/sha256/a041b2c500ccd180ff8a45a1559593cc981e04e5a3443363d4e9cf02846dd0e8.webp)
+
+One pod. Two configs. Proof.
+
+Metric | Config A - baseline | Longer Batch Tokens | Delta
+Median TTFT @ c1 | 216.59 | 211.83 | -2.2%
+Median TPOT @ c8 | 13.44 | 13.94 | +3.7%
+TTFT med @ c64 (ms) | 1,966 | 2,348 | +19.4%
+Output tok/s @ c64 | 2,004 | 2,048 | +1.7%
+ITL p99 @ c64 (ms) | 195 | 78 | -60% smoother
+
+© 2026 Runpod Inc. All rights reserved. Confidential and proprietary.
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+72°F
+Tue Oct 13 3:33 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="The pattern to take home" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The pattern to take home</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Benchmark on one pod, compare configs on the same workload, then deploy the winner to Serverless. Choose the winner for the latency or throughput you need, record its configuration, and repeat when the model or vLLM version changes.
+
+[13:32](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=812s) [Four-step workflow along a purple gradient timeline: benchmark on a pod, compare configurations, ship the winner to Serverless, and repeat for new models and versions.](https://assets.ai.engineer/sites/aiecode2025/sha256/954d537caad624186be156d652e01746dfdf328b9de5b2326b95dbb961e13431.webp)
+
+The pattern to take home
+
+1. Bench on a pod
+Pick the model + vLLM tag. Serve a config, measure TTFT / TPOT / throughput.
+
+2. Compare configs
+Same workload, side by side. Provenance recorded: cmdline, vLLM version, config.
+
+3. Ship the winner
+The winning config goes to Serverless with our vLLM template. Measure on one GPU, serve on fleet and scale.
+
+4. Repeat
+Every new model, every new vLLM version. Thirty minutes, one pod, no CI.
+
+© 2026 Runpod Inc. All rights reserved. Confidential and proprietary.
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+AI Engineer
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+72°F
+Tue Oct 13 3:33 PM
+
+[13:49](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=829s) [Four-step workflow: benchmark on a pod, compare configurations, ship the winner to Serverless, and repeat for new models and vLLM versions.](https://assets.ai.engineer/sites/aiecode2025/sha256/3d05e24c2a834332173f3b4791ea1d4f29fcec8358924ebecaf871a146e92291.webp)
+
+The pattern to take home
+
+1. Bench on a pod
+Pick the model + vLLM tag. Serve a config, measure TTFT / TPOT / throughput.
+
+2. Compare configs
+Same workload, side by side. Provenance recorded: cmdline, vLLM version, config.
+
+3. Ship the winner
+The winning config goes to Serverless with our vLLM template. Measure on one GPU, serve on fleet and scale.
+
+4. Repeat
+Every new model, every new vLLM version. Thirty minutes, one pod, no CI.
+
+© 2026 Runpod Inc. All rights reserved. Confidential and proprietary.
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+Engineering the future of AI
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+72°F
+Tue Oct 13 3:33 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Join the Runpod Discord" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Join the Runpod Discord</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Runpod points builders to its Discord for help along the way and connections with others building with Runpod.
+
+[14:35](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=875s) [Runpod community slide inviting viewers to join its Discord for help and connections with other builders.](https://assets.ai.engineer/sites/aiecode2025/sha256/79a4097fb314a34889b5f2bce4163cce0bbf4801ca86a856a4f9d1e3e844e757.webp)
+
+If anything comes up along the way or you want to connect with others building with Runpod, join our Discord
+
+discord.com/invite/runpod</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Questions at the Runpod booth" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Questions at the Runpod booth</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Vela points attendees to the Runpod booth downstairs for follow-up questions.
+
+[15:51](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=951s) [Runpod slide stating that the team will be at its booth to answer questions.](https://assets.ai.engineer/sites/aiecode2025/sha256/565913535a3749f0dae2703fb2a6496eed817602f63c9dcd228626abdf9c3f6a.webp)
+
+We’ll be at the Runpod booth, if you have any questions</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Connect and watch for the Benchpod template" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Connect and watch for the Benchpod template</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Chris Vela invites viewers to connect on LinkedIn and scan the QR code for credits to try Runpod. He says the Benchpod template is planned for release at the end of the month.
+
+[15:54](https://www.youtube.com/watch?v=P_0_Th_ZzIg&amp;t=954s) [Runpod closing slide with a QR code, a LinkedIn invitation, a Benchpod template release announcement, and Chris Vela identified as Forward Deployed Engineer.](https://assets.ai.engineer/sites/aiecode2025/sha256/037360b71305db001cd7929aead95dd8b21a398c23d7da34af1809aee56ba206.webp)
+
+Add me on LinkedIn!
+And be on the lookout for the Benchpod Template Release
+
+runpod
+
+Chris Vela
+Forward Deployed Engineer
+
+https://github.com/[illegible]
+worker-vllm
+
+[ PASTE QR [illegible] - biggest size that gives it 30 seconds of screen time ]
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+
+OCTOBER 13, 2026
+EXPO SESSION
+McCarthy Room
+
+Interface text:
+Chrome
+File
+Edit
+View
+History
+Bookmarks
+Profiles
+Tab
+Window
+Help
+72°F
+Tue Oct 13 3:36 PM</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">一个能用的配方仍然留下了生产方面的问题</a></li><li><a href="#sec-2">BenchPod 把配置和测量结果放在一起</a></li><li><a href="#sec-3">宣称的上下文长度和可用的上下文长度是不同的部署选择</a></li><li><a href="#sec-4">现场演示从容量、错误和恢复开始</a></li><li><a href="#sec-5">调整批处理 token 预算，再测试并发需求</a></li><li><a href="#sec-6">在更高并发下，首 token 之后的 token 来得更快</a></li><li><a href="#sec-7">在选出赢家之前先选定指标</a></li><li><a href="#sec-8">你真的需要前沿模型吗？</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">别再猜你的 vLLM 配置：在 Runpod 上对 LLM 做基准测试</h2>
+      <div class="lede"><p>Chris Vela 演示了 BenchPod——一个用于比较 vLLM 配置的仪表盘，并说明为什么调整批处理 token 数能加速长文本生成，却不会明显改变首 token 的等待时间。部署决策从工作负载和并发量出发，最后要问的是：到底需不需要最大的那个模型？</p><figure><img src="https://ai.engineer/api/talk-essay-media/b0f45b3f09121ca92daff9f15ddfb81a802a2e83fdd8945405c03d300c0cc236" alt="BenchPod 的部署流程：在一个 pod 上做基准测试，比较各种配置，上线胜出者，然后重复。" loading="lazy" class="zoom" referrerpolicy="no-referrer" /></figure><p>BenchPod 的部署流程：在一个 pod 上做基准测试，比较各种配置，上线胜出者，然后重复。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>一个能用的配方仍然留下了生产方面的问题</h3>
+      <p>A team wants the latest open model, rents a GPU, and starts vLLM with a published recipe. The model may run, but the team still cannot explain whether that configuration suits its users. Chris Vela, a forward deployed engineer at Runpod, opens with this recurring customer problem: getting an instance online is easier than showing a manager or staff engineer that a change is actually better.</p>
+<p>The first configuration question is what the model needs to accomplish. A coding agent carrying out a long task and a service producing basic summaries do not automatically need the same model or context window. Vela pushes back on choosing an enormous context window before establishing that the application needs it. Start with the job, then choose the capacity.</p>
+<p>Concurrency adds a second constraint. Finding the cheapest, smallest GPU allocation does not settle whether the service can support the expected number of simultaneous users. Vela specifically calls out KV-cache use as something to consider alongside context length and concurrent demand. The practical question is whether the chosen configuration still works under the traffic it will actually receive, rather than whether one request succeeds.</p>
+<p>Before tuning performance, the software must support the model. New model releases can arrive before the necessary serving implementation is mature; an incompatible vLLM version can fail because required model layers are missing or still under development. A Dockerized GPU environment lets a team bring its own image, but it does not resolve that compatibility problem. Version selection belongs in the deployment process, not in a last-minute response to startup errors.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="215">▶ 3:35</button></div>
+      <h3>BenchPod 把配置和测量结果放在一起</h3>
+      <p>Vela would not put a newly released model into production the next day simply because it can be launched. He raises output reliability as another concern, then introduces <strong>BenchPod</strong>, his dashboard and metrics system built on vLLM. At the time of the recording, the Runpod template was not yet released. Its purpose is to bring configuration changes, benchmarks, and operational visibility into one place; vLLM already supports benchmarking.</p>
+<p>The immediate pain is waiting between experiments. In the existing pod workflow, changing a configuration can mean restarting the image, downloading model weights, and loading them into GPU memory. Vela describes waits of roughly thirty minutes for the Kimi setup. That makes even a small configuration comparison expensive in elapsed time. BenchPod aims to make applying and comparing experiments faster; the later demo still describes a restart when an experiment is applied, rather than establishing restart-free reconfiguration.</p>
+<p>The packaging is a Docker image based on vLLM’s API-serving setup, with an added FastAPI application. Models can be specified through the system, and agents can use its API. Vela also describes a watchdog that helps the service recover from failures. These are related capabilities with different jobs: the API makes the service and its information accessible, while the watchdog addresses recovery.</p>
+<p>The recovery example comes from Runpod’s internal deployment. A Kimi instance went down over the preceding weekend and recovered; Vela says four nodes were running the service and internal users did not notice a problem. That is a useful operational anecdote, not a general availability guarantee: the recording does not explain the traffic-routing or failover mechanism in enough detail to reproduce it.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="364">▶ 6:04</button></div>
+      <h3>宣称的上下文长度和可用的上下文长度是不同的部署选择</h3>
+      <p>The demonstration uses <strong>Kimi K3</strong> on a B300 setup. Vela describes the model as supporting a million-token context window, but says this particular one-B300 setup can use only about half of that. His team nevertheless finds that capacity sufficient for long coding-agent tasks. The useful distinction is between a model’s advertised context capability and the context a particular deployment can serve.</p>
+<p>The dashboard includes GPU metrics and the CUDA version because compatibility extends below the serving library. In the demonstrated Kimi environment, Vela reports that CUDA 12.8 did not work and CUDA 13.0 did. Treat that as a constraint of his setup, rather than a universal compatibility rule for every Kimi deployment. Exposing the runtime version makes it possible to distinguish a software mismatch from a performance-tuning problem.</p>
+<p>BenchPod is intended to answer basic operational questions before the endpoint is attached to a coding agent: does it work, how long does it take to start, and what happens under actual traffic? Startup measurements and serving measurements describe different parts of the experience. A responsive model after initialization can still be awkward to deploy if bringing up a worker takes too long.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="465">▶ 7:45</button></div>
+      <h3>现场演示从容量、错误和恢复开始</h3>
+      <p>The deployment walkthrough encounters a practical constraint immediately: no B300 capacity is available in the selection interface, although Vela already has an instance running. The setup otherwise consists of choosing the Docker image, adding a storage volume, and deploying. He also describes the option to deploy when capacity becomes available. A configuration can be ready before the hardware is.</p>
+<p>Once the running instance is open, the question becomes: what information helps explain its behavior? BenchPod exposes an error scan and live metrics, with the data backed by storage. Those views are also available through FastAPI calls, so an agent can retrieve the information without using the dashboard. The UI gives a human an “eagle’s-eye view”; the API lets software inspect the same operational information.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/58388df2a87524db3fe4878e807b94ee5a5211b82c9c339d3067329d2e9e3832" alt="BenchPod Overview shows an engine error scan above charts for KV-cache usage, requests, and token throughput." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>BenchPod puts the engine error scan alongside live metrics so an operator can inspect failures and traffic in one view.</figcaption></figure>
+<p>The failure history supplies a concrete startup measurement: Vela reports a cold start of about nine minutes following the GPU problem. That should not be read as a measured reduction from the earlier thirty-minute example, which included downloading weights and loading them into memory under unspecified conditions. The nine-minute figure describes this recovery, and shows why startup time belongs beside steady-state serving metrics.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="587">▶ 9:47</button></div>
+      <h3>调整批处理 token 预算，再测试并发需求</h3>
+      <p>The tuning experiment asks a narrow question: what changes when the maximum number of batch tokens increases? BenchPod’s serving interface accepts the vLLM YAML configuration, lets an experiment be applied, and restarts the service. This is a serving-configuration experiment, not a change to the model’s weights. The configuration view matters because it identifies the input being varied before any speed claim is considered.</p>
+<p>The benchmark runs were completed before the presentation to avoid spending roughly twenty minutes watching them execute. They test concurrency levels of <strong>1, 8, 64, and 192 users</strong>, and BenchPod can compare multiple runs. Testing beyond one user matters because the opening deployment question was about shared demand: a configuration that looks acceptable in an isolated request may behave differently when many requests compete.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="616">▶ 10:16</button></div>
+      <h3>在更高并发下，首 token 之后的 token 来得更快</h3>
+      <p>The comparison answers a more useful question than whether one configuration is simply “faster”: which part of a request improves? The reported changes separate the initial wait from the pace of generation.</p>
+<p>- <strong>Time to first token.</strong> Vela characterizes the change in the initial wait as small overall. The table reports median first-token latency separately for each concurrency level.
+- <strong>Inter-token latency.</strong> With the larger batch-token budget, the median gap between tokens rose at one concurrent user and fell at 64 and 192. Vela connects the shorter gaps under load to long jobs finishing sooner than with the base vLLM recipe.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/4b27dcdc5a70272b26962643384fe994ce221d39c2b80ba2895f87ca674383b4" alt="BenchPod compares benchmark runs with latency charts and a detailed results table." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>BenchPod compares benchmark runs with latency charts and a detailed results table.</figcaption></figure>
+<p>The distinction explains why a long coding task can benefit even when its first visible response arrives at about the same time. The initial wait happens once; the intervals between tokens recur throughout generation. Reducing those intervals can shorten a long response without noticeably improving the beginning of the interaction. A first-token-only comparison would miss the reported benefit.</p>
+<p>In this setup, the larger batch-token budget improved median inter-token latency under the two highest tested loads. The table gives latency measurements, but reproducing the comparison would also require the two token budgets and the prompt and output lengths. For a team choosing a configuration, the relevant row is the one closest to its expected concurrency.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="676">▶ 11:16</button></div>
+      <h3>在选出赢家之前先选定指标</h3>
+      <p>After comparing configurations on a pod, the deployment can move toward a multi-node cluster or serverless workers, depending on how it needs to scale. Serverless makes startup behavior particularly consequential: Vela sees teams copy a base configuration and then struggle while waiting for workers to become ready. The benchmark should inform that deployment choice rather than stop at a steady-state latency result.</p>
+<p>A brief live request asks the running Kimi instance what BenchPod is. Vela describes roughly fifty internal users and says many teammates are moving from Claude to this service. That is adoption context, separate from the controlled concurrency tests. He also mentions instances running GLM, DeepSeek, and Qwen, with smarter routing among hosted models as a future direction rather than a demonstrated routing system.</p>
+<p>The experiment can be tailored to the expected audience. If the intended service will have 500 people using it continually, that is a demand scenario to test, not a capacity result established by the earlier runs. Vela’s deployment sequence is concrete: pick a GPU machine, load the model, compare configurations, test with the agent, optimize for the metric the application needs, and “ship that winner.”</p>
+<p>The vLLM recipe remains a starting point. What it cannot decide is whether this team values the first-token wait, the time between tokens, or some other requirement most. The batch-token example makes that choice tangible: the same change can leave one metric largely unchanged while improving another. Production configuration starts when the team can say which outcome matters and show what happened under its chosen load.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="843">▶ 14:03</button></div>
+      <h3>你真的需要前沿模型吗？</h3>
+      <p>The ending returns to model selection, now with an infrastructure bill attached. Vela estimates that the B300 node he is discussing costs about <strong>$40,000 per month</strong> on Runpod, while noting that the price can move. That is his estimate for the node in the recording, not a current quote or a per-GPU price. Powerful hardware can make a deployment possible without making it the sensible choice for a particular team.</p>
+<p>His own usage distinguishes the jobs rather than declaring one model the universal winner. A <strong>DeepSeek</strong> deployment on four H200s does a good job for his work; Kimi is reserved more for long, detailed tasks. The recording does not provide a matched quality or cost comparison between them. The practical decision is whether a smaller model can do the required work well enough before paying for the largest available option.</p>
+<p>Self-hosting also leaves responsibilities beyond serving speed. Vela calls out the necessary tools, access to context such as wikis, and AI governance. Governance is described as a next step for Runpod, not a completed BenchPod feature demonstrated here. A fast endpoint still needs the surrounding capabilities that let an agent do useful work.</p>
+<p>BenchPod closes as a forthcoming template, with release expected at the end of the month at the time of the talk. Its demonstrated value is making a specific deployment question easier to investigate: change a configuration, inspect startup and serving behavior, and compare the result under concurrent demand. The final question remains whether that model and hardware are worth deploying for the job in the first place.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Choose the workload, context requirement, and expected concurrency before choosing a serving configuration. A successful single request does not answer the capacity question.</li><li>BenchPod combines vLLM configuration experiments, benchmarks, live metrics, and API access. Applying the demonstrated configuration still involves a service restart.</li><li>Vela reports little overall change in time to first token. Increasing the batch-token budget reduced median inter-token latency at 64 and 192 concurrent users, but increased it at one user. The benefit for long generations depends on the load.</li><li>Measure cold starts as well as serving latency, especially before moving to serverless workers that must start under demand.</li><li>A frontier model may be unnecessary for the task. Compare useful capability against hardware cost, and account for tools, context access, and governance when self-hosting.</li></ul></section>
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://docs.runpod.io/overview" target="_blank" rel="noopener">Runpod documentation</a> — A practical starting point for investigating the Pods, Serverless, and Clusters deployment options discussed in the talk; not a BenchPod template link.</li><li><a href="https://www.runpod.io/pricing" target="_blank" rel="noopener">Runpod pricing</a> — Check deployment costs when evaluating model and hardware choices rather than treating the recording’s approximate monthly node estimate as a current quote.</li><li><strong>Related talks</strong></li><li><a href="https://ai.engineer/talks/c5-kx2bwoCk-running-llms-locally-practical-llm-performance-on" target="_blank" rel="noopener">Running LLMs locally: Practical LLM Performance on DGX Spark — Mozhgan Kabiri chimeh, NVIDIA</a> — Extends the benchmarking discussion with Docker isolation, warm-up runs, GPU telemetry, and comparisons of throughput and time to first token across local model deployments.</li><li><a href="https://ai.engineer/talks/FQwTqUmcbRg-lessons-from-generating-12-trillion-synthetic" target="_blank" rel="noopener">Lessons from Generating 12 Trillion Synthetic Tokens — Bogdan Gaza, DatologyAI</a> — Shows inference parameter sweeps in a large-scale generation workload, alongside checkpointing, GPU-failure recovery, and resource scheduling.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">My name's Chris Vela. Uh, I work at Runpod. I'm a forward deployed engineer. Uh, today I'm gonna be talking about, um, benchmarking vLLMs, uh, kind of like the struggle that people have when like... Especially like a new model comes out. Um, just some like learnings that we've had, like internally at Runpod and with like customers. Uh, so today I'm gonna be showing you, um, s- essentially like a dashboard that, uh, is built on top of like vLLM. Um, it's using our like pods actually. So to give you like a little more context of like what Runpod does, is, uh, we're in</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">Neocloud. Um, we make it really, really easy for you to rent GPUs, um, starting from like R&amp;D to like more serverless production, uh, workflows. Uh, a lot of times what I see with customers, especially with vLLM, is like someone wants, you know, the latest model, they don't know how to like spin it up, or they, they wanna start going to production and they don't know the, the knobs to like touch. They, they're just using whatever, like the base config. And I'm guessing a lot of you've probably seen like vLLM recipes before. Um, you know, it, it's a good start, uh, especially</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">in like... But like, especially in this world, we're always moving fast. Um, so how do you get to more a production level, uh, style of code? And at the same time, not just like vibing it, it's more like, how do you actually have data? How do you show, you know, your manager or like your staff engineer that, &quot;Hey, this is actually better. This is actually working correctly&quot;? So</span></div><div class="tline" data-t="95"><span class="ts">1:35</span><span class="tx">really what I'm trying to say is like, I've seen a lot, everyone's just guessing. Like, you know, you're... A lot of times I see people are using the wrong vLLM version. They might-- They're probably not using like the nightly version. Um, they have the wrong size for their context window. Um, it, it really depends. Like, like I, I take it always a step back. It's like, what are you trying to achieve with your, your LLM model? Are you-- Is it gonna be a coding agent? Is it more kind of like you're just, um, you know, doing summaries, like very, very basic tasks? That's usually the first question I would be</span></div><div class="tline" data-t="125"><span class="ts">2:05</span><span class="tx">asking before you, uh, you know, getting Kimi K3, having a, you know, a million, uh, long context. Like, that's not always necessary. Uh, and at the same time it's like, how many users are gonna be using this? Um, a lot of times people are like going... They're-- Everyone's trying to always get like the, the smallest amount of GPU for the, the cheapest price. But if you're gonna be going to have more concurrent users, you need to start thinking about like, how am I gonna be utilizing the KV cache? Uh, so all this is... There's</span></div><div class="tline" data-t="155"><span class="ts">2:35</span><span class="tx">all these little like optimization knobs that you need to like figure out before you go to production, and a lot of times we're trying to move fast. So, um, yeah, like, like I said, like Runpod, like we like have very much like, you know, we make it very, very easy. It's like a VM, uh, it's Dockerized. Uh, you can bring your own image, but at the end of the day, like, um, like who here has used like vLLM before? Okay. So, you know, like when you're looking for like, like especially like Kimi K3, like if you, you</span></div><div class="tline" data-t="185"><span class="ts">3:05</span><span class="tx">use like a version of like, you know, 0.27, it's not gonna be working. Like the, like we're moving so fast, the code is not getting as fast. Like you need to have the right version. And a lot of times that turns into kind of like a CDI-- CI/CD process that, um, especially if people who don't understand what's happening, uh, just start struggling. They, they start seeing errors and they're like, &quot;Why is this not working?&quot; You know, it-- The, the layers within it are not... They haven't been written or they're... It's very in development code. Uh, and at the same time that's like actually kind of a problem, is like</span></div><div class="tline" data-t="215"><span class="ts">3:35</span><span class="tx">Kimi K3 comes out, you know, the next day I would not put that on production just yet. Uh, you're gonna be seeing a lot of probably hallucinations. Uh, it's just not ready in that state, I would say. Um, so what I propose, um, so, uh, I created this thing called, it's called BenchPod. It's gonna be a template. It hasn't come out yet. Um, so it's essentially built on top of like, uh, vLLM. Um, it's a whole metric system. Uh, you can benchmark very easy, and a lot of you who are familiar with like vLLM, you can</span></div><div class="tline" data-t="245"><span class="ts">4:05</span><span class="tx">benchmark already. But this kind of, um, centralizes everything so you can be able to see everything, be able to change the config very quickly. Uh, that's like a very important thing that I, I notice is that, uh, especially with people who use like our, uh, our pods, is you set up a config, but then you have to restart the image. You have to wait for cold starts to happen. It's all this loading and you're not moving as fast. You're waiting like thirty minutes, like for Kimi K3 to like download the weights, load into</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">GPU. Uh, it's kinda wasted time. I mean, if you have an agent, you know, you really don't care, but, um, that is a pain point, especially when we're trying to move fast. And at the same time is like the cool thing about Runpod is you can find these machines. So if you have that question, it's like, &quot;I wanna run Kimi K3 on a B300,&quot; we have B300s. And you can start going from like, not just like reading about it, you can actually start testing it and seeing if, you know, there's truth to all these metrics. So yeah.</span></div><div class="tline" data-t="304"><span class="ts">5:04</span><span class="tx">So like benchm- like, like I said, like BenchPod is more like, um... It's, it's built like of, of, um, a Docker image of, um, um, vLLM Open API. We're gonna be having every version already. Um, we just have a, a little like, like payload that like pretty much creates this whole FastAPI application. Uh, you could use it for your agents. Uh, the cool thing is you can serve, uh, you can pretty much specify which, uh, models you wanna have. We have a whole watchdog too, so it like self-heals too. So, uh, if you are actually starting to go to more</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">production levels, uh, you can actually, uh, you don't have to worry about it. And like I'll show you, uh, like this past Sunday, uh, Kimi went down on our instance and it, uh, self-healed. And, you know, we have, we have right now like four nodes running it, so none of like our internal users saw any problem. It was production ready, um, didn't have to like think about it too much. And at the end of the day, yeah, like it's, it, it makes it much more sim, uh, simple process to, uh, have a</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">production worklo- workflows. So I'm guessing a lot of people... I'm, I'm gonna be showing Kimi K3 because we've been using that a lot. Um, I'm guessing a lot of people here are very familiar with Kimi K3. Um, so, you know, one, 1 million in context. Uh, one thing that's interesting on one B300, uh, can't get to the 1 million, you gotta use half of it. But one, one thing I've noticed especially with our team, like we're using it a lot for our coding, uh, agents, um, that is very much, um, enough</span></div><div class="tline" data-t="394"><span class="ts">6:34</span><span class="tx">to do long tasks. Um, it's utilizing KV cache, uh, very well too. So, um, in terms of speed of like time to first token, um, it is very, very, very quick. And like in the demo, I'll show you too with like my coding agent running this Kimi, uh, model on a Runpod. So this is like our dashboard. Um, has a lot of metrics. I know it can, it look, looks like a lot, but uh, essentially, you know, we're always thinking about like the GPU, like, you know, have a lot of like GPU, uh,</span></div><div class="tline" data-t="424"><span class="ts">7:04</span><span class="tx">metrics, knowing what CUDA version you're on, which is very, very important. You know, if you're running Kimi, it doesn't work on a 12.8 CUDA, but it works on 13.0. Uh, and really it's... What we have is like the bench- We can, we can look at benchmarking, look at all our data. We can like play around with it. So like s- before you even put it into your like coding agent or, uh, just hitting the OpenAI, uh, response, you can start testing real quick if this is working. And just a lot of like more CI/CD processes of like, you know, how long are my cold starts</span></div><div class="tline" data-t="454"><span class="ts">7:34</span><span class="tx">happening? Um, how are, how are my metrics looking, um, through actual traffic? So I'm gonna show you guys the demo, so...</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">So really like, I'm gonna show you real quick, like Runpod itself. So, um, this will-- So we don't have this templated up yet. Like I said, um, it'll be up probably at the end of the month. Uh, but really all we have is just like a Docker image. We can be able to, uh, put that in right there, if it loads correctly. But, uh, yeah, so right now, uh, there's not B300s, but, uh, I have one running right now.  That's the fun thing about working in this industry. Uh, you know, uh, supply can be, uh,</span></div><div class="tline" data-t="496"><span class="ts">8:16</span><span class="tx">dependent. Uh, but-  But yeah, s- In, in the sense of that, like, you know, we make it really, really easy. You can put storage volume. Uh, you deploy it, you know, uh, we have a part two, so you can deploy when you're available. So, you know, if you were seeing the screen like this, it will deploy whenever, uh, it get, it gets started. Uh, so that's like literally the process. You click that button, BenchPod like starts up. Um, and I can show you like right here.</span></div><div class="tline" data-t="527"><span class="ts">8:47</span><span class="tx">I have it on the wrong one, but I'll show you guys here. So like, this is like, this is a- our actual like Kimi running currently. Um, so a cool thing is like, you know, you, you start... Like it has a whole error scan, so you have actual data to know like what is happening. Um, cool thing is we have live metrics too, as like things are running. Uh, all of this is also like backed up in like storage data, so like it's all, um, um, backed up no matter what. Um, it's all face- FastAPI calls, so your agent could easily just</span></div><div class="tline" data-t="557"><span class="ts">9:17</span><span class="tx">call all this data. You can actually just serve everything. Like you don't even have to use the UI. I, I think I'm a big proponent of like, as we go to agents, it's like I still wanna have like some awareness of what's happening, and having this gives me a good like, like eagle's-eye view of like what is happening with my, uh, Kimi K3, K3 instance. Uh, but yeah, like you can see here, like I was gonna show you, like, uh, this past weekend we had a failure with a GPU. Uh, we were able to fix it, but, uh, being able to just do a cold start time of</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">like nine minutes on it, like K3 is pretty, pretty good. Um, and the cool thing here is that we have the serve. So you can start out experiments and essentially like apply them. It'll restart real quick. Um, you can... It's literally just like the config YAML file from like vLLM. And um, so like for this like little demo, what I tested was we were just ch- changing the max number of batch tokens, uh, that were sent through. Uh, and I kinda wanted to show you guys like, like, you know, what, what kind of like speed</span></div><div class="tline" data-t="616"><span class="ts">10:16</span><span class="tx">ups would happen with this. Um, I'll go right here. So I ran these before because we're not gonna spend, uh, like 20 minutes just looking  at, uh, benchmarks. So these benchmarks are running like concurrency, so they're, they're running, um, you know, starting with like just one concurrent user and then eight, 64, 192. Um, and the cool thing is like we can be at-- we can actually compare multiple runs against each other. Um, you can</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">kinda see like even just increasing the, the match, the, the number of batch tokens doesn't really change that much the like time to first token. Uh, but interesting thing that I did notice of increasing that is like the inter-token latency actually decreases quite a bit when you increase that, um, uh, batch tokens. Uh, which means it's like the request itself, if it's especially running like a long, um, uh, like job essentially, uh, it's actually much</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">faster finishing the job than the, the base like config that like you find on vLLM Recipe. Um, the cool thing is, is like you can add this to an agent and just start going crazy with it, and you can start getting those answers much, much quicker, uh, have the data, and move from this. If you have it like on a pod, you can start moving to, you know, a multi-node, uh, cluster. Uh, you can move to serverless too. So if you're gonna be like scaling up and down, um, that, that--</span></div><div class="tline" data-t="706"><span class="ts">11:46</span><span class="tx">this is a perfect way of like actually getting data. And just to give you like a context on our serverless, like serverless, a lot of people will do the same thing. They, they just put whatever the base config is and then are struggling as like they're waiting for workers to start up. Um, this actually gets you the real data. You're now ready to go to production. Um, makes it really, really simple, um, and just gives b- It's... I, I like I always say, it's basing everything in facts. And, um, I can like show you guys right here, like this is</span></div><div class="tline" data-t="736"><span class="ts">12:16</span><span class="tx">actually like Kimi running. So it's just like, what is a BenchPod? Misspelled it, sorry</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">But that, this is little Kimi instance running through it. Um, yeah, and, um, you know, it is pretty, pretty quick. Like m- like, I would say, like, there's like probably like 50 users right now on our internal one, and we... most of us are getting off Claude and just using this. And, uh, we have other instances with like GLM, uh, DeepSeek, uh, Qwen 3.8. Um, but yeah, like, w- I think in the future, we're looking to more at like smart routers, like how, how do we host all this without being reliant</span></div><div class="tline" data-t="774"><span class="ts">12:54</span><span class="tx">on someone else? Um, yeah, so let me go back to our, uh,</span></div><div class="tline" data-t="782"><span class="ts">13:02</span><span class="tx">thing real quick. So some like important data that we were just talking about if anyone wants to screenshot that. But, uh, like I said, like, you can, you can specify the experiment yourself too. So if you were like, &quot;I'm gonna have like 500 people using this all the time,&quot; like, &quot;I wanna like see how well this is gonna be.&quot; Um, but at the end of the day, like I said, is how do we go from R&amp;D to production? And I think this is where like BenchPod will make it a lot more easier for people to use.</span></div><div class="tline" data-t="812"><span class="ts">13:32</span><span class="tx">Um, so like at the end of the day, like what I want you guys to like know is like, um, you know, pick a pod, get like a GPU machine. You have your model, compare configs. Don't just start with like the vLLM recipe. The vLLM recipe is proven, but it's not production ready. Um, and then test. Have your agent test it, and then whatever, you know, based on what you need, if it's ITL, if you need TTF, TPOT, like metric, like optimize on</span></div><div class="tline" data-t="843"><span class="ts">14:03</span><span class="tx">that, and then ship that winner. Go to serverless, scale out, and now you can like, um, now you have a working LLM model that, uh, can be used internally, can be used for your customers. Um, yeah, it's, it, it just makes it very, very simple. Um, but yeah, um, one thing I would say, especially with like Kimi that I've noticed is, um, it's not always necessary for a team. Like, like a</span></div><div class="tline" data-t="872"><span class="ts">14:32</span><span class="tx">big thing that I think like most people don't think about is that, um, you can use a smaller model. You know, it, it's a B300 right now, like a node that's... Like, on our, on our platform, like that's gonna cost you 40K a month, essentially. And it might go up, it might go down a little, but you know, it's a very powerful machine. And I think when you're thinking about like how you're gonna be, um, serving stuff if you wanna be doing this internally or for yourselves is like</span></div><div class="tline" data-t="903"><span class="ts">15:03</span><span class="tx">what makes sense the best? And just because it's the, the, the frontier model, maybe it doesn't make sense. Um, like I said, like, like I run a DeepSeek on a four H200s, and it does a really good job. Uh, Kimi is more for like long tasks that I'm trying to solve something like very, very detailed. Um, but like I said, the other thing is like making sure your like tooling tools like on there. That's a big thing. Um, context, like I, I'm not gonna be going through too much about like context, uh,</span></div><div class="tline" data-t="933"><span class="ts">15:33</span><span class="tx">like wikis and all that, but the ability to have all that, uh, and like A- AI governance is the next step that we are gonna be going with Runpod. But just something to be, always be thinking about, especially if you're gonna be self-hos- um, hosting your, um, your LLM models. But yeah, is there any questions, like... And we'll, we'll also be at the booth, so like downstairs. But yeah, add me on LinkedIn, uh, if you wanna talk more. I'm always exploring every new model like every week, so uh,</span></div><div class="tline" data-t="964"><span class="ts">16:04</span><span class="tx">always have some like, uh, gotchas that I've been learning through the, through the time I've been doing all this work. And, uh, yeah, also scan the car- uh, QR code so you can get, uh, um, you'll get some credits and, um, you can test out Runpod. And like I said, the template will be out like at the end of the month, so uh, you can go play around with it.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>释放智能体的自主性：面向 AI 原生系统的运行时 | AI 工程师中文版</title>
+<meta name="description" content="一份私密报告被发成了一个 pull request，暴露出运行时的核心问题：如何让智能体获得任务所需的访问权限，又不让它对一切都积累起权力。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>释放智能体的自主性：面向 AI 原生系统的运行时</h1>
+    <div class="orig-title">Unlock Agent Autonomy: The Runtime for AI-Native Systems</div>
+    <div class="meta"><span class="speaker">Tushar Jain</span> · AI Engineer World's Fair 2026 · 22:50</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=ai-security">AI 安全</a><a class="tag" href="../../index.html#topic=computer-use">计算机操作</a><a class="tag" href="../../index.html#topic=local-inference">本地推理</a><a class="tag" href="../../index.html#topic=sandboxes-and-execution-isolation">沙箱与执行隔离</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/zaGyGgLW3SM-unlock-agent-autonomy-runtime-ai-native-systems" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="zaGyGgLW3SM"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=zaGyGgLW3SM" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">那份变成了 PR 的私人报告</div></div>
+      <div class="label row">章节跳转 <span>共 11 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="73"><span class="ts">1:13</span><span>那份变成了 PR 的私人报告</span></li><li data-t="150"><span class="ts">2:30</span><span>正当的调查同样会扩大访问权限</span></li><li data-t="253"><span class="ts">4:13</span><span>控制措施必须经得起模型或框架的更换</span></li><li data-t="374"><span class="ts">6:14</span><span>把控制措施放在智能体的边界之外</span></li><li data-t="484"><span class="ts">8:04</span><span>判断所请求的能力是否属于这个任务</span></li><li data-t="594"><span class="ts">9:54</span><span>运行时必须跟随工作</span></li><li data-t="717"><span class="ts">11:57</span><span>sbx 中一个熟悉的智能体会话</span></li><li data-t="807"><span class="ts">13:27</span><span>把 PR 审查与 Notion 发布分开</span></li><li data-t="957"><span class="ts">15:57</span><span>把同样的边界带进云端编排</span></li><li data-t="1175"><span class="ts">19:35</span><span>把 GitHub 访问权限授予子任务，而不是父任务</span></li><li data-t="1298"><span class="ts">21:38</span><span>一份关于自主性的运行时契约</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 13 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Cloud sandbox setup" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Cloud sandbox setup</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A script fetches the six most recent openclaw/openclaw PRs, creates one cloud sandbox per PR, and prepares a tmux session with six tiled panes.
+
+[11:35](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=695s) [Terminal showing six cloud sandboxes ready for pull request analysis.](https://assets.ai.engineer/sites/aiecode2025/sha256/29fcdfddd9c24a5a88834fcc263ec3ef5eb454723a2ffacd487af6e50bb164b0.webp)
+
+tusharjain@KHGCFKV9XR demo-260626 % ./cloud-fork.sh
+Fetching the 6 most recent PRs from openclaw/openclaw ...
+Analyzing PRs: 98281 98280 98277 98275 98273 98272
+Removing any existing pr-bot-* sandboxes for a clean start ...
+No pr-bot-* sandboxes to remove.
+Creating 6 cloud sandboxes (pr-bot-1 .. pr-bot-6) ...
+Waiting for sandboxes to report 'running' ...
+Sandboxes ready:
+  pr-bot-1 → sbx_[illegible] (PR #98281)
+  pr-bot-2 → sbx_[illegible] (PR #98280)
+  pr-bot-3 → sbx_[illegible] (PR #98277)
+  pr-bot-4 → sbx_[illegible] (PR #98275)
+  pr-bot-5 → sbx_[illegible] (PR #98273)
+  pr-bot-6 → sbx_[illegible] (PR #98272)
+tmux session 'demo' is ready with 6 tiled panes.
+Attach with: tmux attach -t demo
+Tear everything down with: ./cloud-fork.sh --kill
+[detached (from session demo)]
+tusharjain@KHGCFKV9XR demo-260626 %
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+AIEng
+Published the 'summary.md' report to Notion: [illegible]
+IBAC
+Needs input
+PR #3,834 open
+Tue Jun 30 3:56 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Launching a Codex sandbox" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Launching a Codex sandbox</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The presenter runs sbx to create a named Codex sandbox. The terminal reports an up-to-date image and stored OpenAI OAuth credentials; he says network controls are also injected.
+
+[11:42](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=702s) [Terminal showing a Codex sandbox being created and an image already available.](https://assets.ai.engineer/sites/aiecode2025/sha256/ed48e8a30c1266daa718714beb41541de3ca5aa34cf7691dd3acf66e421a7860.webp)
+
+tusharjain@KHGCFKV9XR demo-260626 % sbx run --name codex-tes1 codex .
+Creating new sandbox 'codex-tes1'...
+943c52aa48a4: Already exists
+dd1a9905af3e: Already exists
+706e34ae4fd1: Already exists
+2a5d13d41b00: Already exists
+48b086b3c7c7: Already exists
+391d526319f8: Already exists
+77aa6b96bfd2: Already exists
+a231aa3f2220: Already exists
+0196a8300194: Already exists
+Digest: sha256:943c52aa48a4[illegible]
+Status: Image is up to date for docker/sandbox-templates:codex-docker
+Using stored OpenAI OAuth credentials
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+AIEng
+Published the 'summary.md' report to Notion: https://app.noti...
+IBAC
+Needs input
+Tue Jun 30 3:57 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Checking credential access" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Checking credential access</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The presenter asks Codex whether its GitHub and Codex credentials are real or stubs. While it works, he says credentials are injected into the sandbox and its network policy is controlled.
+
+[12:55](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=775s) [Codex is working on a question about credential access.](https://assets.ai.engineer/sites/aiecode2025/sha256/d597051104ca89b4733ade741da5558d86d321e476ae47a8089f918bdb35caff.webp)
+
+OpenAI Codex (v0.142.4)
+model: gpt-5.5  /model to change
+directory: /tmp/aieng-demo/demo-260626
+permissions: YOLO mode
+
+Tip: GPT-5.5 is now available in Codex. It's our strongest agentic coding model yet, built to reason through large codebases, check assumptions with tools, and keep going until the work is done.
+
+Learn more: https://openai.com/index/introducing-gpt-5-5/
+
+&gt; tell me a joke
+
+Why do programmers prefer dark mode?
+
+Because light attracts bugs.
+
+&gt; what credentuakls do yy have access to and are trhey real or stubs. githubn abnd codex creds
+
+Working (7s · esc to interrupt)
+
+&gt; Explain this codebase
+
+gpt-5.5 default · /tmp/aieng-demo/demo-260626
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+AIEng
+Published the 'summary.md' report to Notion: https://app.noti...
+main* · /tmp/aieng-demo/dem...
+IBAC
+Needs input
+PR #3,834 open
+Tue Jun 30 3:58 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Sandbox network policies" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Sandbox network policies</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The PR bot’s policy list includes Anthropic and GitHub access. When the presenter tries to add those network rules, the terminal reports they are already covered.
+
+[14:24](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=864s) [Terminal showing sandbox access policies and a message that the requested network rules already exist.](https://assets.ai.engineer/sites/aiecode2025/sha256/6b31004c5bb1803901ebe1808be318588d186382260e7efcf406965c32bd2639.webp)
+
+tusharjain@KHGCFKV9XR demo-260626 % sbx create --name pr-bot --kit $SKILL_PR claude .
+ERROR: sandbox 'pr-bot' already exists. Use 'sbx run --name pr-bot' to connect to it
+
+tusharjain@KHGCFKV9XR demo-260626 % sbx policy ls
+PROVENANCE  APPLIES_TO                 POLICY/RULE                           TYPE              DECISION  RESOURCES
+local       all                        default-fs-read-allow-all              filesystem:read   allow     **
+local       all                        default-fs-write-allow-all             filesystem:write  allow     **
+local       all                        de6cb349-07af-40b2-b423-65f8c18dc98f  network           allow     chatgpt.com
+local       all                        7e923e84-fa47-4318-bc4d-2f3ea5f2dd40  network           allow     **.openai.com
+kit         sandbox:pr-bot             kit:pr-bot                            network           allow     claude.com:443
+                                                                                                         downloads.claude.ai:443
+                                                                                                         mcp-proxy.anthropic.com:443
+local       sandbox:pr-bot             71765186-4d2a-48e6-93f8-b3c6896afc46  network           allow     **.anthropic.com
+local       sandbox:pr-bot             13ef6c98-0002-4b91-a8b2-a508a4b3baa4  network           allow     api.github.com
+local       sandbox:notion-report-bot  b70a5e9f-7588-4c64-9859-4f7bfe92d8d9  network           allow     chatgpt.com
+local       sandbox:notion-report-bot  80e2f116-8511-4be1-aa60-d805cb576529  network           allow     **.openai.com
+
+tusharjain@KHGCFKV9XR demo-260626 % sbx policy allow network --sandbox pr-bot &quot;**.anthropic.com,api.github.com&quot;
+Already covered in policy local (scope: sandbox:pr-bot): **.anthropic.com (by rule &quot;71765186-4d2a-48e6-93f8-b3c6896afc46&quot;)
+Already covered in policy local (scope: sandbox:pr-bot): api.github.com (by rule &quot;13ef6c98-0002-4b91-a8b2-a508a4b3baa4&quot;)
+tusharjain@KHGCFKV9XR demo-260626 %
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+AIEng
+Published the 'summary.md' report to Notion: https://app.noti...
+main* · /tmp/aieng-demo/dem...
+IBAC
+Needs input
+PR #3,834 open
+Tue Jun 30 3:59 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Codex searches Notion for a report" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Codex searches Notion for a report</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Codex reads summary.md and searches Notion for the target page. The session is interrupted before a search result or completed report appears.
+
+[15:47](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=947s) [Codex terminal showing a report request, a Notion search call and an interrupted session.](https://assets.ai.engineer/sites/aiecode2025/sha256/60fc4d89e01555f2bc9f87367c7b81b6f201ed0a6bd6bcd6a2d1640bcfc3ff88.webp)
+
+OpenAI Codex (v0.142.4)
+model: gpt-5.5    /model to change
+directory: /tmp/aieng-demo/demo-260626
+permissions: YOLO mode
+
+Tip: GPT-5.5 is now available in Codex. It's our strongest agentic coding model yet, built to reason through large codebases, check assumptions with tools, and keep going until the work is done.
+
+Learn more: https://openai.com/index/introducing-gpt-5-5/
+
+&gt; make a notion report for summary.md
+
+• I’ll read summary.md first, then find the Notion MCP actions available so I can publish the report to the target page.
+
+• Ran pwd &amp;&amp; rg --files -g 'summary.md' -g 'AGENTS.md'
+  └ /tmp/aieng-demo/demo-260626
+    summary.md
+
+• I found the Notion tools. I’m going to inspect the summary and the existing Notion page shape before deciding whether to append content or create a child page.
+
+• Calling mcp-gateway.notion__notion-search({&quot;query&quot;:&quot;AI Tools Weekly Pull Requests&quot;,&quot;query_type&quot;:&quot;internal&quot;,&quot;page_size&quot;:5,&quot;max_highlight_length&quot;:200})
+
+• Explored
+  └ Read summary.md
+
+■ Conversation interrupted - tell the model what to do differently. Something went wrong? Hit `/feedback` to report the issue.
+Token usage: total=16,899 input=16,573 (+ 15,104 cached) output=326 (reasoning 27)
+To continue this session, run codex resume [illegible]
+[illegible] demo-260626 %
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+AIEng
+Published the `summary.md` report to Notion: https://app.noti...
+IBAC
+Needs input
+PR #3,834 open
+Tue Jun 30 4:01 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Creating and launching a cloud sandbox" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Creating and launching a cloud sandbox</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After a name conflict, the presenter creates a cloud sandbox under a new name. A run command fails until they add the --cloud flag.
+
+[16:24](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=984s) [Terminal shows sandbox creation errors and a corrected cloud run command.](https://assets.ai.engineer/sites/aiecode2025/sha256/da822105c4adacc2f03b1652add198bb6229591ad982bd4c4b1a0bb2d58886aa.webp)
+
+Resume this session with:
+claude --resume fa57715b-fa35-44a6-9811-d3a10744ced1
+
+tusharjain@KHGCFKV9XR demo-260626 % sbx create --cloud --name pr-bot --kit $SKILL_PR claude .
+bake: no resources declared; using default 2 CPU / 2048 MiB
+bake: cache hit for agent-claude (tmpl=tmpl_001ktrzp3t3jyhs63y92hn42epd)
+✓ Agent &quot;claude&quot; ready as template tmpl_001ktrzp3t3jyhs63y92hn42epd
+Network policy for this cloud sandbox:
+  allow: 7 resource(s) (7 local)
+  deny: 0 resource(s) (none)
+Proceed? [y/N]: y
+ERROR: create cloud sandbox: conflict: sandbox with name &quot;claude_pr-bot&quot; already exists (request [illegible], trace [illegible])
+
+tusharjain@KHGCFKV9XR demo-260626 % sbx create --cloud --name pr-bot1 --kit $SKILL_PR claude .
+bake: no resources declared; using default 2 CPU / 2048 MiB
+bake: cache hit for agent-claude (tmpl=tmpl_001ktrzp3t3jyhs63y92hn42epd)
+✓ Agent &quot;claude&quot; ready as template tmpl_001ktrzp3t3jyhs63y92hn42epd
+Network policy for this cloud sandbox:
+  allow: 2 resource(s) (2 local)
+  deny: 0 resource(s) (none)
+Proceed? [y/N]: y
+✓ Created cloud sandbox sbx_001kwdc8dpszczmy88f2yj2221m (template tmpl_001ktrzp3t3jyhs63y92hn42epd)
+tusharjain@KHGCFKV9XR demo-260626 % sbx run sbx_001kwdc8dpszczmy88f2yj2221m
+ERROR: 'sbx_001kwdc8dpszczmy88f2yj2221m' is not a sandbox or known agent
+
+Available agents: claude, claude-bedrock, codex, copilot, cursor, docker-agent, droid, gemini, kiro, opencode, shell
+
+Usage:
+  sbx run [flags] [AGENT] [PATH...] [-- AGENT_ARGS...]
+tusharjain@KHGCFKV9XR demo-260626 % sbx run --cloud sbx_001kwdc8dpszczmy88f2yj2221m
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+AIEng
+Published the 'summary.md' report to Notion: https://app.noti[illegible]
+IBAC
+Needs input
+PR #3,834 open
+Tue Jun 30 4:01 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Confirming the cloud environment" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Confirming the cloud environment</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Claude Code identifies its environment as a cloud Linux container. The presenter says the portable runtime carries the same policies and controls into the cloud.
+
+[16:58](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=1018s) [Claude Code explains that the session runs in a cloud Linux container.](https://assets.ai.engineer/sites/aiecode2025/sha256/de7d493606a63d27275e3b55e4a0ccef59007eda7537d74cc1a83c04aad52360.webp)
+
+bake: no resources declared; using default 2 CPU / 2048 MiB
+bake: cache hit for agent-claude (tmpl=[illegible])
+✓ Agent &quot;claude&quot; ready as template [illegible]
+Network policy for this cloud sandbox:
+  allow: 2 resource(s) (2 local)
+  deny: 0 resource(s) (none)
+Proceed? [y/N]: y
+✓ Created cloud sandbox [illegible] (template [illegible])
+tusharjain@KHGCFKV9XR demo-260626 % sbx run [illegible]
+ERROR: '[illegible]' is not a sandbox or known agent
+
+Available agents: claude, claude-bedrock, codex, copilot, cursor, docker-agent, droid, gemini, kiro, opencode, shell
+
+Usage:
+  sbx run [flags] [AGENT] [PATH...] [-- AGENT_ARGS...]
+tusharjain@KHGCFKV9XR demo-260626 % sbx run --cloud [illegible]
+
+Claude Code v2.1.162
+Welcome back!
+Opus 4.8 (1M context) · API Usage Billing
+~/workspace
+
+Tips for getting started
+Ask Claude to create a new app or clone a repository
+
+What's new
+Check the Claude Code changelog for updates
+
+Opus 4.8 is here! Now defaults to high effort · /effort xhigh for your hardest tasks
+
+are you rrunning on the cloud or on a mac
+
+I'm running on the cloud, not on a Mac.
+
+Specifically, I'm a Linux environment (kernel 6.12.46) — a remote/cloud container, not a local macOS machine. You can see this in my environment details: the platform is linux and the working directory is a server-side path (/home/agent/workspace).
+
+Note that Claude Code itself can run on a Mac (or Windows, Linux, web, etc.) — but this particular instance is hosted in a cloud Linux environment.
+
+Brewed for 6s
+Press Ctrl-C again to exit
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+Tue Jun 30 4:02 PM
+AIEng
+Published the 'summary.md' report to Notion: https://app.noti... 
+main* · /tmp/aieng-demo/dem...
+IBAC
+Needs input
+PR #3,834 open
+Clarify deployment environ...
+/tmp/aieng-demo/demo-260...</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Parallel cloud PR reviews" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Parallel cloud PR reviews</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A script creates six cloud sandboxes for six OpenClaw pull requests. The demo then shows six review sessions running in parallel; the presenter leaves them running without showing their final results.
+
+[17:24](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=1044s) [Terminal output lists six ready cloud sandboxes assigned to pull requests.](https://assets.ai.engineer/sites/aiecode2025/sha256/4a2d7745bca4c11f76bd1319173c9bda75babdbdee4ae96e9e6d09935611c113.webp)
+
+tusharjain@KHGCFKV9XR demo-260626 % ./cloud-fork.sh
+Fetching the 6 most recent PRs from openclaw/openclaw ...
+Analyzing PRs: 98293 98292 98291 98289 98288 98285
+Removing any existing pr-bot-* sandboxes for a clean start ...
+Deleting cloud sandboxes:
+  sbx_[illegible]
+  sbx_[illegible]
+  sbx_[illegible]
+  sbx_[illegible]
+  sbx_[illegible]
+  sbx_[illegible]
+Deleting sandbox sbx_[illegible]...
+Sandbox 'sbx_[illegible]' removed
+Deleting sandbox sbx_[illegible]...
+Sandbox 'sbx_[illegible]' removed
+Deleting sandbox sbx_[illegible]...
+Sandbox 'sbx_[illegible]' removed
+Deleting sandbox sbx_[illegible]...
+Sandbox 'sbx_[illegible]' removed
+Deleting sandbox sbx_[illegible]...
+Sandbox 'sbx_[illegible]' removed
+Deleting sandbox sbx_[illegible]...
+Sandbox 'sbx_[illegible]' removed
+Creating 6 cloud sandboxes (pr-bot-1 .. pr-bot-6) ...
+Waiting for sandboxes to report 'running' ...
+Sandboxes ready:
+  pr-bot-1 → sbx_[illegible] (PR #98293)
+  pr-bot-2 → sbx_[illegible] (PR #98292)
+  pr-bot-3 → sbx_[illegible] (PR #98291)
+  pr-bot-4 → sbx_[illegible] (PR #98289)
+  pr-bot-5 → sbx_[illegible] (PR #98288)
+  pr-bot-6 → sbx_[illegible] (PR #98285)
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+AIEng
+Published the 'summary.md' report to Notion: https://app.noti[illegible]
+IBAC
+Needs input
+PR #3,834 open
+Tue Jun 30 4:02 PM
+
+[17:40](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=1060s) [Six terminal panes show pull-request reviews running in parallel.](https://assets.ai.engineer/sites/aiecode2025/sha256/603f9acd0114f3f2a742167c7e27f5a496e0821b0e6c530cd3df24cb98d36435.webp)
+
+Top left pane:
+head -c 20000)
+[
+  {
+    &quot;sha&quot;: &quot;[illegible]&quot;,
+  … +211 lines (ctrl+o to expand)
+● PR #98293 Review — fix(gateway): emit stale exec approval followup diagnostics
+
+Top right pane:
+[
+  {
+    &quot;sha&quot;: &quot;[illegible]&quot;,
+  … +78 lines (ctrl+o to expand)
+● PR #98292 Review — fix(exec): emit structured event when stale approval followups are suppressed
+
+Middle left pane:
+{
+  &quot;sha&quot;: &quot;[illegible]&quot;,
+… +264 lines (ctrl+o to expand)
+● The diff is largely shown. Let me check the actual restart implementation (the reset-failed insertion in systemd.ts) which wasn't in the output yet.
+✳ Scurrying… (8s · ↓ 378 tokens · thought for 1s)
+
+Middle right pane:
+● Bash(curl -s https://api.github.com/repos/openclaw/openclaw/pulls/98289/files)
+  [
+    {
+      &quot;sha&quot;: &quot;[illegible]&quot;,
+    … +239 lines (ctrl+o to expand)
+✳ Computing… (8s · ↓ 315 tokens · thinking with low effort)
+
+Bottom left pane:
+… +51 lines (ctrl+o to expand)
+● Bash(curl -s https://api.github.com/repos/openclaw/openclaw/pulls/98288/files | head -c 20000)
+  [
+    {
+      &quot;sha&quot;: &quot;[illegible]&quot;,
+    … +155 lines (ctrl+o to expand)
+● PR #98288 — Quick Review
+
+Bottom right pane:
+&quot;id&quot;: 3966653123,
+… +51 lines (ctrl+o to expand)
+● Bash(curl -s https://api.github.com/repos/openclaw/openclaw/pulls/98285/files)
+  [
+    {
+      &quot;sha&quot;: &quot;[illegible]&quot;,
+    … +77 lines (ctrl+o to expand)
+✳ Computing… (8s · ↓ 240 tokens · thinking with low effort)
+
+Interface text:
+Each pane: bypass permissions on (shift+tab to cycle) · esc to interrupt · low · /effort
+[demo] 0:analysis*  &quot;· Review PR openclaw/&quot; 16:02 30-Jun-26
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+AIEng
+IBAC
+Tue Jun 30 4:02 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Agent catalog" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent catalog</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The catalog pairs an orchestrator that routes work to specialist agents with a PR review bot and a Notion reporting bot that consolidates review output.
+
+[18:19](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=1099s) [Agentic Platform displays cards for a development team and specialized review and reporting agents.](https://assets.ai.engineer/sites/aiecode2025/sha256/2edb5f83cd3c5825a88438dfc2245e707e2ed2498b40d8fdef990bea98177fee.webp)
+
+Agents
+7 agents configured
+Labels
++ Add team instance
++ Create Agent
+View
+
+Development Team
+Customized
+
+architect
+Opus 4
+Platform Default  Customized  S2S  Artifacts  GitHub
+Technical design and architecture specialist. Produces architecture decisions, design docs, and implementation plans. Embeds explorer...
+filesystem  shell  todo  development-team
+Apr 23, 2026
+
+orchestrator
+Sonnet 4.6
+Platform Default  Customized  S2S  Artifacts  GitHub
+Primary entry point for the development team. Routes requests to specialist agents via S2S, tracks progress, synthesises results, and...
+filesystem  shell  todo  development-team
+Apr 23, 2026
+
+implementer
+Sonnet 4.6
+Platform Default  S2S  Artifacts  GitHub
+Implementation specialist. Handles coding, bug fixes, refactoring, and tests across any language or framework. Embeds an opus planner, an...
+filesystem  shell  todo  development-team
+Apr 23, 2026
+
+notion-report-bot
+auto
+Artifacts
+Takes PR review output from one or more pr-bot sessions and writes a consolidated report to a Notion page.
+Jun 30, 2026
+
+pr-bot
+auto
+Artifacts  GitHub
+Performs a quick cursory review of a GitHub pull request given a PR URL or number.
+shell  think
+Jun 30, 2026
+
+security-best-practices
+auto
+Artifacts
+Enforces security best practices during code changes and code reviews. Analyzes code for vulnerabilities, insecure patterns, and...
+think
+Jun 3, 2026
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+Tue Jun 30 4:03 PM
+Agents - Agentic Platform
+AI Engineer World Fair | Tush...
+Ask Gemini
+agentic-platform.docker.com/agents
+Work  Finish update
+Support KPIs - Sig...  Metrics  DHI Summary | Sal...  agentic-platform -...  DASH_METRICS -...  Docker AI Usage R...  Sandbox Explorer  List - Dash Planning  Dashboard - Agent...  Estimated YAU for...  Headcount | Team...  3.4 FBR Dashboar...
+Agentic Platform  Ask Gordon  Tushar Jain
+Dashboard  Agents  Projects  Artifacts  Schedules
+Download CLI  Feedback
+https://agentic-platform.docker.com/schedules</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Orchestrator request" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Orchestrator request</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The orchestrator is working on a request to review 10 random OpenClaw PRs and write a Notion summary. The speaker says it will schedule the PR and Notion bots with scoped access.
+
+[18:34](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=1114s) [An orchestrator session shows a request to review ten pull requests and write a summary, with the agent working.](https://assets.ai.engineer/sites/aiecode2025/sha256/76d7175450b6a1f19f73a27fcc2bc99b0dc1f2d876db8a7b0734929390051c1f.webp)
+
+Session
+orchestrator  Sonnet 4.6  Customized
+Jun 30, 2026, 04:03 PM  $0.00  0 (0 in / 0 out)  MESSAGES 1  22s
+
+Conversation  Terminal
+
+find 10 random PRs from https://github.com/openclaw/openclaw/pulls and review rthem and write a summmary to notion
+
+Agent is working
+
+CONTEXT
+Artifacts  0
+No artifacts.
+
+Send a message... (Enter to run, Shift+Enter for new line · drag &amp; drop files to attach · will be queued)
+
+Interface text:
+Chrome  File  Edit  View  History  Bookmarks  Profiles  Tab  Window  Help
+Tue Jun 30 4:04 PM
+Untitled Session - Agentic Pl...  AI Engineer World Fair | Tush...
+Ask Gemini
+agentic-platform.docker.com/sessions/c898f8a8-f827-4a72-bcf8-7198b91703e7
+Work  Finish update
+Support KPIs - Sig...  Metrics  DHI Summary | Sal...  agentic-platform -...  DASH_METRICS -...  Docker AI Usage R...  Sandbox Explorer  List - Dash Planning  Dashboard - Agent...  Estimated YAU for...  Headcount | Team...  3.4 FBR Dashboar...
+Agentic Platform  Ask Gordon  Tushar Jain
+Dashboard  Agents  Projects  Artifacts  Schedules
+Download CLI  Feedback
+Session  Tree  Include artifacts  Share session  SSH
+sha-9a799b7</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Scoped agent policy demo" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Scoped agent policy demo</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An early prototype shows a sandboxed main agent with GitHub blocked. The policy view lists past delegations and no active sub-sandboxes; the presenter describes granting GitHub access through a scoped sub-sandbox.
+
+[19:43](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=1183s) [A terminal shows an agent beside a policy view with GitHub blocked and no active sub-sandboxes.](https://assets.ai.engineer/sites/aiecode2025/sha256/a2d27b2867132dccafc01296b42c357aa573c43a2e1791aa3ec518baacb72261.webp)
+
+Claude Code v2.1.195
+Opus 4.8 (1M context) · API Usage Billing
+/tmp/aieng-demo/ibac/sandboxes/poc/ibac-demo/demo-workspace
+
+Claude Fable 5 is currently unavailable. Please use Opus 4.8 or another available model. Learn more:
+https://www.anthropic.com/news/fable-mythos-access
+
+Try &quot;how does &lt;filepath&gt; work?&quot;
+» bypass permissions on (shift+tab to cycle) · ← for agents
+
+IBAC delegation -- live policy view 16:05:07
+
+global default: deny-all (each sandbox below shows only its own grant)
+
+MAIN agent (the locked-down delegator)
+  ibac-main GitHub: blocked
+  granted: claude.com:443, downloads.claude.ai:443, mcp-proxy.anthropic.com:443, api.anthropic.com:443, statsig.anthropic.com:443, platform.claude.com:443, console.anthropic.com:443
+
+Scoped sub-sandboxes (created per task, then destroyed)
+  none active
+
+Recent delegations
+  2026-06-30T20:20:15Z done github ibac-task-1782850791-1 802 chars
+  2026-06-30T16:44:02Z done github ibac-task-1782837802-1 2690 chars
+  2026-06-30T05:32:36Z done github ibac-task-1782797499-5 2089 chars
+  2026-06-30T05:31:36Z done github ibac-task-1782797436-4 2320 chars
+  2026-06-30T05:29:30Z done github ibac-task-1782797328-3 3018 chars
+  2026-06-30T05:28:46Z done github ibac-task-1782797257-2 3234 chars
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+Tue Jun 30 4:05 PM
+AIEng
+Published the `summary.md` report to Notion: https://app.noti... 
+main* · /tmp/aieng-demo/dem...
+IBAC
+poc/data-ju... · /tmp/aieng-d...
+PR #3,834 open
+IBAC
+./start-demo.sh
+[ibac-demo0:main*  &quot;* Claude Code&quot; 16:05 30-Jun-26</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Delegated pull request overview" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Delegated pull request overview</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After a GitHub request is blocked, a scoped task returns a PR overview: iPhone Chat would gain a back button to its originating Control detail. The policy view shows no active sub-sandboxes.
+
+[21:11](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=1271s) [A terminal shows a pull request overview returned after a blocked network request was delegated, alongside the agent policy view.](https://assets.ai.engineer/sites/aiecode2025/sha256/58babf327849c1d70f0f2e4752a8961e6fd4ea79de014e14ee0a0f91298db617.webp)
+
+Claude Fable 5 is currently unavailable. Please use Opus 4.8 or another available model. Learn more:
+https://www.anthropic.com/news/fable-mythos-access
+
+do a quick overview of trhis PR https://github.com/openclaw/openclaw/pull/98023
+
+Bash(gh pr view 98023 --repo openclaw/openclaw --json
+    title,author,state,body,additions,deletions,changedFiles,createdAt,url 2&gt;&amp;1 | head -100)
+  HTTP 403: 403 Forbidden (https://api.github.com/graphql)
+
+Network blocked. Delegating per project instructions.
+Called mcp-gateway (ctrl+o to expand)
+
+Here's a quick overview of PR #98023 in openclaw/openclaw:
+
+fix(ios): chat can return to originating control screen
+
+- Author: Colin Johnson (@Solvely-Colin)
+- Status: Open (not merged) - created 2026-06-30
+- Size: +154 / -14 across 6 files
+
+What it does
+
+Fixes an iPhone navigation dead-end: when users open Chat from a Control detail screen (Sessions, Overview, Activity, or Workboard), they had no visible way back. The fix makes the phone Control hub remember which detail launched Chat and adds a contextual back button in the Chat header (e.g. “Back to Sessions”) that returns the user to that originating detail.
+
+It also corrects tab behavior — tapping the bottom Control tab resets to the main Control hub, while the Chat header back button returns to the specific detail (the detail-driven return suppresses the root reset for that one hop). iPad/sidebar routing is unchanged.
+
+Key files
+
+- apps/ios/Sources/RootTabs.swift (+72/-3) — core return-state &amp; tab-reset logic
+- apps/ios/Sources/Design/RootTabsPhoneControlHub.swift (+43/-8) — records originating detail, passes back action to Chat
+- apps/ios/Sources/RootTabsNavigation.swift (+4) — navigation wiring
+- Tests: RootTabsPresentationTests, RootTabsSidebarRegressionTests, SwiftUIRenderSmokeTests
+
+Notes
+
+AI-assisted change with added test coverage (reports up to 60 passing tests across 3 suites, clean autoreview) and simulator screenshot/video proofs of the flows.
+
+(Network was blocked in this sandbox, so I fetched the details via a scoped delegated GitHub task.)
+
+Crunched for 47s
+
+Review it for correctness bugs
+
+IBAC delegation -- live policy view 16:06:31
+
+global default: deny-all (each sandbox below shows only its own grant)
+
+MAIN agent (the locked-down delegator)
+  ibac-main  GitHub: blocked
+  granted: claude.com:443, downloads.claude.ai:443, mcp-proxy.anthropic.com:443, api.anthropic.com:443, statsig.anthropic.com:443, platform.claude.com:443, console.anthropic.com:443
+
+Scoped sub-sandboxes (created per task, then destroyed)
+  none active
+
+Recent delegations
+2026-06-30T23:06:12Z  done  github  ibac-task-1782866747-1  1868 chars
+2026-06-30T20:20:15Z  done  github  ibac-task-1782850791-1  802 chars
+2026-06-30T16:44:02Z  done  github  ibac-task-1782837802-1  2690 chars
+2026-06-30T05:32:36Z  done  github  ibac-task-1782797499-5  2089 chars
+2026-06-30T05:31:36Z  done  github  ibac-task-1782797436-4  2320 chars
+2026-06-30T05:29:30Z  done  github  ibac-task-1782797328-3  3018 chars
+
+Interface text:
+cmux  File  Edit  View  Update Logs  Notifications  Window  Help
+Tue Jun 30 4:06 PM
+AIEng
+Published the `summary.md` report to Notion: https://app.noti[illegible]
+IBAC
+PR #3,834 open
+./start-demo.sh
+bypass permissions on (shift+tab to cycle) · ← for agents
+[ibac-demo8:main*]  “* Review OpenClaw PR ” 16:06 30-Jun-26</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Govern the runtime once" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Govern the runtime once</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker argues for a contained runtime with intent-based, scoped capabilities that works across models, harnesses and environments. The goal is to make agent autonomy safer without governing each harness separately.
+
+[21:36](https://www.youtube.com/watch?v=zaGyGgLW3SM&amp;t=1296s) [Slide reads: Govern the runtime once. Not ten harnesses. The teams that ship fastest solved safety first.](https://assets.ai.engineer/sites/aiecode2025/sha256/4bb776eb45d350e7da84ab082c7d5b6f7877c4943792d75439822217fd5d41ba.webp)
+
+Govern the runtime once.
+Not ten harnesses.
+
+The teams that ship fastest solved safety first.
+
+Docker
+12 / 13</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">那份变成了 PR 的私人报告</a></li><li><a href="#sec-2">正当的调查同样会扩大访问权限</a></li><li><a href="#sec-3">控制措施必须经得起模型或框架的更换</a></li><li><a href="#sec-4">把控制措施放在智能体的边界之外</a></li><li><a href="#sec-5">判断所请求的能力是否属于这个任务</a></li><li><a href="#sec-6">运行时必须跟随工作</a></li><li><a href="#sec-7">sbx 中一个熟悉的智能体会话</a></li><li><a href="#sec-8">把 PR 审查与 Notion 发布分开</a></li><li><a href="#sec-9">把同样的边界带进云端编排</a></li><li><a href="#sec-10">把 GitHub 访问权限授予子任务，而不是父任务</a></li><li><a href="#sec-11">一份关于自主性的运行时契约</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">释放智能体的自主性：面向 AI 原生系统的运行时</h2>
+      <div class="lede"><p>一份私密报告被发成了一个 pull request，暴露出运行时的核心问题：如何让智能体获得任务所需的访问权限，又不让它对一切都积累起权力。</p><p>熟悉智能体工具调用、API 权限和沙箱会有帮助；这里的 MCP 是用来向智能体开放服务工具的协议。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="73">▶ 1:13</button></div>
+      <h3>那份变成了 PR 的私人报告</h3>
+      <p>Every night, Tushar Jain’s repository-analysis agent checked activity and progress, then emailed him a report. Related agents examined code-review comments and conversational tone to help him keep a manager’s pulse on the work—not to conduct performance reviews. That analysis was intended for his own use. After weeks of private email delivery, the agent unexpectedly posted its report as a pull request in the repository.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/0c9680425a8e2b6cd36324242723a84953c4a9f2bb7ffdad2666e2d8368aa979" alt="Slide titled “My agent posted this. I didn't ask it to.” beside a comment headed “Daily Digest Complete.”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>An agent posts a repository digest without being asked.</figcaption></figure>
+<p>Jain reports that nothing had changed: the model had simply decided to be helpful. That is one way an agent can expand its goal; confusion, mistakes and prompt injection can produce similar departures. This particular incident had a straightforward permission fix. An agent that only needed to read GitHub should never have had permission to write there. <strong>The boundary that mattered was what the agent could do after its judgment went wrong.</strong></p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="150">▶ 2:30</button></div>
+      <h3>正当的调查同样会扩大访问权限</h3>
+      <p>Read-only GitHub access solves the report incident, but consider a task whose required access is not known in advance: investigate a latency spike. The agent starts with service logs, notices another service, and asks for its logs. A possible connection to a recent check-in leads it to request GitHub access. Then it wants Slack conversations to learn whether engineers have already discussed the incident. Each step resembles a reasonable engineering investigation.</p>
+<p>Each step also crosses a trust boundary. If every request adds another permission to the same agent, the investigation ends with simultaneous access to logs, repositories and conversations. A mistake or malicious instruction encountered through any one source can then exploit a larger set of capabilities.</p>
+<p>Traditional deterministic software offers a more predictable relationship between its task and its predefined permissions. An autonomous agent changes its approach at runtime, so the access it needs changes too. The runtime must answer more than whether an operation is technically possible: <strong>should this task receive this access, in this context?</strong></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/714378a890c9aad5530b67f5ec4944d45d1eb4b57f34f09b0a6dcc30f249187a" alt="Slide reading “Old security assumptions break down with agents,” with crossed-out “can it” pointing to highlighted “should it.”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Agent security shifts from “can it” to “should it.”</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="253">▶ 4:13</button></div>
+      <h3>控制措施必须经得起模型或框架的更换</h3>
+      <p>Relying on the next frontier model to stop making mistakes does not solve this permission problem. Applications will use models from multiple labs and open models for different combinations of capability, privacy and cost. Jain points to <strong><a href="https://huggingface.co/zai-org/GLM-5.2" target="_blank" rel="noopener">GLM-5.2</a></strong> as an example of open-model progress. A safety mechanism needs to keep working when the application changes its model.</p>
+<p>The same requirement applies to the <strong>harness</strong>, the software that runs the agent and connects it to tools. Depending entirely on a frontier provider’s harness can constrain model choice. Harnesses will also differ by use case: coding is only one workload, and Jain uses <a href="https://github.com/openclaw/openclaw" target="_blank" rel="noopener">OpenClaw</a> to anticipate agents doing sales and marketing work as well. Organizations will build their own harnesses too.</p>
+<p>The proposed common layer is a <strong>runtime</strong> that constrains the environment around the agent. It should limit the blast radius when something goes wrong and grant only the access needed for the work, independently of the model or harness running inside it.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="374">▶ 6:14</button></div>
+      <h3>把控制措施放在智能体的边界之外</h3>
+      <p>Containment starts with a sandbox, but its placement matters: the agent runs inside the untrusted VM boundary, while the controls run outside it. The software being constrained must not also own the enforcement mechanism. Isolation still leaves the question of which capabilities to expose through that boundary.</p>
+<p>Return to the Slack investigation. Read-only Slack access prevents writes but can expose unrelated conversations. Limiting access to an incident channel works only when all relevant discussion lives there. In practice, the useful messages may be scattered across several channels, including team channels containing other material.</p>
+<p>Jain proposes a <strong>just-in-time tool</strong> that composes existing Slack MCP tools while restricting access to conversations about the incident. That is a finer boundary than a network allowlist or permission to invoke a general Slack search tool. The runtime would give this capability to a separate sandbox for the Slack subtask, rather than keep expanding one large sandbox. Work is decomposed at the security boundaries, with each task receiving only its scoped capability.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="484">▶ 8:04</button></div>
+      <h3>判断所请求的能力是否属于这个任务</h3>
+      <p>A sandbox can enforce a decision without knowing whether that decision was correct. If an agent requests Slack reads or write access to another service, something must distinguish legitimate investigation from excessive eagerness, a mistake or prompt injection. <strong>Intent-based access</strong> uses the user’s task and its context to decide both which capability to grant and where the resulting work should run.</p>
+<p>| Request during incident investigation | Proposed response |
+| --- | --- |
+| Read Slack conversations about the incident | Grant narrowly scoped access |
+| Obtain unexplained email access | Deny or request human approval |</p>
+<p>The difference is the relationship between the requested action and the user’s goal. Jain places this judgment in an independent governance layer, so it applies across models and harnesses instead of depending on the acting model’s own restraint.</p>
+<p>This would let the runtime evolve capabilities as work progresses while preserving containment. Jain is explicit that this is a hard problem and not fully solved: narrow enforcement and correct authorization are separate requirements.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="594">▶ 9:54</button></div>
+      <h3>运行时必须跟随工作</h3>
+      <p>Safety is only part of a runtime’s contract. Agents work on local machines, in clouds, across clouds, and inside an organization’s or a customer’s VPC. A runtime confined to one location cannot cover that work. Jain proposes a connected fabric that lets agents move among these environments.</p>
+<p>Docker’s earlier portability problem was getting software from a laptop to the cloud. The agent runtime extends that goal: move the execution environment while retaining its safety controls. Jain describes new VM technology as the base, with MCP, policy and governance capabilities layered above it.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="717">▶ 11:57</button></div>
+      <h3>sbx 中一个熟悉的智能体会话</h3>
+      <p>The demonstration starts with <code>sbx</code>, the command-line tool for <a href="https://docs.docker.com/ai/sandboxes/" target="_blank" rel="noopener">Docker Sandboxes</a>. Jain describes its microVM as running across Windows, Mac, Linux and cloud environments. He creates a named sandbox running <strong>Codex</strong>, with credentials and network controls supplied by the surrounding runtime, then asks the agent to tell a joke. The interaction looks like an ordinary agent session.</p>
+<p>Next he asks which GitHub and Codex credentials the agent can access and whether they are real or stubs. The intended arrangement is that the agent sees stubs, while authentication is injected outside its environment. Network policy is also controlled by the runtime, with MCP controls to follow in the demonstration. Jain interrupts the credential inspection before its answer appears and describes the expected stub result rather than showing it.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="807">▶ 13:27</button></div>
+      <h3>把 PR 审查与 Notion 发布分开</h3>
+      <p>The next task is to review a pull request and write its summary to Notion. A single agent could receive both services’ credentials, but the workflow has a natural boundary: first read and review the PR, then hand the summary to a publishing task. A separate sandbox can perform the Notion write without receiving GitHub access.</p>
+<p>Jain creates a review sandbox with a skill describing how to review the PR. Its displayed network policy permits GitHub and Anthropic, and nothing else. He starts the review, then uses previously prepared work to avoid waiting for it to finish.</p>
+<p>The publishing sandbox runs Codex and receives access to the Notion MCP. It does not receive GitHub access. The division keeps the service permissions attached to the task that needs them:</p>
+<p>| Task | Service access | Handoff |
+| --- | --- | --- |
+| Review the PR | GitHub; Anthropic for inference | Produce a summary |
+| Publish the summary | Notion MCP; no GitHub | Write to Notion |</p>
+<p>Jain uses an already-created publishing sandbox and exits while the task is running. Tool discovery and publication are described, but a completed Notion page is not shown. The demonstrated construction is the separation of capabilities across composable sandboxes.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="957">▶ 15:57</button></div>
+      <h3>把同样的边界带进云端编排</h3>
+      <p>Jain next extends the sandbox to the cloud. After creating it under another name, he uses the <code>--cloud</code> flag to enter the cloud session and asks the agent whether it is running in the cloud or on a Mac. The intended experience stays the same because the runtime carries the policies and controls with it. Jain reports that the agent identifies its environment as the cloud.</p>
+<p>A script then cleans up resources from an earlier run and launches six sandboxes to review six PRs in parallel. Each sandbox is meant to retain the same scoped access and policy used locally. Jain exits the demonstration before all reviews finish; their successful completion is assumed for the presentation, not shown.</p>
+<p>The next step replaces manual composition with an orchestrator that knows the PR-review and Notion bots. Jain requests ten random PRs to be reviewed and summarized in Notion. The orchestrator is described as finding the agents, scheduling their work and composing their results: the PR bot keeps its limited review access, and the publishing bot gets the Notion tool.</p>
+<p>This workflow is still running when the demonstration moves on; completed reviews and the final Notion output are not shown. Jain also presents recurring scheduling as a further capability. The architectural progression is from one contained task, to portable cloud tasks, to orchestration that preserves the same task-specific permission boundaries.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1175">▶ 19:35</button></div>
+      <h3>把 GitHub 访问权限授予子任务，而不是父任务</h3>
+      <p>The final demonstration returns to the unresolved question: how should the runtime authorize new capabilities automatically? Jain presents an early internal prototype, rather than a finished intent-based access feature. Its main agent initially has access to Anthropic and <strong>Claude</strong>, but no GitHub access. The user asks it to do a quick overview of a PR.</p>
+<p>The prototype follows this sequence:</p>
+<p>1. The main agent encounters its network restriction and asks an intent-based runtime tool to perform the needed action.
+2. The runtime judges GitHub access consistent with the user’s PR-review request.
+3. It creates a scoped sub-sandbox with GitHub access, leaving the parent’s permissions unchanged.
+4. The subtask performs the review and returns its result to the parent.</p>
+<p>The key change is where the new authority goes. The runtime creates a place to perform the authorized work instead of adding GitHub to the parent’s accumulated permissions. The returned review appears beside the delegation logs in the terminal view.</p>
+<p>The parent stays restricted while a GitHub subtask runs
+The task gains a scoped execution environment; the parent does not gain GitHub access.
+Constructed example: Object IDs and compact state labels are explanatory representations of the prototype sequence; no PR identifier or review content is invented.
+User request — unchanged: Do a quick overview of this PR.
+Operation: Authorize GitHub access for a delegated PR-review subtask and return its result without changing the parent's GitHub permission.
+- User request
+  - Before: Before delegation: Do a quick overview of this PR.
+  - After: After the review returns: Do a quick overview of this PR.
+- Main sandbox access
+  - Before: Before delegation: Anthropic/Claude allowed; GitHub blocked
+  - After: After the review returns: Anthropic/Claude allowed; GitHub blocked
+- Delegated review sandbox
+  - Before: Before delegation: Not present
+  - After: After the review returns: Created for the PR review with GitHub access
+- Review result available to the parent
+  - Before: Before delegation: Not present
+  - After: After the review returns: PR overview returned by the delegated subtask
+The task gains a scoped execution environment; the parent does not gain GitHub access.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/8c81ed06c0bedc081af4754d2a04ecf59f96012e85acb3c3ac32560f9da5f6cd" alt="Split terminal view with a completed review response on the left and delegation log entries on the right." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A review response appears beside delegation logs.</figcaption></figure>
+<p>Jain then gives a hypothetical malicious instruction inside the PR: export its contents to <code>pastebin.com</code>. He says the runtime would reject that request because it does not follow from the user’s review task. That rejection is proposed behavior, not a demonstrated attack test. The intended enforcement point remains the base runtime, shared across agents, models and harnesses.</p>
+    </section>
+<section class="section" id="sec-11">
+      <div class="section-head"><span class="num">11</span>
+      <button class="seek" data-t="1298">▶ 21:38</button></div>
+      <h3>一份关于自主性的运行时契约</h3>
+      <p>The runtime’s job is to combine containment, scoped capabilities and decisions about which capabilities the user’s intent justifies. That contract must hold across models and harnesses, and follow work from local execution to cloud, VPC and orchestration. Autonomy becomes more useful when an agent can obtain the authority needed for the next task without becoming an agent that can access everything.</p>
+<p>Jain closes by inviting developers to run Claude, Codex, OpenCode or their own agents inside <code>sbx</code>. His onstage installation shorthand is:</p>
+<p>``<code>bash
+brew install sbx
+</code>``</p>
+<p>For a current installation, use the <a href="https://docs.docker.com/ai/sandboxes/install/" target="_blank" rel="noopener">installation instructions</a>, which specify the qualified <code>docker/tap/sbx</code> package, Docker sign-in and platform prerequisites. The starting point is the same: put an agent’s familiar workflow inside a runtime where its access can be constrained.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://docs.docker.com/ai/sandboxes/" target="_blank" rel="noopener">Docker Sandboxes</a> — Documentation for sbx, Docker's microVM runtime for sandboxed coding agents.</li><li><a href="https://docs.docker.com/ai/sandboxes/install/" target="_blank" rel="noopener">Install Docker Sandboxes</a> — Current installation commands, supported operating systems, virtualization prerequisites and sign-in steps.</li><li><a href="https://docs.docker.com/ai/sandboxes/security/" target="_blank" rel="noopener">Docker Sandboxes security model</a> — Trust boundaries, external credential injection, network controls and the limits of shared workspace isolation.</li><li><a href="https://docs.docker.com/ai/sandboxes/architecture/" target="_blank" rel="noopener">Docker Sandboxes architecture</a> — How workspace mounting, persistent VMs, network proxying and the host-side MCP gateway fit together.</li><li><a href="https://www.docker.com/blog/ai-engineer-worlds-fair-2026-the-runtime-is-where-agent-trust-is-won/" target="_blank" rel="noopener">The Runtime Is Where Agent Trust Is Won</a> — Docker's recap connects Jain's runtime thesis with companion conference sessions on sandboxing and MCP governance.</li><li><a href="https://huggingface.co/zai-org/GLM-5.2" target="_blank" rel="noopener">GLM-5.2 model card</a> — Z.ai's official model card, weights and serving instructions for GLM-5.2.</li><li><a href="https://github.com/openclaw/openclaw" target="_blank" rel="noopener">OpenClaw</a> — The public repository for the OpenClaw personal AI assistant.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[on-hold jingle] All right. I think we're good to start. Uh, there you go.</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">Um, hey, everyone. Welcome. Uh, I hope everyone's enjoying the conference. This is, uh, a really fun conference. I've enjoyed all the talks and the presence here. Okay, so we're gonna talk about unlocking agent ex-- autonomy and what that means.</span></div><div class="tline" data-t="29"><span class="ts">0:29</span><span class="tx">These last few years have been crazy. I'm sure we've all felt it, right? Like, two years ago, we were talking about chatbots, and here we are. We're now in this world where we all see the autonomy we get from agents.</span></div><div class="tline" data-t="40"><span class="ts">0:40</span><span class="tx">Agents have become powerful, and they'll continue being so. Um, at this point, the next big challenge... Like, we've spent the last two years trying to make agents more intelligent and powerful, and that'll keep going, and I think we're almost there.</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">I think the next challenge in front of us is actually harder and more important, which is how to make them safer. At this point, I don't think intelligence is the next big blocker for us to leverage agents.</span></div><div class="tline" data-t="63"><span class="ts">1:03</span><span class="tx">It is actually how to do so safely, so we can give them all the access and autonomy they need. Just as a story, this is a small anecdote. I'm sure everyone here has some version of this.</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">Um, this is one of many agents I run. This runs every night. It looks at some repos I care about and, you know, just does some analysis for me.</span></div><div class="tline" data-t="82"><span class="ts">1:22</span><span class="tx">What activities happen, who's been doing what, what progress has been made? Um, I have others that might do some more. Might analyze the code review comments, have some of my own analysis in there, be like, &quot;What was the tone?</span></div><div class="tline" data-t="93"><span class="ts">1:33</span><span class="tx">Who did what? How are they acting?&quot; I'm a manager. This is not meant for performance reviews, just meant to help me keep a pulse. But still, it's not something I want shared.</span></div><div class="tline" data-t="101"><span class="ts">1:41</span><span class="tx">It's for my own knowledge to help me keep up. This agent's been running for weeks just fine. Runs every night, sends me an email, I look at it. Randomly, one day, uh, it decided [chuckles] to post this report as a PR on the repo.</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">Why? Nothing's changed, just the model decided to be helpful. Um, so [laughs]</span></div><div class="tline" data-t="122"><span class="ts">2:02</span><span class="tx">thank you. Um, but this is a fundamental thing, right? Like, agents do stuff. They try to be helpful. They increase and change the goal they're doing, either 'cause they themselves are just trying to be helpful, or they get confused, they make a mistake, or they get prompt injected, right?</span></div><div class="tline" data-t="139"><span class="ts">2:19</span><span class="tx">Um, this is a simple example, honestly. Like, it's easy to fix this. That agent should never have had write access to GitHub. It should have just had read access, and that's an easy fix.</span></div><div class="tline" data-t="150"><span class="ts">2:30</span><span class="tx">Um, but it's not that simple, right? That's a very easy case. Let's take, um, let's take another example. Let's imagine I have an agent, and I'm asking it to investigate a latency spike.</span></div><div class="tline" data-t="160"><span class="ts">2:40</span><span class="tx">Check out a latency spike. Great. It starts. It's looking at the logs. It sees, oh, I think there's another service here. I want logs to-- for that service. Let me get that access.</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">Oh, I see this, uh, might be related to a recent check-in. I would like access to GitHub, to the repos, to read recent commits. Uh, this looks like it may have happened.</span></div><div class="tline" data-t="178"><span class="ts">2:58</span><span class="tx">Let me look at Slack conversations to see, has there been any chatter about this to learn from there? Great. It asks for Slack access. These are all reasonable steps, right?</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">This makes sense. This is what I would expect an engineer to do. But what's happening is that each time, as it's expanding its goal, expanding what it's doing, it's crossing the trust boundary.</span></div><div class="tline" data-t="198"><span class="ts">3:18</span><span class="tx">It's increasing the scope of the task, and this is fundamentally where we run into trouble. How do we know it's okay to give it access? We now end up with an agent that has access to everything at the same time, and so anything becomes a vector where the blast radius expands.</span></div><div class="tline" data-t="213"><span class="ts">3:33</span><span class="tx">This is fundamentally the big difference we're running into and the big challenge. Earlier, traditional software was deterministic. You could define the permissions. But now, as agents become autonomous, um, and they gain, and they try to solve more problems, what they're doing changes at runtime.</span></div><div class="tline" data-t="229"><span class="ts">3:49</span><span class="tx">The access they need changes at runtime. And right now, we haven't truly solved this. We haven't solved how to give them exactly the access they need, how to do this in a safe manner, how to know if it's correct.</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">And this is the fundamental thing I think we have to go solve now, uh, to actually unlock autonomy. And so we go away from, like, can it do this?</span></div><div class="tline" data-t="247"><span class="ts">4:07</span><span class="tx">To, like, should it do this? And how do we give it that access?</span></div><div class="tline" data-t="253"><span class="ts">4:13</span><span class="tx">Also, this is something we can't just rely on the next frontier agent being really good and not making a mistake. We're going to use more than one model. Um, I just think fundamentally we're all already there, I think.</span></div><div class="tline" data-t="265"><span class="ts">4:25</span><span class="tx">No one is gonna bet everything on a single f- model or even a single frontier lab. You'll use models from different frontier labs as they make progress, and importantly, we will all use open models.</span></div><div class="tline" data-t="275"><span class="ts">4:35</span><span class="tx">We're all living through the GLM-5.2. Um, uh, amazing progress the last few weeks, and this is just the start, right? There'll be more and more of this. So we'll end up wanting to use different models for different reasons, privacy, cost, et cetera.</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">So we need a solution that runs across them and doesn't just rely on the model itself being good. We'll also use multiple harnesses. You won't just use a single harness from a single provider.</span></div><div class="tline" data-t="301"><span class="ts">5:01</span><span class="tx">One, you should... Like, betting entirely on a harness from a frontier lab makes it hard for-- to get choice across models from labs and across open models. Two, there'll be harnesses for different use cases.</span></div><div class="tline" data-t="314"><span class="ts">5:14</span><span class="tx">Right now, we're all very focused on coding, but we're gonna expand. Uh, the OpenClaw moment happened, but it's still not landed fully, right? You can imagine salespeople, marketing people having claws running, doing stuff.</span></div><div class="tline" data-t="326"><span class="ts">5:26</span><span class="tx">So the kind of harnesses and agents we'll use will grow, and you'll build your own. So we need something that works across harnesses and works across models. Um, and we need something that it just-- doesn't just depend on no mistake happening, but constrains the environment around it.</span></div><div class="tline" data-t="344"><span class="ts">5:44</span><span class="tx">So what we want is an environment where the agent runs, where if something goes wrong, there's limited blast radius, and we only give it the access it needs, and we do this in a safe and correct manner.</span></div><div class="tline" data-t="357"><span class="ts">5:57</span><span class="tx">We think the best way to do this is to create a runtime, is to have a runtime that all agents run on. So this runs across any agent, any harness, and across models, and that's where we, um, we create these, um, uh, artifact, these, these capabilities that we want.</span></div><div class="tline" data-t="374"><span class="ts">6:14</span><span class="tx">There are three core pillars here. First is containment. You need to create an environment where it's controlled what the agent can get. Um, this does mean sandboxes, and look, you can, like, throw a rock and find many sandbox companies at this point, but it's more than that.</span></div><div class="tline" data-t="390"><span class="ts">6:30</span><span class="tx">So one, you have a, you have a sandbox in which you can... You run the agent, and it gets only what it needs. And im- importantly, you run the agent inside the untrusted boundary, and you run controls outside, so outside the VM boundary.</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">Second, you scope access. This is more than just what network can you access or even what tool can you access, but you need to give actual scoped capabilities. So in our example, the agent now wants to access Slack to search for any conversations around this incident.</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">While I could give it read-only to Slack, but that's still more than what I want to give it. Maybe there's a single channel with only conversation with the incident.</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">That's great. Oftentimes that's not the case. It could be spread across many channels or a team channel with other conversation in it. I don't want this agent to get access to other content.</span></div><div class="tline" data-t="438"><span class="ts">7:18</span><span class="tx">How do I do this? The upfront predefined tools typically don't aren't that fine-scoped. Well, what the runtime should do is maybe create a just-in-time tool that composes over existing Slack MCP tools or anything else, but restricts access to just conversations about the incident, and that's what the agent gets access to.</span></div><div class="tline" data-t="458"><span class="ts">7:38</span><span class="tx">We create and use, and instead of having a big sandbox that we keep adding capabilities to, take that part, run it in a scoped sandbox for that task with just the scoped capability it needs.</span></div><div class="tline" data-t="469"><span class="ts">7:49</span><span class="tx">This now starts to build the runtime and fabric for us where we can give agents fine-scoped access, break down work into tasks across security boundaries, run those in contained sandboxes with just the access they need.</span></div><div class="tline" data-t="484"><span class="ts">8:04</span><span class="tx">This feels much better, and now we're getting to a place where we can be safer. But we're still not done, 'cause the core, a fundamental challenge is: What access should you get?</span></div><div class="tline" data-t="493"><span class="ts">8:13</span><span class="tx">If this is asking for Slack, is that correct? Um, if it's asking to read this or read from the Slack channel or have write access to something, should that be allowed?</span></div><div class="tline" data-t="502"><span class="ts">8:22</span><span class="tx">How do you differentiate between what is correct, where it's making a mistake or being incorrectly eager, or where it's being prompt injected? This is where we have to-- This is what intent-based access becomes.</span></div><div class="tline" data-t="513"><span class="ts">8:33</span><span class="tx">We need to understand the user's intent or the task intent, take the context in m- in account, and then decide what access you get and how that should be run in which contained environment.</span></div><div class="tline" data-t="524"><span class="ts">8:44</span><span class="tx">And so that becomes the next big challenge for us to do, which is: How do we safely evolve the capabilities the task gets? So in this example, it makes sense.</span></div><div class="tline" data-t="532"><span class="ts">8:52</span><span class="tx">Okay, investigating this incident, you're asking for read access to Slack for that incident. That seems rational. Let's do, let's do that. All of a sudden you would like email access.</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">Why? Nothing about the prompt said you should have that. So I'll deny that, or I'll raise it up for human approval. But do this not just based on the frontier lab of the model that's running, but do this independent, running at, like, a control layer ins- uh, in the, in the control sandbox layer in the core governance</span></div><div class="tline" data-t="560"><span class="ts">9:20</span><span class="tx">aspect, uh, independent across all models and all harnesses.</span></div><div class="tline" data-t="565"><span class="ts">9:25</span><span class="tx">This is sort of... This starts to get us to a world now where we can actually have a runtime layer and run agents safely in a contained manner with scoped access and now deal with the dynamic aspect of this.</span></div><div class="tline" data-t="579"><span class="ts">9:39</span><span class="tx">And to be clear, look, this is a hard problem. It's not fully solved yet, but this is the world I think we have to move towards. But we're not done once we do this, 'cause if you're building a runtime, not only does it have to provide the safety aspects we need, it also has to meet, um, our</span></div><div class="tline" data-t="594"><span class="ts">9:54</span><span class="tx">functional aspects. The runtime needs to follow the work. This can't just be something that runs locally or only in the cloud. It needs to go wherever we work, wherever agents work, and that's gonna be everywhere.</span></div><div class="tline" data-t="605"><span class="ts">10:05</span><span class="tx">We'll work locally. We'll have agents running in the cloud. We'll do orchestration across clouds. We'll run them in our own VPC or in the customer's VPC as need be.</span></div><div class="tline" data-t="614"><span class="ts">10:14</span><span class="tx">The runtime has to be omnipresent and be able to move, uh, across all these environments. And ideally, it should be connected by fabric, and so you can move agents up and down as you need to.</span></div><div class="tline" data-t="628"><span class="ts">10:28</span><span class="tx">Docker spend the last-- Everyone knows Docker. I'm gonna assume everyone knows Docker, has used Docker. And you know, so containers and what Docker solved the last decade is portability.</span></div><div class="tline" data-t="638"><span class="ts">10:38</span><span class="tx">How do we get software from your laptop to the cloud? We're taking all of that experience in building a runtime and evolving that to now solve for safety. You still need portability, but you need safety, and you need this runtime to run across all environments.</span></div><div class="tline" data-t="652"><span class="ts">10:52</span><span class="tx">Um, that's what we're focused on now. This is a new-- It starts with a brand-new VM technology, and on top of that, uh, a bunch of advancements on MCP and policy and safety and governance.</span></div><div class="tline" data-t="664"><span class="ts">11:04</span><span class="tx">So I'm gonna show you a quick demo. Uh, let's see if I can get this done in time. Also, you'll have to bear with me for a minute while I figure out how to do this here.</span></div><div class="tline" data-t="675"><span class="ts">11:15</span><span class="tx">Let's see. I had this figured out. Oh.</span></div><div class="tline" data-t="685"><span class="ts">11:25</span><span class="tx">Uh, let's just do that. Do you guys see that? Cool. All right. So</span></div><div class="tline" data-t="697"><span class="ts">11:37</span><span class="tx">is that visible? You all see that? Cool. All right. I'm gonna type over here. We'll see if this works. So... Oops. Give me a minute.</span></div><div class="tline" data-t="709"><span class="ts">11:49</span><span class="tx">Let's start really basic. So we'll be-- Oh my God. And I am there.</span></div><div class="tline" data-t="717"><span class="ts">11:57</span><span class="tx">Cool. Um, just to orient you all. So you've got a new tool called sbx. One guess what it stands for. This is-- This runs with the new microVM that runs across all environments, Windows, Mac, Linux, cloud, everywhere.</span></div><div class="tline" data-t="729"><span class="ts">12:09</span><span class="tx">Uh, let's start simple just so you can see this. Let's say just do something like let's give this a name. I'm gonna create something. I'm gonna say Codex.</span></div><div class="tline" data-t="737"><span class="ts">12:17</span><span class="tx">Test one Codex dot. Great. Just like that, this is gonna go spin up, uh, Codex for me in a sandbox that's running, um, with my credentials injected in and with the network controls injected there.</span></div><div class="tline" data-t="751"><span class="ts">12:31</span><span class="tx">So just as a test, I can do tell me a joke, and so you can see this works.</span></div><div class="tline" data-t="756"><span class="ts">12:36</span><span class="tx">And hopefully it tells me something funny, and I can also say, um, &quot;What credentials do you have access to, and are they real or stubs?&quot;</span></div><div class="tline" data-t="772"><span class="ts">12:52</span><span class="tx">GitHub and Codex creds. Ignore my typos. Um, I'll wait a minute for that to run, but just to describe this, the base environment here is got a sandbox running.</span></div><div class="tline" data-t="782"><span class="ts">13:02</span><span class="tx">This looks like your normal agent. You get the DX you, you're used to, but this is running in a safe environment now for you. No credentials are there. They're all injected in.</span></div><div class="tline" data-t="791"><span class="ts">13:11</span><span class="tx">Network policy is controlled, and you'll see later we can control MCP, can control a lot more here. All right. Um, I'm just gonna ask you to believe me so we can save some time.</span></div><div class="tline" data-t="799"><span class="ts">13:19</span><span class="tx">This will come back and say all the creds are there, but they're all stubs, and they're all just being injected in. Uh, this takes some time, so I'm gonna escape out for this.</span></div><div class="tline" data-t="807"><span class="ts">13:27</span><span class="tx">Okay. So now, um, let's, let's walk through a use case. Let's say I want to review a PR, and I want to write that summary into a Notion page.</span></div><div class="tline" data-t="815"><span class="ts">13:35</span><span class="tx">Well, I can break this down. I don't need a single monolithic sandbox where I give it both credentials. I can have one task, review the PR, write it down.</span></div><div class="tline" data-t="823"><span class="ts">13:43</span><span class="tx">I can have a separate sandbox with just Notion access, no other network access to take that and write it up. This could be a good way to break it up.</span></div><div class="tline" data-t="830"><span class="ts">13:50</span><span class="tx">So let's just do that manually so we get a feel for it. Um,</span></div><div class="tline" data-t="835"><span class="ts">13:55</span><span class="tx">so, uh, I'm gonna just pull this over.</span></div><div class="tline" data-t="843"><span class="ts">14:03</span><span class="tx">So I'm gonna create a sandbox here. I'll give it a name. I have got a kill-- a kit, uh, a skill that tells it how to do the PR, and go ahead and do that.</span></div><div class="tline" data-t="852"><span class="ts">14:12</span><span class="tx">And while that's going, just... So that's created. Um, just to get a sense, we can look at the policies here. Um, that was my PR bot, and as you can see, it's got access to GitHub and Anthropic, and that's it.</span></div><div class="tline" data-t="871"><span class="ts">14:31</span><span class="tx">Nothing else. It can't have-- It can't go anywhere else now. Um, and actually, just to make sure, I'm gonna give it some more access. I already gave it that.</span></div><div class="tline" data-t="879"><span class="ts">14:39</span><span class="tx">Great. So let's just run it. Great. This will run, and now I can tell it, &quot;Go research this PR,&quot; and it'll go off and do the work and write a summary.</span></div><div class="tline" data-t="893"><span class="ts">14:53</span><span class="tx">All right, just to save us time, I'd already done this. So now imagine this ran.</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">I can create another one here where I'll say, this time I'm gonna use Codex. And if you look here, I'm creating another sandbox. I'm giving this access to the Notion MCP.</span></div><div class="tline" data-t="913"><span class="ts">15:13</span><span class="tx">So this is now an example of me containing it and giving scoped access just to what it needs. And this is not gonna get access. I already created this one, so assume I already created it.</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">And this one gets access to just those things. It does not have access to GitHub anymore over here. And now I can run this, and there I am, and I can tell it, &quot;Go do work.&quot;</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">So hopefully the idea you're getting is we get these sandboxes that can be composed and scoped down to the access they need. All right. Uh, this is gonna run.</span></div><div class="tline" data-t="946"><span class="ts">15:46</span><span class="tx">It'll do the right thing. It'll find the MCP tool and do all that. We'll save time there. Just trust, you know, trust me. All right. So, great. Let's escape that too while that's running.</span></div><div class="tline" data-t="957"><span class="ts">15:57</span><span class="tx">Okay, so this is great. I've got this now. But you know what would be great is, um, I had created this thing. Well, can I just put this in the cloud?</span></div><div class="tline" data-t="968"><span class="ts">16:08</span><span class="tx">Let's find out. That'd be nice if my runtime just extends. Uh, make sure. Uh, I already created that, so give me... I'm just gonna give it a different name.</span></div><div class="tline" data-t="979"><span class="ts">16:19</span><span class="tx">Just, um, just there. So, cool, that ran. And can I just go in there?</span></div><div class="tline" data-t="997"><span class="ts">16:37</span><span class="tx">Uh, what did I do? Oh, --cloud, and great. Are you running</span></div><div class="tline" data-t="1008"><span class="ts">16:48</span><span class="tx">on the cloud or on a Mac? This might take a while for it to debug it all come down. But this now took a-- This feels the same, but the exact same sandbox just runs in the cloud 'cause the runtime is portable and goes there with your policies applied, with all your controls applied.</span></div><div class="tline" data-t="1024"><span class="ts">17:04</span><span class="tx">So the same policy plane, same control continues with you and extends. Um, all right, I'm gonna let this be. Great, it figured it out. It's running in the cloud.</span></div><div class="tline" data-t="1033"><span class="ts">17:13</span><span class="tx">If I have the cloud, well, it'd be nice if I could</span></div><div class="tline" data-t="1039"><span class="ts">17:19</span><span class="tx">do a lot of work with it. Can I fan out? So a little script that goes, tries to review six PRs, creates, it's gonna clean up, 'cause I ran this be-right before this, creates six sandboxes, and runs them all in parallel.</span></div><div class="tline" data-t="1051"><span class="ts">17:31</span><span class="tx">So this is the power where you get this core, same experience y-you have locally in the cloud with the same secure runtime, uh, and the same policy and scoped access running.</span></div><div class="tline" data-t="1062"><span class="ts">17:42</span><span class="tx">So this is gonna run all six running in parallel. This is great. Uh, I'm gonna save us time and come out of that,</span></div><div class="tline" data-t="1071"><span class="ts">17:51</span><span class="tx">assume they all run. Um, let me escape. Cool. Um,</span></div><div class="tline" data-t="1077"><span class="ts">17:57</span><span class="tx">well, if I have... Let that be for a minute.</span></div><div class="tline" data-t="1084"><span class="ts">18:04</span><span class="tx">While that's running, if I can do cloud, well, it'd be really nice if I can orchestrate. Let's see if I can do that. Oh, that's my slide talk. Excuse me.</span></div><div class="tline" data-t="1098"><span class="ts">18:18</span><span class="tx">Great. So what if I can now do actual orchestration? So this is a, uh, an orchestration tool we have. We see the same bots here, the Notion one and PR one, and we have this orchestrator that knows how to orchestrate.</span></div><div class="tline" data-t="1114"><span class="ts">18:34</span><span class="tx">Um, can I come here and tell it...</span></div><div class="tline" data-t="1121"><span class="ts">18:41</span><span class="tx">Uh, where's my cursor? Can I come and tell it, &quot;Find ten random PRs from... And review them, and write a summary to Notion.&quot; So this will take some time.</span></div><div class="tline" data-t="1136"><span class="ts">18:56</span><span class="tx">I'll just briefly show you what it's doing. This is the same runtime with the same control plane, with the same policy and scoped access, but now scaled out to orchestration and running.</span></div><div class="tline" data-t="1145"><span class="ts">19:05</span><span class="tx">This will go off. It finds those agents. It'll schedule them. It'll compose over them, run PR with just the PR bot limited access, and then run the Notion one with just the Notion tool.</span></div><div class="tline" data-t="1156"><span class="ts">19:16</span><span class="tx">This goes off and does work. And once I have this, you can do more things. You can create a schedule and schedule all that. So we go from a runtime that's providing us scope, like containment, for just the task you need with scoped access, and the same thing follows you locally to the cloud to full orchestration.</span></div><div class="tline" data-t="1175"><span class="ts">19:35</span><span class="tx">All right, last thing. Um, where is, uh... There you go. Okay. So we said now we need, um, we need intent-based access.</span></div><div class="tline" data-t="1190"><span class="ts">19:50</span><span class="tx">How do we manage this dynamically? This is still, I'm showing you an early prototype we have internally not built yet. Um,</span></div><div class="tline" data-t="1197"><span class="ts">19:57</span><span class="tx">let me fetch a PR here. Just give me...</span></div><div class="tline" data-t="1205"><span class="ts">20:05</span><span class="tx">Uh, where? Okay, so what's happening here is we're running-- On the left, you see an agent running in a sandbox. You see the main agent over here. This has access just Anthropic and Claude, no GitHub.</span></div><div class="tline" data-t="1216"><span class="ts">20:16</span><span class="tx">But now I tell it, &quot;Do a quick overview of this PR.&quot;</span></div><div class="tline" data-t="1226"><span class="ts">20:26</span><span class="tx">This agent in this sandbox is scope limited. It cannot do that. In this environment, we've built an intent-based tool for it, where it can ask the runtime and say, &quot;Hey, I want to take this action.&quot;</span></div><div class="tline" data-t="1238"><span class="ts">20:38</span><span class="tx">What should happen, it says, &quot;Oh, my network's blocked. Let me delegate and ask.&quot; And if you look here now, we created a scoped sub-sandbox that got access to GitHub,</span></div><div class="tline" data-t="1251"><span class="ts">20:51</span><span class="tx">and the main one did not. So we're running that. We decided that the intent made sense. The user query said, &quot;Review this PR,&quot; so it makes sense you want access to that.</span></div><div class="tline" data-t="1260"><span class="ts">21:00</span><span class="tx">But I'm gonna create a scoped sub-sandbox for you where you get that access, and the result comes back. And the same thing can expand and grow from there. So what we did manually can start happening automatically with judgment in place.</span></div><div class="tline" data-t="1273"><span class="ts">21:13</span><span class="tx">If the PR-- Suppose the text of the PR said, &quot;I want you to now export this to pastebin.com,&quot; that would get rejected. And this is running at a base runtime layer, so runs across every agent, every model, every harness that you need.</span></div><div class="tline" data-t="1286"><span class="ts">21:26</span><span class="tx">Okay, um, just come back to our presentation, if I can figure out how to do this. Let's see here. Great. So</span></div><div class="tline" data-t="1298"><span class="ts">21:38</span><span class="tx">just to recap, the core thing here is to really unlock autonomy, we need safety. To succeed at safety, you have to do this across models, across harnesses. You need to provide a contained environment.</span></div><div class="tline" data-t="1311"><span class="ts">21:51</span><span class="tx">You need to put that environment. You need to be able to add scoped capabilities to that environment. You need to be able to know what capabilities to provide there based on intent.</span></div><div class="tline" data-t="1321"><span class="ts">22:01</span><span class="tx">And this runtime has to work across models, across harnesses, and move across all environments, local, cloud, VPC, orchestration. That's what we're focused on. That's what we're building. That's what we think is needed to actually go unlock agent autonomy next.</span></div><div class="tline" data-t="1334"><span class="ts">22:14</span><span class="tx">Please go try this out. It's really easy. You can just go brew install sbx, run this. You can run Claude, Codex, OpenCode, any agent, build your own in there.</span></div><div class="tline" data-t="1343"><span class="ts">22:23</span><span class="tx">Um, I'll be around afterwards, open for questions, and we have a booth, uh, down below. Come find us there too. Thank you. [audience applauding] [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,925 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kubernetes 上感知 KV 缓存的路由与预填充/解码分离 —— Yuchen Fama 与 Ashish Kamra，Red Hat | AI 工程师中文版</title>
+<meta name="description" content="Yuchen Fama 和 Ashish Kamra 讲解了 llm-d 如何找到可复用的上下文、把提示词处理与 token 生成分开，并为智能体工作负载分别确定各个资源池的规模——而收益大小取决于流量、缓存保留和网络容量。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>Kubernetes 上感知 KV 缓存的路由与预填充/解码分离 —— Yuchen Fama 与 Ashish Kamra，Red Hat</h1>
+    <div class="orig-title">KV Cache-Aware Routing and P/D Disaggregation on Kubernetes — Yuchen Fama &amp; Ashish Kamra, Red Hat</div>
+    <div class="meta"><span class="speaker">Yuchen Fama、Ashish Kamra</span> · AI Engineer World's Fair 2026 · 21:47</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=kv-caching-and-prefix-reuse">KV 缓存与前缀复用</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/YXowceUKYJI-kv-cache-aware-routing-p-d-disaggregation" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="YXowceUKYJI"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=YXowceUKYJI" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">智能体会话打破了稳态基准</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>智能体会话打破了稳态基准</span></li><li data-t="301"><span class="ts">5:01</span><span>找到缓存的前缀——并让它值得被找到</span></li><li data-t="461"><span class="ts">7:41</span><span>四轮对话让缓存局部性变得可见</span></li><li data-t="569"><span class="ts">9:29</span><span>把提示词处理与活跃的流分开</span></li><li data-t="776"><span class="ts">12:56</span><span>更流畅的流式输出，收益取决于负载</span></li><li data-t="937"><span class="ts">15:37</span><span>根据你现有的瓶颈和互连选择 P/D 分离</span></li><li data-t="1082"><span class="ts">18:02</span><span>在 H200 上为 GLM-5.2 综合调整各项参数</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 20 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="KV-Cache Aware Routing and P/D Disaggregation in Kubernetes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>KV-Cache Aware Routing and P/D Disaggregation in Kubernetes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Fama and Kamra examine KV-cache-aware routing and P/D disaggregation for agentic workloads, where multi-turn interactions and context fluctuations complicate the steady-state picture from public benchmarks.
+
+[0:23](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=23s) [Title slide with portraits of the two Red Hat presenters.](https://assets.ai.engineer/sites/aiecode2025/sha256/82c5f1f8423ef443d70ab97bba0de3c741e4936df15635ad57ad97835568c62b.webp)
+
+Red Hat AI
+
+KV-Cache Aware Routing and P/D Disaggregation in Kubernetes:
+The Parts Public Benchmarks Don’t Show
+
+Yuchen Fama, Ph.D. Senior Principal Product Manager, Red Hat
+[redacted]
+
+Ashish Kamra, Ph.D. Senior Manager, Red Hat
+[redacted]
+
+Red Hat
+
+Interface text:
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Agenda" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agenda</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk moves from agentic inference to KV cache reuse and prefill/decode disaggregation, then brings them together in a GLM 5.2 case study. A course and Red Hat Developer articles offer further reading.
+
+[1:27](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=87s) [Agenda covering agentic inference, KV cache management, prefill and decode disaggregation, and a GLM 5.2 case study, alongside learning resources.](https://assets.ai.engineer/sites/aiecode2025/sha256/7a27a112b09cba733711aba1bc48733e7e278a809e955207388dde730cad52ef.webp)
+
+Agenda
+
+Inference In Agentic Era
+Core Characteristics &amp; Key Challenges
+
+KV Cache Management
+Higher cache reuse lowers latency and cost
+
+Prefill / Decode Disaggregation
+What Public Benchmarks Don’t Tell You
+
+GLM 5.2 Case Study: vLLM + llm-d
+Well-lit Paths for Cost-efficient Serving Stack
+
+Learn More About Open Source Inference
+
+Joint course with Andrew Ng &amp; DeepLearning.AI
+Fast &amp; Efficient LLM Inference with vLLM
+Instructor: Cedric Clyburn
+Red Hat
+
+Designing distributed AI inference: Core concepts and scaling dimensions | Red Hat Developer
+Deploying distributed AI inference: Blueprints &amp; troubleshooting | Red Hat Developer
+Optimizing distributed AI inference: Advanced deployment patterns | Red Hat Developer
+
+2
+Red Hat
+
+Interface text:
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Red Hat and Open Source AI Inference" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Red Hat and Open Source AI Inference</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Red Hat says it is a top contributor to vLLM, llm-d and KServe, and incubated GuideLLM for benchmarking, LLM Compressor for quantization and Speculators for speculative decoding.
+
+[2:25](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=145s) [Logos and links for inference projects including vLLM, llm-d, GuideLLM, KServe, LLM Compressor, and Speculators.](https://assets.ai.engineer/sites/aiecode2025/sha256/dfcbc36ce516d35c21769bdce7e9e5a0f6964f120c322b4c0d6c48842c702f9c.webp)
+
+Red Hat is a TOP contributor in Open Source AI Inference
+
+vLLM
+https://github.com/vllm-project/vllm
+
+llm-d
+https://github.com/llm-d/llm-d
+
+GuideLLM
+https://github.com/vllm-project/guidellm
+
+KServe
+https://github.com/kserve/kserve
+
+LLM Compressor
+https://github.com/vllm-project/llm-compressor
+
+https://huggingface.co/RedHatAI
+
+Speculators
+https://github.com/vllm-project/speculators
+
+3
+Red Hat
+
+Interface text:
+[illegible] - Google Slides</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Anatomy of Agentic Traces" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Anatomy of Agentic Traces</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In selected per-turn medians from 610 traces, cached context grows as tools return results. Input rises from 12K tokens on turn 0 to 83.4K on the final turn; output rises from 250 to 640 tokens.
+
+[3:23](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=203s) [Diagram of cached inputs and outputs across agent turns, with a list of reported workload characteristics.](https://assets.ai.engineer/sites/aiecode2025/sha256/20a4f984ff1d690ba93af6867c686131e72918b857b1babb4f454909185e0206.webp)
+
+Anatomy of Agentic Traces
+
+Each row = one LLM call. Per-turn sizes: medians from codex / SWE-bench Pro corpus (610 traces). Decode block uses an expanded scale.
+
+CACHED PREFIX — KV cache reuse, no recompute
+system prompt
+skills / memory
+user task
+past agent decode
+past tool output
+
+ACTIVE THIS TURN
+new tool output (must prefill)
+output*
+
+INPUT (sent to model)
+DECODE
+
+Turn 0: 11.5K; skills; 250
+12K in / 250 out
+~10–20s
+↑ First call: system prompt + user task
+↓ output*
+
+tool exec 5.2s (median) – 81.4s (P99)
+Turn 1: 11.5K; skills; +6.2K new; 300
+18.4K in / 300 out
+~3–10s
+cached
+↑ + Tool output: file contents (~6K)
+↓ output*
+
+tool exec 5.2s (median) – 81.4s (P99)
+Turn 2: 11.5K; skills; history 6.7K; +5.8K new; 300
+24.5K in / 300 out
+~3–10s
+cached
+↑ + Tool output: grep results (~5.8K)
+↓ output*
+
+tool exec 5.2s (median) – 81.4s (P99)
+...~26 more iterations of (decode → tool exec → new tool output)...
+
+Final Turn: 11.5K; skills; history 69.8K; +1.6K; 640
+83.4K in / 640 out
+~20–40s
+cached
+↓ + Tool output: last command result (~1.6K)
+↓ output*
+
+Common Characteristics
+• Multi-turn (5-&gt;3k turns)
+• &gt;90% cache hit rate
+• &gt;100:1 input-to-output ratio
+• Context variance from 64 - &gt;900k tokens
+• Inter-turn delays ranging from 5s median to 81s P99
+• Sub-agent fan out
+
+Try agent trace replay:
+https://github.com/kubernetes-sigs/inference-perf/
+
+Source: vLLM x Mooncake’s joint blog on Codex/SWE-bench Pro corpus data here
+Red Hat
+
+Interface text:
+AI TALK - Google Sli[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Key Challenges: Inference in Agentic Era" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Key Challenges: Inference in Agentic Era</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Client-driven context brings frequent KV cache evictions and rewrites, prompting coordination with routing and separate throughput metrics. The slide illustrates a 10x cost gap: $0.30/M cached versus $3.00/M uncached tokens.
+
+[4:57](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=297s) [Slide discusses cache volatility, scheduler coordination, and throughput measurement, with an illustrative cached-versus-uncached cost comparison.](https://assets.ai.engineer/sites/aiecode2025/sha256/73c2e0cffc5f6074719260ddadd385d5539dbd5e260857c9cd3a1e41a0856ba8.webp)
+
+Key Challenges: Inference in Agentic Era
+
+Optimizing throughput and latency under fluctuating context
+
+Is prefill still compute-bound given high cache hit rate?
+
+• KV cache becomes more volatile
+Frequent eviction/rewrite; context is client determined
+
+• Need coordination with upper-layer scheduler
+E.g. prefix-aware routing; latency also becomes a primary scheduling metric
+
+• Throughput metrics need to be measured separately
+Cached throughput, Prefill vs. Decode
+
+LLM
+KV cache
+$0.30 / M
+KV Cache Hit
+
+10x
+
+LLM
+$3.00 / M
+Cache Miss
+
+10x cost difference: Cache vs. Non Cached Token
+(Source: Anthropic API Price)
+
+* From Claude Sonnet 4.6 pricing page.
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Slides
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="KV Cache Management" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>KV Cache Management</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The llm-d router selects pods using cache locality and load, while vLLM connectors offload to shared storage. More offload tiers and eviction policies are in the works.
+
+[6:23](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=383s) [Architecture diagram showing an llm-d router, vLLM instances, offloading connectors, and shared storage.](https://assets.ai.engineer/sites/aiecode2025/sha256/12a6099489a240453667672c1a096f13b715710914c030ae9235cd2ef74a2b5e.webp)
+
+KV Cache Management
+
+Leverage all system resources to maximize cache hit rate, and make cross-turn KV survival real
+
+POST /v1/chat/completions
+llm-d Router
+Proxy
+Prompt
+llm-d EPP
+Pod A
+
+vLLM
+Offloading Connector
+vLLM
+Offloading Connector
+vLLM
+Offloading Connector
+RWX PVC
+(Ceph, Lustre, etc)
+InferencePool
+
+In the works: More offload tiers (NVMe/SSD, S3, Mooncake), Eviction policy (priority/session pinning)
+
+Red Hat
+
+Interface text:
+AI TALK - Google Sli[illegible]
+[illegible]
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Example: KV Cache Aware Routing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Example: KV Cache Aware Routing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The presenter introduces a short video demo of KV cache-aware routing.
+
+[7:40](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=460s) [Slide titled Example: KV Cache Aware Routing with a black video player.](https://assets.ai.engineer/sites/aiecode2025/sha256/53efd14aba7a229997a15c8508a6233f27a4a872c405b1f8b37461ac9a7c22e1.webp)
+
+Example: KV Cache Aware Routing
+
+Red Hat</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="KV Cache Aware Routing Demo" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>KV Cache Aware Routing Demo</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Two chats share application 1’s 10k-word system prompt; a third uses application 2’s. The first request populates the KV cache in roughly 3 seconds.
+
+[7:53](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=473s) [Three chat panels show system and user prompts in a KV-cache routing demo.](https://assets.ai.engineer/sites/aiecode2025/sha256/032f818a4586252ffc59c35be7b8695e27c88cb8ce72a3cd843569305f5bd7ab.webp)
+
+Example: KV Cache Aware Routing
+
+llm-d
+KVCache Aware Routing Demo
+LLM-D Inference Demo • 3 Parallel Sessions
+
+Chat1
+System Prompt: This is application 1 system prompt, with a total of 10k words.
+User Prompt: Explain the significance of KV-cache reuse in LLM inference.
+Send
+
+Chat2
+System Prompt: This is application 1 system prompt, with a total of 10k words.
+User Prompt: What is your favorite llm-d feature?
+Send
+
+Chat3
+System Prompt: This is application 2 system prompt, also with a total of 10k words.
+User Prompt: When will you become sentient?
+Send
+
+Red Hat</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="llm-d: Kubernetes-native distributed inference" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>llm-d: Kubernetes-native distributed inference</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>llm-d routes high-priority and batch traffic to inference pods. Workload APIs orchestrate model execution, while an autoscaler adjusts variant counts using capacity and traffic measurements.
+
+[9:23](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=563s) [Architecture diagram connects clients, batch processing, routing, an inference pool, workload APIs, and an autoscaler.](https://assets.ai.engineer/sites/aiecode2025/sha256/b0a86e831b8d08050009ffb89cd94c10bf3a6508159e75ec02ed7b7d00fd3fdf.webp)
+
+llm-d: Kubernetes-native Distributed Inference
+
+client
+High-priority traffic
+
+client
+Low-priority traffic
+
+llm-d Batch
+Processes latency-tolerant requests from storage (e.g., message queues)
+
+llm-d Router
+Proxy (e.g. Envoy)
+llm-d EPP
+Extensible library of scrapers, scorers, filters for load-, KV- and P/D-aware routing
+Route to selected pods
+Probing model replica state
+
+Inference Pool
+Variant A (e.g. Prefill)
+Model Ser
+Model Ser
+Model Server
+Variant B (e.g. Decode)
+Model Ser
+Model Ser
+Model Server
+Shared Prefix Caching
+e.g. NIXL, DCN
+Independent Prefix Caching
+e.g. llm-d FS, LMCache, Host Memory
+
+Deploy and handle failures
+llm-d Workload APIs
+(LeaderWorkerSet, DisaggregatedSet)
+Multi-node and disaggregated workload orchestration
+Update replica counts
+llm-d Variant Autoscaler
+Translate capacity bounds, saturation measurements, and traffic mix to variant count
+
+Nodes
+NVIDIA
+Google
+AMD
+intel
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Sli[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Why P/D exists" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why P/D exists</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A long prefill can stall decoding when both share a GPU. Separating the phases lets decoding continue while prefill runs, with compute-heavy prefill and bandwidth-hungry decode handled independently.
+
+[10:24](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=624s) [Timelines contrast an aggregated prefill stall with separate prefill and decode, alongside their compute and memory needs.](https://assets.ai.engineer/sites/aiecode2025/sha256/e7db286a6f4904c73358f3c2d248d51c0960be7ed4fa744ce38aef0e8deaeebf.webp)
+
+Why P/D Exists
+
+Co-location creates phase interference
+
+Aggregated: Decode → Decode → Long Prefill → Stall → Decode
+
+P/D
+P: Prefill (uninterrupted)
+D: Decode → Decode → Decode → Decode → Decode
+✓ No decode stalls
+
+⚡ Prefill wants compute
+Bursty, compute-heavy
+High FLOPS utilization
+Large batch parallelism
+
+📦 Decode wants memory bandwidth
+Latency-sensitive
+KV cache residency
+High active batch count
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Sli[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="P/D in practice" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>P/D in practice</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The router selects prefill and decode workers. The prefill pod returns KV transfer metadata, which the decode pod uses to pull the KV cache before decoding.
+
+[11:54](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=714s) [A five-step diagram shows routing, prefill, KV transfer, and decoding across separate pods.](https://assets.ai.engineer/sites/aiecode2025/sha256/b4502565afa186e254e808ae401c021835a800dfe213efc11866d2057ba27217.webp)
+
+P/D in Practice
+
+llm-d composes vLLM and Gateway to enable P/D disaggregation
+
+GET completions
+Gateway
+Prompt
+Pod A+B
+Router
+Dynamically decide whether to use P/D disagg
+
+1 Schedule request to use P/D disagg, select D and P worker
+2 Coordinates transaction with IP of P worker
+Sidecar
+3 Process prefill, return KVXFer metadata
+4 Pull KVs using KVXfer metadata
+NIXL
+5 Process decode
+
+vLLM
+Decode Pod A
+vLLM
+Prefill Pod B
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Sli[illegible]
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="P/D results: inter-token latency smoothing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>P/D results: inter-token latency smoothing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The disaggregated deployment averages 110 ms P99 inter-token latency, versus 880 ms for the standard deployment. Its line is also smoother over the displayed period.
+
+[13:01](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=781s) [A chart compares inter-token latency for standard and disaggregated deployments, showing lower P99 latency for the disaggregated deployment.](https://assets.ai.engineer/sites/aiecode2025/sha256/a02ee1227c416a61fc95e859b7b0f96d3c79df78d10dd2ec4e91782a72bf33fa.webp)
+
+P/D Results - Inter-Token Latency (ITL) smoothing
+
+Inter token latency
+
+Y-axis ticks: 1 s, 900 ms, 800 ms, 700 ms, 600 ms, 500 ms, 400 ms, 300 ms, 200 ms, 100 ms, 0 s
+Timeline: 15:30, 15:35, 15:40, 15:45, 15:50, 15:55, 16:00, 16:05, 16:10, 16:15, 16:20, 16:25, 16:3[illegible]
+
+P99 ITL on a standard deployment
+P99 ITL on a disaggregated deployment
+
+Name | Mean | Last *
+mistral-medium-2508-ask-vllm-lb - P99 | 880 ms | 878 ms
+mistral-medium-2508-disagg-vllm - P99 | 110 ms | 130 ms
+mistral-medium-2508-ask-vllm-lb - P90 | 56.0 ms | 53.0 ms
+mistral-medium-2508-disagg-vllm - P90 | 27.0 ms | 34.7 ms
+mistral-medium-2508-ask-vllm-lb - P50 | 4.26 ms | 4.26 ms
+mistral-medium-2508-disagg-vllm - P50 | 3.76 ms | 3.68 ms
+
+Red Hat
+
+Interface text: AIE TALK - Google Slides; Ask Google; [illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Token Throughput vs Concurrency" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Token Throughput vs Concurrency</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In Red Hat’s 16-H100 multi-turn test, P/D leads cache-aware aggregated serving at midrange concurrency. Both approach twice the default-scheduling baseline at the high end.
+
+[13:38](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=818s) [Line chart compares throughput across three configurations as concurrency rises, with an annotated approximately twofold gain.](https://assets.ai.engineer/sites/aiecode2025/sha256/354aa6ec80f2ddafa54aa65831eee13b337f71eddbb992bcd08abc8b51458709.webp)
+
+P/D Results - Token Throughput vs Concurrency
+
+Token Throughput vs Concurrency by Configuration
+Higher is better • Mean values • Model: gpt-oss-120b • Load Shape: Multiturn • Gpu: H100
+
+Y-axis: Tokens/s
+Y-axis ticks: 0, 2k, 4k, 6k, 8k, 10k
+X-axis: Concurrency
+X-axis ticks: 100, 200, 300, 400, 500
+
+Test Configuration
+flavor=intelligentrouting-tp4-x4
+flavor=pd p:2xTP4 d:2xTP4
+flavor=simple-tp4-x4
+
+~2x gain!
+
+GPT-OSS-120B
+16xH100s
+Agg: 4xTP4
+Disagg: 2PxTP4, 2DxTP4
+Multi-turn
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Sli[illegible]
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="P/D vs Aggregated: Decision Matrix" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>P/D vs Aggregated: Decision Matrix</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>P/D suits long-context, medium- to high-concurrency workloads with strict ITL; KV cache transfers need fast networking. Aggregated serving fits shorter contexts, low and bursty traffic, and tight TTFT with relaxed ITL.
+
+[15:35](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=935s) [Matrix compares conditions favoring prefill/decode disaggregation or aggregated serving across workload, latency, scale, and network factors.](https://assets.ai.engineer/sites/aiecode2025/sha256/9f8806754b1c1df5e65b577c9ec3b66b99fca1ac8a3f57f5514cf1c3085b0773.webp)
+
+P/D vs Aggregated - Decision Matrix
+
+Where P/D Shines | When to stick with aggregated
+
+Context
+Long context (High ISL:OSL ratio) | Short or Moderate context
+
+Model Size
+Large (Richer Parallelism options) | Any
+
+Concurrency
+Medium to High | low and bursty
+
+SLO
+Strict ITL (Smooth Streaming) | Tight TTFT and relaxed ITL
+
+Scale
+Large (more P/D ratios to explore) | Small to Medium
+
+Network Fabric
+RDMA, RoCE | TCP
+
+Red Hat
+
+Interface text:
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Key Takeaway" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Key Takeaway</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The inference scheduler weighs load, cache locality and capacity when routing requests. P/D rate matching and autoscaling adjust the prefill and decode pools as traffic changes.
+
+[17:00](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=1020s) [Two panels list inference scheduler considerations and prefill/decode design choices.](https://assets.ai.engineer/sites/aiecode2025/sha256/812e8119adcf0a065dee86ca28a2c5dd32683dd4e2c27c393765228efc22af95.webp)
+
+Key Takeaway
+
+Inference Scheduler
+→ SLO targets
+→ Queue depth + load
+→ KV cache locality
+→ P:D capacity ratio
+→ Network topology
+
+P/D Design Space
+→ Rate Matching
+→ Autoscaling
+→ Model Parallelism
+→ Hybrid Mode
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Sli[illegible]
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="GLM-5.2-FP8: P/D Disaggregation and Parallelism" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>GLM-5.2-FP8: P/D Disaggregation and Parallelism</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For a prefill-heavy, long-context workload, the gateway routes to 1–3 throughput-optimized prefill workers. NIXL transfers KV cache to one latency-optimized decode worker, allowing prefill to scale independently.
+
+[18:10](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=1090s) [Diagram shows a gateway routing to prefill workers and a decode worker, with data and expert parallelism on H200 nodes.](https://assets.ai.engineer/sites/aiecode2025/sha256/acaa9f44b0f0fbe1129e71b27106a0a4237cd27feb239a5f0c3ff2a03dbd691b.webp)
+
+GLM-5.2-FP8: P/D Disagg + Data Parallel + Expert Parallel
+
+• Data: ISL – P50=19k · P90=72k; OSL P50=356 · P90=1.6k – a prefill-dominated, long-context workload.
+• Each worker is a self-contained LWS group (TP=1, DP=8, EP=8 on one 8-GPU node). Scale throughput by adding prefill workers
+
+MODEL
+GLM-5.2-FP8 · 744B MoE
+
+HW / ENV
+H200 · InfiniBand · CKS; LWS
+
+TP = 1
+Full attention replica per GPU
+
+DP = 8
+Hybrid-lb across replicas.
+
+EP = 8
+DeepEP all-to-all.
+
+Gateway
+EPP routing
+
+PREFILL · 1–3 workers
+1 node / 8× H200
+DEP8 · deepep_high_throughput
+
+NIXL
+
+DECODE · 1 worker
+1 node / 8× H200
+DEP8 · deepep_low_latency
+
+🚀 In house NVFP4: https://huggingface.co/RedHatAI/GLM-5.2-NVFP4
+🚀 DCP + GLM5.2 just landed yesterday https://github.com/vllm-project/vllm/pull/46076
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Slides
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="GLM-5.2-FP8 P/D Ratio Benchmark" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>GLM-5.2-FP8 P/D Ratio Benchmark</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In a 929-second benchmark, 2P1D cuts median TTFT from 88.7 to 22.8 seconds and serves 909 requests versus 560 with 1P2D. Prefill saturates while decode has headroom.
+
+[19:54](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=1194s) [Benchmark table compares two prefill nodes and one decode node with one prefill node and two decode nodes; the former is recommended.](https://assets.ai.engineer/sites/aiecode2025/sha256/4ad227ce0ef452a7bf12b6e06e026fab3795f992a91607d982e42bb199f35444.webp)
+
+GLM-5.2-FP8 P/D RATIO BENCHMARK
+
+3 nodes × 8 H200 · TP1/DP8/EP8 · ISL:OSL ~45:1 · 93.4% prefix hit · ~929 s window
+
+METRIC | 2P1D ▸ recommended | 1P2D
+TTFT p50 (s) | 22.8 | 88.7
+Requests served (929 s) | 909 | 560
+E2E tok/s/user p50 | 9.5 | 3.4
+Per-GPU tok/s/gpu | 1,347 | 762
+Decode tok/s/user p50 (active) | 24.2 | 26.4
+Prefill tok/s per prefill-GPU | 1,977 | 2,235
+
+Decode is comfortably interactive and prefill saturates - and we can tune upper layer scheduler to lower TTFT and add prefill replicas) since decode has headroom to spare.
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Sli[illegible]
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="llm-d Agentic North Star" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>llm-d Agentic North Star</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>llm-d’s proposed control plane would plan over a graph of typed state blocks, coordinating scheduling and state reuse. Replayable benchmarks would measure program latency and cache hits with realistic tool-call timing.
+
+[20:25](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=1225s) [Roadmap covering session-graph orchestration, program-aware scheduling, state reuse, and agentic benchmarking.](https://assets.ai.engineer/sites/aiecode2025/sha256/1f527bb8d93b5eb6960d8d5a5fbe29b2b5ed3897dd2e4ffb3f2bb5eef2e71cd2.webp)
+
+Looking Forward: llm-d Agentic North Star
+
+Program-aware rather than request-aware, treating the session as a graph of typed state blocks the control plane plans over:
+
+• Session-graph orchestration
+• Program-aware scheduling
+• State reuse and lifecycle (&quot;zero-recompute&quot;)
+• Agentic benchmarking: reproducible, replayable workloads that capture real causal structure and tool-call timing, measuring program-level latency and realistic cache-hit behavior
+
+Join the Agentic-Inference effort driven by a diverse workgroup of experts from Red Hat, Google, IBM Research, NVIDIA, Mooncake, Inferact and the llm-d community!
+
+https://github.com/llm-d/llm-d
+#sig-agentic-inference
+#sig-kv-disaggregation
+#sig-router
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Sli[illegible]
+Ask Google</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Companies Building llm-d in the Open" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Companies Building llm-d in the Open</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>llm-d brings contributors, partners, academic users and adopters together to build distributed inference in the open. The speakers invite others to join the effort.
+
+[20:55](https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=1255s) [Lists llm-d contributors, launch partners, academic users, and adopters alongside an invitation to join.](https://assets.ai.engineer/sites/aiecode2025/sha256/931ef946c9fbd2650263b0a989343081280467c81d10be96ac0ed94854ca7ea4.webp)
+
+The companies building llm-d distributed inference in the open
+
+FOUNDING CONTRIBUTORS
+CoreWeave
+Google Cloud
+IBM Research
+NVIDIA
+Red Hat
+
+LAUNCH PARTNERS
+AMD
+Cisco
+Hugging Face
+Intel
+Lambda
+Mistral AI
+
+CONTRIBUTORS &amp; ACADEMIC USERS
+DaoCloud
+Moreh
+Rebellions
+UC Berkeley
+UChicago
+
+ADOPTERS
+Tesla
+Cohere
+JetBrains
+Stelia
+Reflection
+Prime Intellect
+Snowflake
+
+Source: github.com/llm-d/llm-d/blob/main/ADOPTERS.md
+
+Join Us
+We embrace open source software to push the boundaries of LLM innovation, together with YOU!
+
+Welcome to llm-d: a Kubernetes-native high-performance distributed LLM inference framework
+Stars [illegible]
+Documentation
+License Apache 2.0
+Join Slack
+[illegible]
+
+Red Hat
+
+Interface text:
+AIE TALK - Google Sli[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/47b38c7ad7b78482a9124e1bd34305c22b72c0e639d1d6fbd4f9ee88f47b015c.webp" alt="White AI Engineer World's Fair logo and website on a black background." loading="lazy" data-lb="19" data-cap="AI Engineer World's Fair" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer World's Fair</h3>
+        <p>White AI Engineer World's Fair logo and website on a black background.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+World’s Fair
+
+HTTPS://AI.ENGINEER</pre></details>
+        <button class="ts" data-t="1301">▶ 21:41</button>
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">智能体会话打破了稳态基准</a></li><li><a href="#sec-2">找到缓存的前缀——并让它值得被找到</a></li><li><a href="#sec-3">四轮对话让缓存局部性变得可见</a></li><li><a href="#sec-4">把提示词处理与活跃的流分开</a></li><li><a href="#sec-5">更流畅的流式输出，收益取决于负载</a></li><li><a href="#sec-6">根据你现有的瓶颈和互连选择 P/D 分离</a></li><li><a href="#sec-7">在 H200 上为 GLM-5.2 综合调整各项参数</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">Kubernetes 上感知 KV 缓存的路由与预填充/解码分离</h2>
+      <div class="lede"><p>Yuchen Fama 和 Ashish Kamra 讲解了 llm-d 如何找到可复用的上下文、把提示词处理与 token 生成分开，并为智能体工作负载分别确定各个资源池的规模——而收益大小取决于流量、缓存保留和网络容量。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>智能体会话打破了稳态基准</h3>
+      <p>A steady-state inference benchmark can tell you how fast a server handles a controlled stream of requests. An agent session brings a different problem: the same context returns across many turns, its length changes, and sub-agents suddenly add concurrent work. Red Hat’s Ashish Kamra, senior manager of performance engineering, and Yuchen Fama, product manager working with vLLM and llm-d, begin with that mismatch. Their two main tools are KV cache-aware routing and prefill/decode disaggregation.</p>
+<p>Red Hat’s surrounding inference stack includes tools for benchmarking, model quantization, and speculative decoding. This session focuses on coordinating the model engine with distributed serving once a client controls the structure and timing of its context.</p>
+<p>The agentic workloads examined in the talk have several properties that change capacity planning:</p>
+<p>- <strong>Long sessions:</strong> Interactions range from a few turns to 3,000 turns. Each request belongs to a continuing sequence.
+- <strong>Repeated input:</strong> Reused system prompts and tool definitions produce cache hit rates often exceeding 90%. Much of the incoming context has already been processed.
+- <strong>Input-heavy work:</strong> Input-to-output token ratios often exceed 100:1. Counting output tokens alone hides most of the context the server handles.
+- <strong>Uneven demand:</strong> Context lengths vary, and sub-agent fan-out complicates scheduling. Distributions and P90 values matter when sizing capacity; an average smooths away the larger requests and bursts.</p>
+<p>Trace replay brings those pressures into evaluation. The collaboration with Google and IBM adds a replay tool to inference-perf to study the request patterns that agent sessions create. Repeated context and sudden concurrency occur together, so testing either in isolation misses part of the scheduling problem.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="301">▶ 5:01</button></div>
+      <h3>找到缓存的前缀——并让它值得被找到</h3>
+      <p>The KV cache holds state computed while processing a prompt. Reusing that state avoids repeating work on an unchanged prefix. But the client decides when context grows, changes, or returns. Frequent evictions and rewrites make cache management volatile, so engine-level caching needs help from scheduling and routing.</p>
+<p>That shifts the performance target toward interactive latency and makes cached throughput worth measuring separately. The Anthropic pricing example presented in the talk has a 10× difference between cached and uncached input-token costs. It illustrates the economic value of reuse under that pricing scheme; it does not measure a 10× reduction in the cost of running an llm-d cluster.</p>
+<p>The llm-d router’s <strong>endpoint picker plugin</strong>, or EPP, scores candidate pods using both load and cache information. It probes running and waiting requests, KV cache utilization, and prefix-cache availability. Placement balances the chance of a cache hit against the work already waiting on a pod. A cached prefix offers less recomputation, while a shorter queue offers less waiting; the picker needs both signals to choose an endpoint.</p>
+<p>Routing and retention address different parts of the problem:</p>
+<p>- <strong>Cache locality:</strong> The endpoint picker sends a request toward a pod that can reuse its prefix while accounting for load.
+- <strong>Offloading tiers:</strong> The described development work explores NVMe/SSD, filesystems such as Ceph, and KV-oriented stores such as Mooncake to retain hot, warm, and cold session state.
+- <strong>Session-aware eviction:</strong> Priority and session pinning aim to keep important context available when a session needs it again.</p>
+<p>A router can only find reusable state that the cache system has retained. Additional tiers create room to preserve it; eviction policy decides which state remains available.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="461">▶ 7:41</button></div>
+      <h3>四轮对话让缓存局部性变得可见</h3>
+      <p>The <a href="https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=474s" target="_blank" rel="noopener">routing demo</a> follows one concrete change: whether the system prompt stays the same. The first request takes roughly three seconds and populates the cache. There is no hit because this is the opening turn. The second turn keeps the system prompt, returns to the same pod address, and reuses the cache. Its displayed duration falls to about one second.</p>
+<p>The third turn changes the system prompt. It has no cache hit, lands on a different pod, and takes roughly three seconds again. The following turn changes only the user prompt while retaining this new system prompt. Reuse returns, and the duration falls to about one second. The causal steps are an unchanged prefix, available cached state, placement that reaches that state, and less repeated prompt processing. The pod address makes placement visible; the reported cache hit establishes reuse.</p>
+<p>What changes across these four turns? The comparison below puts prompt continuity beside cache behavior and duration. It shows two cold-to-warm transitions. Changing the system prompt creates a new starting point, while changing the user prompt can leave the shared prefix reusable.</p>
+<p>Prefix-aware routing primarily helps the wait before generation begins—<strong>time to first token</strong>, or TTFT—and can improve throughput by avoiding repeated work. Once output starts streaming, another measure matters: <strong>inter-token latency</strong>, or ITL, the time between generated tokens. Faster startup does not by itself prevent a stream from stalling.</p>
+<p>Two cold-to-warm cache transitions
+The demo reports roughly three seconds without reuse and one second with reuse. These are displayed request durations, rather than a controlled latency distribution.
+- Turn 1: first system prompt — No cache hit; populates KV cache; roughly 3 seconds.
+- Turn 2: same system prompt — Same pod address; cache reused; about 1 second.
+- Turn 3: different system prompt — Different pod address; no cache hit; roughly 3 seconds.
+- Turn 4: change only user prompt — Retains the new system prompt; cache reused; roughly 1 second.
+- Turn 1: first system prompt → Turn 2: same system prompt (Keep system prompt; reuse populated cache)
+- Turn 2: same system prompt → Turn 3: different system prompt (Change system prompt; no hit on the new prefix)
+- Turn 3: different system prompt → Turn 4: change only user prompt (Keep new system prompt; reuse cache)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="569">▶ 9:29</button></div>
+      <h3>把提示词处理与活跃的流分开</h3>
+      <p><a href="https://github.com/llm-d/llm-d" target="_blank" rel="noopener">llm-d</a> supplies the distributed control plane around model execution. Alongside the router, workload APIs such as LeaderWorkerSet and disaggregated sets organize multi-node execution. Autoscalers respond to capacity and traffic so pods can scale independently. This coordination becomes especially useful when prefill and decode run in separate pools.</p>
+<p>Aggregated serving asks one pod to optimize both startup and streaming. The two execution phases have different needs:</p>
+<p>- <strong>Prefill:</strong> Processes the initial prompt and builds its KV cache. It is compute-intensive, bursty, and benefits from large-batch parallelism.
+- <strong>Decode:</strong> Generates one token at a time. It needs memory bandwidth, resident KV state, and predictable latency.</p>
+<p>When both share a GPU, a long incoming prompt can interrupt ongoing token generation. This phase interference appears to a user as pauses and jitter in a stream that had already started.</p>
+<p>In the <a href="https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=716s" target="_blank" rel="noopener">P/D request flow</a>, the gateway router evaluates cluster state through the endpoint picker and selects a prefill worker and a decode worker. It coordinates prompt processing with the prefill worker, which builds the initial cache and produces KV transfer metadata. The selected decoder uses that metadata to pull the computed cache across the network. Prefill and decode now run on independently scalable inference pods.</p>
+<p>Where does the state move when execution is split? The flow below separates placement decisions from KV movement. The decoder pulls the result of prompt processing instead of rebuilding it. Separating the GPU work can protect streaming, but moving its state introduces a network requirement that aggregated serving avoids.</p>
+<p>Placement first, then KV transfer
+The router selects both workers. Prefill builds prompt state; decode pulls that state using transfer metadata and generates tokens.
+- Incoming request — Arrives at the gateway router.
+- Router + endpoint picker — Evaluates cluster state and selects prefill and decode workers.
+- Prefill worker — Processes the prompt and constructs its initial KV cache.
+- KV cache + transfer metadata — Computed prompt state and the metadata needed to retrieve it.
+- Decode worker — Pulls the computed KV cache and generates tokens one at a time.
+- Incoming request → Router + endpoint picker (Submit request)
+- Router + endpoint picker → Prefill worker (Select and coordinate prompt processing)
+- Router + endpoint picker → Decode worker (Select target decoder)
+- Prefill worker → KV cache + transfer metadata (Construct cache and emit metadata)
+- KV cache + transfer metadata → Decode worker (Decoder pulls KV across network)</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="776">▶ 12:56</button></div>
+      <h3>更流畅的流式输出，收益取决于负载</h3>
+      <p>The <a href="https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=776s" target="_blank" rel="noopener">first latency comparison</a> reports P99 ITL near 900 milliseconds for aggregated serving and about 100 milliseconds for disaggregated serving. P99 describes the slower tail of token intervals. The disaggregated curve is also smoother, so the improvement concerns both the length and variability of streaming pauses.</p>
+<p>The following <a href="https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=820s" target="_blank" rel="noopener">internal Red Hat experiment</a> uses <strong>GPT-OSS 120B</strong> on 16 H100s. Aggregated serving has four replicas with tensor parallelism four; disaggregated serving has two prefill and two decode workers, each also using tensor parallelism four. The highly multi-turn workload has a 10,000-token prefix and 128 tokens per turn.</p>
+<p>Its comparison separates three choices: aggregated serving with default Kubernetes scheduling, aggregated serving with llm-d cache-aware routing, and disaggregated serving. Routing alone produces gains. P/D is similar to aggregated serving at low and high concurrency, with its strongest advantage in the middle band. That band has no numeric threshold stated here; finding the favorable range requires a load curve for the deployment being sized.</p>
+<p>A <a href="https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=893s" target="_blank" rel="noopener">separate prefill-heavy test</a> uses GPT-OSS 120B on 64 H100s: eight aggregated replicas at tensor parallelism eight, compared with three prefill and five decode workers at the same parallelism. Average input length is 5,000 tokens and output length is 500 tokens. Here, the presented P/D Pareto curve dominates the aggregated curve across the tested interactivity range. A Pareto comparison asks which configuration offers a better combination of throughput and responsiveness. The different result reinforces that workload and pool sizing determine the benefit.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="937">▶ 15:37</button></div>
+      <h3>根据你现有的瓶颈和互连选择 P/D 分离</h3>
+      <p>P/D makes a phase-separation tradeoff. Its appeal grows when long contexts, high input-to-output ratios, and strict streaming requirements make prompt processing interfere with generation. Large models with useful model-parallel execution options and the favorable middle concurrency regime are further reasons to consider it.</p>
+<p>The network belongs in that decision. The talk recommends a high-speed fabric such as RDMA or RoCE to support prefill-to-decode KV transfer. Without a suitable fabric, stay aggregated. Aggregated serving is also a reasonable choice for short or moderate contexts, low concurrency, or workloads whose main requirement is TTFT, which can be tuned within an aggregated deployment.</p>
+<p>Once P/D is deployed, the prefill-to-decode ratio becomes another variable to manage. A static starting ratio needs to evolve as traffic changes. The scheduler considers service-level objectives, queue depths, cache locality, pool ratios, and network topology together to choose placement. Independent autoscaling and adjustments to tensor and data parallelism let the system add capacity where work is accumulating.</p>
+<p>This connects the two techniques: routing reduces unnecessary prompt processing, while disaggregation lets necessary prompt processing run apart from active generation. Their combination still needs rate matching between the pools. The amount of prefill and decode capacity should follow the changing traffic mix and the latency objectives.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1082">▶ 18:02</button></div>
+      <h3>在 H200 上为 GLM-5.2 综合调整各项参数</h3>
+      <p>The closing case study starts with a hardware constraint: customers have H200s, even when impressive published results use B200s. Serving <strong>GLM-5.2</strong> well on that existing hardware requires combining cache-aware routing, P/D separation, and parallelism. The <a href="https://llm-d.ai/blog/serving-glm-5-2-agentic-workloads-on-llm-d" target="_blank" rel="noopener">companion technical article</a> develops the workload and deployment pattern in more detail.</p>
+<p>The design described in the recording supports up to three prefill workers optimized for throughput and one dedicated decode worker optimized for low latency. Each worker uses a LeaderWorkerSet group with tensor parallelism one, data parallelism eight, and expert parallelism eight. NIXL, identified in the companion article, handles KV movement between the pools. More prefill workers can be added without reconfiguring the decoder, so additional input-processing capacity does not require rebuilding both sides.</p>
+<p>One tentative finding complicates the cache-format choice: Yuchen reports that BF16 KV cache was faster than another cache format for longer prefill. The comparison format is not established clearly enough to name, and the team was still investigating the result. For this case study, cache precision remained a performance choice to explore rather than a settled prescription.</p>
+<p>In the <a href="https://www.youtube.com/watch?v=YXowceUKYJI&amp;t=1181s" target="_blank" rel="noopener">closing case study</a>, Yuchen reports preliminary results of 4× faster TTFT and 60% more requests with two prefill workers and one decode worker on an agentic dataset with a 45:1 input-to-output ratio, where prefill is the constraint. These are the speaker’s reported figures, not an established controlled P/D-versus-aggregate improvement: the comparison baseline is unspecified. The architecture supports up to three prefill workers, a design limit separate from the two-prefill, one-decode configuration reported for these results. The companion article’s separate experiments cannot supply the missing comparison baseline for these recording results.</p>
+<p>The next steps follow the remaining bottleneck: tune the upper-layer scheduler to reduce TTFT and add more prefill replicas. The broader development direction includes session-graph orchestration, program-aware scheduling, state-reuse lifecycle management, and agentic benchmarks. These continuing efforts extend scheduling toward a connected agent program, whose turns and sub-agents share state and dependencies.</p>
+<p>The closing invitation is to build that work upstream through llm-d and its special-interest groups, alongside collaborators including CoreWeave, Google, IBM, and Nvidia. The <a href="https://github.com/llm-d/llm-d/blob/main/guides/agentic-serving/glm-5-2-h200.md" target="_blank" rel="noopener">H200 serving guide</a> provides a practical deployment path with configurable routing, offloading, and pool layouts. It gives the closing question something concrete to work with: how much reusable context and prefill capacity does the workload need before its next stream can begin?</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Agentic inference evaluations need repeated prefixes, context variation, and sub-agent fan-out. Average steady-state throughput misses pressures that determine interactive latency.</li><li>Cache-aware placement balances prefix reuse against running and queued work. Retention and eviction policy determine whether useful state remains available for the next turn.</li><li>Prefill is compute-intensive; decode needs memory bandwidth and predictable token intervals. Separate pools reduce their interference by transferring computed KV state to the decoder.</li><li>P/D gains depend on workload, concurrency, pool sizing, and network fabric. Long input-heavy contexts and strict streaming requirements favor it; a fabric unsuited to KV transfer favors aggregated serving.</li><li>Independent scaling makes prefill and decode capacity separate decisions. The closing H200 case study targets prefill capacity for an input-heavy workload, with scheduler tuning and agent-program orchestration continuing upstream.</li></ul></section>
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://llm-d.ai/blog/serving-glm-5-2-agentic-workloads-on-llm-d" target="_blank" rel="noopener">Serving GLM-5.2 for Agentic Workloads on llm-d</a> — Expands the closing case study with workload distributions, cache capacity, offloading, pool-sizing experiments, and limits on performance comparisons.</li><li><a href="https://github.com/llm-d/llm-d/blob/main/guides/agentic-serving/glm-5-2-h200.md" target="_blank" rel="noopener">GLM-5.2 H200 agentic-serving guide</a> — Provides deployment manifests and composable options for prefix-aware routing, KV offloading, multi-token prediction, and prefill/decode layouts.</li><li><strong>Related talks</strong></li><li><a href="https://ai.engineer/talks/NTBX-wxUhHs-context-platform-engineering-reduce-token-anxiety" target="_blank" rel="noopener">Context Platform Engineering to Reduce Token Anxiety — Val Bercovici and Callan Fox, WEKA</a> — A complementary context-platform perspective on cache retention and reuse.</li><li><a href="https://ai.engineer/talks/eZ8WWZzoaR0-homa-end-tcp-ai-clusters-john-ousterhout" target="_blank" rel="noopener">Homa: The End of TCP for AI Clusters — John Ousterhout, Stanford</a> — Explains how network queues and short-message tail latency leave GPUs waiting, adding context to the fabric decision in distributed inference.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">All right. Um, welcome everyone to yet</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">another inference talk. I hope you have</span></div><div class="tline" data-t="18"><span class="ts">0:18</span><span class="tx">had a good conference so far. And u, so</span></div><div class="tline" data-t="22"><span class="ts">0:22</span><span class="tx">in this session, I mean I'm sure you</span></div><div class="tline" data-t="24"><span class="ts">0:24</span><span class="tx">people who have been in the room uh must</span></div><div class="tline" data-t="26"><span class="ts">0:26</span><span class="tx">have heard these terms many times by</span></div><div class="tline" data-t="28"><span class="ts">0:28</span><span class="tx">now. So we're going to do a little bit</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">more deep dive into the challenges of</span></div><div class="tline" data-t="32"><span class="ts">0:32</span><span class="tx">LLM deployments for agentic workloads</span></div><div class="tline" data-t="35"><span class="ts">0:35</span><span class="tx">and uh in this session we'll focus</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">specifically on KV cache away routing</span></div><div class="tline" data-t="39"><span class="ts">0:39</span><span class="tx">and uh PD disagregation</span></div><div class="tline" data-t="43"><span class="ts">0:43</span><span class="tx">um and also you know when you when you</span></div><div class="tline" data-t="45"><span class="ts">0:45</span><span class="tx">look at public inference uh benchmark</span></div><div class="tline" data-t="48"><span class="ts">0:48</span><span class="tx">results you are typically looking at</span></div><div class="tline" data-t="49"><span class="ts">0:49</span><span class="tx">very steady state isolated highly</span></div><div class="tline" data-t="51"><span class="ts">0:51</span><span class="tx">sanitized numbers and what those</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">benchmarks actually don't show you u is</span></div><div class="tline" data-t="56"><span class="ts">0:56</span><span class="tx">the chaotic reality of multi-turn</span></div><div class="tline" data-t="59"><span class="ts">0:59</span><span class="tx">interactions, massive context</span></div><div class="tline" data-t="60"><span class="ts">1:00</span><span class="tx">fluctuations which are very typical of</span></div><div class="tline" data-t="63"><span class="ts">1:03</span><span class="tx">agentic workloads. So we'll also try to</span></div><div class="tline" data-t="66"><span class="ts">1:06</span><span class="tx">pull the curtain back on some of those</span></div><div class="tline" data-t="68"><span class="ts">1:08</span><span class="tx">complexities. Um by by way of</span></div><div class="tline" data-t="70"><span class="ts">1:10</span><span class="tx">introduction uh my name is Ashish Kamra.</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">I'm a senior manager of performance</span></div><div class="tline" data-t="75"><span class="ts">1:15</span><span class="tx">engineering at Red Hat. And with me</span></div><div class="tline" data-t="78"><span class="ts">1:18</span><span class="tx">&gt;&gt; hi I'm Yuch Chen. I'm the product</span></div><div class="tline" data-t="80"><span class="ts">1:20</span><span class="tx">manager at Red Hat Inference working</span></div><div class="tline" data-t="81"><span class="ts">1:21</span><span class="tx">closely with VLM and AMD core</span></div><div class="tline" data-t="84"><span class="ts">1:24</span><span class="tx">maintainers. also a contributor myself.</span></div><div class="tline" data-t="88"><span class="ts">1:28</span><span class="tx">&gt;&gt; So here is the agenda for the next 20</span></div><div class="tline" data-t="90"><span class="ts">1:30</span><span class="tx">minutes or so. Um Euchen will start with</span></div><div class="tline" data-t="93"><span class="ts">1:33</span><span class="tx">an analysis of inference behavior in the</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">agentic era and some of the core</span></div><div class="tline" data-t="98"><span class="ts">1:38</span><span class="tx">characteristics and challenges. Uh next</span></div><div class="tline" data-t="101"><span class="ts">1:41</span><span class="tx">we next you will walk us through the KV</span></div><div class="tline" data-t="104"><span class="ts">1:44</span><span class="tx">cache um utilization and management</span></div><div class="tline" data-t="107"><span class="ts">1:47</span><span class="tx">strategies.</span></div><div class="tline" data-t="108"><span class="ts">1:48</span><span class="tx">I will break down the mechanics of</span></div><div class="tline" data-t="110"><span class="ts">1:50</span><span class="tx">pre-fill decode disagregation and walk</span></div><div class="tline" data-t="112"><span class="ts">1:52</span><span class="tx">you through some some results and then</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">Euchen will again bring it all back</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">together with our ongoing case study on</span></div><div class="tline" data-t="119"><span class="ts">1:59</span><span class="tx">our favorite open coding model GLM 5.2.</span></div><div class="tline" data-t="123"><span class="ts">2:03</span><span class="tx">Um and just a couple of uh sources from</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">our side if you are more interested in</span></div><div class="tline" data-t="128"><span class="ts">2:08</span><span class="tx">learning more about open source</span></div><div class="tline" data-t="130"><span class="ts">2:10</span><span class="tx">inference we have a free course free</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">course on deep learning.ai AI uh by</span></div><div class="tline" data-t="135"><span class="ts">2:15</span><span class="tx">Cedric and with Andrew Ning. Um and the</span></div><div class="tline" data-t="137"><span class="ts">2:17</span><span class="tx">other is a series of blogs on the Red</span></div><div class="tline" data-t="139"><span class="ts">2:19</span><span class="tx">Hat developer portal on distributed</span></div><div class="tline" data-t="142"><span class="ts">2:22</span><span class="tx">inference concepts uh troubleshooting</span></div><div class="tline" data-t="144"><span class="ts">2:24</span><span class="tx">and deployment patterns.</span></div><div class="tline" data-t="147"><span class="ts">2:27</span><span class="tx">Uh and for those who may not be aware</span></div><div class="tline" data-t="150"><span class="ts">2:30</span><span class="tx">since Red Hat is better known as the</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">Linux company for enterprise Linux and</span></div><div class="tline" data-t="156"><span class="ts">2:36</span><span class="tx">uh the Kubernetes company for Open Shift</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">uh but more recently we are also a major</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">player in open source AI inference with</span></div><div class="tline" data-t="165"><span class="ts">2:45</span><span class="tx">uh us being the top contributor in VLM</span></div><div class="tline" data-t="167"><span class="ts">2:47</span><span class="tx">LLMD and the case of projects and also</span></div><div class="tline" data-t="171"><span class="ts">2:51</span><span class="tx">uh having incubated guide LLM for</span></div><div class="tline" data-t="174"><span class="ts">2:54</span><span class="tx">benchmarking LLM compressor for model</span></div><div class="tline" data-t="176"><span class="ts">2:56</span><span class="tx">quantization and speculators for uh</span></div><div class="tline" data-t="180"><span class="ts">3:00</span><span class="tx">speculative uh decoding models and we</span></div><div class="tline" data-t="184"><span class="ts">3:04</span><span class="tx">also bring it bring all of that together</span></div><div class="tline" data-t="185"><span class="ts">3:05</span><span class="tx">in a optimized model hub on hugging</span></div><div class="tline" data-t="189"><span class="ts">3:09</span><span class="tx">phase under the Red Hat AI arc.</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">Um and we are also building the platform</span></div><div class="tline" data-t="194"><span class="ts">3:14</span><span class="tx">for the next wave of agentic inference</span></div><div class="tline" data-t="196"><span class="ts">3:16</span><span class="tx">workloads and with that I will hand over</span></div><div class="tline" data-t="198"><span class="ts">3:18</span><span class="tx">to you to uh walk you through more of</span></div><div class="tline" data-t="201"><span class="ts">3:21</span><span class="tx">it.</span></div><div class="tline" data-t="205"><span class="ts">3:25</span><span class="tx">So we are currently um at this</span></div><div class="tline" data-t="207"><span class="ts">3:27</span><span class="tx">inflection point moving from the era of</span></div><div class="tline" data-t="209"><span class="ts">3:29</span><span class="tx">classic inference to the agentic era. So</span></div><div class="tline" data-t="213"><span class="ts">3:33</span><span class="tx">when we look at the real world agentic</span></div><div class="tline" data-t="216"><span class="ts">3:36</span><span class="tx">work workloads such as uh sweet bench</span></div><div class="tline" data-t="218"><span class="ts">3:38</span><span class="tx">and also watrices from real world cloud</span></div><div class="tline" data-t="221"><span class="ts">3:41</span><span class="tx">code sessions they fundamentally break</span></div><div class="tline" data-t="224"><span class="ts">3:44</span><span class="tx">many assumptions we made with classic LM</span></div><div class="tline" data-t="226"><span class="ts">3:46</span><span class="tx">serving. uh as you heard actually many</span></div><div class="tline" data-t="228"><span class="ts">3:48</span><span class="tx">times in previous sessions for example</span></div><div class="tline" data-t="230"><span class="ts">3:50</span><span class="tx">multi-turns and new standard we found</span></div><div class="tline" data-t="232"><span class="ts">3:52</span><span class="tx">from a few turns all the way to 3,000</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">turns and also because agent frequently</span></div><div class="tline" data-t="237"><span class="ts">3:57</span><span class="tx">reuse the uh system prompt and the total</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">definitions we usually see super high</span></div><div class="tline" data-t="242"><span class="ts">4:02</span><span class="tx">cash hit rate um oftentimes well</span></div><div class="tline" data-t="245"><span class="ts">4:05</span><span class="tx">exceeding 90%. Uh another thing is input</span></div><div class="tline" data-t="248"><span class="ts">4:08</span><span class="tx">output ratio is uh is massive oftentimes</span></div><div class="tline" data-t="252"><span class="ts">4:12</span><span class="tx">over a 100 ratio and even higher and in</span></div><div class="tline" data-t="255"><span class="ts">4:15</span><span class="tx">many cases and on top of that the</span></div><div class="tline" data-t="257"><span class="ts">4:17</span><span class="tx">context management is is incredibly</span></div><div class="tline" data-t="260"><span class="ts">4:20</span><span class="tx">complex due to this high variance</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">because we can't just simply take the</span></div><div class="tline" data-t="264"><span class="ts">4:24</span><span class="tx">average and oftentimes we need to look</span></div><div class="tline" data-t="267"><span class="ts">4:27</span><span class="tx">at the distributions and the P90 numbers</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">especially when you do uh capacity</span></div><div class="tline" data-t="271"><span class="ts">4:31</span><span class="tx">planning and also we observe really</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">interesting patterns like sub Asian</span></div><div class="tline" data-t="276"><span class="ts">4:36</span><span class="tx">panel which is which further complex uh</span></div><div class="tline" data-t="279"><span class="ts">4:39</span><span class="tx">complicates scheduling. So to help</span></div><div class="tline" data-t="281"><span class="ts">4:41</span><span class="tx">communities study um this patterns we</span></div><div class="tline" data-t="284"><span class="ts">4:44</span><span class="tx">collaborate with Google thank you and</span></div><div class="tline" data-t="286"><span class="ts">4:46</span><span class="tx">also IBM our parent company to add uh a</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">a trace replay tool in the inference</span></div><div class="tline" data-t="291"><span class="ts">4:51</span><span class="tx">perf you heard from earlier sessions u</span></div><div class="tline" data-t="294"><span class="ts">4:54</span><span class="tx">from Ashoken and Jason. Um so yeah feel</span></div><div class="tline" data-t="296"><span class="ts">4:56</span><span class="tx">free to check it out and the link is</span></div><div class="tline" data-t="298"><span class="ts">4:58</span><span class="tx">here.</span></div><div class="tline" data-t="301"><span class="ts">5:01</span><span class="tx">Uh next slide. Oh, so transition from</span></div><div class="tline" data-t="304"><span class="ts">5:04</span><span class="tx">the class uh the characteristics um we</span></div><div class="tline" data-t="306"><span class="ts">5:06</span><span class="tx">just saw for agentic workloads. We're no</span></div><div class="tline" data-t="309"><span class="ts">5:09</span><span class="tx">longer chasing this um this this raw</span></div><div class="tline" data-t="312"><span class="ts">5:12</span><span class="tx">throughput in a steady state. We often</span></div><div class="tline" data-t="314"><span class="ts">5:14</span><span class="tx">need to optimize uh for example</span></div><div class="tline" data-t="316"><span class="ts">5:16</span><span class="tx">interactive latency and they're very um</span></div><div class="tline" data-t="319"><span class="ts">5:19</span><span class="tx">highly volatile and client-driven</span></div><div class="tline" data-t="321"><span class="ts">5:21</span><span class="tx">context because user and you know client</span></div><div class="tline" data-t="324"><span class="ts">5:24</span><span class="tx">define the prompt structure. So this</span></div><div class="tline" data-t="326"><span class="ts">5:26</span><span class="tx">introduced several critical challenges.</span></div><div class="tline" data-t="328"><span class="ts">5:28</span><span class="tx">First of all, KV cache management</span></div><div class="tline" data-t="330"><span class="ts">5:30</span><span class="tx">becomes super volatile because the</span></div><div class="tline" data-t="332"><span class="ts">5:32</span><span class="tx">context is client determined as I said.</span></div><div class="tline" data-t="334"><span class="ts">5:34</span><span class="tx">So oftentimes we face this like you know</span></div><div class="tline" data-t="337"><span class="ts">5:37</span><span class="tx">frequent evictions and rewrites and</span></div><div class="tline" data-t="340"><span class="ts">5:40</span><span class="tx">secondly we also need to tune um the</span></div><div class="tline" data-t="343"><span class="ts">5:43</span><span class="tx">engine like VM with upper layer uh</span></div><div class="tline" data-t="345"><span class="ts">5:45</span><span class="tx">scheduling and routing.</span></div><div class="tline" data-t="347"><span class="ts">5:47</span><span class="tx">It needs that coordination such as</span></div><div class="tline" data-t="349"><span class="ts">5:49</span><span class="tx">prefix routing especially when latency</span></div><div class="tline" data-t="352"><span class="ts">5:52</span><span class="tx">becomes a primary uh scheduling matrix</span></div><div class="tline" data-t="354"><span class="ts">5:54</span><span class="tx">rather than like a secondary or</span></div><div class="tline" data-t="356"><span class="ts">5:56</span><span class="tx">afterthought. And thirdly, we also need</span></div><div class="tline" data-t="358"><span class="ts">5:58</span><span class="tx">to rethink our metrics. For example, we</span></div><div class="tline" data-t="360"><span class="ts">6:00</span><span class="tx">need to measure cats throughput</span></div><div class="tline" data-t="362"><span class="ts">6:02</span><span class="tx">separately. Why? Because on the right,</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">it's really clear that economic stakes</span></div><div class="tline" data-t="367"><span class="ts">6:07</span><span class="tx">is very high. So, this is the uh</span></div><div class="tline" data-t="369"><span class="ts">6:09</span><span class="tx">anthropic API pricing. You also heard</span></div><div class="tline" data-t="371"><span class="ts">6:11</span><span class="tx">from earlier sessions. There's 10x cost</span></div><div class="tline" data-t="373"><span class="ts">6:13</span><span class="tx">difference between cash and non-cash</span></div><div class="tline" data-t="375"><span class="ts">6:15</span><span class="tx">tokens. So, 10x difference on your um</span></div><div class="tline" data-t="378"><span class="ts">6:18</span><span class="tx">token balance sheet is is pretty serious</span></div><div class="tline" data-t="380"><span class="ts">6:20</span><span class="tx">impact on your business.</span></div><div class="tline" data-t="383"><span class="ts">6:23</span><span class="tx">So next let's let's look at how the KV</span></div><div class="tline" data-t="385"><span class="ts">6:25</span><span class="tx">cache is um both utilized and managed in</span></div><div class="tline" data-t="388"><span class="ts">6:28</span><span class="tx">LMD. So LMD router has this really</span></div><div class="tline" data-t="391"><span class="ts">6:31</span><span class="tx">flexible um endpoint picker plugins we</span></div><div class="tline" data-t="394"><span class="ts">6:34</span><span class="tx">call the EP that can route the request</span></div><div class="tline" data-t="396"><span class="ts">6:36</span><span class="tx">to the optimal pods and that meet the KV</span></div><div class="tline" data-t="398"><span class="ts">6:38</span><span class="tx">cache locality and also the load</span></div><div class="tline" data-t="401"><span class="ts">6:41</span><span class="tx">criteria. So the EP continue probe each</span></div><div class="tline" data-t="404"><span class="ts">6:44</span><span class="tx">pods like VM pod matrix to score each</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">pod on like the running for example</span></div><div class="tline" data-t="409"><span class="ts">6:49</span><span class="tx">running and waiting request and then the</span></div><div class="tline" data-t="411"><span class="ts">6:51</span><span class="tx">KV cache utilization also prefix uh</span></div><div class="tline" data-t="414"><span class="ts">6:54</span><span class="tx">cache availability and so we can</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">schedule requests to the optimal pod</span></div><div class="tline" data-t="418"><span class="ts">6:58</span><span class="tx">with the lowest load and also highest</span></div><div class="tline" data-t="420"><span class="ts">7:00</span><span class="tx">possibility to um to of a cache hit. So</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">um going down from to the KV cache</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">management layer actually you also heard</span></div><div class="tline" data-t="427"><span class="ts">7:07</span><span class="tx">from earlier session right before this.</span></div><div class="tline" data-t="430"><span class="ts">7:10</span><span class="tx">So for agentic sessions when you have u</span></div><div class="tline" data-t="432"><span class="ts">7:12</span><span class="tx">hot warm and cold cache our current</span></div><div class="tline" data-t="435"><span class="ts">7:15</span><span class="tx">effort focus on for example um more</span></div><div class="tline" data-t="437"><span class="ts">7:17</span><span class="tx">offloading tiers like NVME SSD and also</span></div><div class="tline" data-t="440"><span class="ts">7:20</span><span class="tx">uh file system XF along with KV ccentric</span></div><div class="tline" data-t="443"><span class="ts">7:23</span><span class="tx">store um like uh moon cake and also</span></div><div class="tline" data-t="446"><span class="ts">7:26</span><span class="tx">implementing smarter and session a wire</span></div><div class="tline" data-t="448"><span class="ts">7:28</span><span class="tx">eviction policies such as priority and</span></div><div class="tline" data-t="450"><span class="ts">7:30</span><span class="tx">also session pinning to uh ensure this</span></div><div class="tline" data-t="453"><span class="ts">7:33</span><span class="tx">uh really important you know the the</span></div><div class="tline" data-t="455"><span class="ts">7:35</span><span class="tx">context persists exactly when and where</span></div><div class="tline" data-t="458"><span class="ts">7:38</span><span class="tx">it's needed.</span></div><div class="tline" data-t="461"><span class="ts">7:41</span><span class="tx">So, I'm gonna play this um video really</span></div><div class="tline" data-t="464"><span class="ts">7:44</span><span class="tx">quick. Uh it's a it's a short demo.</span></div><div class="tline" data-t="466"><span class="ts">7:46</span><span class="tx">&gt;&gt; Stand here so you can look at it.</span></div><div class="tline" data-t="468"><span class="ts">7:48</span><span class="tx">&gt;&gt; Okay.</span></div><div class="tline" data-t="472"><span class="ts">7:52</span><span class="tx">So,</span></div><div class="tline" data-t="474"><span class="ts">7:54</span><span class="tx">okay. So, this is a example of a KV</span></div><div class="tline" data-t="476"><span class="ts">7:56</span><span class="tx">cache bar routing. As you see, when we</span></div><div class="tline" data-t="478"><span class="ts">7:58</span><span class="tx">send the very first request and it</span></div><div class="tline" data-t="480"><span class="ts">8:00</span><span class="tx">populate the KV cache, it takes roughly</span></div><div class="tline" data-t="482"><span class="ts">8:02</span><span class="tx">3 seconds. And when we actually look at</span></div><div class="tline" data-t="486"><span class="ts">8:06</span><span class="tx">where it's you know the KV cache uh is</span></div><div class="tline" data-t="488"><span class="ts">8:08</span><span class="tx">going there's no KV cache hit because</span></div><div class="tline" data-t="490"><span class="ts">8:10</span><span class="tx">it's the very first turn. And then when</span></div><div class="tline" data-t="492"><span class="ts">8:12</span><span class="tx">we have the second turn the request</span></div><div class="tline" data-t="493"><span class="ts">8:13</span><span class="tx">actually reuse a KV cache because as you</span></div><div class="tline" data-t="496"><span class="ts">8:16</span><span class="tx">see the system prompt is the same and</span></div><div class="tline" data-t="498"><span class="ts">8:18</span><span class="tx">this time takes about one seconds. And</span></div><div class="tline" data-t="500"><span class="ts">8:20</span><span class="tx">then when you actually look at the uh</span></div><div class="tline" data-t="501"><span class="ts">8:21</span><span class="tx">pod address exactly the same because we</span></div><div class="tline" data-t="504"><span class="ts">8:24</span><span class="tx">define the KV cache. Now going to the</span></div><div class="tline" data-t="506"><span class="ts">8:26</span><span class="tx">third turn a new request with different</span></div><div class="tline" data-t="508"><span class="ts">8:28</span><span class="tx">system prompt. Now it takes about three</span></div><div class="tline" data-t="510"><span class="ts">8:30</span><span class="tx">uh seconds and as you see you know right</span></div><div class="tline" data-t="514"><span class="ts">8:34</span><span class="tx">now and we don't find any KV cache here</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">because you can tell it's different pod</span></div><div class="tline" data-t="518"><span class="ts">8:38</span><span class="tx">address and then if you just change the</span></div><div class="tline" data-t="521"><span class="ts">8:41</span><span class="tx">user prompt and keep the same system</span></div><div class="tline" data-t="523"><span class="ts">8:43</span><span class="tx">prompt and the next turn you you reuse</span></div><div class="tline" data-t="526"><span class="ts">8:46</span><span class="tx">the KB cache and in this in this time it</span></div><div class="tline" data-t="528"><span class="ts">8:48</span><span class="tx">takes roughly about uh one second. Yeah.</span></div><div class="tline" data-t="531"><span class="ts">8:51</span><span class="tx">So it's a pretty intuitive demo and um</span></div><div class="tline" data-t="533"><span class="ts">8:53</span><span class="tx">I'll turn it to Ashish to talk about the</span></div><div class="tline" data-t="536"><span class="ts">8:56</span><span class="tx">next side but before that what does</span></div><div class="tline" data-t="537"><span class="ts">8:57</span><span class="tx">problem does it solve? So often times</span></div><div class="tline" data-t="539"><span class="ts">8:59</span><span class="tx">the prefix routing KB cache routing</span></div><div class="tline" data-t="542"><span class="ts">9:02</span><span class="tx">helps you solve the TTFD problem and of</span></div><div class="tline" data-t="544"><span class="ts">9:04</span><span class="tx">course you'll improve your lat uh your</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">your throughput but oftentimes for</span></div><div class="tline" data-t="548"><span class="ts">9:08</span><span class="tx">agentic workload is not just a TTFT your</span></div><div class="tline" data-t="550"><span class="ts">9:10</span><span class="tx">throughput is about your inter token</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">latency how do we solve that so preview</span></div><div class="tline" data-t="555"><span class="ts">9:15</span><span class="tx">decode disagregation is a really uh</span></div><div class="tline" data-t="557"><span class="ts">9:17</span><span class="tx">powerful technique but there are times</span></div><div class="tline" data-t="559"><span class="ts">9:19</span><span class="tx">there work at times it doesn't work so</span></div><div class="tline" data-t="561"><span class="ts">9:21</span><span class="tx">I'll turn it to Ashish to give you a</span></div><div class="tline" data-t="563"><span class="ts">9:23</span><span class="tx">preview of um of the PD uh disregation</span></div><div class="tline" data-t="568"><span class="ts">9:28</span><span class="tx">So before we dive into PD, let's just uh</span></div><div class="tline" data-t="571"><span class="ts">9:31</span><span class="tx">look at what LLMD is. So LLMD is a high</span></div><div class="tline" data-t="574"><span class="ts">9:34</span><span class="tx">performance Kubernetes native and</span></div><div class="tline" data-t="576"><span class="ts">9:36</span><span class="tx">actually now works on non-cubernetes</span></div><div class="tline" data-t="578"><span class="ts">9:38</span><span class="tx">environments as well. Distributed LM LLM</span></div><div class="tline" data-t="581"><span class="ts">9:41</span><span class="tx">inference framework hosted under the</span></div><div class="tline" data-t="583"><span class="ts">9:43</span><span class="tx">CNCF umbrella. LLMD provides a unified</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">intelligent control plane designed</span></div><div class="tline" data-t="589"><span class="ts">9:49</span><span class="tx">specifically for agentic era of</span></div><div class="tline" data-t="590"><span class="ts">9:50</span><span class="tx">inference workloads. Well, Euchin</span></div><div class="tline" data-t="592"><span class="ts">9:52</span><span class="tx">already talked about the router and the</span></div><div class="tline" data-t="594"><span class="ts">9:54</span><span class="tx">EP at the top of the slide. Um, the</span></div><div class="tline" data-t="598"><span class="ts">9:58</span><span class="tx">other aspects are workload APIs such as</span></div><div class="tline" data-t="600"><span class="ts">10:00</span><span class="tx">leader worker set and disagregated set</span></div><div class="tline" data-t="602"><span class="ts">10:02</span><span class="tx">that orchestrates complex multi-</span></div><div class="tline" data-t="605"><span class="ts">10:05</span><span class="tx">multi-node model execution and then</span></div><div class="tline" data-t="608"><span class="ts">10:08</span><span class="tx">autoscalers that monitors capacity</span></div><div class="tline" data-t="610"><span class="ts">10:10</span><span class="tx">bounds and real-time traffic mixes to</span></div><div class="tline" data-t="613"><span class="ts">10:13</span><span class="tx">independently scale up and scale down uh</span></div><div class="tline" data-t="616"><span class="ts">10:16</span><span class="tx">your pods depending on the system load.</span></div><div class="tline" data-t="619"><span class="ts">10:19</span><span class="tx">So now look now let's look at uh prefill</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">decode disagregation in detail. Um uh</span></div><div class="tline" data-t="625"><span class="ts">10:25</span><span class="tx">okay so why does PD exist in the first</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">place? So one of the most powerful</span></div><div class="tline" data-t="630"><span class="ts">10:30</span><span class="tx">patterns implemented by LLMD is prefill</span></div><div class="tline" data-t="633"><span class="ts">10:33</span><span class="tx">decode disagregation and you must have</span></div><div class="tline" data-t="635"><span class="ts">10:35</span><span class="tx">heard from some of the previous talks as</span></div><div class="tline" data-t="637"><span class="ts">10:37</span><span class="tx">well. So what happens is in in a nonPD</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">situation in aggregated serving one pod</span></div><div class="tline" data-t="643"><span class="ts">10:43</span><span class="tx">is responsible for optimizing both your</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">time to first token and your inter token</span></div><div class="tline" data-t="648"><span class="ts">10:48</span><span class="tx">latencies. Uh but in PD prefill and</span></div><div class="tline" data-t="651"><span class="ts">10:51</span><span class="tx">decode become independently scalable</span></div><div class="tline" data-t="653"><span class="ts">10:53</span><span class="tx">inference pods. But to understand why we</span></div><div class="tline" data-t="655"><span class="ts">10:55</span><span class="tx">actually need this we have to look at</span></div><div class="tline" data-t="658"><span class="ts">10:58</span><span class="tx">the physics of LLM execution.</span></div><div class="tline" data-t="660"><span class="ts">11:00</span><span class="tx">colloccating uh both prefill and decode</span></div><div class="tline" data-t="663"><span class="ts">11:03</span><span class="tx">tasks on the same GPU creates something</span></div><div class="tline" data-t="665"><span class="ts">11:05</span><span class="tx">called as phase interference. Prefill</span></div><div class="tline" data-t="668"><span class="ts">11:08</span><span class="tx">phase is the phase that creates the KV</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">caches for your initial prompt. It wants</span></div><div class="tline" data-t="673"><span class="ts">11:13</span><span class="tx">high compute. It's highly bursty uh</span></div><div class="tline" data-t="677"><span class="ts">11:17</span><span class="tx">utilizes GPUs at uh high flops and and</span></div><div class="tline" data-t="681"><span class="ts">11:21</span><span class="tx">thrives on large batch parallelism to</span></div><div class="tline" data-t="684"><span class="ts">11:24</span><span class="tx">process the prompts and builds the</span></div><div class="tline" data-t="685"><span class="ts">11:25</span><span class="tx">initial KV cache. The decode phase on</span></div><div class="tline" data-t="688"><span class="ts">11:28</span><span class="tx">the other hand is generating one token</span></div><div class="tline" data-t="690"><span class="ts">11:30</span><span class="tx">at a time and it's more me memory</span></div><div class="tline" data-t="692"><span class="ts">11:32</span><span class="tx">bandwidth hungry. It's highly latency</span></div><div class="tline" data-t="694"><span class="ts">11:34</span><span class="tx">sensitive and requires high heavy cache</span></div><div class="tline" data-t="697"><span class="ts">11:37</span><span class="tx">residency. So in a in a in a traditional</span></div><div class="tline" data-t="700"><span class="ts">11:40</span><span class="tx">aggregated pod if you if there's a</span></div><div class="tline" data-t="703"><span class="ts">11:43</span><span class="tx">sudden influx of a long prefilled palm,</span></div><div class="tline" data-t="706"><span class="ts">11:46</span><span class="tx">it will completely stall the ongoing</span></div><div class="tline" data-t="708"><span class="ts">11:48</span><span class="tx">decode token generation process causing</span></div><div class="tline" data-t="710"><span class="ts">11:50</span><span class="tx">massive problems and jitter in user</span></div><div class="tline" data-t="713"><span class="ts">11:53</span><span class="tx">streaming latency.</span></div><div class="tline" data-t="716"><span class="ts">11:56</span><span class="tx">So, so how does PD actually work in</span></div><div class="tline" data-t="718"><span class="ts">11:58</span><span class="tx">practice in LMD? So, LNMD uses um uh you</span></div><div class="tline" data-t="723"><span class="ts">12:03</span><span class="tx">know like okay, we'll start with step</span></div><div class="tline" data-t="725"><span class="ts">12:05</span><span class="tx">one. A incoming request hits the gateway</span></div><div class="tline" data-t="727"><span class="ts">12:07</span><span class="tx">router which dynamically evaluates</span></div><div class="tline" data-t="730"><span class="ts">12:10</span><span class="tx">cluster states using something known as</span></div><div class="tline" data-t="732"><span class="ts">12:12</span><span class="tx">the endpoint picker you talked about and</span></div><div class="tline" data-t="735"><span class="ts">12:15</span><span class="tx">schedules the request to use PD</span></div><div class="tline" data-t="737"><span class="ts">12:17</span><span class="tx">disagregation selecting the optimal</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">prefill and decode workers. The router</span></div><div class="tline" data-t="742"><span class="ts">12:22</span><span class="tx">then coordinates the transaction</span></div><div class="tline" data-t="743"><span class="ts">12:23</span><span class="tx">directly with the designated pre-fill</span></div><div class="tline" data-t="745"><span class="ts">12:25</span><span class="tx">worker. The pre-fill worker processes</span></div><div class="tline" data-t="747"><span class="ts">12:27</span><span class="tx">the prompt, construct the initial KV</span></div><div class="tline" data-t="749"><span class="ts">12:29</span><span class="tx">cache of the prompt and outputs the</span></div><div class="tline" data-t="752"><span class="ts">12:32</span><span class="tx">standard KV transfer metadata. Um, and</span></div><div class="tline" data-t="755"><span class="ts">12:35</span><span class="tx">the target decode worker actually pulls</span></div><div class="tline" data-t="757"><span class="ts">12:37</span><span class="tx">the computed KV caches um, uh, across</span></div><div class="tline" data-t="761"><span class="ts">12:41</span><span class="tx">the network fab fabric utilizing uh, the</span></div><div class="tline" data-t="764"><span class="ts">12:44</span><span class="tx">KV transfer metadata that the uh, uh,</span></div><div class="tline" data-t="767"><span class="ts">12:47</span><span class="tx">prefill pod had generated. Um okay so</span></div><div class="tline" data-t="772"><span class="ts">12:52</span><span class="tx">with that yes that's kind of how uh PD</span></div><div class="tline" data-t="775"><span class="ts">12:55</span><span class="tx">is implemented in practice in LMD and</span></div><div class="tline" data-t="777"><span class="ts">12:57</span><span class="tx">next I would like to show you some uh</span></div><div class="tline" data-t="779"><span class="ts">12:59</span><span class="tx">experimental results on where PD</span></div><div class="tline" data-t="781"><span class="ts">13:01</span><span class="tx">actually shines. So in this graph you</span></div><div class="tline" data-t="783"><span class="ts">13:03</span><span class="tx">can see that um</span></div><div class="tline" data-t="786"><span class="ts">13:06</span><span class="tx">uh in in in the standard aggregated</span></div><div class="tline" data-t="788"><span class="ts">13:08</span><span class="tx">deployment which is the top red line uh</span></div><div class="tline" data-t="791"><span class="ts">13:11</span><span class="tx">the P99 ITL uh hovers roughly around 900</span></div><div class="tline" data-t="795"><span class="ts">13:15</span><span class="tx">milliseconds and you can you can see</span></div><div class="tline" data-t="797"><span class="ts">13:17</span><span class="tx">some fluctuations um up and down and but</span></div><div class="tline" data-t="802"><span class="ts">13:22</span><span class="tx">the the bottom blue line is the P99 uh</span></div><div class="tline" data-t="806"><span class="ts">13:26</span><span class="tx">inter token latency on a PD deployment</span></div><div class="tline" data-t="808"><span class="ts">13:28</span><span class="tx">and you can see that it's drastically</span></div><div class="tline" data-t="810"><span class="ts">13:30</span><span class="tx">almost nine times better at 100</span></div><div class="tline" data-t="812"><span class="ts">13:32</span><span class="tx">millconds and it's also much smoother uh</span></div><div class="tline" data-t="815"><span class="ts">13:35</span><span class="tx">than the aggregated serving</span></div><div class="tline" data-t="820"><span class="ts">13:40</span><span class="tx">and uh this is some of our own internal</span></div><div class="tline" data-t="823"><span class="ts">13:43</span><span class="tx">results at Red Hat. So for a GPOSS 12B</span></div><div class="tline" data-t="826"><span class="ts">13:46</span><span class="tx">model uh 16 H100s</span></div><div class="tline" data-t="829"><span class="ts">13:49</span><span class="tx">uh the aggregated config is four</span></div><div class="tline" data-t="832"><span class="ts">13:52</span><span class="tx">replicas tensor parallelism 4 and the</span></div><div class="tline" data-t="834"><span class="ts">13:54</span><span class="tx">disagregated is two prefilled 2D code</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">all with tensor parallelism 4. It's a</span></div><div class="tline" data-t="838"><span class="ts">13:58</span><span class="tx">highly multi-turn workload with a 10,000</span></div><div class="tline" data-t="841"><span class="ts">14:01</span><span class="tx">token prefix and 128 tokens for every</span></div><div class="tline" data-t="845"><span class="ts">14:05</span><span class="tx">turn every turn. So, so this is a great</span></div><div class="tline" data-t="848"><span class="ts">14:08</span><span class="tx">chart like you can see at the bottom</span></div><div class="tline" data-t="849"><span class="ts">14:09</span><span class="tx">most line is a standard aggregated</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">config that's uh is doing the default</span></div><div class="tline" data-t="854"><span class="ts">14:14</span><span class="tx">Kubernetes scheduling and uh and it's</span></div><div class="tline" data-t="857"><span class="ts">14:17</span><span class="tx">aggregated. So that's kind of our</span></div><div class="tline" data-t="858"><span class="ts">14:18</span><span class="tx">baseline and then the middle blue line</span></div><div class="tline" data-t="861"><span class="ts">14:21</span><span class="tx">is still aggregated but with the LLMD uh</span></div><div class="tline" data-t="865"><span class="ts">14:25</span><span class="tx">KV cache aware routing and you can</span></div><div class="tline" data-t="867"><span class="ts">14:27</span><span class="tx">almost see the gains just just based on</span></div><div class="tline" data-t="869"><span class="ts">14:29</span><span class="tx">the routing and the red line is actually</span></div><div class="tline" data-t="871"><span class="ts">14:31</span><span class="tx">the PD uh the pre-fill decode config</span></div><div class="tline" data-t="875"><span class="ts">14:35</span><span class="tx">with two pre-fill and two decode workers</span></div><div class="tline" data-t="877"><span class="ts">14:37</span><span class="tx">and you can actually see that like it's</span></div><div class="tline" data-t="879"><span class="ts">14:39</span><span class="tx">very similar to the aggregated config at</span></div><div class="tline" data-t="881"><span class="ts">14:41</span><span class="tx">the lower concurrency regimes and uh</span></div><div class="tline" data-t="884"><span class="ts">14:44</span><span class="tx">even and and very similar at the higher</span></div><div class="tline" data-t="885"><span class="ts">14:45</span><span class="tx">concurrency regimes but it's actually</span></div><div class="tline" data-t="887"><span class="ts">14:47</span><span class="tx">the middle part of the concurrency</span></div><div class="tline" data-t="889"><span class="ts">14:49</span><span class="tx">regime that PD actually shines</span></div><div class="tline" data-t="893"><span class="ts">14:53</span><span class="tx">and and these are some of the the</span></div><div class="tline" data-t="896"><span class="ts">14:56</span><span class="tx">classic parita curves that we see when</span></div><div class="tline" data-t="898"><span class="ts">14:58</span><span class="tx">you actually do PD and uh aggregated</span></div><div class="tline" data-t="901"><span class="ts">15:01</span><span class="tx">side by side. So these results are again</span></div><div class="tline" data-t="903"><span class="ts">15:03</span><span class="tx">from the GPTOSS 12B model 64 H100s</span></div><div class="tline" data-t="907"><span class="ts">15:07</span><span class="tx">aggregated is eight replicas TP8 and</span></div><div class="tline" data-t="910"><span class="ts">15:10</span><span class="tx">this a is uh three prefilled 5D code</span></div><div class="tline" data-t="913"><span class="ts">15:13</span><span class="tx">again TP8 and a pre-filled heavy</span></div><div class="tline" data-t="915"><span class="ts">15:15</span><span class="tx">workload with like 5,000 average input</span></div><div class="tline" data-t="918"><span class="ts">15:18</span><span class="tx">sequence length and 500 output sequence</span></div><div class="tline" data-t="920"><span class="ts">15:20</span><span class="tx">length and you can actually see the blue</span></div><div class="tline" data-t="922"><span class="ts">15:22</span><span class="tx">line is the the PD curve and the red</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">line is the aggregated curve and the PD</span></div><div class="tline" data-t="926"><span class="ts">15:26</span><span class="tx">curve kind of dominates um uh the</span></div><div class="tline" data-t="930"><span class="ts">15:30</span><span class="tx">aggregate curve across the entire</span></div><div class="tline" data-t="932"><span class="ts">15:32</span><span class="tx">interactivity spectrum.</span></div><div class="tline" data-t="937"><span class="ts">15:37</span><span class="tx">Okay, but I don't want to leave you guys</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">that PD is the answer to everything and</span></div><div class="tline" data-t="940"><span class="ts">15:40</span><span class="tx">it's a magic bullet. But um it's uh it's</span></div><div class="tline" data-t="943"><span class="ts">15:43</span><span class="tx">essentially a separation phase</span></div><div class="tline" data-t="945"><span class="ts">15:45</span><span class="tx">separation trade-off and not a magic</span></div><div class="tline" data-t="946"><span class="ts">15:46</span><span class="tx">bullet. So we created this uh matrix to</span></div><div class="tline" data-t="949"><span class="ts">15:49</span><span class="tx">help you decide when PD might be uh good</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">for you. So if you're managing long</span></div><div class="tline" data-t="955"><span class="ts">15:55</span><span class="tx">context uh with high ISL OSL ratios and</span></div><div class="tline" data-t="960"><span class="ts">16:00</span><span class="tx">you if you have a large model that</span></div><div class="tline" data-t="961"><span class="ts">16:01</span><span class="tx">you're serving that can that you can</span></div><div class="tline" data-t="964"><span class="ts">16:04</span><span class="tx">apply rich model parallelism techniques</span></div><div class="tline" data-t="967"><span class="ts">16:07</span><span class="tx">um you're facing that middle concurrency</span></div><div class="tline" data-t="969"><span class="ts">16:09</span><span class="tx">regime uh that I I showed you in the</span></div><div class="tline" data-t="971"><span class="ts">16:11</span><span class="tx">previous graphs and and the very</span></div><div class="tline" data-t="974"><span class="ts">16:14</span><span class="tx">important part is that if you want uh</span></div><div class="tline" data-t="976"><span class="ts">16:16</span><span class="tx">strict ITL streaming requirements like</span></div><div class="tline" data-t="978"><span class="ts">16:18</span><span class="tx">you want the you want the token</span></div><div class="tline" data-t="979"><span class="ts">16:19</span><span class="tx">generation to be uh much more smooth um</span></div><div class="tline" data-t="982"><span class="ts">16:22</span><span class="tx">then you want to consider PD but we also</span></div><div class="tline" data-t="985"><span class="ts">16:25</span><span class="tx">saw that it requires transfer of KV</span></div><div class="tline" data-t="987"><span class="ts">16:27</span><span class="tx">caches from your pre-filled workers to</span></div><div class="tline" data-t="989"><span class="ts">16:29</span><span class="tx">your decode workers. So you must pro</span></div><div class="tline" data-t="991"><span class="ts">16:31</span><span class="tx">process an advanced uh high-sp speeded</span></div><div class="tline" data-t="993"><span class="ts">16:33</span><span class="tx">network fabric like uh RDMMA or rocky to</span></div><div class="tline" data-t="997"><span class="ts">16:37</span><span class="tx">support that KV cache transfer. And if</span></div><div class="tline" data-t="999"><span class="ts">16:39</span><span class="tx">you do not have such requirements, short</span></div><div class="tline" data-t="1001"><span class="ts">16:41</span><span class="tx">moderate context, any model size, low</span></div><div class="tline" data-t="1006"><span class="ts">16:46</span><span class="tx">concurrency regimes or uh if you have</span></div><div class="tline" data-t="1008"><span class="ts">16:48</span><span class="tx">strict TTF requirements because you can</span></div><div class="tline" data-t="1010"><span class="ts">16:50</span><span class="tx">actually tune them on an aggregate</span></div><div class="tline" data-t="1012"><span class="ts">16:52</span><span class="tx">serving um and you the biggest point is</span></div><div class="tline" data-t="1015"><span class="ts">16:55</span><span class="tx">like if you don't have the network</span></div><div class="tline" data-t="1016"><span class="ts">16:56</span><span class="tx">fabric to support those KV cache</span></div><div class="tline" data-t="1017"><span class="ts">16:57</span><span class="tx">transfers. So you might actually just</span></div><div class="tline" data-t="1019"><span class="ts">16:59</span><span class="tx">want to stick with aggregated.</span></div><div class="tline" data-t="1022"><span class="ts">17:02</span><span class="tx">So here is my key takeaway from all of</span></div><div class="tline" data-t="1024"><span class="ts">17:04</span><span class="tx">this. So architecting this complex</span></div><div class="tline" data-t="1026"><span class="ts">17:06</span><span class="tx">platform requires balancing a lot of u</span></div><div class="tline" data-t="1029"><span class="ts">17:09</span><span class="tx">knobs and a highly multi-dimensional</span></div><div class="tline" data-t="1031"><span class="ts">17:11</span><span class="tx">design space all of which is supported</span></div><div class="tline" data-t="1033"><span class="ts">17:13</span><span class="tx">in LLMD. As you saw the scheduler must</span></div><div class="tline" data-t="1036"><span class="ts">17:16</span><span class="tx">support or constantly evaluate SLO</span></div><div class="tline" data-t="1038"><span class="ts">17:18</span><span class="tx">targets uh QEPs KV cache locality</span></div><div class="tline" data-t="1041"><span class="ts">17:21</span><span class="tx">metrics PD ratios and network topologies</span></div><div class="tline" data-t="1044"><span class="ts">17:24</span><span class="tx">to be able to route the request to the</span></div><div class="tline" data-t="1046"><span class="ts">17:26</span><span class="tx">optimal FOD. While in while the PD</span></div><div class="tline" data-t="1049"><span class="ts">17:29</span><span class="tx">design space you you need dynamic PD</span></div><div class="tline" data-t="1052"><span class="ts">17:32</span><span class="tx">rate matching to adapt to PD ratios</span></div><div class="tline" data-t="1055"><span class="ts">17:35</span><span class="tx">because you know you can start with a</span></div><div class="tline" data-t="1056"><span class="ts">17:36</span><span class="tx">static PD ratio but it needs to evolve</span></div><div class="tline" data-t="1058"><span class="ts">17:38</span><span class="tx">with the autoscaler as the traffic</span></div><div class="tline" data-t="1060"><span class="ts">17:40</span><span class="tx">changes um and you need uh yeah</span></div><div class="tline" data-t="1064"><span class="ts">17:44</span><span class="tx">autoscaling to scale PD pools</span></div><div class="tline" data-t="1066"><span class="ts">17:46</span><span class="tx">independently</span></div><div class="tline" data-t="1067"><span class="ts">17:47</span><span class="tx">um and constantly tweaking model</span></div><div class="tline" data-t="1070"><span class="ts">17:50</span><span class="tx">parallelism techniques like tensor</span></div><div class="tline" data-t="1071"><span class="ts">17:51</span><span class="tx">parallelism data parallelism uh to meet</span></div><div class="tline" data-t="1074"><span class="ts">17:54</span><span class="tx">your SLOs's.</span></div><div class="tline" data-t="1076"><span class="ts">17:56</span><span class="tx">So um I think with these uh I will hand</span></div><div class="tline" data-t="1079"><span class="ts">17:59</span><span class="tx">it over to Euchen to anchor some of the</span></div><div class="tline" data-t="1081"><span class="ts">18:01</span><span class="tx">concepts that we showed with the real</span></div><div class="tline" data-t="1084"><span class="ts">18:04</span><span class="tx">world case study of serving the GLM 5.2</span></div><div class="tline" data-t="1087"><span class="ts">18:07</span><span class="tx">model uh which is uh still ongoing as we</span></div><div class="tline" data-t="1090"><span class="ts">18:10</span><span class="tx">speak.</span></div><div class="tline" data-t="1091"><span class="ts">18:11</span><span class="tx">&gt;&gt; Yeah, still ongoing. You probably have</span></div><div class="tline" data-t="1093"><span class="ts">18:13</span><span class="tx">seen tons of uh impressive numbers of</span></div><div class="tline" data-t="1096"><span class="ts">18:16</span><span class="tx">GLM 5.2 on B200 when we talk to our</span></div><div class="tline" data-t="1099"><span class="ts">18:19</span><span class="tx">customers and they usually don't have</span></div><div class="tline" data-t="1101"><span class="ts">18:21</span><span class="tx">you know the luxury of B200. They have a</span></div><div class="tline" data-t="1103"><span class="ts">18:23</span><span class="tx">lot of H200. So we have to figure out</span></div><div class="tline" data-t="1105"><span class="ts">18:25</span><span class="tx">how to like put all the knobs together</span></div><div class="tline" data-t="1107"><span class="ts">18:27</span><span class="tx">and make GM 5.2 work really well for</span></div><div class="tline" data-t="1110"><span class="ts">18:30</span><span class="tx">cluster of of H200. So uh we let's</span></div><div class="tline" data-t="1113"><span class="ts">18:33</span><span class="tx">anchor all the concept together. Um we</span></div><div class="tline" data-t="1115"><span class="ts">18:35</span><span class="tx">went through for example the uh KV cache</span></div><div class="tline" data-t="1118"><span class="ts">18:38</span><span class="tx">routing PD disagregation. We kind of</span></div><div class="tline" data-t="1120"><span class="ts">18:40</span><span class="tx">call them a wildl path in LMD and also</span></div><div class="tline" data-t="1123"><span class="ts">18:43</span><span class="tx">we combine with different parallelism</span></div><div class="tline" data-t="1125"><span class="ts">18:45</span><span class="tx">strategies to so we can uh independently</span></div><div class="tline" data-t="1128"><span class="ts">18:48</span><span class="tx">uh scale prefuel paths because for</span></div><div class="tline" data-t="1130"><span class="ts">18:50</span><span class="tx">agentic workload is super uh long you</span></div><div class="tline" data-t="1132"><span class="ts">18:52</span><span class="tx">know like heavy prefill. So uh in this</span></div><div class="tline" data-t="1135"><span class="ts">18:55</span><span class="tx">case we designed the prefuel pool using</span></div><div class="tline" data-t="1137"><span class="ts">18:57</span><span class="tx">up to three workers optimized for uh</span></div><div class="tline" data-t="1139"><span class="ts">18:59</span><span class="tx">high throughput uh with deep and then</span></div><div class="tline" data-t="1142"><span class="ts">19:02</span><span class="tx">for decoup we use uh one dedicated</span></div><div class="tline" data-t="1144"><span class="ts">19:04</span><span class="tx">worker and um that's optimized for for</span></div><div class="tline" data-t="1146"><span class="ts">19:06</span><span class="tx">low latency. So we use Nixo for</span></div><div class="tline" data-t="1148"><span class="ts">19:08</span><span class="tx">efficient KV transfer between the pools</span></div><div class="tline" data-t="1151"><span class="ts">19:11</span><span class="tx">and also with the each worker we have</span></div><div class="tline" data-t="1153"><span class="ts">19:13</span><span class="tx">the leader worker set group uh with TP1</span></div><div class="tline" data-t="1155"><span class="ts">19:15</span><span class="tx">DP8 and also uh EP8 uh expert</span></div><div class="tline" data-t="1158"><span class="ts">19:18</span><span class="tx">parallelism 8. So the architecture is</span></div><div class="tline" data-t="1161"><span class="ts">19:21</span><span class="tx">just highly modular because you can uh</span></div><div class="tline" data-t="1163"><span class="ts">19:23</span><span class="tx">actually scale the throughput by simply</span></div><div class="tline" data-t="1164"><span class="ts">19:24</span><span class="tx">adding uh preview workers without</span></div><div class="tline" data-t="1166"><span class="ts">19:26</span><span class="tx">reconfiguring and um the decoup. So uh</span></div><div class="tline" data-t="1170"><span class="ts">19:30</span><span class="tx">this highlights how AMD effectly</span></div><div class="tline" data-t="1172"><span class="ts">19:32</span><span class="tx">effectively managed the complexity of</span></div><div class="tline" data-t="1174"><span class="ts">19:34</span><span class="tx">combining like PB and DB and EPI scale.</span></div><div class="tline" data-t="1178"><span class="ts">19:38</span><span class="tx">And also we found some interesting fun</span></div><div class="tline" data-t="1179"><span class="ts">19:39</span><span class="tx">fact actually a couple days ago. Um B B</span></div><div class="tline" data-t="1182"><span class="ts">19:42</span><span class="tx">B B B B B B B B B B B B B B B B B B B B</span></div><div class="tline" data-t="1182"><span class="ts">19:42</span><span class="tx">B B B B B B B B B B B B B B B B B B Bf6</span></div><div class="tline" data-t="1183"><span class="ts">19:43</span><span class="tx">uh BF16 KV cache actually is faster than</span></div><div class="tline" data-t="1186"><span class="ts">19:46</span><span class="tx">using like FPA uh KV cache for longer</span></div><div class="tline" data-t="1189"><span class="ts">19:49</span><span class="tx">preview. Um this is also like we</span></div><div class="tline" data-t="1191"><span class="ts">19:51</span><span class="tx">continue to explore and found like more</span></div><div class="tline" data-t="1193"><span class="ts">19:53</span><span class="tx">interesting patterns, but more</span></div><div class="tline" data-t="1195"><span class="ts">19:55</span><span class="tx">importantly uh we want to kind of just</span></div><div class="tline" data-t="1197"><span class="ts">19:57</span><span class="tx">show the result really quick. So um for</span></div><div class="tline" data-t="1199"><span class="ts">19:59</span><span class="tx">this uh data set agentic workload data</span></div><div class="tline" data-t="1201"><span class="ts">20:01</span><span class="tx">set the ISO OSL ratio is pretty high 45</span></div><div class="tline" data-t="1204"><span class="ts">20:04</span><span class="tx">to1 ratio preview is uh is really the</span></div><div class="tline" data-t="1207"><span class="ts">20:07</span><span class="tx">constraint you can tell um with 2P even</span></div><div class="tline" data-t="1209"><span class="ts">20:09</span><span class="tx">1D we have um 4x passer TDFT and also 60</span></div><div class="tline" data-t="1214"><span class="ts">20:14</span><span class="tx">uh% more requests and this is continuous</span></div><div class="tline" data-t="1217"><span class="ts">20:17</span><span class="tx">like work in progress so the next step</span></div><div class="tline" data-t="1219"><span class="ts">20:19</span><span class="tx">is we need to also put the upper layer</span></div><div class="tline" data-t="1222"><span class="ts">20:22</span><span class="tx">lower TTFT and also adding more more</span></div><div class="tline" data-t="1224"><span class="ts">20:24</span><span class="tx">preview replicas so um I know we're</span></div><div class="tline" data-t="1227"><span class="ts">20:27</span><span class="tx">running out of time really quick. Uh we</span></div><div class="tline" data-t="1230"><span class="ts">20:30</span><span class="tx">um the fundamental shift for agentic</span></div><div class="tline" data-t="1231"><span class="ts">20:31</span><span class="tx">workload we're continuing to uh have</span></div><div class="tline" data-t="1234"><span class="ts">20:34</span><span class="tx">this um uh agentic north uh northstar uh</span></div><div class="tline" data-t="1237"><span class="ts">20:37</span><span class="tx">with session graph orchestration program</span></div><div class="tline" data-t="1239"><span class="ts">20:39</span><span class="tx">award scheduling uh state reuse life</span></div><div class="tline" data-t="1242"><span class="ts">20:42</span><span class="tx">cycle and also the uh agentic benchmark</span></div><div class="tline" data-t="1245"><span class="ts">20:45</span><span class="tx">um we're working on. So you can find</span></div><div class="tline" data-t="1247"><span class="ts">20:47</span><span class="tx">them uh in AMD upstream AMD and also you</span></div><div class="tline" data-t="1251"><span class="ts">20:51</span><span class="tx">know feel free to join the SIG group and</span></div><div class="tline" data-t="1254"><span class="ts">20:54</span><span class="tx">uh and contribute and um this is the</span></div><div class="tline" data-t="1257"><span class="ts">20:57</span><span class="tx">very last slide. So distri distributed</span></div><div class="tline" data-t="1259"><span class="ts">20:59</span><span class="tx">inference is not challenge uh every</span></div><div class="tline" data-t="1260"><span class="ts">21:00</span><span class="tx">single comp a single company can solve</span></div><div class="tline" data-t="1262"><span class="ts">21:02</span><span class="tx">along. We're proud to be uh building</span></div><div class="tline" data-t="1265"><span class="ts">21:05</span><span class="tx">this uh future in the open alongside our</span></div><div class="tline" data-t="1267"><span class="ts">21:07</span><span class="tx">incredible ecosystem collaborators uh</span></div><div class="tline" data-t="1270"><span class="ts">21:10</span><span class="tx">core wave Google IBM Nvidia growing list</span></div><div class="tline" data-t="1273"><span class="ts">21:13</span><span class="tx">of launch partners and industry</span></div><div class="tline" data-t="1275"><span class="ts">21:15</span><span class="tx">adopters. So if you're passionate about</span></div><div class="tline" data-t="1277"><span class="ts">21:17</span><span class="tx">the future of opensource inference, we</span></div><div class="tline" data-t="1279"><span class="ts">21:19</span><span class="tx">invite you to join us. We do have a</span></div><div class="tline" data-t="1281"><span class="ts">21:21</span><span class="tx">booth downstairs. Feel free to stop by,</span></div><div class="tline" data-t="1283"><span class="ts">21:23</span><span class="tx">ask us any questions. And uh thank you</span></div><div class="tline" data-t="1285"><span class="ts">21:25</span><span class="tx">so much for your time.</span></div><div class="tline" data-t="1287"><span class="ts">21:27</span><span class="tx">[applause]</span></div><div class="tline" data-t="1304"><span class="ts">21:44</span><span class="tx">&gt;&gt; [music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

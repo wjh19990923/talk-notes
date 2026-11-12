@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>用学习得到的执行图检测 API 中的异常和漂移 —— Ritvik Pandya，摩根大通 | AI 工程师中文版</title>
+<meta name="description" content="把每个请求表示为一张执行图，有助于区分是某个服务变慢了、处理路径变了，还是请求构成发生了漂移——然后在不延误支付的前提下选择应对方式。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>用学习得到的执行图检测 API 中的异常和漂移 —— Ritvik Pandya，摩根大通</h1>
+    <div class="orig-title">Learned Execution Graphs for Anomaly Detection &amp; Drift in APIs — Ritvik Pandya, JP Morgan Chase</div>
+    <div class="meta"><span class="speaker">Ritvik Pandya</span> · AI Engineer World's Fair 2026 · 19:38</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=ai-in-finance">金融 AI</a><a class="tag" href="../../index.html#topic=ai-security">AI 安全</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/u1yaOeEX4e8-learned-execution-graphs-anomaly-detection-drift" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="u1yaOeEX4e8"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=u1yaOeEX4e8" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">这个请求里变了什么？</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="17"><span class="ts">0:17</span><span>这个请求里变了什么？</span></li><li data-t="203"><span class="ts">3:23</span><span>把分析精力花在基线失效的地方</span></li><li data-t="360"><span class="ts">6:00</span><span>定位变慢的外汇服务</span></li><li data-t="441"><span class="ts">7:21</span><span>是一次事故、一个新步骤，还是新的请求组合？</span></li><li data-t="738"><span class="ts">12:18</span><span>把诊断变成一次受控的推广</span></li><li data-t="833"><span class="ts">13:53</span><span>让分析远离支付路径</span></li><li data-t="921"><span class="ts">15:21</span><span>缺失一个事件不一定意味着缺失一个服务</span></li><li data-t="1053"><span class="ts">17:33</span><span>让基线具体，让决策可解释</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 18 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Learned Execution Graphs for Real-Time Anomaly Detection &amp; Drift…" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Learned Execution Graphs for Real-Time Anomaly Detection &amp; Drift…</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Ritvik Pandya introduces a way to turn request traces into execution DAGs, learn normal graph patterns, and score anomalies and classify drift near real time at production throughput.
+
+[0:20](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=20s) [Title slide introducing learned execution graphs for detecting anomalies and classifying drift in APIs.](https://assets.ai.engineer/sites/aiecode2025/sha256/e85d40d6386c1d7e3478189790d141e08495a8f936976297198fd4bc063e48c8.webp)
+
+AI ENGINEER WORLD’S FAIR 2026 · GRAPHS TRACK
+
+Learned Execution Graphs for Real-Time Anomaly Detection &amp; Drift Classification in APIs
+
+Turn every request’s trace into an attributed execution DAG. Learn the distribution of normal graphs. Score anomalies and classify drift — in near real time, at production throughput.
+
+Ritvik Pandya
+Engineering Lead · J.P. Morgan Chase — CIB Payments
+
+Views are my own. Examples &amp; figures generalized.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+01 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="A different kind of graph" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A different kind of graph</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A persistent graph stores facts for later queries. An execution graph captures how one request ran: its causal edges can help locate deviations and distinguish causes from symptoms before the short-lived signal disappears.
+
+[0:59](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=59s) [Comparison of persistent property graphs with short-lived execution graphs built from request traces.](https://assets.ai.engineer/sites/aiecode2025/sha256/39fa9282f7aee1ad1af7c442c25385e82fb3864f4854be36d508863db5c312ab.webp)
+
+01 · FRAMING
+
+A different kind of graph
+
+WHAT THE TRACK MEANS BY “GRAPH”
+Persistent / property graph
+• Knowledge graphs, GraphRAG, entity links
+• Lives in a database (Neo4j, ...)
+• Queried for what is related to what
+• Edges are facts; the graph is the data
+
+THIS TALK
+Execution graph (a trace)
+• One execution DAG per request, built from its spans
+• Lives in the request path for milliseconds
+• Describes how this call actually ran
+• Edges are causality; the graph is behavior
+
+Same word, opposite lifecycle. One is a store you query. The other is a signal you have ~40 ms to read before it’s gone.
+
+Why the graph, not just metrics? For “is it slow?” you don’t need it — but where, cause vs. symptom, and what kind of change are structural, and a number can’t answer them.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+02 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="From span tree to execution DAG" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From span tree to execution DAG</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A request passes through the gateway, authentication and orchestrator, then fans out to three services. A constructed join brings their paths together at Notify.
+
+[1:39](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=99s) [A request flows through gateway, authentication and orchestration, fans out to three services, then joins at notification.](https://assets.ai.engineer/sites/aiecode2025/sha256/9027d50825f251ad7a7e5af01dec693d97eed7611708683b1dc9ea486b17a429.webp)
+
+02 · DEFINITION
+From span tree to execution DAG
+
+OpenTelemetry gives you a span tree — one parent per span. We enrich it into an execution DAG: add span links, async producer→consumer edges, shared-resource and join causality. (“Notify” re-converges via a constructed join edge.)
+
+fan-out
+join edge
+
+Edge GW
+ingress
+
+AuthN/Z
+token-svc
+
+Orchestrator
+payments-core
+
+Fraud Score
+ml-svc
+
+Ledger Write
+cockroachdb
+
+FX Rate
+ext-api
+
+Notify
+response
+
+G = (V, E)   V = spans (operations)   E = parent-child + links + async + join   node feats: svc, op, status, duration   edge feats: sync/async, lag
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+03 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Acyclicity is load-bearing, not cosmetic" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Acyclicity is load-bearing, not cosmetic</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A DAG orders spans so each node can gather upstream context in one pass and separate root causes from downstream symptoms. Repeated calls can be unrolled into distinct nodes to restore the DAG.
+
+[2:28](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=148s) [Three reasons for using a DAG: topological order, causal direction and ordered propagation, with a caveat about retries and loops.](https://assets.ai.engineer/sites/aiecode2025/sha256/4113c664da39996dc3a7dbde3f2b6e542e9e2a54bd107ee1b38e992cc7c504a8.webp)
+
+03 · WHY A DAG
+
+Acyclicity is load-bearing, not cosmetic
+
+1
+Topological order
+A DAG has a valid linearization → you can compute the critical path and attribute end-to-end latency to the exact span that owns it.
+
+2
+Causal direction
+Edges point parent→child. That lets the detector separate a root cause (upstream) from its symptoms (everything downstream of it).
+
+3
+Ordered propagation
+Process spans in topological order — each node aggregates its full upstream context in one causal pass, instead of iterating rounds and over-smoothing the whole graph.
+
+THE HONEST CAVEAT — RETRIES &amp; LOOPS
+Retries, polling, and sagas can introduce cycles. Restore the DAG before modeling: unroll repeats into distinct nodes (call#1, call#2) or type the edge as retry/async. A retry storm then shows up as a structural feature — exactly the signal you want.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+04 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="“Learned” = model the distribution, not rules" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>“Learned” = model the distribution, not rules</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A graph-hash and timing gate checks requests first. Node-level comparisons investigate delays and structural changes; client profiles track behavioral drift.
+
+[3:20](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=200s) [Table compares graph-hash baselines, node deviation and structural checks, and per-client drift analysis.](https://assets.ai.engineer/sites/aiecode2025/sha256/40e1cb937b0e2826d8b5625f0f513c4a740bf2d3dd838189e5938b02a3867495.webp)
+
+04 · THE MODEL
+“Learned” = model the distribution, not rules
+
+Hand-written thresholds break on every deploy. Instead, learn per-node baselines and the graph’s normal structure from telemetry — no labels, nothing to train. Three statistical layers, cheapest first:
+
+TIER | METHOD | LEARNS | CATCHES | GRANULAR | COST | ROLE
+Tier 0 | graph-hash + timing baseline | topology + latency normal | rare / off-timing shape | ✓ by signature | ~µs | gate
+Tier 1 | deviation ratios + structural compare | per-node baselines + topology | slow node + structural change | ✓ per node | &lt;1ms | attribute
+Tier 2 | per-client EMA + KL divergence | client graph profiles | behavioral drift + cause | ✓ per client | ~ms | classify
+
+All three run in microseconds to milliseconds — no GPU, no inference, no black box. (A learned graph autoencoder is a natural extension; for payments, statistics wins on latency and interpretability.)
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+05 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="From graph to localized cause" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From graph to localized cause</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The system learns node baselines from normal traffic, scores deviations to locate the worst node, and checks for structural changes. A false-positives-per-day budget sets the alert threshold.
+
+[5:20](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=320s) [Five-step workflow represents a trace as a DAG, establishes baselines, measures deviation, localizes a cause and applies a threshold.](https://assets.ai.engineer/sites/aiecode2025/sha256/91a9c8d9a0458f1952804da5fae5eac7d491f98bcbe6ec0b2838270947e5dfef.webp)
+
+05 · THE APPROACH
+From graph to localized cause
+
+No model to train — learn per-node baselines from normal traffic. A request’s deviation from them is the score; the worst node is the cause.
+
+1 Represent
+trace → DAG
+2 Baseline
+per-node stats
+3 Deviate
+obs / baseline
+4 Localize
+argmax ratio
+5 Threshold
+FP/day budget
+
+THE BASELINES — learned, not trained
+
+Per-node statistical baselines — latency (μ, σ, p99), dependency set, execution frequency. Mined from normal traffic. No labels, no neural net.
+
+baseline(n) = {latency μ/σ, deps, freq}
+deviation(n) = observed / baseline → score
+cause = argmax(deviation) → localize
+
+TWO CHECKS ON ONE GRAPH
+
+deviation ratio → bottleneck node  attribute
+structure check → missing / reordered / new  structural
+
+One finds a node that’s slow; the other finds a node that shouldn’t be there — or a mandatory one that’s gone.
+
+Threshold = a false-positives-per-day budget, not a latency guess. Baselines recalibrate as normal re-learns — gated by the drift classifier and the deploy log, so an expected change doesn’t page.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+06 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Score the graph, then localize the span" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Score the graph, then localize the span</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In the payment graph, FX Rate reaches 38× its baseline latency while the other nodes stay near 1×. The deviation localizes the anomaly to FX Rate even though end-to-end p99 barely moved.
+
+[5:58](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=358s) [Payment execution graph highlights the FX rate node at 38 times its baseline latency.](https://assets.ai.engineer/sites/aiecode2025/sha256/f2221b7c7b6b7dd212a038272639e7559f483c0ee4b719d7570ad20fc13896a3.webp)
+
+06 · ANOMALY DETECTION
+
+Score the graph, then localize the span
+
+The same payment DAG — now the external FX dependency degrades. Each node’s observed latency over its baseline: the offending span stands an order of magnitude above normal while the rest sit at ~1×.
+
+Edge GW
+ingress
+
+AuthN/Z
+token-svc
+
+Orchestrator
+payments-core
+
+Fraud Score
+ml-svc
+
+Ledger Write
+cockroachdb
+
+FX Rate
+ext-api
+
+Notify
+response
+
+PER-NODE DEVIATION (observed / baseline)
+
+edge-gw 1.0×   auth 1.1×   orchestrator 1.0×   fraud 1.2×   ledger 1.1×   notify 1.0×   fx-rate 38×
+
+fx-rate z-score ≫ threshold → ANOMALY, localized to fx-rate · end-to-end p99 barely moved
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+07 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="One real experiment beats ten illustrations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One real experiment beats ten illustrations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The proposed benchmark trains on ~1.9M normal traces over 7 days, then injects failures. Illustrative results show detection of 86% of injected incidents and top-1 localization in 83% of detected cases.
+
+[6:47](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=407s) [Illustrative benchmark setup and example detection, localization, latency, and false-alert results.](https://assets.ai.engineer/sites/aiecode2025/sha256/acb599e484347b9a6bb5f1e532ca97db9e40aeea37d92d927f69a3891ef921bb.webp)
+
+07 · EVIDENCE
+
+One real experiment beats ten illustrations
+
+ILLUSTRATIVE result shape — reproduce on the public benchmark, then replace with your measured run. No production data needed.
+
+SETUP
+Benchmark  OpenTelemetry + DeathStarBench
+Train on  ~1.9M normal traces · 7-day window
+Inject  FX latency · missing span · retry storm
+post-deploy topology · traffic shift · CPU sat.
+
+RESULTS (report these)
+Detection  86% of injected incidents
+Deviation scoring  0.4 ms median
+Localization  top-1 83% of detected
+False alerts  4 / service / day
+Structural + KL check  &lt; 2 ms (no GPU)
+
+Illustrative: “On ~1.9M synthetic traces across 6 injected failure classes, per-node deviation flagged 86% of incidents at 0.4 ms median latency and localized the responsible node in 83% of detected cases — no GPU, no inference step.”
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+08 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="The pivot" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The pivot</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An anomaly is one graph outside the normal cloud; drift shifts the cloud over time. Retraining an anomaly detector on drift can teach it the shifted pattern as normal, so the shift itself needs detection.
+
+[7:20](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=440s) [A point outside a normal cloud illustrates an anomaly; shifted distributions illustrate drift over time.](https://assets.ai.engineer/sites/aiecode2025/sha256/cb069a5496a4a4f53cea794a144af4b50cbbfcc0e7431fff1a440b3689b73dcb.webp)
+
+08 · THE PIVOT
+
+ANOMALY — a graph off the normal cloud
+instantaneous · a single request is wrong
+
+DRIFT — the normal cloud itself shifts
+reference
+current
+over time · “normal” has changed
+
+An anomaly detector retrained on drift learns the drift as normal. You must detect the shift itself — and say what kind it is.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+09 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Two DAGs: one observed, one decided" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Two DAGs: one observed, one decided</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An execution-graph deviation triggers a decision path through root cause analysis, risk scoring, action and verification. Failed verification leads to rollback; an incident KB retrieves a matching runbook.
+
+[12:16](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=736s) [An execution graph triggers a remediation flow from telemetry through root cause analysis, action, and verification, with rollback on failed verification.](https://assets.ai.engineer/sites/aiecode2025/sha256/569f0541e9f412f8e98a7ebd13b4671d50e35432c4693782d27a4b0e6d0888b5.webp)
+
+10 · CLOSING THE LOOP
+Two DAGs: one observed, one decided
+
+OBSERVED
+Execution DAG
+
+deviation + drift
+class (KL)
+
+DECIDED
+Remediation decision DAG
+
+Telemetry → RCA → Candidate Actions → Risk Scoring → Action → Verify
+rollback on failed verification
+
+INCIDENT KB matches the drift fingerprint against historical incidents (RAG, similarity-ranked) → retrieves the runbook before a human reads the alert.
+
+The execution-graph signal is the trigger; an interpretable decision DAG is the response.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+11 / 12</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Scalar metrics tell you “when,” never “where”" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Scalar metrics tell you “when,” never “where”</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Both requests take 940 ms, but their graphs point to different problems: an FX dependency stalls in Request A, while Request B slows across all components.
+
+[13:49](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=829s) [Two requests have the same end-to-end latency; one has a slow FX dependency and the other shows a uniform slowdown.](https://assets.ai.engineer/sites/aiecode2025/sha256/b3e194647dd143d1e4c138e10a023c315d6bb9a7aee3618b367a825522ccf965.webp)
+
+A1 · MOTIVATION
+
+Scalar metrics tell you “when,” never “where”
+
+Two requests. Identical end-to-end latency. Completely different critical paths.
+
+Request A — 940 ms end-to-end
+Components: GW, auth, core, frd, db, fx
+one dependency stalls — FX subtree
+
+Request B — 940 ms end-to-end
+Components: GW, auth, core, frd, db, fx
+uniform slowdown — shared saturation
+
+Same number → opposite cause → opposite fix. A scalar collapses the graph; you can’t recover structure from one number.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+A1 / 6</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Scoring every request in near real time" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Scoring every request in near real time</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>OpenTelemetry spans pass through Kafka and a stream assembler, then enter a sub-ms gate and asynchronous per-client drift analysis. The slide reports 100% scored, with deep analysis sampled.
+
+[14:23](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=863s) [Pipeline from telemetry collection through stream assembly to fast and asynchronous scoring.](https://assets.ai.engineer/sites/aiecode2025/sha256/6f8e30c8fbbfc3d409c3b265a8877939c9f6f311d4a94abdbd60bd4e0d045989.webp)
+
+Scoring every request in near real time
+A2 · ARCHITECTURE
+
+OTel SDK + Collector
+spans emitted in-band
+
+Kafka / MSK
+span stream
+partition by trace-id
+
+Stream Assembler
+Flink: windowed
+trace → DAG
+
+TIER 0 — fast gate
+graph-hash + timing · scores on assembly · sub-ms
+
+TIER 2 — async
+per-client EMA + KL · off-path · classifies drift
+
+100k+
+requests / sec scored
+
+&lt; 1 ms
+span-emit hot-path overhead
+
+100%
+scored · deep-analyze sampled
+
+Two-tier by design: spans emit in-band with negligible overhead; scoring runs in near real time on assembled traces — a sub-ms deviation gate first, heavier per-client and structural analysis off-path. The hot path never waits on it.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+A2 / 6</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="When is a trace done?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>When is a trace done?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Closing a trace too early can turn a delayed span into a false anomaly. The slide also recommends tail-based sampling and service-level priors for endpoints without a baseline.
+
+[15:21](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=921s) [Trace assembly timeline and challenges involving late spans, sampling bias, and cold starts.](https://assets.ai.engineer/sites/aiecode2025/sha256/10c39b46c370eec6b438150d9b4f771e3d8ecab027595a4afacce7dfc2e6401e.webp)
+
+APPENDIX A3 · TRACE ASSEMBLY
+“When is a trace done?” — the assembly problem
+
+spans arrive out of order, across a window
+Timeline: GW · auth · core · frd · db · fx (late) · notify · watermark / close
+
+Late spans ≠ missing spans
+Close the window too early and a slow leaf looks like a structural hole — a false anomaly. Watermark on span timing, not wall-clock.
+
+Sampling bias
+Head-based sampling skews the graph distribution you learn from. Prefer tail-based / always-sample-on-error so anomalies survive.
+
+Cold start
+A new endpoint has no baseline. Back off to service-level priors until the per-signature distribution fills in.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+A3 / 6</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="From drift happened to which drift" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From drift happened to which drift</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Compare embedding distributions, confirm the change point, then classify drift. Structural and timing shifts suggest different causes; deploy logs help distinguish expected changes from incidents.
+
+[16:37](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=997s) [Detect, confirm, and classify drift, distinguishing structural and temporal changes.](https://assets.ai.engineer/sites/aiecode2025/sha256/7be9fad80a2b32ae4f7df9565d1407b1756cc54a856b0c9cb834b968bfee505f.webp)
+
+APPENDIX A4 · CLASSIFYING DRIFT
+From “drift happened” to “which drift”
+
+1 DETECT
+Sliding reference vs detection window. Distance on graph-embedding distributions:
+MMD · Wasserstein · KL
+
+2 CONFIRM
+Change-point test on the score / embedding stream to reject noise and find onset:
+ADWIN · Page-Hinkley
+
+3 CLASSIFY
+Light classifier on drift features → the quadrant:
+Δstructure vs Δtiming, deploy-corr, gradual/sudden
+
+THE DISCRIMINATIVE FEATURE
+Decompose the embedding shift into a structural component and a temporal component. Structure moved → deploy/dependency. Only timing moved → capacity. Correlate against the deploy log to split expected from incident.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+A4 / 6</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="What good looks like — the scorecard" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What good looks like — the scorecard</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The illustrative scorecard targets a 60–80% reduction in MTTD versus scalar alerting and drift classification in less than one window. It also tracks top-1 localization and false alerts per service per day.
+
+[17:00](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=1020s) [Illustrative targets for detection, localization, drift lag, and false alerts, with reporting recommendations.](https://assets.ai.engineer/sites/aiecode2025/sha256/5cc9bac7406a76311cea395d8fa116bf20d41a3885c5b3da4d0ae8d64fbb063f.webp)
+
+What good looks like — the scorecard
+APPENDIX A5 · EVALUATION
+
+↓ 60–80%
+MTTD
+time-to-detect vs scalar alerting
+
+0.8–0.9
+Top-1 localize
+right span, automatically
+
+&lt; 1 window
+Drift lag
+onset → classified
+
+&lt; 10
+False alerts
+per service / day
+
+MEDIAN TIME-TO-DETECT (illustrative)
+Graph detection: 3
+Scalar alerting: 14
+
+REPORT IT HONESTLY
+• Detection latency, not just accuracy
+• Localization top-1, not graph-level AUC alone
+• FP/day — the real alert-fatigue cost
+• Inference p99 + graphs/sec at peak
+
+Figures are illustrative targets — substitute your own measured numbers under whatever you can disclose.
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+A5 / 6</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Where this bites — know before you build" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Where this bites — know before you build</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>High-cardinality attributes expand the signature space, while per-client tracking costs memory. Dropped spans can mimic anomalies; clean deployments can look anomalous until rebaselining, so include deployment logs.
+
+[17:31](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=1051s) [Six implementation tradeoffs covering labels, cardinality, incomplete traces, client state, explainability, and deployment ambiguity.](https://assets.ai.engineer/sites/aiecode2025/sha256/70693c284f70477a1907232e4a07fe49163fe2981f3e4424b06f742bfdf27e42.webp)
+
+TRADEOFFS
+Where this bites — know before you build
+
+Label scarcity
+Anomalies are rare and drift is unlabeled. Stay self-supervised; treat any labels as evaluation, not training.
+
+Cardinality blow-up
+High-cardinality attributes explode the signature space. Bucket / drop them from the graph key or Tier 0 never stabilizes.
+
+Trace incompleteness
+Dropped spans mimic structural anomalies. Gate on trace completeness before you trust a structural verdict.
+
+Per-client state
+Tracking EMA + KL per client is memory at scale. Bound it — cap tracked clients, decay idle ones, shard the rest.
+
+Explainability
+Ops won’t action a bare score. Per-node error + the drift class ARE the explanation — ship them, not a number.
+
+Deploy ambiguity
+A clean deploy looks anomalous until rebaseline. Wire the deploy log in as a feature, not an afterthought.
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK
+A6 / 6</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Thank you" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Thank you</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Ritvik Pandya invites questions and connections on LinkedIn.
+
+[19:12](https://www.youtube.com/watch?v=u1yaOeEX4e8&amp;t=1152s) [Closing slide inviting questions and professional contact, with a QR code.](https://assets.ai.engineer/sites/aiecode2025/sha256/fc5c89917c36f3733f26b7668241dbd707df626fca81b9c33de0b53260abe768.webp)
+
+Thank you
+
+Let’s keep the conversation going — questions now, or connect anytime.
+
+Ritvik Pandya
+Engineering Lead · J.P. Morgan Chase — CIB Payments
+linkedin.com/in/ritvik-pandya
+
+Scan to connect on LinkedIn
+
+LEARNED EXECUTION GRAPHS · AIE WORLD’S FAIR ’26 · GRAPHS TRACK</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/a091086c13450c7b7ea24868da60113cda3a62e2bedbcdd70f450c0decce5fd8.webp" alt="White AI Engineer World's Fair branding on a black background." loading="lazy" data-lb="17" data-cap="AI Engineer World's Fair" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer World's Fair</h3>
+        <p>White AI Engineer World's Fair branding on a black background.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+World’s Fair
+
+HTTPS://AI.ENGINEER</pre></details>
+        <button class="ts" data-t="1162">▶ 19:22</button>
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">这个请求里变了什么？</a></li><li><a href="#sec-2">把分析精力花在基线失效的地方</a></li><li><a href="#sec-3">定位变慢的外汇服务</a></li><li><a href="#sec-4">是一次事故、一个新步骤，还是新的请求组合？</a></li><li><a href="#sec-5">把诊断变成一次受控的推广</a></li><li><a href="#sec-6">让分析远离支付路径</a></li><li><a href="#sec-7">缺失一个事件不一定意味着缺失一个服务</a></li><li><a href="#sec-8">让基线具体，让决策可解释</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">用学习得到的执行图检测 API 异常和漂移</h2>
+      <div class="lede"><p>把每个请求表示为一张执行图，有助于区分是某个服务变慢了、处理路径变了，还是请求构成发生了漂移——然后在不延误支付的前提下选择应对方式。</p><p>熟悉 API 请求流程、分布式追踪和基本的延迟监控会有帮助；文中会在出现时介绍执行图和漂移类别。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="17">▶ 0:17</button></div>
+      <h3>这个请求里变了什么？</h3>
+      <p>When an API request deviates from normal behavior, how do you find what changed—and decide whether to fix it? Ritvik Pandya, who introduces himself as leading a payments team at JP Morgan, approaches this through <strong>short-lived execution graphs</strong>. Unlike persistent property graphs queried through systems such as Neo4j, these graphs describe how an individual request proceeds through a system. Their purpose is to make deviations visible and reduce manual investigation.</p>
+<p>Consider a payment request. It enters through an edge layer, passes through gateways and ingress, and reaches authentication and authorization. An orchestrator then invokes downstream services, some in parallel, before the system notifies the client. In the illustrated graph, those parallel branches are Fraud Score, Ledger Write and FX Rate; they converge at Notify. Representing the journey as a <strong>directed acyclic graph</strong>, or DAG, preserves both the sequential dependencies and the parallel work.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/dac08773e37dee843ab8cae6cf2578179fb43af2a06dc2afd54c46173f349716" alt="Diagram connects Edge GW to AuthN/Z and Orchestrator, branches to Fraud Score, Ledger Write, and FX Rate, then rejoins at Notify." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>From span tree to execution DAG: parallel services converge on Notify.</figcaption></figure>
+<p>The graph tells you which services execute in which order, but it also identifies the context available at each node and what passes to the next one. Retries and loops need explicit representation: Pandya treats their occurrences as separate entities so they remain trackable. An execution graph therefore records the work that happened, rather than collapsing every visit to a service into one indistinguishable node.</p>
+<p>A compact TypeScript representation of the illustrated dependencies makes the parallel branches explicit. Each array names the steps that must precede that node; it does not impose an order among Fraud Score, Ledger Write and FX Rate.</p>
+<p>```typescript
+type Step =
+  | &quot;Edge GW&quot;
+  | &quot;AuthN/Z&quot;
+  | &quot;Orchestrator&quot;
+  | &quot;Fraud Score&quot;
+  | &quot;Ledger Write&quot;
+  | &quot;FX Rate&quot;
+  | &quot;Notify&quot;;</p>
+<p>const predecessors: Record&lt;Step, readonly Step[]&gt; = {
+  &quot;Edge GW&quot;: [],
+  &quot;AuthN/Z&quot;: [&quot;Edge GW&quot;],
+  &quot;Orchestrator&quot;: [&quot;AuthN/Z&quot;],
+  &quot;Fraud Score&quot;: [&quot;Orchestrator&quot;],
+  &quot;Ledger Write&quot;: [&quot;Orchestrator&quot;],
+  &quot;FX Rate&quot;: [&quot;Orchestrator&quot;],
+  &quot;Notify&quot;: [&quot;Fraud Score&quot;, &quot;Ledger Write&quot;, &quot;FX Rate&quot;],
+};</p>
+<p>function readySteps(completed: ReadonlySet&lt;Step&gt;): Step[] {
+  return (Object.keys(predecessors) as Step[]).filter(
+    step =&gt; !completed.has(step) &amp;&amp;
+      predecessors[step].every(parent =&gt; completed.has(parent)),
+  );
+}</p>
+<p>const completed = new Set&lt;Step&gt;([
+  &quot;Edge GW&quot;, &quot;AuthN/Z&quot;, &quot;Orchestrator&quot;,
+]);</p>
+<p>const ready = readySteps(completed);
+// [&quot;Fraud Score&quot;, &quot;Ledger Write&quot;, &quot;FX Rate&quot;]
+```</p>
+<p>Timing and request context can then be attached to these execution nodes, while repeated attempts receive distinct identities.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="203">▶ 3:23</button></div>
+      <h3>把分析精力花在基线失效的地方</h3>
+      <p>A detector should not spend the same resources on every request. Pandya compares the first tier to an airport boarding-pass check: if the request matches its normal end-to-end baseline, let it pass without escalating to a deeper inspection. A delay prompts the next question: did the structure change? An unexpected node or a missing processing step can explain why execution no longer matches the reference graph.</p>
+<p>Further analysis can use <strong>KL divergence</strong> or an <strong>exponential moving average</strong>, but the comparison must reflect the request's context. Client A may be local, while client B's request arrives from outside the country and requires additional checks. Their normal latencies need not match. A threshold built around the appropriate client baseline helps avoid treating expected differences as incidents.</p>
+<p>The decision sequence is straightforward:</p>
+<p>1. Represent the full request as a DAG.
+2. Establish its baseline and detect a deviation.
+3. Localize the deviation to the relevant part of the graph.
+4. Compare it with the threshold appropriate to that system and request.
+5. Alert or act only when the deviation exceeds that threshold.</p>
+<p><strong>Detection is not automatically a mandate for remediation.</strong> A localized difference that remains within the accepted threshold requires neither an alert nor an automated intervention.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="360">▶ 6:00</button></div>
+      <h3>定位变慢的外汇服务</h3>
+      <p>Return to the payment graph. The request is progressing through the system, but the foreign-exchange rate service is taking longer than usual. The graph gives the investigation a specific target: <strong>FX Rate</strong>, rather than the entire payment pipeline. Once that node is identified, previous cases of FX service failure become relevant evidence for deciding what to investigate or repair.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c0ae8e03adeb8944fb85fa76755fa6bebd46f9b4770afbb7e58f4cce65944402" alt="Payment execution diagram with FX Rate and its connecting edges highlighted red, above a per-node deviation panel." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The execution graph highlights FX Rate as the anomalous span.</figcaption></figure>
+<p>Pandya describes a pre-live benchmark example using OpenTelemetry and <a href="https://github.com/delimitrou/DeathStarBench" target="_blank" rel="noopener">DeathStarBench</a>, with millions of traces over seven days, followed by injected anomalies to train the system. This establishes the intended preparation sequence: observe ordinary execution, introduce faults and develop the detector before putting it live. The talk does not provide the selected workload, exact trace count, injection procedure or evaluation results for that example.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="441">▶ 7:21</button></div>
+      <h3>是一次事故、一个新步骤，还是新的请求组合？</h3>
+      <p>An <strong>anomaly</strong> and <strong>drift</strong> pose different operational questions. Suppose the trip from home to the office normally takes an hour. One day it takes longer because of traffic or an accident: that is an isolated incident, and the response depends on how critical the disruption is. Now imagine noticing during a late-afternoon coffee break that the same commute routinely takes twenty minutes longer than it did a year ago. More cars and heavier Bay Area traffic have changed the pattern. The old baseline may no longer describe normal conditions.</p>
+<p>Different kinds of drift call for different remedies:</p>
+<p>- <strong>Structural change:</strong> A coffee shop starts asking whether you have a membership before applying discounted or regular pricing. That added question is a new processing step. Likewise, adding or removing a service node means the API's baselines and alerts must account for a changed path.
+- <strong>Capacity-related degradation:</strong> Request volume grows until a service takes longer or cannot serve the expected load. Depending on the use case, the response may be to scale the service, add instances or make a call asynchronous.</p>
+<p>Updating a baseline for an intentional extra step and addressing insufficient capacity are distinct operations, even if both first appear as increased latency.</p>
+<p>A third case is <strong>covariate drift</strong>: the population of requests changes. Pandya's example begins with 60% local requests and 40% international requests. International payments may require currency conversion, so requests in US dollars and other currencies have different normal processing times. As the product becomes more popular abroad, the international share grows. The system can be working correctly while its aggregate latency changes.</p>
+<p>Two responses are possible: compare local and international requests against separate execution graphs, or revise the aggregate request-time baseline to reflect the new mix. The distinction matters because a changing mix does not necessarily require a service repair. By contrast, if the <em>same request</em> now produces different behavior, the relevant response may be to reconsider or roll back a change. Classify the deviation before choosing the action.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="738">▶ 12:18</button></div>
+      <h3>把诊断变成一次受控的推广</h3>
+      <p>The detection methods here form a statistical module within a larger system involving neural algorithms; the talk does not specify that larger system's learning procedure. The operational flow starts with OpenTelemetry continuously supplying data. Those observations support root-cause analysis and drift classification, which in turn inform a candidate remedy.</p>
+<p>Before automating that remedy, assess its risk. Pandya illustrates a staged rollout: apply the remedy to 5% or 10% of machines, monitor and verify it, then expand to 100% of nodes. This separates selecting an action from authorizing its broad execution. A plausible diagnosis still needs evidence that the proposed change behaves as intended.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="833">▶ 13:53</button></div>
+      <h3>让分析远离支付路径</h3>
+      <p>Pandya uses an illustrative normal end-to-end request time of 700 milliseconds to compare two latency patterns. One node becoming slow directs attention to that service. Delays spread across the graph instead suggest investigating something shared by the affected nodes. The graph helps distinguish these patterns even when both appear to the client as a slow payment.</p>
+<p>The detection system must not become another source of payment latency. Telemetry is fed asynchronously into OpenTelemetry, with Kafka as a possible transport and stream assessment downstream. That processing can split into two paths:</p>
+<p>| Path | Purpose | Tradeoff |
+| --- | --- | --- |
+| Hot path | Fast decisions and possible automation | Prioritizes response speed |
+| Reconciliation path | Slower, deeper assessment | May provide greater accuracy |</p>
+<p>The architecture slide places the OTel SDK and Collector before Kafka/MSK and a Stream Assembler, then branches into TIER-0 fast gate and TIER-2 async processing. The separation lets immediate assessment coexist with analysis that needs more time.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c0c62c77d942d5261dc3383114352d0321c87f768376a360b3c73f736f77abeb" alt="Architecture diagram flows from OTel SDK and Collector through Kafka/MSK and Stream Assembler to TIER-0 fast gate and TIER-2 async branches." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Trace processing branches into a fast gate and asynchronous analysis.</figcaption></figure>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="921">▶ 15:21</button></div>
+      <h3>缺失一个事件不一定意味着缺失一个服务</h3>
+      <p>Asynchronous observation introduces an ambiguity. Suppose seven nodes participate in a request, but one node's telemetry arrives late. The detector temporarily sees six nodes. Has the execution structure changed, or is the observed graph simply incomplete? Treating every absent event as a removed node creates false alarms. Structural-change detection therefore needs explicit timing criteria for when the available evidence is sufficient.</p>
+<p>Pandya recommends a tail-based approach for this example because the analysis needs each node's start and end. More precisely, span instrumentation records those timings; <a href="https://opentelemetry.io/blog/2022/tail-sampling/" target="_blank" rel="noopener">tail sampling</a> decides which traces to retain using accumulated span information. It does not guarantee completeness. The <a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/tailsamplingprocessor/README.md" target="_blank" rel="noopener">current Collector processor documentation</a> explicitly accounts for late-arriving spans and decisions made before they arrive, so waiting and retention policies remain part of the design. A new endpoint presents a separate cold-start problem: it needs its own baseline, rather than inheriting an overly generic one.</p>
+<p>For detection, Pandya names <strong>maximum mean discrepancy</strong>, or <a href="https://jmlr.org/papers/v13/gretton12a.html" target="_blank" rel="noopener">MMD</a>, and KL divergence, followed by confirmation with <a href="https://www.cs.upc.edu/~gavalda/papers/adwin06.pdf" target="_blank" rel="noopener">ADWIN</a>. Classification then identifies the kind of problem and informs automation where feasible. These are stages in a proposed detection flow; the precise integration and configuration are not supplied.</p>
+<p>Pandya reports a substantial reduction in mean time to discovery, attributing faster issue resolution to using a single observation window instead of waiting for multiple windows. He supplies neither a numerical improvement nor the window duration. That single-window account describes his system; ADWIN itself adapts its window length as the observed data changes.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1053">▶ 17:33</button></div>
+      <h3>让基线具体，让决策可解释</h3>
+      <p>Labels help the system learn, but they require careful tuning. The baseline also needs to correspond to a meaningful operation. One baseline for all <code>POST</code> requests lumps together work with different behavior: real-time payments and wire payments should be considered separately. Define the observation window for structural changes, and use per-client baselines where client differences would otherwise generate noise. The relevant unit of comparison is the operation and its context, not merely its HTTP method.</p>
+<p><strong>An alert needs an explanation, not just a score.</strong> Pandya compares an unexplained anomaly score to a doctor reporting a health score of twenty-two: the number alone does not tell you what is wrong or what to do. Supporting observations let an operator make an informed decision. Finally, the system must know when a new deployment occurred. That context connects changed behavior to a possible cause and helps determine whether rollback is an appropriate response.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/202382bd46b62d35cf4bd061af94bbffd3b9067232bee79179dbabeb2812bc03" alt="Six tradeoff cards cover label scarcity, cardinality blow-up, trace incompleteness, per-client state, explainability, and deploy ambiguity." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Execution-graph tradeoffs include label scarcity and per-client state.</figcaption></figure>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/delimitrou/DeathStarBench" target="_blank" rel="noopener">DeathStarBench</a> — Open-source microservices workloads for experimenting with end-to-end service performance.</li><li><a href="https://arxiv.org/abs/1905.11055" target="_blank" rel="noopener">DeathStarBench research paper</a> — Research introducing DeathStarBench and analyzing performance characteristics of cloud and IoT microservices.</li><li><a href="https://opentelemetry.io/blog/2022/tail-sampling/" target="_blank" rel="noopener">Tail sampling with OpenTelemetry</a> — Explains head versus tail sampling and demonstrates Collector policies for retaining traces.</li><li><a href="https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/main/processor/tailsamplingprocessor/README.md" target="_blank" rel="noopener">Tail sampling processor configuration</a> — Current configuration guidance covering sampling policies, buffering, decision timing and late spans.</li><li><a href="https://www.cs.upc.edu/~gavalda/papers/adwin06.pdf" target="_blank" rel="noopener">Adaptive windowing and ADWIN</a> — Author-hosted manuscript explaining adaptive windows for detecting changes in streaming data.</li><li><a href="https://jmlr.org/papers/v13/gretton12a.html" target="_blank" rel="noopener">A Kernel Two-Sample Test</a> — Foundational treatment of maximum mean discrepancy for testing whether samples come from different distributions.</li><li><a href="https://www.conf42.com/Database_DevOps_2026_Ritvik_Pandya_monitoring_telemetry_reliability" target="_blank" rel="noopener">Database DevOps at Scale</a> — Pandya's separate presentation on deterministic routing, data locality and graph-based observability, with an organizer-hosted transcript.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Hi. Uh, thanks, thanks, Na.</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">And, uh, hope everyone is out of, uh, the lunch coma and [laughs] will survive this talk. So, uh, yeah, myself Ritvik, I, uh, lead the payments team in, uh, JP Morgan.</span></div><div class="tline" data-t="30"><span class="ts">0:30</span><span class="tx">And, uh, today I'll be talking about learned execution graphs, how these graphs can help to, uh, detect any anomaly and, uh, drifts. Also, how we can automate a few things around that and, uh, you know, um,</span></div><div class="tline" data-t="50"><span class="ts">0:50</span><span class="tx">uh, at the same time, if we can reduce the manual, you know, detection work and, uh, going on that side. Uh, so whenever we hear about graph, uh, there are persistence graph and property graphs, uh, which Neo4j and, you know, other products, uh, we</span></div><div class="tline" data-t="75"><span class="ts">1:15</span><span class="tx">use for them. We query those, uh, graphs and get the answers out of it. What I'm talking about today is execution graph. It's short-lived graph. Uh, and idea here is holistically try to identify how the request processing happens, and if there is any deviation on that, and how to detect that, and how to fix that.</span></div><div class="tline" data-t="101"><span class="ts">1:41</span><span class="tx">So here is a simple example. Uh, say we have set of applications. Uh, you have one edge layer, uh, the first layer where, you know, request comes in. And then, uh, you have some gateways.</span></div><div class="tline" data-t="116"><span class="ts">1:56</span><span class="tx">Uh, if gateway is there, you have ingress layer on top of it. Then authentication, authorization happens. After that, there is some orchestration layer and a few other systems which could be called in parallel.</span></div><div class="tline" data-t="130"><span class="ts">2:10</span><span class="tx">Uh, once everything is done, you are notifying your client that what's the update on that request, right? So here, the idea is representing this, uh, overall request processing as DAG.</span></div><div class="tline" data-t="145"><span class="ts">2:25</span><span class="tx">And using DAG simplifies most of the things here.</span></div><div class="tline" data-t="150"><span class="ts">2:30</span><span class="tx">One, now you know that, uh, in what order service execution will be happening, right? So that's one of the thing. The other thing is, uh, you know the context that in-- at what node, what context will be there and what will be passed to the next node.</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">Uh, in that way, it will be very, um, you know, ordered and simplified, um, uh, simply can be represented. Uh, there are a few other, uh, use cases could be there, uh, in terms of retries and, uh, the loops, et cetera.</span></div><div class="tline" data-t="185"><span class="ts">3:05</span><span class="tx">Uh, the idea here is, uh, every loop, uh, to put in the graph as a separate entity itself. So, uh, in that way, it could be tracked, uh, easily.</span></div><div class="tline" data-t="203"><span class="ts">3:23</span><span class="tx">How we can make this system, uh, more, uh, reliable at the same time not using, uh, most of the resources, right? So in the tier one check or ACR first check, it's like, uh, going to airport and you, you, you know, it's just boarding passes.</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">Some-someone is looking at the boarding pass and let you go. So, uh, now if you know the baseline of your request execution end to end, if, uh, everything looks good, you don't need to go to the tier two, uh, or next tier of check, right?</span></div><div class="tline" data-t="237"><span class="ts">3:57</span><span class="tx">Once if you find that there is some delay, so now you need to check that what changed here. One of the, uh, the drift here could be because of the structural change.</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">So if any new node or new step added, which you are not aware of, that could be one of the thing or one of the step which is removed, that could be the another reason, right?</span></div><div class="tline" data-t="262"><span class="ts">4:22</span><span class="tx">Uh, once you know about that, then further, uh,</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">further analysis could be done, uh, in terms of KL deviations or divergence and, uh, exponential MA. Uh, so in simpler terms, if you know that client A's request is taking this much time normally, and, uh, client B's request could take-- might take more time than the client A, uh, because of, say, one client is</span></div><div class="tline" data-t="294"><span class="ts">4:54</span><span class="tx">local to you and one client is, uh, you know, the request is coming from outside, and, uh, there are a few more checks needs to be done. So in, in that case, the baseline will change client to client.</span></div><div class="tline" data-t="306"><span class="ts">5:06</span><span class="tx">And now you know that, uh, what your threshold it and, uh, how you can, uh, reduce the noise of such alerts.</span></div><div class="tline" data-t="316"><span class="ts">5:16</span><span class="tx">Uh, so here the idea is very simple.</span></div><div class="tline" data-t="322"><span class="ts">5:22</span><span class="tx">First, you, uh, represent the entire request processing as DAG. You come up with the baseline, you find out the deviation, and then you try to find out where exactly the issue is.</span></div><div class="tline" data-t="338"><span class="ts">5:38</span><span class="tx">Once you localize that, then you compare that based on your system that whether it is, uh, within your threshold or not. If it is within the threshold, yeah, you don't need to, uh, you know, do the alerts or automate anything.</span></div><div class="tline" data-t="353"><span class="ts">5:53</span><span class="tx">But if it is out of the threshold, then certain action needs to be taken.</span></div><div class="tline" data-t="360"><span class="ts">6:00</span><span class="tx">Uh, coming back to our example here, say overall, uh, request processing From all the different nodes within our system, uh, is happening, but somehow the foreign exchange, uh, rate service is taking more time than the usual.</span></div><div class="tline" data-t="379"><span class="ts">6:19</span><span class="tx">Now, if you represented this whole, uh, request processing in multiple nodes, you know where the problem is or where the issue is. And correspondingly, you will, uh, you know, now you can, uh, exactly know where the problem is, so you can solve it, uh, that what-- how to, uh, how FX system or what all different, uh, cases</span></div><div class="tline" data-t="402"><span class="ts">6:42</span><span class="tx">were there in the past where FX, FX rate system was failing.</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">Here is one of the example, uh, for benchmark, uh, OpenTelemetry and DeathStarBench were used. And say for seven days of the time, millions of, uh, traces were, um,</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">you know, injected or, uh, in the system. Then you ca-inject the problem or, uh, anomaly there. And based on that, you train your system before a-anything goes on live.</span></div><div class="tline" data-t="441"><span class="ts">7:21</span><span class="tx">So, uh, again, uh, basic thing here is what is anomaly and what is drift, right? So say you are driving from your home to office every day, and, uh, one of-- uh, a-and usually it takes one hour.</span></div><div class="tline" data-t="459"><span class="ts">7:39</span><span class="tx">But, uh, one fine day, it took you more time than one hour. Uh,</span></div><div class="tline" data-t="464"><span class="ts">7:44</span><span class="tx">the reason might be some traffic or, you know, um, car accident or anything. But, uh, he-- this is one of the incidents and, uh, based on your system and criticality of your system, uh, you can decide how to address that.</span></div><div class="tline" data-t="481"><span class="ts">8:01</span><span class="tx">The other part is one fine day you are, uh, taking sip of coffee around four PM and realize that a year back, it used to take one hour for you from your home to office.</span></div><div class="tline" data-t="493"><span class="ts">8:13</span><span class="tx">But nowadays, it, it is taking twenty more minutes, right? So what happened? In Bay Area, your number of car increases or traffic increase. So this is over the time, what you are seeing is pattern changed, and that's where you might need to come up with, uh, the new baseline itself.</span></div><div class="tline" data-t="516"><span class="ts">8:36</span><span class="tx">So, uh, that's, that's the drift that over the time you start seeing some delays or, you know, some, uh, performance deviation. Then once you know that there is a drift, uh, you can further categorize it.</span></div><div class="tline" data-t="531"><span class="ts">8:51</span><span class="tx">First category is structural. Uh, so say you-- somehow in the system, a new node is added or one of the node is removed, as I mentioned earlier. For example, you like, uh, again, you know, there is a shop where you like, uh, drinking coffee and, uh, one fine day, they are ask-- start asking you about membership.</span></div><div class="tline" data-t="553"><span class="ts">9:13</span><span class="tx">So they added one more, uh, step in it. Now, every day, they might ask you for, &quot;Hey, do you have membership with us? If you have, then there is, there are a special discount for you.</span></div><div class="tline" data-t="562"><span class="ts">9:22</span><span class="tx">If you don't have membership, then, uh, the regular prices will be there.&quot; So in that way, uh, you know, same way in our service processing or a request processing, if new node is added, that means, uh, now you need to consider that step also in your all baselines and new alerts.</span></div><div class="tline" data-t="583"><span class="ts">9:43</span><span class="tx">The other one is, uh, say, because of the volume of request, uh, one of your service is taking more time or it's not, you know, uh, cannot serve the request or, or the volume which you are expecting now over the time.</span></div><div class="tline" data-t="604"><span class="ts">10:04</span><span class="tx">So yeah, such kind of drifts you might need to treat differently because now you ne-- either you need to scale up those services or instances of those services and/or you need to either make it asynchronous call or based on, based on the use case, you know, what-whatever, uh, works there.</span></div><div class="tline" data-t="622"><span class="ts">10:22</span><span class="tx">Uh, covariate is different, uh, one of the category. Say when you started the business, uh, you were seeing</span></div><div class="tline" data-t="632"><span class="ts">10:32</span><span class="tx">around sixty percent of local requests, but, uh, and forty percent, uh, requests from, you know, uh, out of the country. And that's where you might need to change the currency or, you know, one extra step is there.</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">So you-- now you know that what is the baseline for your, uh, request in US dollar, but, uh, what is the baseline for, uh, any of the other currency.</span></div><div class="tline" data-t="657"><span class="ts">10:57</span><span class="tx">Over the time, what happens is your product is so popular that you started getting more, uh, requests from the outside. So nothing changed. Your system is working fine, right?</span></div><div class="tline" data-t="669"><span class="ts">11:09</span><span class="tx">But now you need to come up with the criteria and reassess your baselines again, sorry, here, where, uh,</span></div><div class="tline" data-t="679"><span class="ts">11:19</span><span class="tx">either you need to come up with two different, uh, you know, uh, graphs to compare. That one is for local and one is for, uh, outside-- uh, request from outside.</span></div><div class="tline" data-t="691"><span class="ts">11:31</span><span class="tx">Or what you can do is you can increase your, uh, average request time baseline. So once you know the pattern, uh, you know the solution. So, uh, that's where you need to ca-categorize, uh, these drifts.</span></div><div class="tline" data-t="708"><span class="ts">11:48</span><span class="tx">One category could be for the same request, uh, now you are seeing the different behavior itself. Then probably if and when it's needed, you might need to roll back such, uh, changes or either you need to reconsider that.</span></div><div class="tline" data-t="726"><span class="ts">12:06</span><span class="tx">So where I'm going with this is In that way, you need to reevaluate and reassess your system before, uh, identifying that what action needs to be taken.</span></div><div class="tline" data-t="738"><span class="ts">12:18</span><span class="tx">This whole talk is mostly about statistical, uh, uh, you know, part of, uh, uh, the solution. Uh, it's, it's, uh, part of bigger neural, uh, specific, uh, um, algorithms and, uh, system in a way, but this is just one of the module which, uh, I'm talking about here now.</span></div><div class="tline" data-t="761"><span class="ts">12:41</span><span class="tx">So once you know the drift or deviation, and here is the simple, uh, DAG for how, uh, this whole system would work.</span></div><div class="tline" data-t="778"><span class="ts">12:58</span><span class="tx">OpenTelemetry, uh, will keep feeding the data. Once you have that data, uh, root cause analysis could be taken based on, uh, once your system knows about all the data points.</span></div><div class="tline" data-t="791"><span class="ts">13:11</span><span class="tx">Now you know which type of drift it is and what solution could be there, then</span></div><div class="tline" data-t="799"><span class="ts">13:19</span><span class="tx">you identify what action needs to be taken. Once you know what action needs to be taken, further you need to also, uh, find out that what is the risk if we go with this approach or if we automate this, uh, solution, right?</span></div><div class="tline" data-t="813"><span class="ts">13:33</span><span class="tx">So once you know the risk, either you can go with, uh, roll out that sys-- uh, um, solution for say, five percent or ten percent of your s- uh, machines, monitor it, verify everything looks good, and then you roll out for your hundred percent of the nodes.</span></div><div class="tline" data-t="833"><span class="ts">13:53</span><span class="tx">Here are a couple of example. Uh, again, uh, say generally overall request processing takes seven hundred milliseconds. But, uh, on the left side what you are seeing is, uh, in the graph approach itself how it could help you is, uh, now you know that, uh, which specific node is taking more time, suddenly you get alert on that.</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">Or otherwise, if you are seeing that, uh, the delay is all across, then something which is common which you need to fix here.</span></div><div class="tline" data-t="866"><span class="ts">14:26</span><span class="tx">All these things, because in the payments and the real-time, uh, payment processing, we want to keep it very faster, right? So</span></div><div class="tline" data-t="876"><span class="ts">14:36</span><span class="tx">we don't want delay the actual request processing. The solution which we generally use, uh, everyone in the industry is asynchronously feeding the data to, uh, OpenTelemetry. From there, uh, some Kafka could be used and, uh, stream assessment, uh, could be used on top of it.</span></div><div class="tline" data-t="896"><span class="ts">14:56</span><span class="tx">There could be two different paths. One is, say, hot path where you can take a decision very faster and, uh, um, work on the solution or automate that solution.</span></div><div class="tline" data-t="907"><span class="ts">15:07</span><span class="tx">The other one is more recon kind of solution where it might take some time, but more, more accurate could-- it could be.</span></div><div class="tline" data-t="921"><span class="ts">15:21</span><span class="tx">Few of, uh, uh, other challenges which, uh, we need to fine-tune here. So all I talked about is, &quot;Hey, you have seven nodes in your system and every node is feeding the data to your, uh, telemetry.&quot;</span></div><div class="tline" data-t="935"><span class="ts">15:35</span><span class="tx">What if one of the system is delaying the event?</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">Should we consider it as a structural change? Because now what you have data in your system is for six nodes and the seven, uh, no-- uh, the data from the seventh node is delayed already.</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">So we need to fine-tune that, uh, that, uh, those numbers also that when to consider that, uh, there is a structural change or not. So basically here we are, uh, trying to reduce, uh, any f-false alarm.</span></div><div class="tline" data-t="968"><span class="ts">16:08</span><span class="tx">Based on the use cases and here in this use case, uh, we should go with, uh, tail-based system because what we are trying to track here is, uh, on, uh, or the, in this specific example is when the service request started and when it ended, right?</span></div><div class="tline" data-t="986"><span class="ts">16:26</span><span class="tx">So, uh, for each and every node. The other part is the cold start. Uh, if there is a new endpoint, consider the new baseline. Don't make it very generic.</span></div><div class="tline" data-t="999"><span class="ts">16:39</span><span class="tx">So in that way, on the detect side, any MMD or KL, uh, could be used. Uh, and once you confirm, uh, this with ADWIN and then classify, uh, the problem, uh, that will give you where or what exact solution needs to be done and next step whatever, uh, if we can automate it, we'll automate</span></div><div class="tline" data-t="1024"><span class="ts">17:04</span><span class="tx">it. So what we see, uh, in general here is, uh, mean time to, uh, discovery reduced a lot.</span></div><div class="tline" data-t="1034"><span class="ts">17:14</span><span class="tx">To make it very real time instead of comparing or waiting for multiple windows of, uh, the time duration, it was, uh, a single window which we, uh, uh, you know, uh, which we identified, uh, helped a lot, uh, to fix the issues fast.</span></div><div class="tline" data-t="1053"><span class="ts">17:33</span><span class="tx">Uh, few of other things which we might need to make sure. One is, uh, the labels. Uh, when it comes to, uh, learnings, the labels helps a lot. But, uh, at the same time, uh, we need to make sure that, uh, the system is very fine-tuned in terms of that.</span></div><div class="tline" data-t="1072"><span class="ts">17:52</span><span class="tx">Uh, the other part is instead of saying that all the POST requests should have, you know, this is a baseline for all the POST requests, uh, try to come up with very, uh, a number which works for you, POST for payments for real-time payment or POST for wire payments or, uh, based on, you know, uh, your use</span></div><div class="tline" data-t="1094"><span class="ts">18:14</span><span class="tx">cases. So that, that would help a lot. Um,</span></div><div class="tline" data-t="1098"><span class="ts">18:18</span><span class="tx">again, uh, if anything is, uh, uh, you are considering a structural change or something, uh, the window, uh, should be well-defined.</span></div><div class="tline" data-t="1108"><span class="ts">18:28</span><span class="tx">For each and every client in my previous ex-- uh, example which I talked about, uh, if you can come up with a new baseline would really help, uh, to reduce the noise.</span></div><div class="tline" data-t="1118"><span class="ts">18:38</span><span class="tx">Uh, explainability, uh, all the data should be well explained. If you go to the doctor and doctor says your health score is twenty-two, it doesn't make much sense to you.</span></div><div class="tline" data-t="1130"><span class="ts">18:50</span><span class="tx">So, uh, yeah, the actual, uh, more data, uh, can explain, you know, more things to you and, uh, can, we can take the informative decision on top of it.</span></div><div class="tline" data-t="1142"><span class="ts">19:02</span><span class="tx">Uh, whole system should be aware of the new deployment. Uh, so, uh,</span></div><div class="tline" data-t="1147"><span class="ts">19:07</span><span class="tx">uh, based on that you can take either a rollback decision or not. So yeah, that's, that's about it. Uh, thanks everyone. Uh, I would like to connect with you all, uh, here is my LinkedIn. [audience clapping]</span></div><div class="tline" data-t="1160"><span class="ts">19:20</span><span class="tx">I can answer your questions. [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

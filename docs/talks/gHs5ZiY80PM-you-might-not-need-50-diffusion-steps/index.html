@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>你可能不需要 50 步扩散 | AI 工程师中文版</title>
+<meta name="description" content="让扩散生成变得可用，意味着在不损失质量的前提下降低延迟。量化、缓存和步数蒸馏分别攻克了这个问题的不同部分——而且可以组合使用。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>你可能不需要 50 步扩散</h1>
+    <div class="orig-title">You Might Not Need 50 Diffusion Steps</div>
+    <div class="meta"><span class="speaker">Ziv Ilan</span> · AI Engineer Europe 2026 · 18:46</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=fine-tuning">微调</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=generative-media">生成式媒体</a><a class="tag" href="../../index.html#topic=local-inference">本地推理</a><a class="tag" href="../../index.html#topic=quantization">量化</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/gHs5ZiY80PM-you-might-not-need-50-diffusion-steps" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="gHs5ZiY80PM"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=gHs5ZiY80PM" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">从好的图像到可用的延迟</div></div>
+      <div class="label row">章节跳转 <span>共 9 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="72"><span class="ts">1:12</span><span>从好的图像到可用的延迟</span></li><li data-t="209"><span class="ts">3:29</span><span>让每一次计算更便宜</span></li><li data-t="394"><span class="ts">6:34</span><span>复用几乎没变的工作</span></li><li data-t="562"><span class="ts">9:22</span><span>减少步数而不是参数</span></li><li data-t="667"><span class="ts">11:07</span><span>学习教师的路径或其输出分布</span></li><li data-t="776"><span class="ts">12:56</span><span>在模型规模上组织蒸馏</span></li><li data-t="872"><span class="ts">14:32</span><span>帧内扩散，帧间自回归</span></li><li data-t="913"><span class="ts">15:13</span><span>逐步组合各项优化</span></li><li data-t="1008"><span class="ts">16:48</span><span>蒸馏需要什么样的硬件和数据？</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 15 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="AI Engineer Europe" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer Europe</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The recording opens with the AI Engineer Europe logo.
+
+[0:00](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=0s) [AI Engineer Europe logo in white on a black background.](https://assets.ai.engineer/sites/aiecode2025/sha256/daff97f7b145e8b19cce5cf8d9676546e057927f636f6fd51ea2535b6409b0f8.webp)
+
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Presenting Sponsor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting Sponsor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Google DeepMind is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=5s) [Presenting sponsor Google DeepMind on a black background.](https://assets.ai.engineer/sites/aiecode2025/sha256/e10c7b9c4401065ccee20b558a4f3b242ebf03a3242eb36868b8bffb8c72f82b.webp)
+
+PRESENTING SPONSOR
+
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/89b4a7ffb90a087ab469d0be263fec80e745f15438520f85f547aa381dc46da9.webp" alt="Platinum sponsors Braintrust, WorkOS and OpenAI on a black background." loading="lazy" data-lb="2" data-cap="Platinum Sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Platinum Sponsors</h3>
+        <p>Platinum sponsors Braintrust, WorkOS and OpenAI on a black background.</p>
+        <details><summary>幻灯片原文</summary><pre>PLATINUM SPONSORS
+
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        <button class="ts" data-t="10">▶ 0:10</button>
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Diffusion models: What &amp; Why" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Diffusion models: What &amp; Why</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Diffusion models generate images and video by repeatedly removing noise. The slide illustrates the progression from pure noise to a clean output, typically over 20–50 steps.
+
+[1:00](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=60s) [Slide explaining iterative denoising, model examples and applications, with a noise-to-clean-output diagram.](https://assets.ai.engineer/sites/aiecode2025/sha256/b48cc168b5619d88f98313510b2d5633363a4dc89a247b04ffcba46314f752e1.webp)
+
+Diffusion models: What &amp; Why
+The dominant architecture for image and video generation
+
+• Generate images/video by iteratively denoising from random noise
+• Each step: neural network predicts and removes noise → refines output
+• Quality comes from many refinement passes (typically 20-50 steps)
+
+• Powering today's leading models:
+  • FLUX.2 (Black Forest Labs) — SOTA text-to-image, photorealistic
+  • LTX-2.3 (Lightricks) — 22B params, 4K@50fps video + audio
+  • Wan 2.7, HunyuanVideo, Seedance 2.0
+
+• Used for: text-to-image, text-to-video, image editing, 3D generation, inpainting, super-resolution, world simulation, scientific modeling
+
+Pure Noise (t=T) → Partial Denoise (t=T/2) → Clean Output (t=0)
+
+NVIDIA
+
+Interface text:
+AIE
+AI Engineer EUROPE 2026
+Google DeepMind
+
+[1:35](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=95s) [Slide explaining iterative denoising, leading models and applications, with a diagram from noise to clean output.](https://assets.ai.engineer/sites/aiecode2025/sha256/9478e85ef369a99c1b73fb6cbc8045dc5949ada0f0e94d02036dff0ef3ad3eae.webp)
+
+Diffusion models: What &amp; Why
+The dominant architecture for image and video generation
+
+• Generate images/video by iteratively denoising from random noise
+• Each step: neural network predicts and removes noise → refines output
+• Quality comes from many refinement passes (typically 20-50 steps)
+
+• Powering today's leading models:
+  • FLUX.2 (Black Forest Labs) — SOTA text-to-image, photorealistic
+  • LTX-2.3 (Lightricks) — 22B params, 4K@50fps video + audio
+  • Wan 2.7, HunyuanVideo, Seedance 2.0
+
+• Used for: text-to-image, text-to-video, image editing, 3D generation, inpainting, super-resolution, world simulation, scientific modeling
+
+Pure Noise (t=T) → Partial Denoise (t=T/2) → Clean Output (t=0)
+
+NVIDIA
+
+Interface text:
+AIE
+AI Engineer EUROPE 2026
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="The Problem: Why 50 Steps Hurts" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Problem: Why 50 Steps Hurts</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide estimates 30–60 seconds per video at 50 steps, versus under a second for real-time use. That latency limits interactive applications, while diffusion inference lacks the mature optimization ecosystem built around LLMs.
+
+[1:50](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=110s) [Slide presenting three barriers to diffusion adoption: latency, real-time use cases and inference ecosystem maturity.](https://assets.ai.engineer/sites/aiecode2025/sha256/f26368f995b6c6714c39ff791cfeae4e55ba557953e7757a08e9dac3a09e9a46.webp)
+
+The Problem: Why 50 Steps Hurts
+Three barriers blocking diffusion from reaching its potential
+
+The Latency Wall
+- 50 steps = 30-60 seconds per video. Real-time needs &lt;1 second
+- That's a 50x gap — blocking gaming, live broadcasting, interactive apps
+
+Use Case Enablement
+- Real-time image editing, live video stylization, interactive world models
+- None of these work at 50 steps. They need less steps to be viable
+
+The Mature AR Ecosystem
+- LLMs: 1 forward pass per token. Massive optimization ecosystem (vLLM, TRT-LLM, SGLang)
+- Diffusion: 50 passes per output
+- We need to bring diffusion inference to the same maturity level as LLMs
+
+NVIDIA
+
+Interface text:
+AIE
+AI Engineer EUROPE
+2026
+
+[3:12](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=192s) [Three barriers to diffusion adoption: latency, real-time use cases, and a less mature inference ecosystem.](https://assets.ai.engineer/sites/aiecode2025/sha256/ec1bb9858a02a8110a13db9ac01ea6d1715ca38dc03e6f3b9f1e43c5f342e769.webp)
+
+The Problem: Why 50 Steps Hurts
+Three barriers blocking diffusion from reaching its potential
+
+The Latency Wall
+- 50 steps = 30-60 seconds per video. Real-time needs &lt;1 second
+- That's a 50x gap — blocking gaming, live broadcasting, interactive apps
+
+Use Case Enablement
+- Real-time image editing, live video stylization, interactive world models
+- None of these work at 50 steps. They need less steps to be viable
+
+The Mature AR Ecosystem
+- LLMs: 1 forward pass per token. Massive optimization ecosystem (vLLM, TRT-LLM, SGLang)
+- Diffusion: 50 passes per output
+- We need to bring diffusion inference to the same maturity level as LLMs
+
+NVIDIA
+
+Interface text:
+AIE
+AI Engineer EUROPE
+2026
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Closing the Gap: Quantization + Caching + Distillation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Closing the Gap: Quantization + Caching + Distillation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker introduces three techniques for reducing image and video generation latency, ordered by complexity. He says deployment usually starts with distillation, then quantization and caching.
+
+[3:13](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=193s) [Section slide introducing quantization, caching, and distillation.](https://assets.ai.engineer/sites/aiecode2025/sha256/0672b5b86a2a266a66301c10f62bcaeeee9b6f57e3a35174a4f51c19b864ec39.webp)
+
+Closing the Gap:
+Quantization + Caching + Distillation
+
+Interface text:
+AIE
+Engineering the future of AI
+AI Engineer EUROPE
+2026</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Model Compression Strategies" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Model Compression Strategies</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Quantization reduces precision, pruning removes network connections, distillation trains a student using a teacher, and sparsity turns a dense matrix into a sparse one.
+
+[3:41](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=221s) [Diagrams illustrate quantization, pruning, distillation, and sparsity.](https://assets.ai.engineer/sites/aiecode2025/sha256/6db31e94bfdaae5ddc3b02f07eb829b7566b38b612d851adbbc8d6cc28d11c36.webp)
+
+Model Compression Strategies
+
+Quantization
+Sign | Range: exponent | Precision: mantissa
+FP32: s, e8, m23
+FP16: s, e5, m10
+BF16: s, e8, m7
+FP8 (E5M2): s, e5, m2
+FP8 (E4M3): s, e4, m3
+
+Pruning
+
+Distillation
+dataset
+Teacher
+Student
+Loss
+back prop.
+
+Sparsity
+Dense Matrix
+Sparse Matrix
+
+NVIDIA
+
+Interface text:
+AIE
+AI Engineer EUROPE 2026
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Quantization: Make Each Step Cheaper" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Quantization: Make Each Step Cheaper</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>PTQ calibrates a pre-trained model; QAT simulates quantization during fine-tuning to reduce accuracy loss. The speaker says preserving image and video quality makes quantization more complex for diffusion models.
+
+[3:51](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=231s) [Side-by-side comparison and flowcharts for post-training quantization and quantization-aware training.](https://assets.ai.engineer/sites/aiecode2025/sha256/79e125ccb28406b69dba90d37b3aae3546b4369682c9cd54eb652fb1631e4a30.webp)
+
+Quantization: Make Each Step Cheaper
+Reduce precision → faster math, less memory, same quality
+
+Post-training quantization(PTQ)
+Calibration data → Pre-trained model → Gather layer statistics → Compute q-params → Quantize model
+
+Quantization-aware training (QAT)
+Pre-trained model → Add QAT ops → Finetune with QAT ops → Store q-params → Quantize model for inference
+
+Post-training quantization (PTQ)
+Start with a pre-trained model and evaluate it on a calibration dataset.
+Calibration data is used to calibrate the model. It can be a subset of training data.
+Calculate dynamic ranges of weights and activations in the network to compute quantization parameters (q-params).
+Quantize the network using q-params and run inference
+
+Quantization-aware training (QAT)
+Start with a pre-trained model and introduce quantization ops at various layers
+Finetune it for a small number of epochs.
+Simulates the quantization process that occurs during inference.
+The goal is to learn the q-params which can help to reduce the accuracy drop between the quantized model and pre-trained model.
+
+NVIDIA
+
+Event text: AIE; AI Engineer EUROPE 2026; Engineering the future of AI
+
+[3:55](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=235s) [Flowcharts and a table compare post-training quantization with quantization-aware training.](https://assets.ai.engineer/sites/aiecode2025/sha256/27c470455b6c0f4d39791857455cfb3dd59a7577569b481b749c16b9f17cd33d.webp)
+
+Quantization: Make Each Step Cheaper
+Reduce precision → faster math, less memory, same quality
+
+Post-training quantization(PTQ)
+Calibration data → Pre-trained model → Gather layer statistics → Compute q-params → Quantize model
+
+Quantization-aware training (QAT)
+Pre-trained model → Add QAT ops → Finetune with QAT ops → Store q-params → Quantize model for inference
+
+Post-training quantization (PTQ)
+Start with a pre-trained model and evaluate it on a calibration dataset.
+Calibration data is used to calibrate the model. It can be a subset of training data.
+Calculate dynamic ranges of weights and activations in the network to compute quantization parameters (q-params).
+Quantize the network using q-params and run inference
+
+Quantization-aware training (QAT)
+Start with a pre-trained model and introduce quantization ops at various layers
+Finetune it for a small number of epochs.
+Simulates the quantization process that occurs during inference.
+The goal is to learn the q-params which can help to reduce the accuracy drop between the quantized model and pre-trained model.
+
+NVIDIA
+
+Event text: AIE; AI Engineer EUROPE 2026</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Quantization: Performance &amp; Quality" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Quantization: Performance &amp; Quality</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>FLUX.2’s BF16 and NVFP4 examples look similar. The speaker says dynamic quantization computes some ranges on the fly; users can quantize with TensorRT-LLM Visual Gen or load a pre-quantized checkpoint.
+
+[4:36](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=276s) [BF16 and NVFP4 image comparisons alongside options for running quantized FLUX.2.](https://assets.ai.engineer/sites/aiecode2025/sha256/2815315ec96913da2451c90a2859c64163c63936e4dbdf33db89fdf9bc9eb2d9.webp)
+
+Quantization: Performance &amp; Quality
+FLUX.2[dev] on Blackwell | Quality preserved at every precision level
+
+BF16 | NVFP4
+BF16 | NVFP4
+
+DIY with TensorRT-LLM – Visual Gen
+# With NVFP4 quantization
+python visual_gen_flux.py --model_path black-forest-labs/FLUX.2-dev --prompt &quot;A cat&quot; --linear_type trtllm-nvfp4
+
+Run a pre-quantized ckpt from HF
+black-forest-labs/FLUX.2-dev-NVFP4
+
+Interface text:
+AIE
+AI Engineer EUROPE
+AI Engineer EUROPE 2026
+NVIDIA
+
+[4:56](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=296s) [FLUX.2 quantization slide comparing BF16 and NVFP4 images and showing two ways to run a quantized model.](https://assets.ai.engineer/sites/aiecode2025/sha256/03229b3a1a41f7f2eafe752f357d9b4d65937f6f022642feb6ee752f3a321e08.webp)
+
+Quantization: Performance &amp; Quality
+FLUX.2[dev] on Blackwell | Quality preserved at every precision level
+
+BF16 | NVFP4
+BF16 | NVFP4
+
+DIY with TensorRT-LLM – Visual Gen
+# With NVFP4 quantization
+python visual_gen_flux.py --model_path black-forest-labs/FLUX.2-dev --prompt &quot;A cat&quot; --linear_type trtllm-nvfp4
+
+Run a pre-quantized ckpt from HF
+black-forest-labs/FLUX.2-dev-NVFP4
+
+Interface text:
+AIE
+Engineering the future of AI
+AI Engineer EUROPE 2026
+NVIDIA</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Caching: Skip Redundant Computation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Caching: Skip Redundant Computation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>TeaCache reuses transformer output when changes between denoising steps are small. The slide reports ~2x speedup, skipping ~16 of 50 steps with &lt;0.07% quality loss; the speaker advises testing quality at the chosen threshold.
+
+[6:37](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=397s) [TeaCache slide explaining reuse of transformer output between similar denoising steps, with an inference speedup chart.](https://assets.ai.engineer/sites/aiecode2025/sha256/c2c854eb927eb8555f1824c69db359cebddc641382a4ee68680aa476e820d482.webp)
+
+Caching: Skip Redundant Computation
+If the input barely changed, reuse the previous output
+
+• Common example - TeaCache (CVPR 2025) — Intra-request caching
+  • Monitors timestep embedding changes between consecutive steps
+  • When change is small → reuse cached transformer output, skip computation
+  • Uses polynomial fitting to predict when caching is safe
+  • Result: ~2x speedup, skips ~16 of 50 steps with &lt;0.07% quality loss
+  • Integrated in TRT-LLM VisualGen, ComfyUI, vLLM-Omni -&gt; --enable_teacache + --teacache_thresh
+
+FLUX.2-dev Inference Speedup
+NVFP4 (B200x2) + TeaCache + C.Graph + Compile: 10.2x
+NVFP4 (B200) + TeaCache + C.Graph + Compile: 6.3x
+NVFP4 (B200) + C.Graph + Compile: 4.4x
+BF16 (B200) + C.Graph + Compile: 2.5x
+BF16 (B200): 1.7x
+BF16 (H200) Baseline: 1.0x
+X-axis: Speedup vs Baseline (Higher is Better)
+X-axis ticks: 0, 2, 4, 6, 8, 10
+
+NVIDIA
+AIE
+AI Engineer EUROPE
+
+[7:56](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=476s) [TeaCache slide describing reuse of transformer outputs across similar denoising steps, with a FLUX.2-dev speedup chart.](https://assets.ai.engineer/sites/aiecode2025/sha256/3dc09eb06bd5d21ce0125e6852b4b8738d0addbbca3cb42f1f6727bedcac7ddf.webp)
+
+Caching: Skip Redundant Computation
+If the input barely changed, reuse the previous output
+
+• Common example - TeaCache (CVPR 2025) — Intra-request caching
+  • Monitors timestep embedding changes between consecutive steps
+  • When change is small → reuse cached transformer output, skip computation
+  • Uses polynomial fitting to predict when caching is safe
+  • Result: ~2x speedup, skips ~16 of 50 steps with &lt;0.07% quality loss
+  • Integrated in TRT-LLM VisualGen, ComfyUI, vLLM-Omni -&gt; --enable_teacache + --teacache_thresh
+
+FLUX.2-dev Inference Speedup
+NVFP4 (B200x2) + TeaCache + C.Graph + Compile: 10.2x
+NVFP4 (B200) + TeaCache + C.Graph + Compile: 6.3x
+NVFP4 (B200) + C.Graph + Compile: 4.4x
+BF16 (B200) + C.Graph + Compile: 2.5x
+BF16 (B200): 1.7x
+BF16 (H200) Baseline: 1.0x
+X-axis: Speedup vs Baseline (Higher is Better)
+X-axis ticks: 0, 2, 4, 6, 8, 10
+
+NVIDIA
+AIE
+Google DeepMind
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Step Distillation: Taking the leap" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Step Distillation: Taking the leap</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Step distillation trains a student to generate images or videos in fewer steps while keeping the same parameter count: from 50 steps to 4 or 8, and sometimes one.
+
+[9:20](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=560s) [Step Distillation: Taking the leap, on a green abstract background.](https://assets.ai.engineer/sites/aiecode2025/sha256/7433e183338e5ed449673109104fb956f50a9ad14ec6575f22ceb86a33840174.webp)
+
+Step Distillation:
+Taking the leap
+
+Interface text:
+AIE
+AI Engineer
+EUROPE
+2026</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Distillation: Compress 50 Steps to 1–8" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Distillation: Compress 50 Steps to 1–8</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A student can learn the teacher’s denoising path or match its output distribution. The slide estimates a 12–25x speedup from reducing 50 steps to 2–4, at the cost of hours to days of post-training.
+
+[10:18](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=618s) [Slide comparing trajectory-based and distribution-based distillation and describing the post-training trade-off and potential speedup.](https://assets.ai.engineer/sites/aiecode2025/sha256/f7b65b1f063f9297eb2c7ca491376963d5f570fb101adeb7d222cb455cc542e2.webp)
+
+Distillation: Compress 50 Steps to 1-8
+Train a student model to approximate many teacher steps in one
+
+• The idea: a 50-step teacher model traces a denoising path.
+• Can a student model learn to jump directly from noise to output?
+• Two families of methods:
+
+Trajectory-based (path regression)
+Student learns to approximate the teacher’s denoising trajectory
+Best for: preserving fine-grained details
+
+Distribution-based (output matching)
+Student learns to match the teacher’s output distribution
+Best for: one-step generation, creative applications
+
+• Trade-off: requires post-training (hours-days), but rewards are massive
+50 steps → 2-4 steps = 12-25x speedup
+
+NVIDIA
+
+Interface text:
+AIE
+AI Engineer EUROPE 2026
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="NVIDIA FastGen: Open-Source Distillation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>NVIDIA FastGen: Open-Source Distillation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>FastGen organizes distillation of a multi-step diffusion model into a one-step generator, with optional training data. The slide reports 50x on Wan2.1-T2V-14B, reducing 50 steps to 2.
+
+[12:54](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=774s) [Slide presenting FastGen's distillation pipeline, supported models, reported speedups, and example dog images.](https://assets.ai.engineer/sites/aiecode2025/sha256/9c3f1af0504f338cb5cfcad3591c616d870db7df35a6f60e7cb43bf7b4c8c974.webp)
+
+NVIDIA FastGen: Open-Source Distillation
+Unified library for all methods | github.com/NVlabs/FastGen
+
+• All methods in one framework
+• Task-agnostic: T2I, T2V, I2V, V2V, world models, scientific models
+• Network-agnostic: Flux, Wan2.1/2.2, Cosmos Predict2, CorrDiff, LTX-2, ...
+• Scalable: FSDP2 for models up to 14B+ parameters
+
+• Results:
+  • 25x speedup on image/video generation
+  • 50x on Wan2.1-T2V-14B (50 → 2 steps)
+  • 23x on CorrDiff atmospheric downscaling (scientific)
+  • 14B model distilled in 16 hours on 64 H100s
+
+• Faster than real-time:
+  • DGX Station (GB300): 10-sec 720p video in ~6 seconds
+  • FastVideo + Dynamo: 5-sec 1080p in ~4 seconds
+
+End-user inputs
+Multi-step diffusion model
+(Optional) Training data
+FastGen Repo
+Distillation method
+One-step generator
+FastGen distillation pipeline
+
+NVIDIA
+
+Interface text:
+AIE
+AI Engineer EUROPE
+2026
+
+[14:53](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=893s) [FastGen framework, distillation pipeline, performance results, and video examples.](https://assets.ai.engineer/sites/aiecode2025/sha256/f4d1520be6b60d7844ef19e36dff79380654f72c1a0a95e4aadd5c5d86856840.webp)
+
+NVIDIA FastGen: Open-Source Distillation
+Unified library for all methods | github.com/NVlabs/FastGen
+
+• All methods in one framework
+• Task-agnostic: T2I, T2V, I2V, V2V, world models, scientific models
+• Network-agnostic: Flux, Wan2.1/2.2, Cosmos Predict2, CorrDiff, LTX-2, ...
+• Scalable: FSDP2 for models up to 14B+ parameters
+
+• Results:
+  • 25x speedup on image/video generation
+  • 50x on Wan2.1-T2V-14B (50 → 2 steps)
+  • 23x on CorrDiff atmospheric downscaling (scientific)
+  • 14B model distilled in 16 hours on 64 H100s
+
+• Faster than real-time:
+  • DGX Station (GB300): 10-sec 720p video in ~6 seconds
+  • FastVideo + Dynamo: 5-sec 1080p in ~4 seconds
+
+End-user inputs
+Multi-step diffusion model
+(Optional) Training data
+FastGen Repo
+Distillation method
+One-step generator
+FastGen distillation pipeline
+
+NVIDIA
+
+Interface text:
+AIE
+AI Engineer EUROPE
+2026
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="The Full Stack: Compound Your Gains" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Full Stack: Compound Your Gains</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Quantization, caching and parallelism, and distillation can be combined. The slide claims 100x+ end-to-end speedup, with distillation reducing 50 steps to 2–4.
+
+[15:15](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=915s) [Quantization, caching and parallelism, and distillation are presented as successive speedup techniques.](https://assets.ai.engineer/sites/aiecode2025/sha256/98cad030a5eebbe46961b6d07e0a62b79c63f1440cee0a72fedc7dfb66dd15e3.webp)
+
+The Full Stack: Compound Your Gains
+Each layer multiplies — from 50 steps / 30 seconds to 2 steps / &lt;1 second
+
+1 Quantization
+3x faster
+60% less VRAM
+TRT-LLM VisualGen
+NVFP4/FP8
+
+2 Caching + Parallelism
+2-3x faster
+Skip redundant steps
+TeaCache
+CFG + Ulysses
+
+3 Distillation
+12-25x faster
+50 → 2-4 steps
+NVIDIA FastGen
+FastVideo
+MeanFlow, DMD2
+
+Combined: 100x+ end-to-end speedup | 1 step = real-time • 4 steps = production • 20 steps = max quality
+
+NVIDIA
+
+Interface text:
+AIE
+AI Engineer EUROPE 2026
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Try it yourself" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Try it yourself</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>FastGen covers distillation; TensorRT-LLM VisualGen covers quantization and serving. The slide also lists Model Optimizer, a FastGen demo, and Dynamo’s diffusion guide.
+
+[15:57](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=957s) [Open-source resources for FastGen, TensorRT-LLM VisualGen, Model Optimizer, and Dynamo with FastVideo.](https://assets.ai.engineer/sites/aiecode2025/sha256/636edf6b92c47a218961f6ba1787fff2cb5d8e3e7beca0d1ee2b170c87e15944.webp)
+
+Try it yourself
+
+FastGen (Distillation)
+github.com/NVlabs/FastGen
+
+TRT-LLM VisualGen (Quantization + Serving)
+github.com/NVIDIA/TensorRT-LLM
+
+Model Optimizer (Quantization)
+github.com/NVIDIA/Model-Optimizer
+
+FastGen Blog + Demo Video
+developer.nvidia.com/blog/accelerating-diffusion-models
+
+Dynamo + FastVideo
+docs.nvidia.com/dynamo/user-guides/diffusion
+
+NVIDIA
+AIE
+AI Engineer EUROPE 2026
+Google DeepMind
+
+[16:03](https://www.youtube.com/watch?v=gHs5ZiY80PM&amp;t=963s) [Resource slide listing FastGen, TensorRT-LLM VisualGen, Model Optimizer, a FastGen blog and demo, and Dynamo with FastVideo.](https://assets.ai.engineer/sites/aiecode2025/sha256/93e95a09823e55097e77e7bcea5a11ce6312e84040a8f6e1840bedda43fc44f7.webp)
+
+Try it yourself
+
+FastGen (Distillation)
+github.com/NVlabs/FastGen
+
+TRT-LLM VisualGen (Quantization + Serving)
+github.com/NVIDIA/TensorRT-LLM
+
+Model Optimizer (Quantization)
+github.com/NVIDIA/Model-Optimizer
+
+FastGen Blog + Demo Video
+developer.nvidia.com/blog/accelerating-diffusion-models
+
+Dynamo + FastVideo
+docs.nvidia.com/dynamo/user-guides/diffusion
+
+NVIDIA
+AIE
+AI Engineer EUROPE 2026
+Google DeepMind</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">从好的图像到可用的延迟</a></li><li><a href="#sec-2">让每一次计算更便宜</a></li><li><a href="#sec-3">复用几乎没变的工作</a></li><li><a href="#sec-4">减少步数而不是参数</a></li><li><a href="#sec-5">学习教师的路径或其输出分布</a></li><li><a href="#sec-6">在模型规模上组织蒸馏</a></li><li><a href="#sec-7">帧内扩散，帧间自回归</a></li><li><a href="#sec-8">逐步组合各项优化</a></li><li><a href="#sec-9">蒸馏需要什么样的硬件和数据？</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">你可能不需要 50 步扩散</h2>
+      <div class="lede"><p>让扩散生成变得可用，意味着在不损失质量的前提下降低延迟。量化、缓存和步数蒸馏分别攻克了这个问题的不同部分——而且可以组合使用。</p><p>对扩散去噪、模型推理和 GPU 显存有基本了解会有帮助；不需要蒸馏经验。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="72">▶ 1:12</button></div>
+      <h3>从好的图像到可用的延迟</h3>
+      <p>Why does generating a good image still take too long for an interactive application? A diffusion model repeatedly denoises an image or video rather than emitting one token at a time. Ilan describes typical generation as taking 20–50 denoising steps. That repeated computation is the starting point for the latency problem.</p>
+<p>Models such as <strong>FLUX.2</strong>, <strong>LTX 2.1</strong> and Google’s <strong>Nano Banana</strong> have made image and video generation useful across more applications. But a developer or enterprise needs more than an impressive output: generation must be fast, scalable and supported by dependable serving infrastructure. Ziv Ilan, who introduces himself as working with frontier model builders in NVIDIA’s Paris AI Labs team, frames diffusion serving as less mature than the autoregressive LLM ecosystem around vLLM. Some of that ecosystem’s optimization ideas can transfer, but they need to fit diffusion’s computation pattern.</p>
+<p>The target is real-time image and video generation for robotics world models, computer games and content creation. Latency matters both before the first image appears and while producing high-quality 720p or 1080p content. Three techniques address different parts of that cost: <strong>quantization</strong>, <strong>caching</strong> and <strong>distillation</strong>. They are a selected toolkit, not an exhaustive list of diffusion optimizations.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/54074ed5682f210db60cf435ae3fcbfac71b520c3bc9b835ae8444d3ef5a3a94" alt="Slide titled “The Problem: Why 50 Steps Hurts,” with three columns labeled The Latency Wall, Use Case Enablement, and The Mature AR Ecosystem." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Three barriers to practical diffusion: latency, use case enablement, and ecosystem maturity.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="209">▶ 3:29</button></div>
+      <h3>让每一次计算更便宜</h3>
+      <p>Quantization is the simplest entry point in this presentation, followed by caching and then distillation. That teaching order differs from the order Ilan describes for deploying a fully optimized model: distill first, then quantize, then apply caching.</p>
+<p>| Approach | When precision is reduced | Practical consideration |
+|---|---|---|
+| Post-training quantization (PTQ) | After training | Simpler adoption; preserving generation quality can be difficult |
+| Quantization-aware training (QAT) | Accounted for during training | Requires a training process that accommodates reduced precision |</p>
+<p>Diffusion introduces a particular constraint: image and video quality must survive the precision reduction. Ilan also describes these models as attention-heavy, limiting the gains from quantization relative to LLMs and VLMs. Even so, lower precision is an accessible way to exploit features of Blackwell and newer hardware.</p>
+<p>The <a href="https://developer.nvidia.com/blog/scaling-nvfp4-inference-for-flux-2-on-nvidia-blackwell-data-center-gpus/" target="_blank" rel="noopener">FLUX.2 work with Black Forest Labs</a> illustrates a second choice: <strong>static versus dynamic scaling</strong>. Static scaling establishes ranges ahead of execution; dynamic scaling computes ranges as needed so they can adapt to the values being processed. NVFP4 has multiple scaling levels: per-tensor scaling may be static or dynamic, while per-block scaling is computed dynamically for blocks of 16 elements. The important distinction is when a scale is determined, not whether every model parameter receives a fixed range upfront.</p>
+<p>There are two adoption paths. <a href="https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/models/visual-generation.md" target="_blank" rel="noopener">TensorRT-LLM VisualGen</a> provides an open-source implementation to work from. Partner pre-quantized checkpoints on Hugging Face offer a more direct loading path when subsequent fine-tuning or LoRA adapters are unnecessary. Quantization reduces memory requirements, potentially bringing a model within reach of consumer or lower-end data-center GPUs, and can improve inference performance as well. The slide pairs BF16 and NVFP4 images with these two ways of running quantized FLUX.2.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/bea560c9551528c78c2ffaea8e794db360b2031fb01f9f17509bdbebd3341398" alt="Quantization performance and quality slide showing paired BF16 and NVFP4 images, a TensorRT-LLM Visual Gen command, and a pre-quantized Hugging Face checkpoint." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>BF16 and NVFP4 image comparisons alongside two ways to run quantized FLUX.2.</figcaption></figure>
+<p>Attention remains an optimization target in its own right. Ilan points to recent FP4-attention research from Hao Lab as an example of work aimed at this expensive part of diffusion models. Improving the rest of the model’s arithmetic does not eliminate the need to address attention cost and quality.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="394">▶ 6:34</button></div>
+      <h3>复用几乎没变的工作</h3>
+      <p>Autoregressive serving makes extensive use of the <strong>KV cache</strong>, preserving attention keys and values from previously processed tokens. Diffusion does not append one token on every denoising step, so that reuse pattern does not transfer directly. Its opportunity is different: successive denoising steps can contain sufficiently similar computation that some work need not be repeated.</p>
+<p><a href="https://github.com/ali-vilab/TeaCache" target="_blank" rel="noopener">TeaCache</a> provides a concrete example. It estimates changes in model outputs using timestep-modulated inputs as a proxy, then uses that estimate to decide whether expensive computation can be reused. It does not first calculate the complete output merely to discover that calculating it was unnecessary. Ilan presents this as a broad reuse decision over the pixel or latent space, before contrasting it with more granular, chunk-based approaches.</p>
+<p>For chunk-based reuse, consider the room in which he is speaking. Much of the audience sits still, watching the screen, while the presenter moves. The audience region is a candidate for reuse; the presenter’s region needs recomputation. A threshold controls how much change is acceptable before cached work must be refreshed. This classroom analogy explains selective reuse, rather than the specific internal algorithm of TeaCache.</p>
+<p>A small Python function makes that decision boundary explicit. Given estimated changes for the audience and presenter chunks, it returns a proposed action for each; it does not perform a denoising step.</p>
+<p>```python
+def plan_chunk_updates(change_estimates, threshold):
+    return {
+        chunk: &quot;reuse&quot; if change &lt; threshold else &quot;recompute&quot;
+        for chunk, change in change_estimates.items()
+    }</p>
+<p>change_estimates = {&quot;audience&quot;: 0.01, &quot;presenter&quot;: 0.20}
+plan = plan_chunk_updates(change_estimates, threshold=0.05)
+# {&quot;audience&quot;: &quot;reuse&quot;, &quot;presenter&quot;: &quot;recompute&quot;}
+```</p>
+<p>These teaching values show why the same threshold can preserve one chunk’s cached computation while requesting fresh computation for another.</p>
+<p><strong>The threshold is a quality decision as well as a performance decision.</strong> Reusing too aggressively can significantly damage the generated image. Evaluate the resulting content, not just the saved computation. In the talk’s VisualGen interface, caching is enabled with a flag and configured with a threshold; the current beta documentation exposes <code>cache_config</code>, including <code>cache_backend</code> and <code>teacache_thresh</code>. Ilan also names vLLM Omni and SGLang Diffusion as serving options with caching support.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="562">▶ 9:22</button></div>
+      <h3>减少步数而不是参数</h3>
+      <p>Distillation often brings to mind <strong>DeepSeek</strong> and the transfer of capabilities from a large teacher into a smaller student. The diffusion objective here is different: <strong>keep the parameter count, but reduce the number of denoising steps</strong>. The student learns to produce a good image or video with fewer repeated evaluations of the model.</p>
+<p>Ilan gives the example of reducing 50 denoising steps to four, eight or sometimes one while aiming to preserve quality. This is not simply a request to stop an ordinary sampler early: the student is trained for the shorter generation process.</p>
+<p>Ilan cites potential performance improvements of 10×–200×, without specifying a benchmark baseline, hardware configuration or quality metric. The objective is to make high-quality real-time generation possible, and he reports that a GTC demonstration in San Jose used two distillation techniques to achieve real-time generation. Streaming output would make these models usable in a broader range of interactive applications.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="667">▶ 11:07</button></div>
+      <h3>学习教师的路径或其输出分布</h3>
+      <p>Both main distillation families use a teacher and a student, but they differ in what the student must reproduce.</p>
+<p>| Family | What the student learns | Constraint on the path |
+|---|---|---|
+| Trajectory-based | The teacher’s denoising trajectory | Follow the teacher’s progression |
+| Distribution-based | The teacher’s output distribution | May take a different route |</p>
+<p>Matching a distribution does not require retracing the teacher’s exact denoising path. It gives the student freedom to learn a shorter route to the desired output distribution.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/e6bd8dc711ace86a9cd1363987b3404b6e97743ca58796c6debfd638e03661b8" alt="Slide titled “Distillation: Compress 50 Steps to 1-8,” describing teacher and student models, two method families, and a reduction from 50 steps to 2–4 steps." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Step distillation contrasts trajectory-based regression with distribution-based output matching.</figcaption></figure>
+<p>Ilan describes distribution-based approaches as more common and higher quality at the time of the talk. The two families can also be combined: he cites a recent <a href="https://github.com/hao-ai-lab/FastVideo" target="_blank" rel="noopener">FastVideo</a> release for a hybrid approach that preserved quality while making training more stable.</p>
+<p>That training requirement explains why distillation comes last in the presentation. It is a post-training process whose success depends on suitable data and reliable convergence. It requires additional compute, time and expertise, with recipes still evolving through research. Both open-source and closed-source model builders are applying these methods, but selecting a recipe remains more demanding than enabling an inference optimization.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="776">▶ 12:56</button></div>
+      <h3>在模型规模上组织蒸馏</h3>
+      <p><a href="https://github.com/NVlabs/FastGen" target="_blank" rel="noopener">NVIDIA FastGen</a> is infrastructure for this work, not another distillation algorithm. Its open-source repository brings multiple techniques into a framework for experimenting with and scaling post-training. Ilan cites video diffusion models with 20B, 30B and 40B parameters, and anticipates models reaching hundreds of billions. At those scales, sharding work across GPUs becomes part of the training problem. FastGen structures that machinery so practitioners can concentrate on output quality and the recipe they want to use.</p>
+<p>Training data is optional in the illustrated workflow. Open-source data can provide a useful starting point, but a specialized target distribution changes the decision: if the application’s data differs substantially from general-purpose material, Ilan recommends using the application’s own data for fine-tuning. The purpose is to make the optimized model work for the intended distribution, not merely for a generic demonstration.</p>
+<p>The benefit can be lower compute requirements as well as lower latency. Ilan reports near-real-time or real-time video generation at GTC on one Blackwell B200 GPU, depending on output quality. The talk does not specify resolution, frame rate or a quality evaluation for that result. This is an inference demonstration; it does not establish the hardware required to train the distilled model.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="872">▶ 14:32</button></div>
+      <h3>帧内扩散，帧间自回归</h3>
+      <p>Further opportunities may come from architectures that combine diffusion with autoregressive generation. Ilan mentions Transfusion and autoregressive diffusion as developing directions, then describes a frame-by-frame mechanism: diffusion generates a frame, and successive frames are generated autoregressively. That structure could bring more autoregressive optimization techniques into image and video generation, although he characterizes the area as still research-driven.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="913">▶ 15:13</button></div>
+      <h3>逐步组合各项优化</h3>
+      <p><strong>These optimizations can be combined.</strong> Distillation reduces the number of steps; quantization reduces the cost and memory footprint of computation; caching avoids some repeated work. Multi-GPU execution and context parallelism offer additional options. Choosing one does not require abandoning the others.</p>
+<p>For incremental experimentation, Ilan proposes a practical sequence:</p>
+<p>1. Start with quantization. If it meets the application’s needs, stop there.
+2. If more improvement is needed, consider multi-GPU execution, context parallelism and caching.
+3. Take on distillation when the remaining latency target justifies the more demanding post-training work.</p>
+<p>This sequence starts with the easiest intervention to assess. It differs from ordering the stages of a complete optimization pipeline, where distillation can precede quantization and caching. Ilan presents distillation as the most impactful option, but also the one requiring the greatest investment.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/d82e7a950f89fbff5a22fb31ae86425be5b5fa8f3d7499c6af3c815d5ea1fc25" alt="Slide titled “The Full Stack: Compound Your Gains,” with three arrow-linked cards for quantization, caching and parallelism, and distillation, plus a combined speedup statement." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Quantization, caching and parallelism, and distillation combine in an incremental optimization stack.</figcaption></figure>
+<p>The available open-source tooling includes support for the <strong>Wan</strong>, FLUX.2 and <strong>LTX2</strong> model families, with more support being added. The invitation is to try these implementations and contribute improvements, helping diffusion serving approach the maturity already available in the LLM and vLLM ecosystem.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1008">▶ 16:48</button></div>
+      <h3>蒸馏需要什么样的硬件和数据？</h3>
+      <p>An audience question brings the discussion back to access: if GB200 systems are difficult to obtain, what compute is needed for fine-tuning or distillation, and how large should the dataset be? GB200 is not a requirement. Ilan names Hopper/H100, B200 and B300 as possible hardware choices. Distillation requires less compute than pre-training, but it still needs substantial resources; his answer does not promise that an arbitrary model can be distilled on a single instance.</p>
+<p>Model size changes the requirement. Ilan points to smaller video generation models with 2B or 4B parameters as requiring less compute. A single-GPU inference result should therefore not be used as a training budget: the size of the model and the chosen post-training process still determine the resources needed.</p>
+<p>On data, the first requirement is <strong>knowing how to evaluate the result</strong>. Compare what a general-purpose dataset produces against what data specific to the intended application produces. Ilan reports that general demonstrations work without a special dataset, while a domain such as protein generation calls for more specialized data. He gives no numerical dataset-size requirement. The actionable starting point is an evaluation that can reveal whether general data is sufficient for the application—or whether its target distribution requires a different training set.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://developer.nvidia.com/blog/scaling-nvfp4-inference-for-flux-2-on-nvidia-blackwell-data-center-gpus/" target="_blank" rel="noopener">NVIDIA's FLUX.2 optimization walkthrough</a> — Explains NVFP4 scaling, TeaCache and combined inference optimizations for FLUX.2, with code examples and benchmark conditions.</li><li><a href="https://github.com/NVIDIA/TensorRT-LLM/blob/main/docs/source/models/visual-generation.md" target="_blank" rel="noopener">TensorRT-LLM VisualGen documentation</a> — Current beta guide to supported diffusion models, quantization, caching and multi-GPU inference.</li><li><a href="https://github.com/ali-vilab/TeaCache" target="_blank" rel="noopener">TeaCache</a> — Training-free diffusion caching implementations that estimate when transformer computation can be reused.</li><li><a href="https://haoailab.com/blogs/attn-qat/" target="_blank" rel="noopener">Attn-QAT: Making 4-Bit Attention Actually Work</a> — Hao AI Lab's study of quantization-aware training for preserving quality with FP4 attention.</li><li><a href="https://github.com/NVlabs/FastGen" target="_blank" rel="noopener">NVIDIA FastGen</a> — Open-source infrastructure for experimenting with diffusion distillation methods and few-step generation.</li><li><a href="https://developer.nvidia.com/blog/accelerating-diffusion-models-with-an-open-plug-and-play-offering/" target="_blank" rel="noopener">FastGen methods and scaling examples</a> — Introduces trajectory-based, distribution-based and causal distillation, including a Wan2.1-14B training example.</li><li><a href="https://github.com/hao-ai-lab/FastVideo" target="_blank" rel="noopener">FastVideo</a> — Video generation framework with inference optimizations, fine-tuning, distributed training and distillation workflows.</li><li><a href="https://haoailab.com/blogs/fastvideo-dreamverse-release/" target="_blank" rel="noopener">Dreamverse single-B200 application release</a> — May 2026 release of an LTX-2 video generation and editing application, with deployment instructions and streaming architecture.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Okay.</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">Hope everyone are awake after lunch, and nice to meet you all. I'm Ziv. I'm in the AI Labs team in NVIDIA based out of Paris and working with different, uh, frontier model builders across a lot of domains.</span></div><div class="tline" data-t="32"><span class="ts">0:32</span><span class="tx">Of course, diffusion is one of them, and we'll hear about a couple of examples of, of work we do with them. Um, we have only twenty minutes, so obviously it's kind of a mix between going deep and going very high level.</span></div><div class="tline" data-t="44"><span class="ts">0:44</span><span class="tx">Each of these topics will probably be a full day or full, um, conference to cover. So I, I'll try to cover everything I can within this timeframe, but feel free to reach out afterwards, either through LinkedIn or I'll stay here a few minutes afterwards.</span></div><div class="tline" data-t="60"><span class="ts">1:00</span><span class="tx">So without further ado, diffusion models, I assume everyone are here knows about it. Anyone doesn't know what VideoGen, ImageGen, how they work on a high level, denoising? Perfect. Okay.</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">The idea is that, of course, unlike autoregressive, um, architectures, LLM, the idea is that you have a lot of iterations to denoise the image or the video, usually between twenty to fifty steps.</span></div><div class="tline" data-t="86"><span class="ts">1:26</span><span class="tx">And, um, we see, I think in the last year, an influx of very good high-quality models, both for image generation, whether it's FLUX.2, um, video generation, um, LTX 2.1, um, Google with the Nano Banana and, and the later generations.</span></div><div class="tline" data-t="104"><span class="ts">1:44</span><span class="tx">And we do see a lot of more practical use cases for that. And the main challenge once we have some interesting use cases is how to make it actual usable, right?</span></div><div class="tline" data-t="114"><span class="ts">1:54</span><span class="tx">We know that it's cool to generate videos or to generate images, but now if we talk about a developer context or a enterprise context, this should be, uh, fast.</span></div><div class="tline" data-t="126"><span class="ts">2:06</span><span class="tx">Okay? We want it to be mature, we want it to be scalable, and these are usually the challenges that, uh, are hard to solve as this ecosystem is, is not as mature as the autoregressive LLM, vLLM ecosystem.</span></div><div class="tline" data-t="139"><span class="ts">2:19</span><span class="tx">Okay? So we try to borrow a lot of the concept we see work very well for LLM, and we gradually kind of distill them, if I'll steal this, um, termin-terminology, into the world of diffusion models.</span></div><div class="tline" data-t="151"><span class="ts">2:31</span><span class="tx">Okay? We'll cover a few of the topics here, but again, it's every day we see more and more research, um, in this domain, and I expect this world to be even more mature in the next AI engineer.</span></div><div class="tline" data-t="164"><span class="ts">2:44</span><span class="tx">Use case enel-- enablement, real-time image, real-time video is obviously the, the Holy Grail, okay? Imagine how many new use cases where it's, uh, world models for, for robotics, for, um, you know, computer games, for content generation.</span></div><div class="tline" data-t="178"><span class="ts">2:58</span><span class="tx">It opens a lot of new avenues for companies and developers to use it. And the big challenge to get there is, of course, the latency. Okay? It takes a lot of time to get a first image and then to obviously get a high quality, okay, if we talk about 1080p or 720p, uh, content out there.</span></div><div class="tline" data-t="195"><span class="ts">3:15</span><span class="tx">And to bridge this gap, I'll talk about three concepts. Of course, it's not, um, covering all the, uh, the ways you can optimize your VideoGen, ImageGen models, but I'll touch on quantization, caching and distillation.</span></div><div class="tline" data-t="209"><span class="ts">3:29</span><span class="tx">It's not necessarily the, the order you'll deploy it yourself, okay? Usually, you'll start a distillation, then do some, uh, quantization, then some caching. But I started from the simple to the more complex.</span></div><div class="tline" data-t="220"><span class="ts">3:40</span><span class="tx">Okay? Simple is usually quantization, okay? For those of you who tried it in LLMs, concepts are quite similar. Okay? Then we'll talk about caching and distillation. When we talk about quantization, we have two approaches, okay?</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">Post-training quantization and quantization-aware training. Um, I'd say in many cases, of course, we do want to use the more simple approach like PTQ, but we know that at least for the, to maintain the image quality, the video quality, it's a little bit more complex with the diffusion models.</span></div><div class="tline" data-t="254"><span class="ts">4:14</span><span class="tx">Okay? Uh, we also know that, um, these type of models are more attention heavy, which means that the impact of doing quantization is not as impactful as the LLMs, VLMs.</span></div><div class="tline" data-t="265"><span class="ts">4:25</span><span class="tx">But it is s-still quite a, a low-hanging fruit when we talk about taking advantage of the more advanced, um, features of Blackwell, for example, and, and more modern, uh, compute.</span></div><div class="tline" data-t="278"><span class="ts">4:38</span><span class="tx">Uh, in this example, just the work we did with Black Forest Labs on FLUX.2, you can see that, um, using usually dynamic quantization, okay, you don't wanna use... We can use static, which means that we compute all the range of all the, uh, different parameters upfront, deploy it, and use this static range for the quantization.</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">In this case, we use dynamic approach, okay, which means that some of the range will, uh, be computed on the fly. Okay? Again, to make sure that the distribution is in line with the different, uh, data distribution that you'll probably want to use when running these models.</span></div><div class="tline" data-t="313"><span class="ts">5:13</span><span class="tx">It's something that you can either do it yourself. Okay? We recently released a good example in our TensorRT-LLM VisualGen repository, open source. You can start using it and see how it goes.</span></div><div class="tline" data-t="325"><span class="ts">5:25</span><span class="tx">What we also try to, to do to, again, help the community to adopt it, is also to help our partners to do quant-- pre-quantized, uh, checkpoints. So you can just go to Hugging Face, load the, the quantized checkpoint, and start using it.</span></div><div class="tline" data-t="339"><span class="ts">5:39</span><span class="tx">Okay? If you don't need to fine-tune or to do some LoRA adapters afterwards, it's something, again, it's quite handy, and you can already see the impact. Of course, when we talk about quantization, the impact is both on the memory.</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">Okay? It will require less memory, which means you can run it on lower-end GPUs, whether it's consumer GPUs or lower-end data center GPUs. But, um, also something that will help you in the performance.</span></div><div class="tline" data-t="365"><span class="ts">6:05</span><span class="tx">Okay? So this is one part of the toolkit. Again, a whole world sitting behind it to make sure that it's something that is effective. Just today, I've seen one of the latest, uh, research coming from Hao Lab, um, about Attention FP4, which again, as I mentioned, attention is quite heavy for this kind of model.</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">So we do try to follow up with the latest research and make sure it's accessible for your devel-- you as a community.</span></div><div class="tline" data-t="394"><span class="ts">6:34</span><span class="tx">Okay. When we are talking about the second stage, caching, okay? KV cache is something that, you know, anyone that worked a little bit about in-- with LLMs, with autoregressive models, it's, it's something that everyone talk about how to, um, to use it efficiently, how to offload it, et cetera, et cetera.</span></div><div class="tline" data-t="411"><span class="ts">6:51</span><span class="tx">Again, it's a whole world. With the characteristics of diffusion models, it's not the same way, right? We don't, we don't generate a token every time, so it's harder to use these kind of techniques when we talk about denoising steps or, you know, getting, again, making sure that we use the computation we had before in the way we'll</span></div><div class="tline" data-t="434"><span class="ts">7:14</span><span class="tx">generate future images or future videos. There are some-- TeaCache is one example. Again, it's not, um, a very strong example, but it's a good example to understand the concept.</span></div><div class="tline" data-t="443"><span class="ts">7:23</span><span class="tx">Okay? While we are doing denoising steps, right? We talked about twenty to fifty steps. There are areas between the denoising steps that are pretty much the same, okay? So we don't necessarily need to recompute them.</span></div><div class="tline" data-t="456"><span class="ts">7:36</span><span class="tx">What TeaCache is doing is, okay, if, if there's-- there was a minimal change or very small change between the denoising steps, it compares it, and you underst-- okay, now I don't need to, um, to recompute for the next denoising step.</span></div><div class="tline" data-t="471"><span class="ts">7:51</span><span class="tx">Okay? So it's more general. Okay? It, it does it for the entire pixel space or latent space. Okay?</span></div><div class="tline" data-t="478"><span class="ts">7:58</span><span class="tx">More modern techniques of caching will do it in a more chunk based. Okay? Imagine that, I don't know, now we are in the classroom here. Most of you audience are sitting, staring at the, the screen, so nothing much changes.</span></div><div class="tline" data-t="489"><span class="ts">8:09</span><span class="tx">But I try to be a little dynamic, so I'm, uh, you know, you still wake up and follow me, and which means that this chunk of the video doesn't necessarily need to...</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">You guys don't need to recompute. I do need to. Okay? So we'll isolate just th-this chunk and recalculate that. Okay? Of course, you can define the threshold, um, and this is something that actually makes a lot of impact.</span></div><div class="tline" data-t="512"><span class="ts">8:32</span><span class="tx">We provided here some good examples of the expected boost you can get from using this, um, but make sure that you try it, of course, and you maintain the quality.</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">Okay? Caching is something that if you don't do it the right way, can have quite a significant impact on the quality of the image. Okay? And as content creators, again, world models, et cetera, it's something you wanna make sure that, uh, you maintain while you get the boost.</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">Okay? Um, so that's caching. Again, I encourage you to read more about different techniques. This is something that is already available in the TensorRT-LLM VisualGen I mentioned. Just a flag you enable, and you set up the threshold, uh, you can experiment with it.</span></div><div class="tline" data-t="553"><span class="ts">9:13</span><span class="tx">But also it's available, you know, in vLLM Omni, SGLang Diffusion and other serving, um, libraries.</span></div><div class="tline" data-t="562"><span class="ts">9:22</span><span class="tx">Distillation. Okay? A-and this goes to the you don't necessarily need fifty steps. Distillation is something we've seen, again, um, I-I'd say probably the big bang for distillation was during the DeepSeek first release, how they managed to distill from a very big model to much smaller models and get, um, you know,</span></div><div class="tline" data-t="582"><span class="ts">9:42</span><span class="tx">I would say acceptable quality, but with a much, with a much smaller, uh, model. In diffusion, the goal is not to get to a smaller model, okay? You'll still have the same number of parameters.</span></div><div class="tline" data-t="593"><span class="ts">9:53</span><span class="tx">This is more about step distillation, okay? Training the model, the student model, to generate as good quality images or videos, but by using much less steps. Okay? Instead of fifty steps, going to four steps, eight steps, in some cases one, one shot, okay?</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">And maintaining the quality. Okay? And this is the big challenge. And imagine if you are able to reduce this significant number of steps, but maintain the quality, it's something that can give you ten x, two hundred x improvement in performance.</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">And if you go back to the real-time generation, this is something today, it's probably the only way that it can get us there in good quality. Okay? Um, there is the next one, I think there's some demo we did in the last, uh, GTC conference a couple of weeks ago in, in San Jose, uh, with two different,</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">um, distillation techniques, um, and we got to a real-time generation. Okay? And this is something, again, that everyone are looking for, all the AI labs, and I'm sure also the bigger players, because this is, um, this means that we can actually get to, again, streaming something that will open a lot of new use cases.</span></div><div class="tline" data-t="667"><span class="ts">11:07</span><span class="tx">Okay, so how do we get it? Okay, we are-- When we talk about distillation, we always have a teacher model and a student model. Currently, we have two main approaches when we talk about distillation.</span></div><div class="tline" data-t="677"><span class="ts">11:17</span><span class="tx">Okay? One is trajectory-based, which means we'll try the student-- try to teach the student how to follow the trajectory of the denoising steps as the teacher is doing. Okay?</span></div><div class="tline" data-t="689"><span class="ts">11:29</span><span class="tx">And the second is dis-distribution based, which means we'll only look at the output distribution. Okay? We want the, uh, student to get to the same point at the end, but we'll let the student understand how to get there, okay, and not by following the exact trajectory.</span></div><div class="tline" data-t="705"><span class="ts">11:45</span><span class="tx">Okay? The more common, I would say, and better quality technique these days is distribution-based, and we also see a lot of ways that can be combined. These techniques can be combined.</span></div><div class="tline" data-t="715"><span class="ts">11:55</span><span class="tx">Um, in the last FastVideo release, they actually managed to do kind of a hybrid approach that maintained the quality but also got to a more stable, um, um, training.</span></div><div class="tline" data-t="726"><span class="ts">12:06</span><span class="tx">The challenge and why I kept it to the last is that distillation usu-usually it's a post-training technique, okay? Which means that you Let's say if you do want it to work with your data, it's something you'll need to use some data for that technique and, and you want it to converge in a good way, right?</span></div><div class="tline" data-t="741"><span class="ts">12:21</span><span class="tx">'Cause otherwise it will just, um, you know, garbage in, garbage out. Okay? So it will require more compute, it will require more time, also more proficiency. Again, as it's an exploratory still or research driven, uh, domain, there's a lot of different techniques out there, and we expect more to come.</span></div><div class="tline" data-t="760"><span class="ts">12:40</span><span class="tx">But we are starting to see more mature techniques coming and some very good examples shown in, again, in with the latest open source, um, models. Of course, um, closed source model builders are also using this approach.</span></div><div class="tline" data-t="776"><span class="ts">12:56</span><span class="tx">So FastGen is something that came out of our, um, NV research group. Okay? It's an open source repository. You can go... There's a lot of different techniques there. It-- Okay, it's not a tech- distillation technique or method, but the idea is that because it's so complex when we talk about, you know, large models, okay, a lot of</span></div><div class="tline" data-t="792"><span class="ts">13:12</span><span class="tx">the new video diffusion models are twenty, thirty, forty B, uh, parameters, and we expect it again to get to hundreds of billions of parameters. It requires post-training, it requires scale sharding all across different, uh, GPUs.</span></div><div class="tline" data-t="807"><span class="ts">13:27</span><span class="tx">So to manage all of this, we came with FastGen as a way to structure this process for you and enable you to focus only on the quality and of course, you know, fine-tuning the exact recipe that you wanna use.</span></div><div class="tline" data-t="820"><span class="ts">13:40</span><span class="tx">Like you can see, there's an optional training data here. If you're not using, um... Well, you can always use open source data and it will work up to a point, right?</span></div><div class="tline" data-t="830"><span class="ts">13:50</span><span class="tx">And, and we're actually happy about the results there. Um, but if you want it to work for or if your use case have very specific data distribution, then we recommend you to use your own data for the fine-tune.</span></div><div class="tline" data-t="843"><span class="ts">14:03</span><span class="tx">Um, some of the results quoted here, okay, um, you know, the speed up, it's actually something we got, not just the speed up doesn't come only in time, it's also in using much smaller, uh, much, um, less compute, I would say, to get to real-time.</span></div><div class="tline" data-t="860"><span class="ts">14:20</span><span class="tx">Okay? We got again, in, in GTC, as I mentioned, we got to one GPU of Blackwell B200 to generate near real-time video or real-time, again, depends on the quality of the output.</span></div><div class="tline" data-t="872"><span class="ts">14:32</span><span class="tx">So it does something that we highly recommend you to look into if you wanna get to this point. Okay? We do expect, again, a lot of the other autoregressive techniques to come and gradually, um,</span></div><div class="tline" data-t="886"><span class="ts">14:46</span><span class="tx">be relevant for the video dif- video generation and image generation. We also see a lot of new model builders working kind of a transfusion or autoregressive diffusion approach. Okay?</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">So you use the diffusion to generate, uh, um, um, a frame, sorry, but then it generates frame a-after frame in a autoregressive manner. So again, we expect a lot more of these techniques to get into this domain, but it's still a lot of research, uh, driven.</span></div><div class="tline" data-t="913"><span class="ts">15:13</span><span class="tx">So make sure, again, this is one very good example you can take a look at. And I think the best value about it is all of it is incremental, okay?</span></div><div class="tline" data-t="921"><span class="ts">15:21</span><span class="tx">You can use this plus this plus this. You don't necessarily need to decide, okay, I'm doing only distillation or only quantization or only context parallelism or... Again, there's a lot of different techniques out there, and they're all incremental.</span></div><div class="tline" data-t="934"><span class="ts">15:34</span><span class="tx">Okay? So you can start with quantization, as I mentioned, which is the easier approach. If it's good enough for you, stay there. If not, okay, let's move to now multi-GPU, maybe do some context parallelism, maybe add some caching techniques.</span></div><div class="tline" data-t="947"><span class="ts">15:47</span><span class="tx">Okay? And then last and the most impactful, that's the distillation. And again, hope to see a lot of you trying it, uh, and getting into the real-time performance. Now, try it yourself.</span></div><div class="tline" data-t="962"><span class="ts">16:02</span><span class="tx">Okay. All of it are open source resources that you can use. We have added support for the open source, uh, models as well, whether it's the Wan Family, FLUX.2 Family, LTX2 Family, and other ongoing.</span></div><div class="tline" data-t="977"><span class="ts">16:17</span><span class="tx">So hopefully you'll be able-- we, we'll be able to see also you guys contributing to this, um, and making video diffusion as good as we see with LLM/vLLM. Um, I think I'm almost at time, so if there is maybe one, two questions, happy to try and answer.</span></div><div class="tline" data-t="995"><span class="ts">16:35</span><span class="tx">If not, um, we can let you one minute of breathing. [clapping]</span></div><div class="tline" data-t="1008"><span class="ts">16:48</span><span class="tx">On, on average, what would you say is like, are there requirements for you to fine-tune this model? Because access to GB200s are not that easy right now. And, uh, in terms of dataset, how big are the datasets that you've seen work well with some of these models?</span></div><div class="tline" data-t="1023"><span class="ts">17:03</span><span class="tx">Okay, so the question was about the compute needed for that, and then the dataset needed for that, just for everyone to hear. Um, what's good about distillation is that you don't need, um, GB200, right?</span></div><div class="tline" data-t="1035"><span class="ts">17:15</span><span class="tx">You can do it with Hoppers, you can do it with, uh, H100, H100, B200, you know, B300 if you... So it's not necessarily that you need very big compute as you do for, uh, pre-training, uh, but you still need to compute.</span></div><div class="tline" data-t="1051"><span class="ts">17:31</span><span class="tx">Okay? Uh, so it's not something you just, you know, take your, um, I don't know, just one instance and start doing it. Of course, it depends on, on the size of the model, right?</span></div><div class="tline" data-t="1060"><span class="ts">17:40</span><span class="tx">If your model is small, you have video generation models that are very small, two B, four B parameters, so this will require obviously much less compute. On the data front, I think it's very important to make sure that,</span></div><div class="tline" data-t="1073"><span class="ts">17:53</span><span class="tx">one, you know how to evaluate. Okay? So you can understand what's different if I just use just a general purpose dataset versus your specific data, uh, requires for your use case.</span></div><div class="tline" data-t="1083"><span class="ts">18:03</span><span class="tx">And in such cases, we have seen, um, differences. So for the more general demos, we don't do-- use any special dataset, and it works well. But again, if it's something that, I don't know, protein generation or something around that, that it will require, you know, something more specific.</span></div><div class="tline" data-t="1100"><span class="ts">18:20</span><span class="tx">I'm at time, I think. But yeah, until they'll kick me out.</span></div><div class="tline" data-t="1105"><span class="ts">18:25</span><span class="tx">Any one other question there? Okay. We can afterwards, I think. Thanks, everyone. [clapping] [outro jingle]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,945 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>训练前沿小模型学到的一切 | AI 工程师中文版</title>
+<meta name="description" content="内存限制、延迟和聚焦的任务，改变了小模型应该如何构建——从嵌入层的参数预算和设备性能剖析，到抑制重复循环的偏好训练。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>训练前沿小模型学到的一切</h1>
+    <div class="orig-title">Everything I Learned Training Frontier Small Models</div>
+    <div class="meta"><span class="speaker">Maxime Labonne</span> · AI Engineer Europe 2026 · 20:13</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=local-inference">本地推理</a><a class="tag" href="../../index.html#topic=post-training">后训练</a><a class="tag" href="../../index.html#topic=pretraining-and-midtraining">预训练与中期训练</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/fLUtUkqYHnQ-everything-i-learned-training-frontier-small" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="fLUtUkqYHnQ"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=fLUtUkqYHnQ" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">手机或汽车里能装下什么？</div></div>
+      <div class="label row">章节跳转 <span>共 9 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="15"><span class="ts">0:15</span><span>手机或汽车里能装下什么？</span></li><li data-t="148"><span class="ts">2:28</span><span>参数预算花在了哪里</span></li><li data-t="239"><span class="ts">3:59</span><span>在目标硬件上选择算子</span></li><li data-t="367"><span class="ts">6:07</span><span>一个用 28 万亿 token 训练的 3.5 亿参数模型</span></li><li data-t="511"><span class="ts">8:31</span><span>让各个阶段适应有限的容量</span></li><li data-t="641"><span class="ts">10:41</span><span>把重复性的失败变成被拒绝的答案</span></li><li data-t="766"><span class="ts">12:46</span><span>奖励完成，惩罚重复</span></li><li data-t="928"><span class="ts">15:28</span><span>把知识和上下文移进工具</span></li><li data-t="1079"><span class="ts">17:59</span><span>何时本地部署——以及蒸馏可能遗漏什么</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 24 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="AI Engineer Europe" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer Europe</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer Europe opens the recording.
+
+[0:00](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=0s) [AI Engineer Europe logo in white on a black background.](https://assets.ai.engineer/sites/aiecode2025/sha256/24e440bf5dfd4ecccd4fffdc9ef9243be07fff10b16e87c6b80fbc594828e3ea.webp)
+
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Presenting sponsor: Google DeepMind" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting sponsor: Google DeepMind</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Google DeepMind is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=5s) [Presenting sponsor Google DeepMind in white on a black background.](https://assets.ai.engineer/sites/aiecode2025/sha256/e0a2733394b9e76d5cbcc292edcb1e7d0d4305725368334cfa74aa4dc6f38f30.webp)
+
+PRESENTING SPONSOR
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Platinum sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Platinum sponsors</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Braintrust, WorkOS and OpenAI are platinum sponsors.
+
+[0:10](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=10s) [Braintrust, WorkOS and OpenAI logos under the heading Platinum Sponsors.](https://assets.ai.engineer/sites/aiecode2025/sha256/6716387cf631390cba3a8db41e8c23f1c008f88567c9389ef6612448c1777a2f.webp)
+
+PLATINUM SPONSORS
+
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Liquid AI model sizes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Liquid AI model sizes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Liquid’s text, vision and audio models range from 350M to 24B total parameters. The 8B and 24B models use substantially fewer active parameters than their totals.
+
+[0:23](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=23s) [Scatter plot of active parameters against total parameters for Liquid AI text, vision and audio models, ranging from 350 million to 24 billion total parameters.](https://assets.ai.engineer/sites/aiecode2025/sha256/9145035db38aef75181efc05bc305c0267ff6cb240af2783fd8933ea3d79f86c.webp)
+
+Active parameters
+Y-axis ticks: 0B, 0.5B, 1B, 1.5B, 2B, 2.5B, 3B
+Total parameters (log scale)
+X-axis ticks: 300M, 500M, 1B, 2B, 5B, 10B, 20B, 40B
+
+LFM2.5-350M — Text — NEW
+LFM2.5-VL-450M — Vision — NEW
+LFM2-700M — Text
+LFM2.5-1.2B — Text
+LFM2.5-Audio-1.5B — Audio
+LFM2.5-VL-1.6B — Vision
+LFM2-2.6B — Text
+LFM2-8B-A1B — Text
+LFM2-24B-A2B — Text
+
+Interface text: AIE; AI Engineer; Google DeepMind
+
+[0:51](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=51s) [Scatter plot comparing total and active parameters for text, vision and audio models.](https://assets.ai.engineer/sites/aiecode2025/sha256/115ceade7a0078ac2d72c1784054fa6b3b291b8ec764f3fed1ed591c46942073.webp)
+
+Active parameters
+Y-axis ticks: 0B, 0.5B, 1B, 1.5B, 2B, 2.5B, 3B
+Total parameters (log scale)
+X-axis ticks: 300M, 500M, 1B, 2B, 5B, 10B, 20B, 40B
+
+LFM2.5-350M — Text — NEW
+LFM2.5-VL-450M — Vision — NEW
+LFM2-700M — Text
+LFM2.5-1.2B — Text
+LFM2.5-Audio-1.5B — Audio
+LFM2.5-VL-1.6B — Vision
+LFM2-2.6B — Text
+LFM2-8B-A1B — Text
+LFM2-24B-A2B — Text
+
+Interface text: AIE; AI Engineer; Braintrust; WorkOS; OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Characteristics of edge model deployment" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Characteristics of edge model deployment</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Hardware constraints on phones and cars keep edge models small. The slide pairs fewer than 3B parameters with task-specific use and sub-100ms responses.
+
+[0:59](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=59s) [Three cards describe edge models as memory-bound, task-specific and latency sensitive, with under 3B parameters and sub-100ms responses.](https://assets.ai.engineer/sites/aiecode2025/sha256/1efc3606d3402fb46dfb0c4d18130259258717c5790b13c1be45d3834c4447c5.webp)
+
+Characteristics of edge model deployment
+
+Memory-bound
+&lt;3B parameters
+
+Task-specific
+≠ general-purpose chatbots
+
+Latency sensitive
+Sub-100ms responses
+
+Edge models are not just scaled-down versions of bigger models
+
+Interface text:
+AIE
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Characteristics of edge model deployment" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Characteristics of edge model deployment</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Hardware limits give edge models low knowledge capacity. They focus on specific tasks and can adapt to new data, while latency-sensitive uses call for sub-100ms responses.
+
+[1:25](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=85s) [Three cards describe edge models as having low knowledge capacity, being task-specific and requiring sub-100ms responses.](https://assets.ai.engineer/sites/aiecode2025/sha256/fbb10314b7724402e2ddc0d252e43fbafe134f0a7eb40a4b5a37830fd94bfba3.webp)
+
+Characteristics of edge model deployment
+
+Memory bound
+Low knowledge capacity
+
+Task-specific
+≠ general-purpose chatbots
+
+Latency sensitive
+Sub-100ms responses
+
+Edge models are not just scaled-down versions of bigger models
+
+AIE
+AI Engineer EUROPE
+
+[1:48](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=108s) [Three cards describe edge models as memory bound, task specific, and latency sensitive, with sub-100ms responses.](https://assets.ai.engineer/sites/aiecode2025/sha256/f5b07ee4839f369be00da0ef3fcdb9b546cd4d7963f71045306aea490a2d97f6.webp)
+
+Characteristics of edge model deployment
+
+Memory bound
+Low knowledge capacity
+
+Task-specific
+Easy to train and adapt to new data
+
+Latency sensitive
+Sub-100ms responses
+
+Edge models are not just scaled-down versions of bigger models
+
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Edge model deployment and fast prefill" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Edge model deployment and fast prefill</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Edge models have limited knowledge capacity, can be adapted to specific tasks, and need fast prefill for latency-sensitive deployment.
+
+[2:00](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=120s) [Three cards describe memory, task specificity, and latency; the latency card says fast prefill is a requirement.](https://assets.ai.engineer/sites/aiecode2025/sha256/ed349f9078cb13e2baedae89e4014eeaed7b5ae1c4676ec1075a5c4293be08f1.webp)
+
+👈 Characteristics of edge model deployment
+
+Memory bound
+Low knowledge capacity
+
+Task-specific
+Easy to train and adapt to new data
+
+Latency sensitive
+Fast prefill is a requirement
+
+Edge models are not just scaled-down versions of bigger models
+
+Interface text:
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Gemma 3 and Qwen 3.5 architectures" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Gemma 3 and Qwen 3.5 architectures</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Both models use hybrid attention: Gemma combines sliding-window attention with GQA, while Qwen combines gated DeltaNet with gated attention. Their diagrams show 18 and 24 layers, respectively.
+
+[2:32](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=152s) [Side-by-side layer diagrams compare Gemma 3 270M and Qwen3.5-0.8B.](https://assets.ai.engineer/sites/aiecode2025/sha256/5ed506c37abcf76dc9038beec1b659276f7b31ed21bcd01a5e69f8841b91a7e5.webp)
+
+Gemma 3 270M (LLM)
+18 layers
+RMSNorm
+Feedforward
+RMSNorm
+RMSNorm
+5:1 SWA/GQA
+RMSNorm
+Embedding
+
+Qwen3.5-0.8B (VLM)
+24 layers
+Feedforward
+RMSNorm
+3:1 GDN/Gated Attention
+RMSNorm
+Embedding
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Embedding parameters and effective model size" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Embedding parameters and effective model size</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Embeddings account for 63% of Gemma’s parameters and 29% of Qwen’s, leaving effective sizes of 100M and 600M. The speaker attributes the large embeddings to distillation from teachers with large vocabularies.
+
+[3:19](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=199s) [Gemma and Qwen diagrams show embedding shares of 63% and 29%, effective sizes of 100M and 600M, and a distillation annotation.](https://assets.ai.engineer/sites/aiecode2025/sha256/7bf39eaec23d6894af112236981da376a6e51b9d681a4e14779ec7acbc242ab3.webp)
+
+Effective size = 100M 😱
+Gemma 3 270M (LLM) [270M struck through]
+18 layers
+RMSNorm
+Feedforward
+RMSNorm
+RMSNorm
+5:1 SWA/GQA
+RMSNorm
+Embedding
+⚠️ 63% of model params
+
+Effective size = 600M
+Qwen3.5-0.8B (VLM) [0.8B struck through]
+24 layers
+Feedforward
+RMSNorm
+3:1 GDN/Gated Attention
+RMSNorm
+Embedding
+⚠️ 29% of model params
+
+Distillation 🕵️
+
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="LFM2.5-350M architecture and effective size" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>LFM2.5-350M architecture and effective size</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>LFM2.5-350M uses a 16-layer hybrid architecture with a 3:1 mix of short convolutions and GQA. Embeddings account for 19% of model parameters; the slide puts its effective size at 287M.
+
+[4:19](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=259s) [The 16-layer architecture diagram labels the effective size as 287M and embeddings as 19% of model parameters.](https://assets.ai.engineer/sites/aiecode2025/sha256/851285f4c63d31b54b1c4da6a9575091c3bf53973af83c79cc309f05b7f7e76f.webp)
+
+LFM2.5-350M (LLM)
+Effective size = 287M ✅
+
+Output text
+Linear (tied)
+RMSNorm
+
+16 layers
+Feedforward
+RMSNorm
+3:1 ShortConv/GQA
+RMSNorm
+
+✅ 19% of model params
+Embedding
+Input text
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="On-device profiling" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>On-device profiling</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The team profiled LFM2.5-350M on Ryzen HX 370 and Galaxy S24 Ultra hardware, using inference metrics to guide architecture and operator choices.
+
+[4:27](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=267s) [The LFM2.5 architecture is linked to profiling on Ryzen HX 370 and Galaxy S24 Ultra devices and to inference metrics.](https://assets.ai.engineer/sites/aiecode2025/sha256/bf5a5460f81a761c461b1a39e10808991f3ed0ae9a95c504fc0735cab78e6281.webp)
+
+LFM2.5-350M (LLM)
+On-device profiling
+
+Output text
+Linear (tied)
+RMSNorm
+16 layers:
+Feedforward
+RMSNorm
+3:1 ShortConv/GQA
+RMSNorm
+Embedding
+Input text
+
+Ryzen HX 370
+Galaxy S24 Ultra
+Inference metrics
+
+Device image text: AMD RYZEN AI 300 Series; Galaxy S24 Ultra
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Gated short convolution block" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Gated short convolution block</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>LFM2.5-350M uses a 3:1 ShortConv/GQA mix across 16 layers. The gated block splits a linear projection into B, x and C paths around a Conv1D layer; the speaker says short convolutions are fast.
+
+[4:53](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=293s) [The LFM2.5 architecture points to a diagram of a gated short convolution block with linear and Conv1D layers.](https://assets.ai.engineer/sites/aiecode2025/sha256/d0b75a9596068dd9625edbc23cd94983fcd2060fc7983a7ad8c0a65a9cddb765.webp)
+
+LFM2.5-350M (LLM)
+
+Output text
+Linear (tied)
+RMSNorm
+
+16 layers
+Feedforward
+RMSNorm
+3:1 ShortConv/GQA
+RMSNorm
+
+Embedding
+Input text
+
+Gated Short Convolution Block
+Linear
+Conv1D
+B
+x
+C
+Linear
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Operator cost ratios on M4 Max CPU" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Operator cost ratios on M4 Max CPU</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>LFM2.5-350M uses a 3:1 ShortConv/GQA mix across 16 layers. On the M4 Max CPU decode chart, ShortConv has the lowest cost ratio among the operators compared.
+
+[5:00](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=300s) [A decode cost chart compares ShortConv with sliding window attention, GDN, GLA and GQA; ShortConv has the lowest displayed ratio.](https://assets.ai.engineer/sites/aiecode2025/sha256/d164326ee4a0e8763ec175502c4ced026e893b9b6e6758494d8d000c01244529.webp)
+
+LFM2.5-350M (LLM)
+
+Output text
+Linear (tied)
+RMSNorm
+16 layers
+Feedforward
+RMSNorm
+3:1 ShortConv/GQA
+RMSNorm
+Embedding
+Input text
+
+Cost ratio of operators
+M4 Max CPU (decode)
+Y-axis ticks: 0, 0.5, 1, 1.5, 2, 2.5
+Legend: ShortConv; SWA (Gemma3); GDN (Qwen3.5); GLA; GQA
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="CPU inference metrics" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>CPU inference metrics</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>LFM2.5-350M leads prefill and decode on both CPUs, with memory use near the low end. The 4-bit llama.cpp comparison uses a 2K-token input; the models differ in size.
+
+[5:27](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=327s) [Bar charts compare prefill speed, decode speed, and memory use for five models on AMD Ryzen and Snapdragon CPUs.](https://assets.ai.engineer/sites/aiecode2025/sha256/b0cc2a0c1c099026523e0a5ccc4c77c94a1e942dcfe1144306162a52689ac07b.webp)
+
+CPU inference metrics
+Llama.cpp | 4-bit quantization | Input: 2K tokens
+
+AMD Ryzen AI Max+ 395
+Models: LFM2.5-350M; Granite-4.0-350M; Granite-4.0-H-350M; Gemma 3 1B IT; Qwen3.5-0.8B
+Prefill (tok/s), higher is better: 2,991; 2,073; 2,262; 1,451; 905
+Decode (tok/s), higher is better: 313; 180; 211; 113; 109
+Memory (MB), lower is better: 434; 449; 383; 881; 726
+
+Qualcomm Snapdragon Gen4 (Samsung Galaxy S25 Ultra)
+Models: LFM2.5-350M; Granite-4.0-350M; Granite-4.0-H-350M; Gemma 3 1B IT; Qwen3.5-0.8B
+Prefill (tok/s), higher is better: 1,286; 521; 995; 506; 471
+Decode (tok/s), higher is better: 188; 107; 152; 67; 74
+Memory (MB), lower is better: 425; 520; 432; 1,409; 999
+
+Interface text:
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="GPU inference speed vs. concurrency" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>GPU inference speed vs. concurrency</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>With SGLang, LFM2.5-350M leads the plotted models as concurrency rises, reaching just over 40K output tokens per second at concurrency 4096. The test uses 1024 input and 256 output tokens.
+
+[5:55](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=355s) [Line chart compares model output throughput across concurrency levels; LFM2.5-350M has the highest plotted throughput.](https://assets.ai.engineer/sites/aiecode2025/sha256/63d035110015b246d8caff59fab6bfd7f6bbfe6e18615cf56f300438d7b0e344.webp)
+
+GPU inference speed vs. concurrency
+SGLang | Input: 1024 tokens | Output: 256 tokens
+
+Y-axis: Output Throughput (Tokens per Second)
+Y-axis ticks: 10K, 20K, 30K, 40K
+X-axis: Concurrency
+X-axis ticks: 1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096
+
+LFM2.5-350M
+Granite-4.0-350M
+Gemma 3 1B IT
+Qwen3.5-0.8B
+Granite-4.0-H-350M
+
+Interface text:
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="LFM2.5 training recipe" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>LFM2.5 training recipe</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>LFM2.5 uses 28T tokens in pre- and mid-training, then moves through supervised fine-tuning, preference alignment, and reinforcement learning to produce instruction-following responses and thinking traces.
+
+[6:09](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=369s) [A pipeline shows pre- and mid-training on 28 trillion tokens followed by supervised fine-tuning, preference alignment, and reinforcement learning.](https://assets.ai.engineer/sites/aiecode2025/sha256/731b7a974415d123b7830982da0e22a4d8cd179ce94127b005dfd829158e667c.webp)
+
+LFM2.5 training recipe
+
+28T tokens
+Pre/Mid-training
+Autocomplete prompts
+
+Post-Training
+Supervised Fine-Tuning
+Follow instructions
+
+Preference Alignment
+Optimized for humans
+
+Reinforcement Learning
+Generate thinking traces
+
+Interface text:
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Pre-training a 350M model on 28T tokens" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Pre-training a 350M model on 28T tokens</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Roberts et al.’s test-time scaling curves favor more tokens per parameter than Chinchilla as training compute grows. The speaker says LFM2.5-350M’s 28T tokens still fall short of their predicted optimum.
+
+[6:30](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=390s) [Three plots compare optimal tokens per parameter, parameter count, and token count against training FLOPs, marking Chinchilla and LFM2.5.](https://assets.ai.engineer/sites/aiecode2025/sha256/acbb57e9b1ff5f0c871d46981e1fb555a3983145f6dc7de62ee62f48cf41c745.webp)
+
+🤯 Pre-training a 350M model on 28T tokens?
+
+Optimal D/N
+Y-axis: Tokens per parameter
+Y-axis ticks: 10¹, 10³, 10⁵, 10⁷, 10⁹
+X-axis: Training FLOPs
+X-axis ticks: 10¹⁷, 10¹⁹, 10²¹, 10²³, 10²⁵
+Legend: Chinchilla (70B); LFM2.5 (350M); Hoffmann et al. (2022); T² Approach 1 (NLL.); T² Approach 2 (Acc.)
+
+Optimal N
+Y-axis: Parameters
+Y-axis ticks: 10⁷, 10⁸, 10⁹, 10¹⁰, 10¹¹
+X-axis: Training FLOPs
+X-axis ticks: 10¹⁷, 10¹⁹, 10²¹, 10²³, 10²⁵
+Legend: Chinchilla (70B); LFM2.5 (350M); Hoffmann et al. (2022); T² Approach 1 (NLL.); T² Approach 2 (Acc.)
+
+Optimal D
+Y-axis: Tokens
+Y-axis ticks: 10⁸, 10⁹, 10¹⁰, 10¹¹, 10¹², 10¹³, 10¹⁴, 10¹⁵, 10¹⁶
+X-axis: Training FLOPs
+X-axis ticks: 10¹⁷, 10¹⁹, 10²¹, 10²³, 10²⁵
+Legend: Chinchilla (70B); LFM2.5 (350M); Hoffmann et al. (2022); T² Approach 1 (NLL.); T² Approach 2 (Acc.)
+
+Roberts et al. &quot;Test-Time Scaling Makes Overtraining Compute-Optimal.&quot; arXiv preprint arXiv:2604.01411, April 2026.
+
+Interface text: AIE; Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="More pre-training works at the smallest scale" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>More pre-training works at the smallest scale</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>LFM2.5-350M leads the five-model comparison across six benchmarks covering knowledge, instruction following, data extraction, and tool use.
+
+[7:30](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=450s) [Six bar charts compare LFM2.5-350M with four other small models across knowledge, instruction-following, data-extraction, and tool-use benchmarks.](https://assets.ai.engineer/sites/aiecode2025/sha256/c63df0acd3da3905d769deb3bbd6e08f3605f4206080be8f4a814f4bbfbe1945.webp)
+
+✨ More pre-training works, even at the smallest scale!
+
+Legend: LFM2.5-350M; LFM2-350M; Granite-4.0-H-350M; Gemma 3 1B IT; Qwen3.5-0.8B (Instruct)
+
+GPQA Diamond
+Y-axis ticks: 0, 20, 40
+Values in legend order: 30.64, 27.58, 22.32, 23.89, 27.41
+
+IFBench
+Y-axis ticks: 0, 25, 50
+Values in legend order: 40.69, 18.20, 17.22, 20.33, 22.87
+
+CaseReportBench
+Y-axis ticks: 0, 20, 40
+Values in legend order: 32.45, 11.67, 12.44, 2.28, 13.83
+
+BFCLv4
+Y-axis ticks: 0, 15, 30
+Values in legend order: 21.86, 12.29, 13.28, 7.17, 18.70
+
+τ²-Bench Telecom
+Y-axis ticks: 0, 10, 20
+Values in legend order: 18.86, 10.82, 13.74, 9.36, 12.57
+
+τ²-Bench Retail
+Y-axis ticks: 0, 10, 20
+Values in legend order: 17.84, 5.56, 6.14, 6.43, 6.14
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Post-training small vs. big models" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Post-training small vs. big models</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Small models use the same stages: task-specific SFT, preference alignment and narrow-task RL. When RL struggles, the speaker suggests adding similar cold-start examples to the SFT mix and trying again.
+
+[8:30](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=510s) [A flow diagram shows supervised fine-tuning, preference alignment, and reinforcement learning. Notes describe task-specific fine-tuning and general improvements from preference alignment.](https://assets.ai.engineer/sites/aiecode2025/sha256/0f3458cf2993bae95ad9023b5a6d3e0337777e32822dc0160d51b98dc7f6ac1a.webp)
+
+⚔️ Post-training small vs. big models
+
+Supervised Fine-Tuning → Preference Alignment → Reinforcement Learning
+
+More task-specific = better
+General improvements beyond benchmarks 👍
+
+Interface text:
+AIE
+AI Engineer EUROPE
+
+[9:17](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=557s) [A post-training pipeline from supervised fine-tuning through preference alignment to reinforcement learning, with feedback about cold-start SFT data.](https://assets.ai.engineer/sites/aiecode2025/sha256/7e572efde5f3d3272d91529d33dd92252816521097518871d935b206a57860df.webp)
+
+⚔️ Post-training small vs. big models
+
+Do we miss any cold-start SFT data?
+
+Supervised Fine-Tuning → Preference Alignment → Reinforcement Learning
+
+More task-specific = better
+General improvements beyond benchmarks 👍
+Extremely efficient for narrow tasks
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="New problem: doom looping" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>New problem: doom looping</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A recipe repeats “1 cup coconut milk” to illustrate doom looping. The speaker flags small models, reasoning and complex tasks as conditions where repetition is especially problematic.
+
+[10:40](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=640s) [A recipe response repeats an ingredient, illustrating doom looping associated with small models, reasoning traces and complex tasks.](https://assets.ai.engineer/sites/aiecode2025/sha256/470c17654acd855c81820645d5281132002b0d9723308d8d397011aefa5970e1.webp)
+
+🤔 New problem: doom looping
+
+Give me a recipe for a delicious biryani
+
+Sure! Here’s a classic Indian biryani recipe:
+
+Ingredients (serves 4)
+• 1 cup basmati rice
+• 1 cup chicken or vegetable broth
+• 1 cup chicken stock
+• 1 cup coconut milk
+• 1 cup coconut milk
+• 1 cup coconut milk
+• 1 cup coconut milk
+• 1 cup coconut milk
+• 1 cup coconut milk
+• 1 cup coconut milk
+• 1 cup coconut milk
+
+✓ Small models
+✓ Reasoning traces
+✓ Complex tasks
+
+Interface text:
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="On-policy data generation for DPO" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>On-policy data generation for DPO</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The policy model generates five sampled responses and one at temperature zero. An LLM jury selects chosen and rejected answers, which then pass through heuristic filtering.
+
+[11:34](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=694s) [Prompts feed sampled and zero-temperature policy outputs to an LLM jury, which selects chosen and rejected answers for heuristic filtering.](https://assets.ai.engineer/sites/aiecode2025/sha256/5475c2b8e9b766abe5ddea6df2354638f247e52ca8088d0c2570ac534807a905.webp)
+
+Stage 1: On-policy data generation for DPO
+
+Prompts
+
+Policy model
+πθ (T &gt; 0)
+
+o₁
+o₂
+...
+o₅
+
+Policy model
+πθ (T = 0)
+
+o₆
+
+LLM Jury
+
+Chosen Answer
+Rejected Answer
+
+Heuristic filtering
+
+Liquid AI &quot;LFM2.5-1.2B-Thinking: On-Device Reasoning Under 1GB.&quot; www.liquid.ai/blog/lfm2-5-1-2b-thinking-on-device-reasoning-under-1gb, January 2026.
+
+Interface text:
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Reinforcement learning and repetition penalty" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reinforcement learning and repetition penalty</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The final answer is extracted and checked against ground truth for a verifiable reward. A response without a final answer receives no positive reward; training also adds an n-gram repetition penalty.
+
+[12:55](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=775s) [A response to 2 + 2 has its final answer extracted and compared with the ground truth of 4, yielding a correct result.](https://assets.ai.engineer/sites/aiecode2025/sha256/791c66f53bb26fe0a39a61a1ef8d07c4ec3eb8cab23ce2e054fa3476941b6635.webp)
+
+Stage 2: Reinforcement learning + n-gram repetition penalty
+
+I have a great question: what is 2+2?
+
+Fantastic question! Let me unpack this for you.
+
+We have 2 + 2 = 4.
+
+The final answer is 4.
+
+Ground truth = 4
+
+Correct! ✅
+
+AIE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="Doom loop ratio (%)" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Doom loop ratio (%)</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Across benchmarks, LFM2.5-1.2B-Thinking’s doom loop ratio barely changes after SFT, then falls from 15.74% after midtraining to 4.32% after DPO and 0.36% after RL.
+
+[13:57](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=837s) [Bar chart for LFM2.5-1.2B-Thinking: doom loop ratios are 15.74% after midtraining, 14.98% after SFT, 4.32% after DPO, and 0.36% after RL.](https://assets.ai.engineer/sites/aiecode2025/sha256/9921053163234981652a23a4be9a3bb2059d6f65e6d32ded94c9c8cd9fd8a5e7.webp)
+
+Doom loop ratio (%)
+LFM2.5-1.2B-Thinking
+
+Y-axis ticks: 10%, 15%, 20%
+Midtraining: 15.74
+SFT: 14.98
+DPO: 4.32
+RL: 0.36
+
+Interface text:
+AIE
+Engineering the future of AI
+
+[14:24](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=864s) [Bar chart for LFM2.5-1.2B-Thinking showing doom loop ratios of 15.74% after midtraining, 14.98% after SFT, 4.32% after DPO, and 0.36% after RL.](https://assets.ai.engineer/sites/aiecode2025/sha256/85f84b3138736d954be8996e036651af5433191e24a23c1f5ce442930598265e.webp)
+
+Doom loop ratio (%)
+LFM2.5-1.2B-Thinking
+
+Y-axis ticks: 10%, 15%, 20%
+Midtraining: 15.74
+SFT: 14.98
+DPO: 4.32
+RL: 0.36
+
+Interface text:
+AIE
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="Agentic Reinforcement Learning" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agentic Reinforcement Learning</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The diagram routes policy outputs through environments and group reward computation to update the policy. The speaker proposes web search to help small models compensate for limited knowledge capacity.
+
+[15:28](https://www.youtube.com/watch?v=fLUtUkqYHnQ&amp;t=928s) [Diagram connecting terminal, search, OpenClaw and RLM environments with reference and policy models, rewards, group computation and a loss.](https://assets.ai.engineer/sites/aiecode2025/sha256/44a509f310fef13462f53b93c24b9b8f61db111b2871a05f25a885482e88c026.webp)
+
+Agentic Reinforcement Learning
+
+Terminal Env
+Search Env
+OpenClaw Env
+RLM Env
+
+x
+y*
+
+Reference model π_ref
+Policy model π_θ
+
+o₁
+o₂
+…
+o_G
+
+r₁
+r₂
+…
+r_G
+
+Group Computation
+
+A₁
+A₂
+…
+A_G
+
+Loss
+
+Interface text:
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">手机或汽车里能装下什么？</a></li><li><a href="#sec-2">参数预算花在了哪里</a></li><li><a href="#sec-3">在目标硬件上选择算子</a></li><li><a href="#sec-4">一个用 28 万亿 token 训练的 3.5 亿参数模型</a></li><li><a href="#sec-5">让各个阶段适应有限的容量</a></li><li><a href="#sec-6">把重复性的失败变成被拒绝的答案</a></li><li><a href="#sec-7">奖励完成，惩罚重复</a></li><li><a href="#sec-8">把知识和上下文移进工具</a></li><li><a href="#sec-9">何时本地部署——以及蒸馏可能遗漏什么</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">训练前沿小模型学到的一切</h2>
+      <div class="lede"><p>内存限制、延迟和聚焦的任务，改变了小模型应该如何构建——从嵌入层的参数预算和设备性能剖析，到抑制重复循环的偏好训练。</p><p>熟悉语言模型参数、token 生成以及预训练与微调的区别会有帮助。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="15">▶ 0:15</button></div>
+      <h3>手机或汽车里能装下什么？</h3>
+      <p>What should a model retain—and what should it do exceptionally well—when it has to run on a phone or inside a car? Maxime Labonne approaches that problem as Liquid AI’s head of pre-training. The models he describes span 350 million to 24 billion parameters, with text, vision, and audio variants available on Hugging Face. At the time of the talk, Liquid had recently released a 450M vision-language model and updated its 350M text model.</p>
+<p>On-device deployment imposes three connected constraints:</p>
+<p>- <strong>Memory:</strong> The available hardware limits model size, which in turn limits how much knowledge the model can store.
+- <strong>Task specificity:</strong> Limited capacity makes specialization valuable. Summarization or tool use can be a better target than general-purpose conversation.
+- <strong>Latency:</strong> Interactive workloads need fast inference and enough throughput to keep the application responsive.</p>
+<p><strong>Small models are not simply scaled-down large models.</strong> Their architecture and training must allocate a limited budget toward the capabilities the deployment actually needs.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/6799fa467a7f2fa8f570dc94570976b75611747772f6b695cbd93dc7a083ff43" alt="Three cards describe low knowledge capacity, easy training and adaptation to new data, and fast prefill requirements. Below, the slide states that edge models are not just scaled-down versions of bigger models." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Edge models: memory bound, task-specific, and latency sensitive.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="148">▶ 2:28</button></div>
+      <h3>参数预算花在了哪里</h3>
+      <p>The smallest members of larger model families already use hybrid architectures. <strong><a href="https://developers.googleblog.com/introducing-gemma-3-270m/" target="_blank" rel="noopener">Gemma 3 270M</a></strong> combines sliding-window attention with grouped-query attention, or <strong>GQA</strong>. <strong><a href="https://huggingface.co/Qwen/Qwen3.5-0.8B" target="_blank" rel="noopener">Qwen3.5-0.8B</a></strong> combines gated DeltaNet with gated attention. But Labonne’s first concern is not their sequence-processing blocks: it is the share of the model occupied by embeddings.</p>
+<p>Labonne reports that embeddings account for 63% of Gemma 3 270M’s parameters and 29% of Qwen3.5-0.8B’s parameters. He calls the remaining budget the model’s effective parameters: the blocks available for reasoning and knowledge processing beyond the embedding layer. Embeddings still perform useful work, including representing a broad vocabulary; the design question is whether that vocabulary deserves so much of a tiny model’s memory footprint.</p>
+<p>Labonne attributes these large embedding allocations to distillation from teachers with large vocabularies. Carrying that vocabulary into the student preserves a substantial embedding matrix even as the rest of the network shrinks. His proposed opportunity is to allocate more of the same memory footprint to the non-embedding network rather than inherit every architectural proportion from the teacher.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="239">▶ 3:59</button></div>
+      <h3>在目标硬件上选择算子</h3>
+      <p><strong>LFM2</strong> also uses a hybrid architecture, combining short convolutions with GQA. Labonne reports an embedding share of about 19% for the LFM2 configuration shown. That leaves more of its parameter budget for the rest of the network. The team selected the architecture by implementing candidate operators on two target devices and profiling their actual performance.</p>
+<p>The resulting <strong>gated short-convolution block</strong> was particularly attractive for latency. In the presented operator comparison, short convolutions cost less than sliding-window attention, gated DeltaNet, gated linear attention, and GQA. The important design step is to measure the operators where they will run: an appealing theoretical architecture is not enough if its kernels are expensive on the deployment hardware.</p>
+<p>The CPU comparison covers an AMD Ryzen AI Max+ 395 and a Samsung Galaxy S25 Ultra; the slide labels the phone platform Qualcomm Snapdragon Gen4. It compares prefill, decode, and memory using <code>llama.cpp</code>, 4-bit quantization, and 2K input tokens. Labonne reports faster inference and lower memory use for LFM2, while explicitly noting that the compared models differ in size. These are deployment comparisons, not a controlled isolation of architecture at equal parameter counts.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/401d9cb2985c68b74399bdf5e0ef49b6edaa801372bab345584ac2c887bfb78a" alt="CPU inference metrics slide with grouped bars for AMD Ryzen AI Max+ 395 and Qualcomm Snapdragon Gen4, comparing models using llama.cpp, 4-bit quantization, and 2K input tokens." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>CPU inference comparisons for prefill, decode, and memory.</figcaption></figure>
+<p>The GPU comparison extends the argument to serving: Labonne reports strong aggregate throughput even at high concurrency. The companion measurements use an H100 SXM5 with BF16 and SGLang 0.5.9, 1,024 input tokens, up to 256 output tokens, and sustained concurrent requests. This measures serving throughput, which is distinct from the latency of one request.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="367">▶ 6:07</button></div>
+      <h3>一个用 28 万亿 token 训练的 3.5 亿参数模型</h3>
+      <p>The <strong>LFM2.5</strong> recipe uses familiar stages: pre- and mid-training, supervised fine-tuning, preference alignment, and reinforcement learning. The surprising choice is the training budget. Liquid trained <strong><a href="https://huggingface.co/LiquidAI/LFM2.5-350M" target="_blank" rel="noopener">LFM2.5-350M</a></strong>, a 350-million-parameter model, on 28 trillion tokens. That is a training-token count, not a claim of 28 trillion distinct tokens.</p>
+<p>That budget can look excessive through the lens of <a href="https://arxiv.org/abs/2203.15556" target="_blank" rel="noopener">Chinchilla’s compute-optimal training study</a>. But a fixed training-compute optimum is not a ceiling on useful training. Labonne reports that performance continues to improve as the number of pre-training tokens grows. He connects that observation to Roberts and colleagues’ <a href="https://arxiv.org/abs/2604.01411" target="_blank" rel="noopener">Test-Time Scaling Makes Overtraining Compute-Optimal</a>, which considers training and inference together, including inference sampling.</p>
+<p>In Labonne’s application of those newer scaling laws, even 28 trillion tokens falls short of the proposed optimum for the 350M model. The practical implication is that more pre-training can remain valuable at very small scales. Small models also cost less to train than substantially larger ones, making continued training an accessible way to improve a model whose deployment size must remain fixed.</p>
+<p>The next comparison is between the post-trained <strong>LFM2-350M</strong> and LFM2.5-350M, so it does not isolate the effect of additional pre-training. Labonne reports improvements across several capability categories:</p>
+<p>| Capability | Evaluation |
+|---|---|
+| Knowledge | GPQA Diamond |
+| Instruction following | IFBench |
+| Data extraction | CaseReportBench |
+| Tool use | BFCL, tau2-bench |</p>
+<p>For this model, the explicit priorities are data extraction and tool use. Leading code or mathematics performance is less important than being reliably useful at the tasks people will actually assign to a 350M model. <strong>Choose capabilities instead of aiming for average performance everywhere.</strong></p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="511">▶ 8:31</button></div>
+      <h3>让各个阶段适应有限的容量</h3>
+      <p>Small and large models can share the same post-training stages without using those stages in the same way. For <strong>supervised fine-tuning</strong>, Labonne recommends a narrow target. Taking an available model and fine-tuning it to call one particular function is an excellent fit: the narrower the task can be made, the more directly the training can develop the required behavior.</p>
+<p>For <strong>preference alignment</strong>, Liquid uses an on-policy, length-normalized form of direct preference optimization, or <strong>DPO</strong>. Labonne values this stage for broad improvements in response quality: the model’s answers improve in ways that are not captured solely by benchmark scores.</p>
+<p><strong>Reinforcement learning</strong> is effective even at very small scales in Labonne’s experience, but its learning signal can be narrow. Using many environments and tasks helps the model generalize. Small models are also sensitive to their cold start: the SFT mixture should contain examples resembling the tasks the model will later face during RL.</p>
+<p>When an RL task fails to train well, the remedy may begin before RL:</p>
+<p>1. Check whether the SFT mixture contains similar tasks and examples.
+2. Consider whether the task is too complex for the model’s current capabilities.
+3. Add appropriate cold-start examples and repeat supervised fine-tuning.
+4. Retry RL and check whether learning improves.</p>
+<p>Poor RL progress is useful feedback about the earlier training mixture, not merely a reason to keep running the same optimization longer.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="641">▶ 10:41</button></div>
+      <h3>把重复性的失败变成被拒绝的答案</h3>
+      <p>A <strong>doom loop</strong> occurs when a model repeats a sequence of words indefinitely instead of completing its answer. The recipe response shown in the talk shows that this is not confined to mathematical reasoning. Still, three risk factors compound: a tiny model, reasoning mode, and a task that is too difficult. A small reasoning model tackling very hard mathematics is especially exposed.</p>
+<p>Liquid’s first intervention happens during preference alignment, beginning with on-policy data generation. The policy model—the model being trained—generates its own candidate answers, allowing the training data to expose its particular failures:</p>
+<p>1. Start with roughly one million prompt samples.
+2. Generate five rollouts per prompt using temperature sampling. Diversity increases the chance that at least one answer avoids looping.
+3. Generate one additional rollout at temperature zero, which the team expects to expose looping more readily.
+4. Send all six responses to an LLM jury for scoring.
+5. Select the highest-scoring response as <code>chosen</code> and the lowest-scoring response as <code>rejected</code>.</p>
+<p>The goal is for a looping response to become the rejected side of a preference pair. The flowchart also includes heuristic filtering after selection, although the talk does not specify those filters.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/5c6e1e0ab714d2c3924e0c1a1c7d19f7df0d495ecd7668559dae7e770a246e4a" alt="Flowchart routes prompts through policy models at positive and zero temperature, then through an LLM jury to chosen and rejected answers and heuristic filtering." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>On-policy data generation for DPO.</figcaption></figure>
+<p>The selection step can be expressed directly in Python. It consumes scored rollouts; generation and jury scoring happen before this function. A tied best and worst score provides no preference signal, so the function returns no pair:</p>
+<p>```python
+from collections.abc import Sequence</p>
+<p>def select_preference_pair(
+    prompt: str,
+    scored_rollouts: Sequence[tuple[str, float]],
+) -&gt; dict[str, str] | None:
+    if len(scored_rollouts) != 6:
+        raise ValueError(&quot;Expected five sampled rollouts and one greedy rollout&quot;)</p>
+<p>rejected, worst_score = min(scored_rollouts, key=lambda item: item[1])
+    chosen, best_score = max(scored_rollouts, key=lambda item: item[1])</p>
+<p>if best_score == worst_score:
+        return None</p>
+<p>return {&quot;prompt&quot;: prompt, &quot;chosen&quot;: chosen, &quot;rejected&quot;: rejected}
+```</p>
+<p>This selection does not itself detect repetition. It depends on the jury assigning worse scores to the failed answers so that preference training receives the intended signal.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="766">▶ 12:46</button></div>
+      <h3>奖励完成，惩罚重复</h3>
+      <p>Preference training teaches the model to favor better responses over its own looping failures. The second intervention uses <strong>reinforcement learning with verifiable rewards</strong>, supplemented by an <strong>n-gram repetition penalty</strong>. For a mathematics task, the reward process tries to extract the final answer. A rollout that never produces a final answer cannot receive a positive correctness reward. That already creates pressure against endless repetition.</p>
+<p>The repetition penalty adds a direct cost for repeated sequences, while temperature sampling keeps RL rollouts diverse. Together, these mechanisms address both the training signal and the supply of candidate responses: loops are less attractive to optimize toward, and the model has more opportunities to produce a successful alternative.</p>
+<p>For <strong><a href="https://www.liquid.ai/blog/lfm2-5-1-2b-thinking-on-device-reasoning-under-1gb" target="_blank" rel="noopener">LFM2.5-1.2B-Thinking</a></strong> on difficult tasks across multiple benchmarks, Labonne reports a doom-loop rate of approximately 15–16% after mid-training. SFT barely changes the rate, despite having no doom-loop examples in its training data. DPO substantially reduces looping, and subsequent RL makes it almost nonexistent in his reported evaluation. The talk does not specify the full prompt set, decoding settings, output limits, or loop detector, so those stage comparisons should be read within that evaluation.</p>
+<p>Labonne also reports a doom-loop rate above 50% for Qwen3.5-0.8B in reasoning mode under difficult-task use. He points to online complaints as well; a matching controlled comparison is not established here. His broader response is to optimize the architecture and the entire training stack for edge models, including failure modes that become more severe when capacity is small.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="928">▶ 15:28</button></div>
+      <h3>把知识和上下文移进工具</h3>
+      <p>Agentic reinforcement learning offers another way to work within a small model’s capacity. Memory limits restrict stored knowledge; in Labonne’s account, that makes unsupported answers more likely. Web search changes the task from recalling every fact to finding the information needed for an answer. A tiny model can retrieve knowledge instead of relying entirely on what its parameters retain.</p>
+<p>From his experience, small models can perform well on agentic tasks. The critical capability is then reasoning well enough to use tools reliably: deciding what to look up, interpreting the result, and continuing the task. Long context presents a related opportunity. A <a href="https://arxiv.org/abs/2512.24601" target="_blank" rel="noopener">recursive language-model environment</a> can let the model use Python to work with an input outside its immediate context, rather than requiring it to process everything directly in one pass. Labonne presents this as a route around weak long-context capabilities, not as a measured Liquid implementation in this talk.</p>
+<p>This makes edge-model design interesting both scientifically and in production: limitations can be addressed through the surrounding system as well as through the weights. Labonne sees small-model agentic workloads as underexplored, with large models not necessarily the best fit for every deployment. At the time of the talk, Liquid was developing <strong>LFM3</strong> and testing further architectural and training ideas.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1079">▶ 17:59</button></div>
+      <h3>何时本地部署——以及蒸馏可能遗漏什么</h3>
+      <p>The first audience question asks how to choose between small and large models in a workflow. Labonne identifies three reasons to use a local small model:</p>
+<p>- <strong>Offline operation:</strong> A car cannot always depend on a reliable internet connection.
+- <strong>Latency:</strong> Local inference can be attractive when response time is central to the workload.
+- <strong>Privacy:</strong> Finance, healthcare, and other regulated settings can favor keeping processing on the device.</p>
+<p>When the questioner clarifies that they mean his personal workflow, Labonne distinguishes making these models from using them: he builds them for other people and does not necessarily use them in his own workflow.</p>
+<p>The final question returns to doom loops. Could a larger model first learn to avoid looping through RL, then pass that behavior to a smaller model through distillation—saving the student from repeating the anti-loop training stages? Labonne says experiments are needed. He suspects distillation alone would not completely solve the problem because it can resemble SFT, the stage that barely reduced looping in his earlier example.</p>
+<p>He leaves room for the distillation formulation to matter, but offers no tested recipe. His expectation is that additional training batches would still be needed to prevent recurrence. A capable teacher may supply useful behavior; the small student still needs to be evaluated and trained against its own failures.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://huggingface.co/LiquidAI/LFM2.5-350M" target="_blank" rel="noopener">LFM2.5-350M model and usage examples</a> — Model weights, architecture details, inference examples and tool-calling formats for Liquid's 350M text model.</li><li><a href="https://www.liquid.ai/blog/lfm2-5-350m-no-size-left-behind" target="_blank" rel="noopener">LFM2.5-350M release and benchmarks</a> — Training-token budget, task benchmarks and deployment measurements for LFM2.5-350M.</li><li><a href="https://arxiv.org/abs/2604.01411" target="_blank" rel="noopener">Test-Time Scaling Makes Overtraining Compute-Optimal</a> — Roberts and colleagues jointly optimize model size, training tokens and inference sampling under an end-to-end compute budget.</li><li><a href="https://arxiv.org/abs/2203.15556" target="_blank" rel="noopener">Training Compute-Optimal Large Language Models</a> — The original Chinchilla study of model size and training-data allocation under a fixed training-compute budget.</li><li><a href="https://developers.googleblog.com/introducing-gemma-3-270m/" target="_blank" rel="noopener">Google's introduction to Gemma 3 270M</a> — Explains Gemma 3 270M's embedding budget and intended use in specialized, locally deployed applications.</li><li><a href="https://huggingface.co/Qwen/Qwen3.5-0.8B" target="_blank" rel="noopener">Qwen3.5-0.8B model card</a> — Architecture, model weights, thinking-mode benchmarks and deployment instructions for Qwen3.5-0.8B.</li><li><a href="https://www.liquid.ai/blog/lfm2-5-1-2b-thinking-on-device-reasoning-under-1gb" target="_blank" rel="noopener">LFM2.5-1.2B-Thinking release</a> — Liquid's reasoning-model release describes its training approach and benchmark results.</li><li><a href="https://arxiv.org/abs/2512.24601" target="_blank" rel="noopener">Recursive Language Models</a> — Research on processing long inputs through an external environment and recursive model calls.</li><li><a href="https://www.liquid.ai/blog/antidoom" target="_blank" rel="noopener">Antidoom: Final Token Preference Optimization</a> — A July 2026 follow-up introduces a targeted training method for reducing repetitive loops in reasoning models.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Hi everyone.</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">My name is Maxime Labonne. Uh, in this presentation, I want to talk about the lessons I've learned, uh, pre-training small models. Um, so for context, I work at Liquid AI as head of pre-training.</span></div><div class="tline" data-t="26"><span class="ts">0:26</span><span class="tx">At Liquid, we mostly focus on edge models for on-device deployment. And as you can see here, we have models from three fifty million parameters to, uh, twenty-four billion parameters.</span></div><div class="tline" data-t="38"><span class="ts">0:38</span><span class="tx">So this is very, very small. And, um, yesterday we released our new VLM, uh, four, uh, fifty M and, uh, the week before we released the new version of the, uh, three fifty M model for text.</span></div><div class="tline" data-t="51"><span class="ts">0:51</span><span class="tx">Um, so this is what we do. We work across text, uh, vision and audio and, uh, yeah, the models are available on Hugging Face if you want to try them out.</span></div><div class="tline" data-t="61"><span class="ts">1:01</span><span class="tx">Um, in this presentation I want to talk about what separates small models and big models, and there are three main characteristics I want to talk about. So first of all, uh, the small models, they are memory-bound, um, because the hardware is, is what it is, right?</span></div><div class="tline" data-t="77"><span class="ts">1:17</span><span class="tx">On a phone, in a car, et cetera. Uh, we can't really use super big models, uh, which is why we try to keep the, the size quite small. And because of that, we have low knowledge capacity compared to bigger models.</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">Uh, then the models are task specific, which is great because if you have a small knowledge capacity, you can at least focus on one thing very well. And so that means that they are usually not general purpose chatbots like ChatGPT.</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">They are a lot more narrow in terms of focus, and they can do something like summarization and tool use very, very well. Uh, so that's the second aspect. Uh, and the final one is that it's very latency sensitive, and that means that you need to have very, very fast, uh, throughput.</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">So all these characteristics are very important and we'll see in this presentation how they play with each other and how we can do better. Um, but the main lesson I want you to retain from this presentation is that small models are not just scaled-down versions of bigger models.</span></div><div class="tline" data-t="134"><span class="ts">2:14</span><span class="tx">They also have their unique challenges, and we will see about how we do it, um, in this presentation. The first thing I want to talk about is the model architecture because there's a lot of interesting things that we can do here for edge models.</span></div><div class="tline" data-t="148"><span class="ts">2:28</span><span class="tx">Um, I want to first talk about, uh, Gemma 3 two hundred seventy M and Qwen 3.5 zero point 8B. So these models are the smallest version of their respective family.</span></div><div class="tline" data-t="158"><span class="ts">2:38</span><span class="tx">And you can see that both of them, they adopt a hybrid architecture. Uh, Gemma 3, uh, has sliding-window attention and GQA hybrid. Um, Qwen 3.5 has a new architecture with, uh, gated, um, DeltaNet and gated attention.</span></div><div class="tline" data-t="173"><span class="ts">2:53</span><span class="tx">This is great because this is a lot faster. But what I'm interested in here is actually the embedding layer because if you look at, uh, the size of the embedding layer compared to, uh, all the parameters of the model, you see that actually Gemma 3 two hundred seventy M is mostly an embedding layer.</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">Uh, it's sixty-three percent of the total parameters. And even Qwen 3.5 zero point 8B it's, it's still like twenty-nine percent of the parameters. Um, so that's not super efficient because, uh, the effective parameters, the parameters that are really used for reasoning, for knowledge capacity and all that stuff, um, are not the embedding parameters.</span></div><div class="tline" data-t="209"><span class="ts">3:29</span><span class="tx">Um, they are-- it's the rest. So the effective size is actually a lot smaller and it means that you could squeeze more reasoning and, uh, more performance from the same memory footprint.</span></div><div class="tline" data-t="219"><span class="ts">3:39</span><span class="tx">Um, and the reason why they do that is because they use distillation, uh, to train the models. Um, so they distill these models like those are the, uh, student models and they have teacher models with a huge vocabulary, uh, sizes and this is why, um, we have these super big, um, embedding layers.</span></div><div class="tline" data-t="239"><span class="ts">3:59</span><span class="tx">All right. Uh, let's talk about the LFM2 architecture now. As you can see, the LFM2 architecture is actually not that different, uh, in terms of, um, just layers. We also have like a hybrid architecture and this time we have short convolutions and, uh, GQA.</span></div><div class="tline" data-t="256"><span class="ts">4:16</span><span class="tx">Um, and I want to talk a bit about-- Well, first you can see that, um, the embedding layer is actually a lot smaller compared to the others. It's like nineteen percent of the parameters.</span></div><div class="tline" data-t="265"><span class="ts">4:25</span><span class="tx">So we have more effective, uh, parameters which is great. And I want to talk about how we created this architecture and we did on-device profiling. So instead of doing more like theoretical work, uh, we decided to say like, &quot;Okay, let's try to really implement it on the target hardware.&quot;</span></div><div class="tline" data-t="282"><span class="ts">4:42</span><span class="tx">So we had two target hardware here and, uh, we wanted to see how it performs in real life to be able to optimize, um, the architecture, find the right operators here.</span></div><div class="tline" data-t="293"><span class="ts">4:53</span><span class="tx">And the thing that we found is this gated short convolution block that you can see here. And why this is nice, it's because it's very, very fast. Uh, the short conv are a lot faster than all the alternatives that you can see here, uh, compared to sliding window attention from Gemma 3, the gated DeltaNet from Qwen 3.5,</span></div><div class="tline" data-t="313"><span class="ts">5:13</span><span class="tx">uh, gated linear attention and, uh, grouped-query attention. You can see that, uh, the cost ratio is really in favor of short conv which is great because we said that, um, this is very latency sensitive.</span></div><div class="tline" data-t="323"><span class="ts">5:23</span><span class="tx">So this is exactly what we want. So this is quite theoretical, but if we look in practice, um, and we profile, uh, the inference of these models, you can see here on the two CPU, um, the AMD Ryzen, um, Max plus three nine five and the, uh, Samsung Galaxy S25 Ultra.</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">Um, all these models don't have necessarily the same size, but it gives you a rough picture and you can see that the short conv really allow LFM2 architecture to be a lot faster and also use, uh, less memory.</span></div><div class="tline" data-t="354"><span class="ts">5:54</span><span class="tx">Um, so that's great. And you can see also GPU. It's not really just for CPU, but also on GPU you can see that it has a lot of, uh, throughput, uh, even at very high, uh, concurrency levels.</span></div><div class="tline" data-t="367"><span class="ts">6:07</span><span class="tx">All right. Let's talk a bit about training now. So, [clears throat]</span></div><div class="tline" data-t="372"><span class="ts">6:12</span><span class="tx">the LFM2.5 training recipe is quite similar to what you can five-- find, uh, elsewhere in terms of stages. We have pre and mid training on twenty-eight trillion tokens. We have, uh, supervised fine-tuning, preference alignment, and reinforcement learning.</span></div><div class="tline" data-t="388"><span class="ts">6:28</span><span class="tx">And here you can see I'm talking about twenty-eight trillion tokens, and I said that we released a model of, um, three fifty M parameters last week. Um, so yeah, we pre-trained a three fifty million parameter model on twenty-eight trillion tokens.</span></div><div class="tline" data-t="403"><span class="ts">6:43</span><span class="tx">If you're familiar with, uh, Chinchilla scaling laws, that might sound a bit weird because we're supposed to be compute optimal at like, I, I don't know, like maybe one billion, not, not even one, uh, trillion parameter, I mean.</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">Um, but it's actually not the case and we see that the performance still, um, grows when you scale the number of pre-training tokens. And there was a super interesting paper by Roberts et al., uh, published last week about the test time scaling laws.</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">And you can see here how LFM2.5-350M compares to their new scaling laws. You can see Chinchilla scaling laws here and the new ones that they proposed, uh, here. And actually, we did not pre-train the models on enough tokens.</span></div><div class="tline" data-t="445"><span class="ts">7:25</span><span class="tx">We should pre-train even more, uh, to be, uh, optimal according to their laws. But this is cool because more pre-training works, and it works even at the smallest scale, which is great because these models are a lot cheaper to train than, uh, much bigger models.</span></div><div class="tline" data-t="460"><span class="ts">7:40</span><span class="tx">And here you can see a comparison. It's not just for pre-training, it's like post-training, uh, models. And, um, you can see that the LFM2.5 model is, uh, significantly better than the, the previous version, LFM2-350M on a lot of different benchmarks.</span></div><div class="tline" data-t="477"><span class="ts">7:57</span><span class="tx">So you have, uh, knowledge with GPQA Diamond, you have instruction following with IFBench, you have CaseReportBench, which is data extraction, and also a lot of tool use with BFCL and, and tau2-bench.</span></div><div class="tline" data-t="489"><span class="ts">8:09</span><span class="tx">Um, with this model, it's only three fifty million parameters, so what we wanted to do is we wanted the model to be very, very good at data extraction and at tool use.</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">And the rest, if it's not the best model at-- in code, it doesn't matter. Like, people don't use it that way anyway. Same for math. I think it's really nice to try to target some capabilities and not try to be like average on everything.</span></div><div class="tline" data-t="511"><span class="ts">8:31</span><span class="tx">All right. Let's talk exactly about that. Post-training, um, small and big models, what the difference. Um, we have pretty much the same stage, so this is not really in terms of stages that we see a difference.</span></div><div class="tline" data-t="523"><span class="ts">8:43</span><span class="tx">It's more about how you do it. So for supervised fine-tuning, it's better if you're actually quite narrow and you focus on some task. Um, it's true for general purpose post-training, but it's also true if you do fine-tuning.</span></div><div class="tline" data-t="535"><span class="ts">8:55</span><span class="tx">So you can take one of these models on Hugging Face and just fine-tune it for your use case. And for example, you have a use case where you have a, a particular function that you want to call.</span></div><div class="tline" data-t="544"><span class="ts">9:04</span><span class="tx">This is great. This is a excellent use case. Like, the more narrow you can, um, you can find it or design it, uh, the better it is. Then we have preference alignment.</span></div><div class="tline" data-t="554"><span class="ts">9:14</span><span class="tx">So during post-training, we have our, um, own, uh, on-policy length normalize direct preference optimization algorithm that we quite like. And preference alignment is very nice because it brings you general improvements.</span></div><div class="tline" data-t="567"><span class="ts">9:27</span><span class="tx">It's not just about benchmarks. It's really like overall, after preference alignment, the model is better, it sounds better, and this is really nice to be able to, um, just improve it overall.</span></div><div class="tline" data-t="579"><span class="ts">9:39</span><span class="tx">And finally, we have reinforcement learning. And reinforcement learning is extremely efficient, even at very small scale. It's a really, really important technique that we use everywhere. And the main thing is that it's very narrow in terms of focus, so you want to have like as many environments, as many tasks as possible and make sure that, um, you</span></div><div class="tline" data-t="599"><span class="ts">9:59</span><span class="tx">generalize well thanks to this. Um, and then for small models in particular, they're quite sensitive to cold start SFT data. So if you have a particular task in reinforcement learning, it's always good to have similar samples and a similar task in your supervised fine-tuning mixture.</span></div><div class="tline" data-t="618"><span class="ts">10:18</span><span class="tx">And this is good feedback that you can see during reinforcement learning. Something doesn't train very well, it's probably because you are missing some, uh, cold start SFT data. Maybe the task is too complex.</span></div><div class="tline" data-t="628"><span class="ts">10:28</span><span class="tx">There are different reasons. But, um, you can try to start again, uh, from the supervised fine-tuning, uh, stage, add your data, and then see if it improves anything.</span></div><div class="tline" data-t="641"><span class="ts">10:41</span><span class="tx">All right. But there's a new problem, uh, with small language models that you might have encountered even with bigger ones, and this is Doom looping. So the problem with Doom looping is, as you can see here, it's going to start repeating a sequence of words over and over and over and over again, and it just like never</span></div><div class="tline" data-t="657"><span class="ts">10:57</span><span class="tx">stops. Um, so this is a problem all the time, but it's particularly a problem if you have small models, if you have reasoning models, and if you have complex tasks.</span></div><div class="tline" data-t="667"><span class="ts">11:07</span><span class="tx">If the task is basically too complex for the model. Hopefully, this recipe is not too complex for this model, but this can happen anywhere. And you have the three of them at the same time.</span></div><div class="tline" data-t="677"><span class="ts">11:17</span><span class="tx">So if you have a tiny reasoning models on like super difficult math task, this is the perfect recipe to have a lot of Doom loops. Um, so this is a unique challenge that you find with small models, uh, to give you a concrete example.</span></div><div class="tline" data-t="693"><span class="ts">11:33</span><span class="tx">And here I can talk about like how we solve it. The first thing is that we solve it during the preference alignment stage, and in particular for the data generation part that we do.</span></div><div class="tline" data-t="705"><span class="ts">11:45</span><span class="tx">So here you can see the pipeline that we use, uh, to do the data generation, the on-policy data generation for preference alignment. So we start with prompts for like one million samples to give you a rough idea, and then we use the policy model, the model that we want to train, with temperature sampling, and we just generate</span></div><div class="tline" data-t="724"><span class="ts">12:04</span><span class="tx">five rollouts. Because we use temperature sampling, these rollouts tend to be a lot more diverse, and we expect that not all of them will, uh, have Doom loops. At least one should not Doom loop, right?</span></div><div class="tline" data-t="737"><span class="ts">12:17</span><span class="tx">And on the other hand, we generate just one extra, uh, rollout with a policy model with temperature zero. And this one we think that it's going to Doom loop And then we give everything to LLM jury to score all the, um, rollouts.</span></div><div class="tline" data-t="753"><span class="ts">12:33</span><span class="tx">We pick the best one. The one with the highest score is the chosen answer, the one with the worst score as the rejected answer. And the idea is that if we have some Doom loop here, the response for the Doom loop will be rejected.</span></div><div class="tline" data-t="766"><span class="ts">12:46</span><span class="tx">So we will train the model during preference alignment to not Doom loop. And this is quite effective. So this is solution number one. And then we have solution number two, and this one is about using reinforcement learning with verifiable rewards, and we add a bit of n-gram repetition penalty.</span></div><div class="tline" data-t="785"><span class="ts">13:05</span><span class="tx">Uh, but you can see that with reinforcement learning with, um, verifiable rewards, it's a very nice way to actually, um, solve this issue. Because if you have a question, like a math question like this one,</span></div><div class="tline" data-t="800"><span class="ts">13:20</span><span class="tx">you are going to try to extract the final answer. If you do not have a final answer, uh, you won't get a positive reward. So this is already being taken care of during, um, reinforcement learning with verifiable rewards.</span></div><div class="tline" data-t="815"><span class="ts">13:35</span><span class="tx">But on top of that, you can add a bit of repetition penalty to make sure that, um, you are going to generate more, like less Doom loops in general.</span></div><div class="tline" data-t="825"><span class="ts">13:45</span><span class="tx">And same thing, we also use temperature sampling here, so the rollouts are also quite diverse, and it just is less likely that you are going to get like a lot of Doom loops, uh, all the time.</span></div><div class="tline" data-t="837"><span class="ts">13:57</span><span class="tx">So this is the, the second, uh, solution, and that allowed us to, uh, really reduce the Doom loop ratio. So this is a real example with, uh, LFM2.5-1.2B-Thinking, which is a small model.</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">It's a reasoning model. And on top of that, we threw really hard task at it. So you can see that after mid-training, the Doom loop ratio that we calculated across like a lot of benchmarks was about fifteen percent, um, or even sixteen percent.</span></div><div class="tline" data-t="867"><span class="ts">14:27</span><span class="tx">And then after SFT, it, it barely moves. Like SFT is not the right stage to fix this. Um, we didn't have Doom loop, uh, examples during the SFT stage, but it's not enough, uh, to get rid of this issue.</span></div><div class="tline" data-t="880"><span class="ts">14:40</span><span class="tx">Um, after DPO, so that was a first solution, um, it really reduces quite a lot, and you can see that after reinforcement learning the problem is almost non-existent. If today you try to do the same thing with, um, Qwen 3.5-0.8B in reasoning mode, you will see a lot, a lot, a lot of Doom loops, like over fifty</span></div><div class="tline" data-t="899"><span class="ts">14:59</span><span class="tx">percent of Doom loops. Just something that people complained about online, and that also shows that the Qwen 3.5, like this tiny model, is just a scaled-down version of bigger models.</span></div><div class="tline" data-t="909"><span class="ts">15:09</span><span class="tx">And this is not the approach that we're taking here at Liquid. We want to say, &quot;Okay,&quot; like the edge models, they are their own thing. And, um, this is also a way to just optimize the entire architecture, the entire pre-training stack to make sure that, uh, we treat them as, um, as best as possible.</span></div><div class="tline" data-t="928"><span class="ts">15:28</span><span class="tx">And finally, I want to talk about, uh, next stage, next steps for, uh, all these, uh, small models with agentic reinforcement learning. The final characteristic I didn't mention here is about, uh, being memory bound.</span></div><div class="tline" data-t="940"><span class="ts">15:40</span><span class="tx">If you're memory bound, it means that you have low knowledge capacity. If you have low know- low knowledge capacity, it means that you're going to hallucinate a lot. But a nice way to solve this issue is just providing like web search tools to the model.</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">If you have a tiny model that is able to Google everything that you, um, throw at it in terms of like knowledge questions, you're going to have like much, much better performance, uh, than if you just rely on the, uh, base models.</span></div><div class="tline" data-t="967"><span class="ts">16:07</span><span class="tx">And same thing with, um, a, a lot of problems that you can, uh, throw at the model. I think that from experience, these tiny models are actually very good at agentic task, and this is how we should use them.</span></div><div class="tline" data-t="979"><span class="ts">16:19</span><span class="tx">Um, it doesn't matter if, um, they don't have the knowledge capacity of big models. What they truly need is really good reasoning capabilities to make sure that they are able to use these tools in a reliable manner.</span></div><div class="tline" data-t="994"><span class="ts">16:34</span><span class="tx">And another point that I haven't mentioned here is that small models are also not very good at long context capabilities. But it's okay, because if you have like a recursive, um, language model environment, then you can use Python and, and like basically take a shortcut, uh, to, to solve this issue.</span></div><div class="tline" data-t="1012"><span class="ts">16:52</span><span class="tx">So most of the issues that you find with small language models can actually be fixed in different ways. It just requires more creativity. It just requires thinking about this problem, not like you would think about it, uh, from a bigger model perspective.</span></div><div class="tline" data-t="1026"><span class="ts">17:06</span><span class="tx">Uh, but everything about this is fixable. All right, so in conclusion, some takeaways. Um, I hope I convinced you that edge models have unique challenges, and they are actually interesting from scientific point of view and also production point of view.</span></div><div class="tline" data-t="1041"><span class="ts">17:21</span><span class="tx">Um, if you combine them with agentic tools, they tend to perform really, really well, and this is something that is currently underexplored. We talk about agentic workloads with really big models, but it's not necessarily, um, the best use case.</span></div><div class="tline" data-t="1055"><span class="ts">17:35</span><span class="tx">It's not necessarily the best fit all the time. And, uh, yeah, finally, we're working on LFM3, and we have like a, a ton of crazy experiments and, uh, ideas to try.</span></div><div class="tline" data-t="1065"><span class="ts">17:45</span><span class="tx">So, um, come work with us if you're interested, uh, in this space. Thank you everyone. [audience applauding]</span></div><div class="tline" data-t="1078"><span class="ts">17:58</span><span class="tx">Yes.</span></div><div class="tline" data-t="1079"><span class="ts">17:59</span><span class="tx">Um, can you share a bit about how you use these models in your workflow and how, how you make the decision about when to use a big model or a small model?</span></div><div class="tline" data-t="1087"><span class="ts">18:07</span><span class="tx">Yeah, this is a, a good question. So the question is like how we use this model in the workflows and, uh, how we decide between small models and big models.</span></div><div class="tline" data-t="1095"><span class="ts">18:15</span><span class="tx">So the, the main idea here is that you will try to use the small models when you don't have a internet connection, for example. So in-car deployment is a good example of that because y- you can't have like a reliable internet connection, so it makes sense.</span></div><div class="tline" data-t="1111"><span class="ts">18:31</span><span class="tx">Uh, latency is also a big one. If you have a workload that is very latency sensitive, uh, small models running locally are always going to be better. And another one is, is privacy.</span></div><div class="tline" data-t="1122"><span class="ts">18:42</span><span class="tx">If you use a regulated environment, um, if you work in finance or healthcare, this is also a good one.</span></div><div class="tline" data-t="1127"><span class="ts">18:47</span><span class="tx">Yes. Like in, in your specific workflow is the question. Like do you use-</span></div><div class="tline" data-t="1130"><span class="ts">18:50</span><span class="tx">It-- I make the models, so I... Like, I make the models for other people.</span></div><div class="tline" data-t="1136"><span class="ts">18:56</span><span class="tx">Okay.</span></div><div class="tline" data-t="1136"><span class="ts">18:56</span><span class="tx">But, uh, like in my workflows, like not necessarily. Yes.</span></div><div class="tline" data-t="1140"><span class="ts">19:00</span><span class="tx">Have you tried for Doom looping, have you tried like... You, you, you talked about how Qwen 3.5 is a scaled down version of a bigger one.</span></div><div class="tline" data-t="1147"><span class="ts">19:07</span><span class="tx">Yep.</span></div><div class="tline" data-t="1147"><span class="ts">19:07</span><span class="tx">Have you seen, uh, the work that you do with RL and all this, uh, re- reduction of Doom looping on a bigger model, uh, be able to be distilled into a smaller model without having to re- redo the steps?</span></div><div class="tline" data-t="1159"><span class="ts">19:19</span><span class="tx">It's a good question. I think we need to do some experiments to see like if, uh, just distilling from a bigger model translates well in terms of Doom looping.</span></div><div class="tline" data-t="1167"><span class="ts">19:27</span><span class="tx">I would say no. I, I don't think so because I think it would be too close to SFT. It depends like how you do this distillation. If you stop K and you have like enough, uh, K, maybe this is, uh, good enough.</span></div><div class="tline" data-t="1180"><span class="ts">19:40</span><span class="tx">Um, but I, I think that it would not completely be solved, and you would still need like several batches to make sure that it doesn't happen again.</span></div><div class="tline" data-t="1188"><span class="ts">19:48</span><span class="tx">Okay.</span></div><div class="tline" data-t="1188"><span class="ts">19:48</span><span class="tx">Right. Yeah. All right. I, I think I should quit, but, um, I, I'll be around if you, you have oth- other questions. Thank you very much.</span></div><div class="tline" data-t="1195"><span class="ts">19:55</span><span class="tx">Thank you. [audience applauding] [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

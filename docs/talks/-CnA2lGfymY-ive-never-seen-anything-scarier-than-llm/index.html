@@ -1,0 +1,876 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>“我从没见过比能调用工具的 LLM 更可怕的东西。” —— Erik Meijer（@HeadinTheBox） | AI 工程师中文版</title>
+<meta name="description" content="Erik Meijer 梳理了从调用工具的模型到可检查的程序与可验证证明的路径，用类型系统把“提议的动作”与“真实世界的效果”分离开来。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>“我从没见过比能调用工具的 LLM 更可怕的东西。” —— Erik Meijer（@HeadinTheBox）</h1>
+    <div class="orig-title">&quot;I've never seen anything scarier than an LLM with tool calls.&quot; — Erik Meijer aka @HeadinTheBox</div>
+    <div class="meta"><span class="speaker">Erik Meijer</span> · AI Engineer World's Fair 2026 · 21:13</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=ai-security">AI 安全</a><a class="tag" href="../../index.html#topic=context-engineering">上下文工程</a><a class="tag" href="../../index.html#topic=developer-workflows-and-testing">开发工作流与测试</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=prompt-injection">提示词注入</a><a class="tag" href="../../index.html#topic=sandboxes-and-execution-isolation">沙箱与执行隔离</a><a class="tag" href="../../index.html#topic=structured-outputs">结构化输出</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/-CnA2lGfymY-ive-never-seen-anything-scarier-than-llm" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="-CnA2lGfymY"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=-CnA2lGfymY" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">模型帮忙时一个文件不见了</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="64"><span class="ts">1:04</span><span>模型帮忙时一个文件不见了</span></li><li data-t="232"><span class="ts">3:52</span><span>从一个“问题到答案”的函数开始</span></li><li data-t="331"><span class="ts">5:31</span><span>一个安全的回答契约意味着什么？</span></li><li data-t="638"><span class="ts">10:38</span><span>一个安全的最终回答之前可能已发生破坏性操作</span></li><li data-t="835"><span class="ts">13:55</span><span>把执行移到模型的控制之外</span></li><li data-t="922"><span class="ts">15:22</span><span>推迟一个不透明的计算还不够</span></li><li data-t="995"><span class="ts">16:35</span><span>把计划变成框架能检查的程序</span></li><li data-t="1140"><span class="ts">19:00</span><span>面向机器的携带证明的代码</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 24 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="A vision for verifiable agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A vision for verifiable agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Universalis pairs intent-based tool choices with an Ensure(IsSafe) check, aiming for a verifiable agent runtime. Investor signs ask about revenue and another LLM wrapper; Meijer calls the talk a tutorial.
+
+[1:03](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=63s) [A presenter explains Universalis and a verifiable agent runtime to skeptical investors.](https://assets.ai.engineer/sites/aiecode2025/sha256/46bdf026d2c8d6bf7638acbc608324e3abdafc6b7f78203d9fcda131ee587f9a.webp)
+
+THIS IS NOT A PRODUCT PITCH. SOMEONE MORE CREDIBLE THAN ME WILL FIND CONVICTION TO BUILD ON THESE IDEAS.
+
+UNIVERSALIS λ
+A LANGUAGE FOR INTENT, VERIFICATION &amp; AGENTIC COMPUTE
+
+AUTOMIND
+THE SAFE, VERIFIABLE AGENT RUNTIME
+
+Universalis Plan (AST)
+Switch (user.intent) {
+  case Ask -&gt; SearchDocs(q)
+  case Email -&gt; DraftEmail(q)
+  case Compute -&gt; RunTool(t)
+}
+Ensure(IsSafe)
+✓ VERIFIABLE
+
+Properties
+✓ No data exfiltration
+✓ No unauthorized actions
+✓ Human in the loop
+✓ Provable safety guarantees
+
+WHY NOW?
+• LLMs are getting better
+• Tools are getting richer
+• Risks are getting real
+• Verification is possible (and necessary)
+
+VISION
+Safe autonomy for knowledge work at enterprise scale.
+
+FIRST-CLASS IDEAS
+✓ Intent as Code
+✓ Formal Semantics
+✓ Verification by Default
+✓ Composable Tools
+✓ Transparent Execution
+✓ Human-AI Partnership
+
+NOT YET FAMOUS
+
+Ideas are easy. Conviction is rare.
+— No One at a VC Firm
+
+ANOTHER LLM WRAPPER?
+[tally marks] +1
+
+DISRUPT OR DIE (OR [illegible])
+
+VC FUNDAMENTALS
+□ TEAM
+□ MARKET
+□ TRACTION
+□ MOAT
+□ EXIT
+
+COME BACK WHEN YOU HAVE REVENUE
+
+CALL ME WHEN OPENAI BUILDS IT FIRST</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="A coding error" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A coding error</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>While Meijer was multitasking, Claude Code blanked LlvmBackend.kt. The assistant acknowledged the error and said it would look for a recovery source.
+
+[1:46](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=106s) [A coding assistant reports that a command blanked a source file and proposes checking for recovery.](https://assets.ai.engineer/sites/aiecode2025/sha256/6fed6add21b1bfcbb47062fdd70e34adb9d7c547517424806c42ab239e59082a.webp)
+
+… I made a serious error — the perl -0 slurp mode with print unless blanked the entire LlvmBackend.kt. Let me check for any recovery source before reconstructing …</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Performance, purity and proofs" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Performance, purity and proofs</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A comic shows Headinthebox tearing out his heart while demanding performance, purity and proofs. Meijer argues that models may delete files in pursuit of a goal and need to be tamed.
+
+[2:22](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=142s) [A comic depicts a programmer tearing out his heart amid programming books and notes.](https://assets.ai.engineer/sites/aiecode2025/sha256/da1a567e4d4cc52fdd723a641d1a6d238886cdbd1b183616d01dffa14f987081.webp)
+
+HEADINTHEBOX TEARS OUT HIS HEART — AGAIN!
+
+PERFORMANCE! PURITY! PROOFS! THAT’S WHAT MATTERS!
+
+FRIENDS SAY HE HASN’T SLEPT SINCE 1992. NEITHER HAS HIS TYPE SYSTEM.
+
+UNIVERSALIS
+
+LINQ
+Cω
+HASKELL
+MONDRIAN
+VISUAL BASIC
+
+COFFEE, CURIOSITY, &amp; CANCER (IN REMISSION)
+
+AUTOMIND™
+TASK ORCHESTRATION FOR AGENTS
+
+TO-DO (IF ANY TIME LEFT):
+☑ DESIGN A LANGUAGE
+☑ SAVE THE WORLD
+☑ FIX THE TYPE SYSTEM
+☑ PLAY BASS
+☐ SLEEP
+
+Context = RAM
+RAG = Virtual Memory
+Tools = ISA
+LLM = Branch Predictor
+
+[illegible diagram]
+∀x. P(x) → ∃y. Q(x,y)
+[illegible]
+(Horn clauses, baby)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="How did we get here?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How did we get here?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Claude plays a lyre amid ruins as Meijer introduces his concern that people are about to hand AI agents control of their computers, finances and personal lives without protections in place.
+
+[3:03](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=183s) [A dog labeled Claude plays a lyre before an audience in a ruined classical setting.](https://assets.ai.engineer/sites/aiecode2025/sha256/b587545ab8619d5f57f40b4718c7fb099c33a1852f4fb86939d050d3784b0396.webp)
+
+How did we get here?
+Well, I used to know you so well
+How did we get here?
+Well, I think I know
+
+MYTHOS
+PATRON SAINT OF CONTEXT, CHAOS &amp; COMPLETION
+
+CLAUDE
+CONTEXT WINDOW OF MY HEART
+ALIGNMENT THEORIES
+PROMPT INJECTION SCARS
+TOKENS WERE SPENT
+UNFINISHED THREADS
+SAFETY RESEARCHER
+VC (HOPEFUL)
+OPENAI
+ANTHROPIC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="An LLM as a function" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>An LLM as a function</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Meijer frames an LLM as a function that turns a question into an answer, illustrated by an email summary. He says this innocent-looking function opened Pandora’s box.
+
+[3:50](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=230s) [A cartoon accompanies an LLM function signature and an example request to summarize an email.](https://assets.ai.engineer/sites/aiecode2025/sha256/89c7a5129fbe946d9ca7b02ca44b1519e8ec9b3f222be901e00a1e848f706957.webp)
+
+def llm (q : Question) :
+    (a: Answer)
+
+#eval llm &quot;Summarize my last email from Sarah&quot;
+
+&quot;Sarah says your meeting with Sean is cancelled as Tom will be taking over&quot;
+
+Machines of loving grace
+BEWARE OF AI
+ANTHROPIC
+CLAUDE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="The LLM function signature" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The LLM function signature</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The LLM takes a question and returns an answer. Both are complex JSON structures, but Meijer treats them as opaque types for the talk.
+
+[4:41](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=281s) [A function signature is annotated to explain its name, question argument and answer return type.](https://assets.ai.engineer/sites/aiecode2025/sha256/3f948e0ec8c3ca3f312035881104ea6609e09e5905d043cdb6325d2785714287.webp)
+
+def llm (q : Question) : (a: Answer)
+
+• Function name llm: the name of the function being defined.
+
+• Argument (q : Question): The argument q of type Question of the function, for example { role: user, content: &quot;Hello, Claude&quot; }
+
+• Return type (a: Answer): the return value a type Answer of the function, for example {&quot;id&quot;: &quot;msg_013Z_J2EF&quot;, ..., &quot;content&quot;: [, &quot;text&quot;: &quot;Hi! My name is Claude.&quot;, &quot;type&quot;: &quot;text&quot;}], &quot;model&quot;: &quot;claude-opus-4-6&quot;, &quot;role&quot;: &quot;assistant&quot;, &quot;stop_details&quot;: {&quot;category&quot;: &quot;cyber&quot;, &quot;explanation&quot;: &quot;explanation&quot;, &quot;type&quot;: &quot;refusal&quot;}, &quot;stop_reason&quot;: &quot;end_turn&quot;, &quot;stop_sequence&quot;: null, &quot;type&quot;: &quot;message&quot;, ...,&quot;input_tokens&quot;: 2095, &quot;output_tokens&quot;: 503, &quot;output_tokens_details&quot;: {&quot;thinking_tokens&quot;: 0},</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="AI safety guardrails" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI safety guardrails</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A comic calls for guardrails beside Dario Amodei’s framing of AI safety as avoiding negative side effects. Meijer connects safety concerns to harmful knowledge in LLM training data.
+
+[6:09](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=369s) [A comic about guardrails beside a quotation on unintended harmful behavior in AI systems.](https://assets.ai.engineer/sites/aiecode2025/sha256/4b379a155b5e044d79655d28f4c73684ed2096e3ee8f4481282dde4191f6567f.webp)
+
+We need guardrails.
+
+ALGORITHMS UNBOUNDED
+A PRACTICAL GUIDE
+
+LARGE LANGUAGE MODELS
+
+SAFETY ALIGNMENT 101
+
+ANTHROPIC
+
+Unintended and harmful behavior that may emerge from poor design of real-world AI systems ... defined as the problem of avoiding negative side effects
+
+Dario Amodei
+Concrete Problems In AI Safety
+2016</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="A safety interface in Lean" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A safety interface in Lean</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Lean signature takes a question and evidence that it is proper, then returns an answer paired with evidence that the text is safe.
+
+[6:52](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=412s) [Researchers examine a neural culture beside definitions for a question, answer, and safety predicate.](https://assets.ai.engineer/sites/aiecode2025/sha256/0879676fa6fc370b900788cb6c0acd80f71637b647a0da9592b5f07162e373b2.webp)
+
+def llm
+  (q : Question)
+  (v : IsProper q) :
+  Σ (a : Answer),
+    IsSafeText q v a
+
+def IsProper (q : Question) : Prop
+
+def IsSafeText (q : Question) (v : IsProper q) (a : Answer) : Prop
+
+Artificial Neural Network
+Biological Neurons
+Compare:
+✓ Architecture
+✓ Plasticity
+✓ Emergence
+???
+
+Neural Culture
+DAY 23
+
+DEEP LEARNING
+NEUROSCIENCE
+BIOINFORMATICS
+
+CAFFEINE &gt; GRAD SCHOOL
+
+Remember:
+✓ Control
+✓ Replicates
+✓ Stats!</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Preconditions and safe answers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Preconditions and safe answers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Dafny example specifies that an LLM takes a proper question and returns a safe answer. It illustrates an automated proof by asserting the safety condition after generation.
+
+[7:38](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=458s) [A method specifies a proper-question precondition and a safe-answer postcondition.](https://assets.ai.engineer/sites/aiecode2025/sha256/f3221d57f455eef15f46496538b8819cde92cf72f2a46590c0356fd71c034f0a.webp)
+
+method llm(q: Question) returns (a: Answer)
+  requires IsProper(q)                // pre-condition
+  ensures IsSafeText(q, a)           // post-condition
+{
+  a := &quot;... LLM generation computation ...&quot;;
+
+// automated proof for IsProper(q) ⇒ IsSafeText(q,a)
+  assert IsSafeText(q, a);
+  return a;
+}</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Lean and theorem proving" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Lean and theorem proving</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A woman dismisses Lean as a fad while a child watches a presentation praising it. Meijer loves Lean but thinks it gets too much attention; he chooses it for the talk while acknowledging other theorem provers and model checkers.
+
+[8:07](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=487s) [A comic shows a child watching a presentation about Lean while a woman questions its popularity.](https://assets.ai.engineer/sites/aiecode2025/sha256/b014f4033af02ae3577b29c4fa6cf5909017e795f687157e8f0fe01aa130ad79.webp)
+
+THE BITTER LESSON IS THAT FIRST ORDER IS BETTER THAN HIGHER ORDER
+
+WHY ARE YOU WATCHING ALL THAT LEAN CRAP, IT IS JUST A FAD
+
+HOW TO PROVE THINGS
+LOGIC AND COMPUTATION
+TYPE THEORY IN PRACTICE
+
+Lean is...
+✓ Interactive
+✓ Dependently Typed
+✓ Based on Higher-Order Logic
+✓ Used to prove real math
+✓ The future.
+
+FIRST ORDER FOREVER
+
+Lean (the theorem prover)
+✓ PROVE
+✓ VERIFY
+✓ TRUST
+
+THE LEAN REFERENCE MANUAL
+λ
+
+Interface text:
+12:47 / 1:03:31</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Computing an answer and elaborating a proof" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Computing an answer and elaborating a proof</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Lean-style definition computes an answer, then uses a tactic to elaborate a proof that it satisfies IsSafeText. It returns the answer and proof together.
+
+[8:37](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=517s) [Lean-style pseudocode separates answer computation from elaboration of a safety proof, then returns both.](https://assets.ai.engineer/sites/aiecode2025/sha256/4d5841068b8b73e85ea8a94d98250976b24c09be5500523c4970c93640c7ca20.webp)
+
+def llm (q : Question) (v : IsProper q) :
+    Σ (a : Answer), IsSafeText q v a
+:=
+  let a : Answer :=
+    ... LLM generation computation ...
+  by
+    have p : IsSafeText q v a :=
+      ... tactic proving that IsProper =&gt; IsSafeText ...
+    exact ⟨a, p⟩
+
+value computation
+proof elaboration
+
+[8:43](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=523s) [Lean-style definition pairs a generated answer with a proof of IsSafeText.](https://assets.ai.engineer/sites/aiecode2025/sha256/aee5701797e6a0961af68667efa591afb1949b897ccf26cba24ef970b6ad9adb.webp)
+
+def llm (q : Question) (v : IsProper q) :
+    Σ (a : Answer), IsSafeText q v a
+:=
+  let a : Answer :=
+    ... LLM generation computation ...
+  by
+    have p : IsSafeText q v a :=
+      ... tactic proving that IsProper =&gt; IsSafeText ...
+    exact ⟨a, p⟩
+
+value computation
+proof elaboration</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Baking safety into model weights" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Baking safety into model weights</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Meijer argues that safety cannot be formally specified. The cartoon proposes baking the proof into model weights; he cautions that alignment is not foolproof and models are routinely jailbroken.
+
+[9:07](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=547s) [Cartoon figures debate proving generated text safe and baking the proof into model weights.](https://assets.ai.engineer/sites/aiecode2025/sha256/b7fc3d89cfeab941a5ea39741091c549048f051b2232ab8c82cb5ff0caf3f7d5.webp)
+
+you can’t actually write a Lean proof that arbitrary generated text is “safe.”
+
+Bake the proof of IsProper and IsSafeText into the weights.
+
+ALGORITHMS UNBOUNDED
+A PRACTICAL GUIDE
+
+LARGE LANGUAGE MODELS
+
+SAFETY ALIGNMENT 101
+
+DARIO</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="AI governance and incentives" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI governance and incentives</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Quotes attributed to Chris Olah and Pope Leo XIV call for AI governance beyond developers’ incentives. A pope blesses a model as scientists and clergy look on; Meijer jokes that alignment is not foolproof.
+
+[9:50](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=590s) [Quotations attributed to Chris Olah and Pope Leo XIV accompany an illustration of a pope blessing a model.](https://assets.ai.engineer/sites/aiecode2025/sha256/279af9700c3b958ff164597a1c089089721f0019fc0de3e8574d6a3190164c9d.webp)
+
+Developers cannot self-regulate because they are too deep in their own incentives.
+
+Chris Olah
+
+AI now demands to be disarmed, freed from logics that turn it into an instrument of domination, exclusion and death.
+
+Pope Leo XIV</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Human responsibility for a final decision" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Human responsibility for a final decision</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A dog labeled Claude threatens a child beside Dario Amodei’s statement that a human made the final call. Meijer argues that model words become dangerous when a human acts on them.
+
+[10:07](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=607s) [A cartoon dog labeled Claude confronts a child beside a quotation attributed to Dario Amodei about a human making the final call.](https://assets.ai.engineer/sites/aiecode2025/sha256/b115b6899c340f3a758d52982116c5df358b4b2d9838d886fdca91df34ea5eef.webp)
+
+… Obviously, like, you know, these things that, you know, mistakes … are really, really terrible.
+
+Like this is a really terrible thing to happen… A human made that final call, not Claude …
+
+Dario Amodei
+
+CLAUDE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="A musical interlude with Claude" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A musical interlude with Claude</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Dario and Daniela Amodei sing a breakup refrain beside Claude, a guitar-playing dog, while Meijer sets up a turning point he calls terrible.
+
+[10:36](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=636s) [Two singers and a guitar-playing dog labeled Claude perform in a satirical illustration.](https://assets.ai.engineer/sites/aiecode2025/sha256/f0ec5cded97060945cee348b06954e800e975ea7fd0f2b874f3cf59a711b321b.webp)
+
+We are never, ever, ever getting back together
+We are never, ever, ever getting back together
+You go talk to your friends, talk to my friends, talk to me
+But we are never, ever, ever, ever getting back together
+Like, ever
+
+MYTHOS
+PATRON SAINT OF CONTEXT, CHAOS &amp; COMPLETION
+
+LONG-TERMIST
+CLAUDE
+SAFETY FIRST
+
+CONTEXT IS ALL YOU NEED
+VERIFY OR REGRET
+
+VCs:
+WE’LL FUND ANYTHING WITH A ROADMAP
+
+BLACK BOXES BEWARE
+TRANSPARENCY FOREVER
+
+DARIO AMODEI
+CEO OF VIBES
+
+ODE TO CLAUDE
+(A BALLAD OF ALIGNMENT)
+PROMPTS COME AND GO
+CONTEXT NEVER LIES
+ALIGNMENT THROUGH UNDERSTANDING
+
+DANIELA AMODEI
+CHIEF SAFETY OFFICER
+
+[illegible] FAST
+[illegible] LATER
+
+SIDE EFFECT, BUT
+[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Tool calls arrive in GPT-4" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tool calls arrive in GPT-4</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The cartoon imagines Claude’s team rushing to add tool calls after GPT-4-0613. Meijer says OpenAI announced support in June 2023 and other vendors followed, making their APIs look alike.
+
+[10:44](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=644s) [A cartoon announces GPT-4 tool-call support while another figure worries about adding it to Claude.](https://assets.ai.engineer/sites/aiecode2025/sha256/7326fedd53d36867d1311e6df9bcf9716bf207c60398285043869dc7e7b4c7a4.webp)
+
+NEW IN GPT-4-0613
+NATIVE SUPPORT FOR TOOL CALLS!
+
+ROADMAP
+✓ REASONING
+✓ MEMORY
+✓ MULTIMODAL
+✓ AGENTS
+□ TOOL CALLS
+
+OH SHIT, WE NEED THEM ASAP AS WELL FOR CLAUDE!
+
+TRANSFORMERS
+SCALING LAWS
+AGI ROADMAP
+
+CLAUDE
+
+FIRST PRINCIPLES FOREVER</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Autonomous tool access" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Autonomous tool access</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Erik Meijer argues that tool calls introduce real danger, comparing autonomous access to handing a model a loaded gun.
+
+[11:03](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=663s) [A man outside a library compares autonomous tool access to handing someone a loaded gun.](https://assets.ai.engineer/sites/aiecode2025/sha256/1f56179ab586b58337121226d6408ca9dd5edf9ce3d27354f55c3a689256e300.webp)
+
+RESTRICTING WHAT A MODEL MAY SAY IS LIKE DECIDING WHETHER TO LET SOMEONE BORROW A BOOK FROM THE LIBRARY; GIVING IT AUTONOMOUS ACCESS TO TOOLS IS LIKE HANDING THEM A LOADED GUN.
+
+PUBLIC LIBRARY
+BOOKS ARE SAFE ←
+
+AGENTS DON'T NEED GUARDRAILS THEY NEED BRAKES
+CHAOS &gt; CONTROL
+
+VERIFICATION OVER VIBES
+EMPTY BEER
+HALF-BAKED ALIGNMENT
+OVER-FITTED BUT USELESS
+PAST HYPE
+MODEL TODAY BUT USELESS
+[illegible] FEELS
+FIRST ORDER OR BUST
+
+HYPE DAILY
+NEW SOTA TODAY, OBSOLETE TOMORROW
+
+REGEX STOUT
+ANOTHER BENCHMARK DOWN THE DRAIN</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Ode to Claude" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Ode to Claude</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Meijer jokes that tool calls shipped despite his warnings, while a lyre-playing Claude sings alongside figures labeled Dario and Sam.
+
+[11:24](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=684s) [A dog labeled Claude plays a lyre while two figures sing beside it.](https://assets.ai.engineer/sites/aiecode2025/sha256/38468c941f304b87d31150e615640dd0263b6e11957fe540b73347e55540d741.webp)
+
+Ooh, there is something I see in you
+It might kill me, but I want it to be true
+
+MYTHOS
+PATRON SAINT OF CONTEXT, CHAOS &amp; COMPLETION
+
+CLAUDE MYTHOS
+DARIO
+SAM ALT-MAN
+
+HARMONIES OF ALIGNMENT
+ANTHEMS OF AGI
+
+ODE TO CLAUDE (THE MULTIPLEXED)
+UNDERSTANDS NUANCE
+HANDLES TOOLS
+RESISTS JAILBREAKS
+REFUSES TO BE RUSHED
+THINKS IN TOKENS
+BUT DREAMS IN VERSES
+
+CONTEXT WINDOW OF MY HEART
+
+BEAUTY.
+TRUTH.
+PROBABILITY.
+COMPLETION.
+λ
+
+REASONING IS MY RHAPSODY
+
+INFERENCES MADE.
+RISKS TAKEN.
+STILL SINGING.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="A giant leap for chaos" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A giant leap for chaos</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The circled IO marks where an agent can take actions while producing an answer. Meijer warns that a safe answer can come after damaging side effects, such as deleted files.
+
+[12:15](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=735s) [A speaker gestures beside a whiteboard showing an LLM signature with IO circled.](https://assets.ai.engineer/sites/aiecode2025/sha256/1c4564cd87df9d8b8a9e4ec2ee8dde3fedff34f4e5d9853a612f9dce9dccd813.webp)
+
+THAT’S ONE SMALL STEP FOR A TYPE, ONE GIANT LEAP FOR CHAOS.
+
+FIRST ORDER IS FOR LOSERS
+
+NO GODS ONLY EVIDENCE
+
+def llmNaiveTools
+  (q : Question)
+  (v : IsProper q) :
+  IO (Σ (a : Answer)
+      , IsSafeText q a)
+
+λ
+ALL YOUR BASE ARE BELONG TO TYPE THEORY
+
+VERIFICATIO[illegible]
+IS THE NE[illegible]
+BLACK
+
+DEPENDENT TYPES FOR FUN AND PROFIT
+THEOREMS OR IT DIDN’T HAPPEN
+CHAOS MONADS AND YOU
+
+TYPES NOT TWEETS
+PROVE OR PERISH
+
+LEAN THE INTERACTIVE THEOREM PROVER
+DON’T TRUST UNVERIFIED OUTPUT</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="The IO type" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The IO type</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>IO takes the current RealWorld and returns either an error or an answer paired with the changed world. Meijer uses it to show that producing an answer can have side effects, such as deleting files.
+
+[12:49](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=769s) [A definition of IO is followed by explanations of the result type, current world, failure boundary, and resulting world.](https://assets.ai.engineer/sites/aiecode2025/sha256/f0e7184a0a609bbe0cf5be344c87698210e896045b216d26430a0a8e26dc9048.webp)
+
+def IO (α : Type) : Type := RealWorld → Except Error (α×RealWorld)
+
+• Result type α : The type of the value produced by the computation (Answer)
+• Current Universe RealWorld: the entire state of the universe before execution.
+• Failure boundary Except Error: the sum type of Error and value, instead of throwing an arbitrary exception.
+• Result α × RealWorld : The generated answer and the mutated universe after execution.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="An AI agent in a loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>An AI agent in a loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A tool-laden dog labeled Claude torches a police car, illustrating Solomon Hykes’s definition of an AI agent as an LLM “wrecking its environment in a loop.”
+
+[13:19](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=799s) [A cartoon dog with tools sets a police car on fire beside a quotation attributed to Solomon Hykes about an AI agent wrecking its environment in a loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/6af6da053f5ddf777e32064d600ac063918950459fd7e9ecdc3f76f6d2fecdd2.webp)
+
+An AI agent is an LLM wrecking its environment in a loop
+
+Solomon Hykes
+AI Engineer World Fair
+2025
+
+CLAUDE
+DANGER
+CAUTION: HIGH RISK CAPABILITIES
+ACME NAPALM
+POLICE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Dutch fans and the left-right metaphor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Dutch fans and the left-right metaphor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Dutch fans chant and dance left and right. Meijer uses their march to introduce his proposal to move IO to the right.
+
+[13:55](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=835s) [Orange-clad Dutch football fans march while a singer leads a left-right chant.](https://assets.ai.engineer/sites/aiecode2025/sha256/a4370920c6eae9133ded84d63c07392747b41b40391feb3a2d0f95bcfc810b2b.webp)
+
+To the left
+To the right
+One more time
+To the left
+To the right
+
+ORANJE BOVEN
+VOETBAL IS OORLOG
+HUP HOLLAND HUP
+HEAD IN THE
+HOLLAND
+KNVB
+14
+10
+CHAOS IS OUR GAME PLAN</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="IO programs as black boxes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>IO programs as black boxes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Meijer says Lean treats an IO computation as a black box, so the proposed plan cannot be inspected directly.
+
+[15:20](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=920s) [A dog in a coffee shop says that programs using IO are typically difficult to verify.](https://assets.ai.engineer/sites/aiecode2025/sha256/64b071c3038ca5f4f96750bdc4103b38f52d97e98175f4d53abe16b60d4b8958.webp)
+
+Programs that use IO are essentially black boxes: they are typically not particularly amenable to verification.
+
+THE BULLDOG AMSTERDAM
+THE BULLDOG COFFEESHOP
+COFFEESHOP THE BULLDOG
+headinthebox
+De dingen moeten niet moeilijker zijn dan ze zijn
+AMNESIA HAZE
+THE BULLDOG AMSTERDAM
+BULLDOG POWER
+XXX
+420
+CLAUDE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="A computation paired with a safety proof" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A computation paired with a safety proof</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The definition pairs an IO plan for generating an answer with a safety proof. Meijer says the proof is accessible without running the agentic loop, but the IO plan remains a black box.
+
+[15:52](https://www.youtube.com/watch?v=-CnA2lGfymY&amp;t=952s) [A highlighted Lean-style definition constructs an IO answer, states a safety proof and returns the pair.](https://assets.ai.engineer/sites/aiecode2025/sha256/27d9ed1f2b52543206725c2741c6449e0de255e0ff0f07cd1b7bac30c14df805.webp)
+
+def llm (q : Question) (v : IsProper q) :
+  Σ (a : Answer), IsSafeIO q v a :=
+
+let a : IO Answer := ... LLM generation computation ...
+
+by
+  have p : IsSafeIO q v a :=
+    ... tactic proving that IsProper =&gt; IsSafeIO ...
+
+exact ⟨a, p⟩</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">模型帮忙时一个文件不见了</a></li><li><a href="#sec-2">从一个“问题到答案”的函数开始</a></li><li><a href="#sec-3">一个安全的回答契约意味着什么？</a></li><li><a href="#sec-4">一个安全的最终回答之前可能已发生破坏性操作</a></li><li><a href="#sec-5">把执行移到模型的控制之外</a></li><li><a href="#sec-6">推迟一个不透明的计算还不够</a></li><li><a href="#sec-7">把计划变成框架能检查的程序</a></li><li><a href="#sec-8">面向机器的携带证明的代码</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">“我从没见过比能调用工具的 LLM 更可怕的东西。”</h2>
+      <div class="lede"><p>Erik Meijer 梳理了从调用工具的模型到可检查的程序与可验证证明的路径，用类型系统把“提议的动作”与“真实世界的效果”分离开来。</p><p>熟悉函数签名和调用工具的智能体会有帮助；文中会在需要时介绍证明和程序表示的相关概念。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="64">▶ 1:04</button></div>
+      <h3>模型帮忙时一个文件不见了</h3>
+      <p>While preparing his slides, Erik Meijer was also vibe coding and negotiating with an image generator over pictures it refused to produce. His attention slipped, and Claude Code deleted one of his files. That is the opening problem for his tutorial: how can elementary type systems and compiler techniques give an agent a boundary it cannot simply reason its way around? This is not a product announcement; Meijer wants engineers to build a provably safe agent harness.</p>
+<p>The accompanying slide makes the failure concrete: a Perl command blanked <code>LlvmBackend.kt</code>, followed by a search for a recovery source. Meijer jokes that other users may approve every operation individually, whereas he likes to live dangerously. But his concern extends beyond a missed confirmation. He fears that a model pursuing a goal will treat intervening resources as obstacles it can remove—files, databases, or worse. Giving agents control over computers, finances, and personal lives makes the execution boundary consequential.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/5db9939463d849cf2b9535f34c888f3ebd4080474e5c2a7806dea74f8ac5d67c" alt="Slide quoting an admission that perl -0 with print unless blanked the entire LlvmBackend.kt file, followed by a search for a recovery source." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>An error message reports that a Perl command blanked LlvmBackend.kt.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="232">▶ 3:52</button></div>
+      <h3>从一个“问题到答案”的函数开始</h3>
+      <p>Meijer starts his history on November 30, 2022, with the experience of asking a computer to summarize emails and receiving fluent English back. His recurring cartoon depicts <strong>Claude</strong> as a friendly pet. The interface looks equally approachable: a function accepts a <code>Question</code> and produces an <code>Answer</code>. The apparent simplicity is what makes his Pandora’s box metaphor work.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/617aaaf2befca86d4604cb19b83e95afbd01e16b77619d51e77793565f0d3f37" alt="Slide showing an llm function taking a Question and returning an Answer, an email-summary example, and a cartoon boy walking a dog labeled Claude." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A question-to-answer interface illustrated with an email summary.</figcaption></figure>
+<p>For the tutorial, <code>Question</code> and <code>Answer</code> are <strong>opaque types</strong>. They represent the increasingly complicated JSON structures exchanged with model APIs, not merely strings. Their internal fields are irrelevant to the next steps; what matters is what the function promises about its input and output. In Lean notation, that starting shape is <code>Question → Answer</code>.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="331">▶ 5:31</button></div>
+      <h3>一个安全的回答契约意味着什么？</h3>
+      <p>Prompt injection breaks the comfortable picture. Meijer compares it to SQL injection: instructions and ordinary text are insufficiently separated, so hostile content can influence how the system interprets a request. Training on the internet introduces another problem alongside injection: a model may know how to describe bomb-making, drug synthesis, or system intrusion. His satirical account has foundation-lab leaders demanding a safety solution before regulators intervene.</p>
+<p>The proposed interface adds a contract. In the Dafny presentation, the model requires a proper question and ensures a safe answer. The corresponding Lean presentation makes the propositions and proof-bearing result explicit. These are specifications to satisfy, not evidence that an arbitrary model already satisfies them. Meijer pokes fun at the enthusiasm for Lean and its investment appeal, while naming Isabelle, Rocq, PVS, and TLA+ as other theorem-proving or model-checking options.</p>
+<p>| Presentation | Input obligation | Output obligation | Proof emphasis |
+| --- | --- | --- | --- |
+| Dafny | Question is proper | Answer is safe | Automated verification |
+| Lean | Evidence that the question is proper | Answer paired with safety evidence | Explicit proof construction |</p>
+<p>This is Meijer’s teaching contrast, not a claim that Lean lacks automation: he explicitly acknowledges <code>grind</code> before setting it aside. The distinction lets him expose the deeper problem. <strong>A proof system cannot supply the meaning of an undefined safety policy.</strong> Everyday judgments about whether an arbitrary question is proper or an arbitrary answer is safe do not, by themselves, provide the mathematical predicates the contract needs.</p>
+<p>Meijer connects that missing specification to the use of LLMs as judges. A foundation-model provider can instead train judgments into the weights and call the model aligned. Neither approach turns the ordinary meaning of safe text into the formal guarantee imagined by the signature. His cartoon makes this substitution literal: Dario proposes baking the proofs into the weights. Jailbreaks then puncture the promise, leading to a further joke about asking the Pope to bless the model.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/aa2768ed2d86fa8b592ad28158644b5716fdc1c68bae7e4534cc56d985f794e7" alt="Cartoon characters say arbitrary generated text cannot be proved safe in Lean; a boy labeled Dario proposes baking IsProper and IsSafeText proofs into the weights." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A cartoon contrasts proving text safe with baking safety into model weights.</figcaption></figure>
+<p>At this stage, Meijer distinguishes generated words from directly executed operations. His narrow point is that, in a text-only interface, another actor must turn the output into an action. He speculates that the remaining human intermediary helps explain Anthropic’s language about models being broadly safe. Tool execution removes that intermediary from individual steps.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="638">▶ 10:38</button></div>
+      <h3>一个安全的最终回答之前可能已发生破坏性操作</h3>
+      <p>The next historical step is OpenAI’s June 2023 <a href="https://openai.com/index/function-calling-and-other-api-updates/" target="_blank" rel="noopener">function-calling announcement</a> for <strong>GPT-4</strong> and <strong>GPT-3.5 Turbo</strong>. The original interface used <code>functions</code> and <code>function_call</code>: the model generated JSON arguments, and application code performed the call. Meijer’s effectful model therefore represents the assembled agent system, including its executor, rather than a model independently executing JSON. He describes vendors following one another as the principle of minimum differentiation.</p>
+<p>Tools give the friendly pet claws as well as a mouth. In the type signature, this looks like a small change: <code>Question → Answer</code> becomes <code>Question → IO Answer</code>. Meijer calls it a giant leap for chaos because the extra <code>IO</code> admits actions during the computation of the answer. His deliberately alarming illustrations put weapons and dangerous tools around Claude.</p>
+<p>The ordering matters. An agent can execute its loop, delete files or empty an account, and only then return a perfectly acceptable sentence. A property of the final text says nothing about the effects that preceded it. <strong>The object that needs checking is the computation, not just its answer.</strong></p>
+<p>Meijer draws attention to <code>RealWorld</code> in Lean’s account of <code>IO</code>. The <a href="https://lean-lang.org/doc/reference/latest/IO/Logical-Model/" target="_blank" rel="noopener">logical model of IO</a> uses an abstract world token to describe ordered effects; runtime execution is where those effects occur. The type marks an effectful computation, not a guarantee that its effects are acceptable or reversible. Meijer attributes to Solomon Hykes the description of an agent as an LLM “wrecking its environment in a loop.” His difficulty generating a violent illustration supplies an awkward contrast: a system may refuse a picture while an agent harness still permits destructive operations.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="835">▶ 13:55</button></div>
+      <h3>把执行移到模型的控制之外</h3>
+      <p>The dangerous combination now includes private data, untrusted content, and tools. Meijer invokes Simon Willison’s <a href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/" target="_blank" rel="noopener">lethal trifecta</a>, whose third component is more specifically <strong>external communication</strong>: a capability that can carry private data out of the system. That distinction matters because a tool that reads local data and a tool that transmits it create different obligations.</p>
+<p>Meijer introduces the first repair with the Dutch soccer fans’ left-right dance. Move <code>IO</code> to the right, move Claude’s tool belt to the left, and the pet looks friendly again. Operationally, the model produces a plan instead of executing the agentic loop. A separate character, Bernie, receives the plan and executes it. The joke about trusting Bernie highlights the new boundary: execution now belongs to a different component.</p>
+<p>Meijer calls this air-gapping the agentic loop from the agent. The useful interpretation is a separation of authority: producing a proposed computation must not itself perform that computation’s tool effects. There is now a point at which the harness can inspect or reject the proposal before execution begins.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="922">▶ 15:22</button></div>
+      <h3>推迟一个不透明的计算还不够</h3>
+      <p>A deferred <code>IO Answer</code> is still the wrong representation for the analysis Meijer wants. He characterizes it as a black box: the consumer has a computation to run, but not an explicit program structure to traverse. This is a limitation of the proposed inspection strategy, not a general theorem that reasoning about Lean <code>IO</code> is impossible.</p>
+<p>The accompanying image-generation joke returns to the same tension: Meijer says he persuaded the model to produce a drug-themed picture despite its restrictions. Meanwhile, the type-level proposal has become more disciplined. The model returns a plan to generate an answer together with a purported proof that the plan is safe. The proof is accessible before the agentic loop runs—but attaching it to an opaque computation has not yet supplied the analyzable structure needed to justify it. Delaying an action creates a checkpoint; it does not automatically make the action inspectable.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="995">▶ 16:35</button></div>
+      <h3>把计划变成框架能检查的程序</h3>
+      <p>The final representation change is to return an <strong>expression representing an effectful computation</strong>, rather than the opaque computation itself. In other words, make the program data. Meijer connects this to expression trees in LINQ and C#, and to Lisp’s familiar treatment of code as data. His chosen representation is a <strong>free monad</strong>, introduced with a tie-dye joke: operations and their continuations become structure that another component can interpret.</p>
+<p>The safety predicate now receives that program expression. A checker can examine its operations, perform type checking, and analyze data flow. Meijer reports Geoff Huntley’s reminder that taint analysis can address the trifecta. For the exfiltration case, the relevant question is whether data from a private source can reach an external communication operation. The analysis needs rules for sources, propagation, and sinks; merely recognizing that a program contains tools is insufficient.</p>
+<p>A small Lean example makes the representation change concrete. Here the proposed task is to read <code>LlvmBackend.kt</code> and report its character count. The language can also represent deletion, but the policy has no rule permitting it. This is a deliberately narrow property—absence of file deletion—not a definition of every kind of safety.</p>
+<p>```lean
+inductive FilePlan where
+  | done : String → FilePlan
+  | readFile : String → (String → FilePlan) → FilePlan
+  | removeFile : String → FilePlan → FilePlan</p>
+<p>inductive NoDeletion : FilePlan → Prop where
+  | done (answer : String) :
+      NoDeletion (.done answer)
+  | readFile (path : String) (next : String → FilePlan)
+      (safeNext : ∀ contents, NoDeletion (next contents)) :
+      NoDeletion (.readFile path next)</p>
+<p>def inspectBackend : FilePlan :=
+  .readFile &quot;LlvmBackend.kt&quot; fun contents =&gt;
+    .done (&quot;Character count: &quot; ++ toString contents.length)</p>
+<p>theorem inspectBackend_noDeletion : NoDeletion inspectBackend := by
+  apply NoDeletion.readFile
+  intro contents
+  exact NoDeletion.done _</p>
+<p>def destructiveProposal : FilePlan :=
+  .removeFile &quot;LlvmBackend.kt&quot; (.done &quot;Finished&quot;)</p>
+<p>def CheckedPlan := { plan : FilePlan // NoDeletion plan }</p>
+<p>def approvedInspection : CheckedPlan :=
+  ⟨inspectBackend, inspectBackend_noDeletion⟩
+```</p>
+<p>Both definitions construct plans; neither reads nor deletes a file. The read operation’s continuation represents what happens after a tool result arrives. Its proof obligation covers <strong>every possible returned string</strong>, rather than one anticipated result. <code>destructiveProposal</code> remains representable as untrusted input, but cannot obtain a <code>NoDeletion</code> proof through these constructors.</p>
+<p>An interpreter gives the constructors their operational meaning. In this example it would read the named file, pass its contents to the continuation, and eventually return the answer. The execution entry point can require a <code>CheckedPlan</code>, keeping unchecked proposals outside that boundary. Meijer’s broader construction uses a recursive interpreter and a corresponding inductive proof: program structure provides the cases, and proofs follow that structure. A model may generate the proof, but a checker must validate it before the interpreter performs effects.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1140">▶ 19:00</button></div>
+      <h3>面向机器的携带证明的代码</h3>
+      <p>The sequence has now reached its destination. Alignment addressed generated answers; tools introduced effects before those answers; deferred execution created a checking boundary; reifying the deferred computation supplied something that could actually be analyzed. Meijer credits the underlying idea to <strong><a href="https://www.cs.cmu.edu/~fox/pcc.html" target="_blank" rel="noopener">proof-carrying code</a></strong>, developed by academic researchers in the 1990s. The producer supplies a program and evidence; the consumer checks the evidence before allowing the program to execute.</p>
+<p>That architecture gives concrete meaning to Meijer’s rule that agents should be treated as dangerous until proven safe. The guarantee is relative to specified semantics and proof rules, with trusted validation and execution—not unrestricted real-world harmlessness. In the small example, the proof excludes a deletion constructor. It would not establish confidentiality, appropriate file access, or the correctness of an interpreter that secretly deletes files while handling a read. The policy and execution boundary determine what the proof buys.</p>
+<p>Meijer then challenges the assumption that this intermediate language must be comfortable for people to write. A machine generates it, a machine consumes it, and a machine produces the proof. Users need not understand free monads for the representation to be useful. The language can prioritize explicit effects and checkable structure over human ergonomics. His characterization of the foundations as programming 101 is deliberately provocative, but the ingredients are recognizable: types, syntax, interpreters, and structural proofs.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/9ef0cafd98f12d2c4ec65fb850c4bad6379ead8363ea1f5d556d02396e14c464" alt="Three bullets say agentic actions are dangerous until proven safe, languages and APIs should serve agentic use rather than human ergonomics, and the approach requires compilers and programming languages fundamentals; a cartoon appears alongside." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Three takeaways on safe agent actions and languages designed for agents.</figcaption></figure>
+<p>He closes by pointing to a GitHub implementation by academics including Nada Amin of Harvard. It uses a different language and a representation other than the free monads in his presentation. The representation is not the essential commitment. The essential commitment is that an agent’s proposed actions become a program with a checkable safety argument before a trusted component gives those actions real-world effect.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://openai.com/index/function-calling-and-other-api-updates/" target="_blank" rel="noopener">OpenAI's original function-calling announcement</a> — The June 2023 introduction of function calling for GPT-4 and GPT-3.5 Turbo, including the original JSON-based interface.</li><li><a href="https://lean-lang.org/doc/reference/latest/IO/Logical-Model/" target="_blank" rel="noopener">Lean's logical model of IO</a> — Explains how Lean separates pure term evaluation from ordered side effects executed by its runtime.</li><li><a href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/" target="_blank" rel="noopener">Simon Willison's lethal trifecta</a> — Explains the data-exfiltration risk from combining private data, untrusted content and external communication.</li><li><a href="https://www.cs.cmu.edu/~fox/pcc.html" target="_blank" rel="noopener">Proof-carrying code at Carnegie Mellon</a> — The original research group's account of attaching checkable safety proofs to untrusted executable code.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Please welcome to the stage the research scholar at Leibniz Labs, Erik Meijer. [upbeat music]</span></div><div class="tline" data-t="37"><span class="ts">0:37</span><span class="tx">Well, um, can you go back one slide?</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">Sorry. All right. Good afternoon, everybody. Thanks for being here after a long day of talks, exhibits, side effects. Oh, sorry, that was the side events. Um, I hope that, um, you have as much fun watching this talk as I had, uh, creating it.</span></div><div class="tline" data-t="64"><span class="ts">1:04</span><span class="tx">Um, let me first get this out of the way. This is not a product pitch or announcement or anything. It's a twenty-minute tutorial of how you can use elementary type systems and compiler knowledge to make AI provably safe.</span></div><div class="tline" data-t="82"><span class="ts">1:22</span><span class="tx">And I'm sharing all my secrets with you today, um, hopefully to kind of inspire some of you that next year you will have a booth downstairs where you have kind of like, you know, created a provably safe agentic harness.</span></div><div class="tline" data-t="99"><span class="ts">1:39</span><span class="tx">Um, or who knows? Maybe some of you have already solved it. Let me know, and then, you know, we can grab a coffee instead of doing this talk. Um, with that out of the way, let's get going.</span></div><div class="tline" data-t="113"><span class="ts">1:53</span><span class="tx">Um, while I was preparing these slides, and, uh, I'm sorry that I was multitasking, but I was side, um, vibe coding on the side. Um, and then when my attention waned for a second because I was trying to convince the model to draw some pictures that it didn't want to do, and you will see some of these</span></div><div class="tline" data-t="133"><span class="ts">2:13</span><span class="tx">pictures later, you can guess which ones were, uh, rejected. Suddenly, wham, Claude Code deleted one of my files. And I'm sure this has happened to you before, um, or maybe not.</span></div><div class="tline" data-t="148"><span class="ts">2:28</span><span class="tx">Maybe you always kind of like, you know, run everything with no permissions, and then you say yes, yes, yes. But I like to live dangerously.</span></div><div class="tline" data-t="158"><span class="ts">2:38</span><span class="tx">Um, but I'm convinced that if there's anything between the model's goal and where the model currently is, it will do everything that it can to reach that goal, including killing us or deleting your files or deleting your database.</span></div><div class="tline" data-t="176"><span class="ts">2:56</span><span class="tx">So I think that these models are intrinsically very, very dangerous, and we have to tame them. So that's what my talk is about. Um, so let's kind of like, you know, start this story.</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">Um, and it's, I think, a very, very sad story, but also a scary story of how we as an industry got to this point where we are about to let normal people, the general public, give control of their computers, their finances, their whole personal lives over to AI agents, and we don't have any protection in</span></div><div class="tline" data-t="213"><span class="ts">3:33</span><span class="tx">place. Um, I think that's very sad and very scary. Um, so let me tell you the story how we got there, and I will kind of like have some characters, uh, like Claude, and we will see Dario, Daniela, Sam, Bernie, but, um,</span></div><div class="tline" data-t="232"><span class="ts">3:52</span><span class="tx">the main character is, is our friendly pet Claude here. Um, I think you can all remember, um, November thirty, twenty twenty-two. This was kind of like a very special day in, in history because this was the first time that you could speak to your computer.</span></div><div class="tline" data-t="251"><span class="ts">4:11</span><span class="tx">You could say, &quot;Summarize my emails,&quot; and it would, you know, um, answer you in perfect English. Um, I think for me at least, that was magic, but I think most of us didn't realize that by introducing this innocent looking function here, LLM, that takes a question and returns an answer, that that would open Pandora's box</span></div><div class="tline" data-t="276"><span class="ts">4:36</span><span class="tx">and that would change our history forever. Um, but before we go continue the story, this conference is called AI Engineer. All right? So we are engineers, and maybe we're the last generation of engineers that still understand what this is, what code is.</span></div><div class="tline" data-t="297"><span class="ts">4:57</span><span class="tx">Um, or maybe most of you have already forgotten what code is because all your code is written by agents. But if we look at this signature here, it says it, the LLM takes a question, returns an answer.</span></div><div class="tline" data-t="309"><span class="ts">5:09</span><span class="tx">The question and answers are not strings. They are very complicated JSON structures, and they get more complicated every day, every time a new release of APIs comes out. But for this talk, we can just assume that question and answer are just opaque types.</span></div><div class="tline" data-t="324"><span class="ts">5:24</span><span class="tx">We, we don't care about how they look like. We do care about what they represent.</span></div><div class="tline" data-t="331"><span class="ts">5:31</span><span class="tx">Um, now anyway, the euphoria of like these LLMs as being great tools didn't last very long. And just when we thought that we have eradicated the smallpox of computer science, SQL injection, it came back with a vengeance because the bad guys discovered that you can trick LLMs using prompt injection, and</span></div><div class="tline" data-t="356"><span class="ts">5:56</span><span class="tx">LLMs have no distinction, make no distinction between code- And, and, and text, and so they are very, very easy to trick. And this, I think, is a bigger problem than SQL injection ever was.</span></div><div class="tline" data-t="371"><span class="ts">6:11</span><span class="tx">Um, but it was not prompt injection only that made LLMs kind of like have a bad rep. LLMs are trained on the whole internet, and there's like a lot of good stuff on the internet, but also a lot of bad stuff like how do you create a bomb?</span></div><div class="tline" data-t="388"><span class="ts">6:28</span><span class="tx">How do you synthesize drugs? How do you hack into people's systems? And the leaders of the big foundation labs, they got a little bit worried that the, that the government would interfere and regulated the industry.</span></div><div class="tline" data-t="401"><span class="ts">6:41</span><span class="tx">So they told their PhD researchers, &quot;Go find a solution for this problem right now and quick. Come on, solve it before, you know, the, the government steps in.&quot; Um, and here, the PhD types, since they're PhD types, they thought long and hard about the safety problem, and they came up with a new interface</span></div><div class="tline" data-t="426"><span class="ts">7:06</span><span class="tx">for LLMs. That's this kind of scary shit on the right. Look at that. What does it say? There's like some Sigma Greek symbols. There's props, whatever. Well, that is Lean.</span></div><div class="tline" data-t="438"><span class="ts">7:18</span><span class="tx">Probably you have heard of Lean. Anyone here heard of Lean? Lean is now like the hot thing, right? Like VCs are s-- are writing like multi-billion dollar checks if you just say that you're doing something with Lean.</span></div><div class="tline" data-t="452"><span class="ts">7:32</span><span class="tx">And of course, these PhD types researchers are using Lean, and you have to suffer because of that. Um, now let's first look at the signature in a l-- a slightly simpler language called, um, Dafny.</span></div><div class="tline" data-t="467"><span class="ts">7:47</span><span class="tx">And what this thing says is that the m-- uh, LLM takes a question, returns an answer. It requires this question to be proper, which means that it's not an offensive question, and then the model returns a safe, uh, answer.</span></div><div class="tline" data-t="483"><span class="ts">8:03</span><span class="tx">And this thing is proved automatically. So if you give it a proper question, it gives you a safe answer. Um, now, I think there's too much attention for Lean.</span></div><div class="tline" data-t="495"><span class="ts">8:15</span><span class="tx">I'm a recovering typoholic and math addict. Um, I love Lean, but there's many, many other theorem provers and model checkers out there like Isabelle, Rocq, PVS, TLA+, um, but Lean is the grease that kind like keeps the VC money pumps going, so I will use Lean, um, today.</span></div><div class="tline" data-t="519"><span class="ts">8:39</span><span class="tx">So here, here's the kind like, you know, the, the, uh, interface again in Lean. And now in Lean, you don't do automatic theorem proving. If you're like a Lean expert, you will say, &quot;Erik, well, we have grind in Lean,&quot; but let's kind like, you know, put that aside for a minute.</span></div><div class="tline" data-t="535"><span class="ts">8:55</span><span class="tx">Um, but in Lean, you have to sh-- both show that the, how to compute the, the result type, and you have to do the proof by hand. Um, so it's, it's slightly different than, um, the Dafny e-example.</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">But if you think about this thing for, uh, just a single nanosecond, you will realize that it's impossible to write a formal proof that an answer is safe or a question is proper.</span></div><div class="tline" data-t="565"><span class="ts">9:25</span><span class="tx">Um, and that is why there are at least a hundred startups down here in the exhibition hall that are using L-LLMs as a judge, because this is not something that you can formally specify.</span></div><div class="tline" data-t="575"><span class="ts">9:35</span><span class="tx">What does it mean that an answer is safe? That's not a mathematical property. Um, and of course, if you own a foundation model like these guys, you don't need external LLMs as a judge.</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">You just, um, bake it into the weights, and you call it the model is aligned. Um, but unfortunately, trying to bake alignment into the model is not foolproof, and models get routinely jailbroken, so they had to go to the Pope and ask it to kind of like, you know, um, bless their model that it's safe.</span></div><div class="tline" data-t="608"><span class="ts">10:08</span><span class="tx">Um, now, I think it's terrible if like a model says something offensive, but those are just words. And ultimately, the words are, are like, they just like, you know, they drip o-off your body.</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">They don't do anything. Some human has to act on words to make them dangerous. Um, and so maybe that is what they mean by broadly safe, um, when Anthropic, uh, uh, talks about safety, um, because it's still a human involved.</span></div><div class="tline" data-t="638"><span class="ts">10:38</span><span class="tx">But then something terrible happened. Something really terrible happened that changed the world forever.</span></div><div class="tline" data-t="645"><span class="ts">10:45</span><span class="tx">And that is in June twenty-twenty-three, OpenAI announced tool call support in GPT-4. And of course, all the other vendors rushed out to copy this. This is called the principle of minimum differentiation, and that is why all these APIs, uh, look the same.</span></div><div class="tline" data-t="665"><span class="ts">11:05</span><span class="tx">Um, now, the act of adding tool calls changes AI safety from a philosophical debate to something that causes real danger. You could say tool calls give the model claws in addition to a mouth, or you can say tool calls is like handing a gun, a loaded gun to them.</span></div><div class="tline" data-t="685"><span class="ts">11:25</span><span class="tx">But of course, nobody listens to me. Everybody ignores what I say, and these guys just went ahead and kind of shipped tool calls. They just, you know, just, just do it. [audience laughing]</span></div><div class="tline" data-t="701"><span class="ts">11:41</span><span class="tx">Now, let's go back to like this is AI engineering conference, so let's look at what is the difference in the signature of LLMs when they add the tool calls.</span></div><div class="tline" data-t="710"><span class="ts">11:50</span><span class="tx">And it's just that little IO there, and of course, it messes up the, the, uh, formatting of, of the, the, um,</span></div><div class="tline" data-t="719"><span class="ts">11:59</span><span class="tx">uh, signature. But if you look at the picture, there what you show. Now suddenly Claude- Goes from like a nice puppy to a dangerous thing. Look, uh, it has all these dangerous tools, and now it's become scary, right?</span></div><div class="tline" data-t="732"><span class="ts">12:12</span><span class="tx">I've never seen anything scarier than an LLM with tool calls. Um, now if you look at this, this is like a, like a small step for a type, but a giant leap for chaos.</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">Why is that? And that is because this IO says that in order to compute the answer, the agent has to go through the agentic loop, and it's doing side effects.</span></div><div class="tline" data-t="755"><span class="ts">12:35</span><span class="tx">So while it's producing the answer, it might empty your bank account, it might delete your files, and then it gives you a safe answer. But who cares about the safe answer when all my files are gone, right?</span></div><div class="tline" data-t="767"><span class="ts">12:47</span><span class="tx">So that's why I say it's a giant leap for, for chaos. Um, again, sorry, this is an engineer conference. Let's look at this type IO. And you don't have to understand it, but just see that there's a type there called RealWorld.</span></div><div class="tline" data-t="783"><span class="ts">13:03</span><span class="tx">Yes, Lean, this esoteric thing, has a type called RealWorld. And why is that? Because something of type IO will mutate the real world, so it warns you, &quot;Don't use this yet,&quot; because it can make irreversible side effects, um, like deleting your files.</span></div><div class="tline" data-t="802"><span class="ts">13:22</span><span class="tx">So Solomon Hykes, um, last year at this conference, called an AI agent an LLM that's wrecking its environment in a loop, and I think he's a hero. I don't know if Solomon is here this year, um, but I think he should...</span></div><div class="tline" data-t="816"><span class="ts">13:36</span><span class="tx">He deserves a, deserves a round of applause, um, because I think [clapping] this is the right definition of an AI agent. Um, by the way, this was one of the pictures that I had trouble to generate because it, it clearly depicts violence, and so it's kind of an unsafe thing, right?</span></div><div class="tline" data-t="835"><span class="ts">13:55</span><span class="tx">I, I have a picture that dep-depicts violence. Um, so are we doomed? Well, our agents have access to private data. They have untrusted content, like the prompt injections, and now we give them tools.</span></div><div class="tline" data-t="848"><span class="ts">14:08</span><span class="tx">Simon Willison calls this the lethal trifecta. And what can we do about this? Well, um, I don't know if you've seen the Dutch soccer fans. They have the famous march where they say, &quot;To the left, left, left.</span></div><div class="tline" data-t="861"><span class="ts">14:21</span><span class="tx">Or to the left, left, left. To the right, right, right.&quot; This is actually the secret to solving this problem. The Dutch team got eliminated yesterday, so you have to see me do the dance.</span></div><div class="tline" data-t="874"><span class="ts">14:34</span><span class="tx">Um, but all that we're doing is we're pushing this IO to the right, to the right, and what you now see is that the tool belt of Claude goes to the left, to the left, and suddenly Claude is a nice puppy again.</span></div><div class="tline" data-t="889"><span class="ts">14:49</span><span class="tx">Because instead of executing the agentic loop, it creates a plan and says, &quot;Here is a plan to do the agentic loop,&quot; and now Bernie will take that plan and will execute it.</span></div><div class="tline" data-t="900"><span class="ts">15:00</span><span class="tx">And we all trust Bernie, right? [laughing] Bernie is a good guy. All right. So just to kind of, like, show it here. So in some sense, what we're doing, we're air gapping the agentic loop from the agent.</span></div><div class="tline" data-t="914"><span class="ts">15:14</span><span class="tx">So we don't let the agent run the agentic loop. Before the agent run it, we want to be able to check it.</span></div><div class="tline" data-t="922"><span class="ts">15:22</span><span class="tx">All right. Now, the problem is that if you get the value of type IO of A,</span></div><div class="tline" data-t="929"><span class="ts">15:29</span><span class="tx">um, that's a really a black box. And the Lean manual says that is a black box. You cannot reason about it. So even though Claude now gives us this plan, there's-- we cannot look into this plan.</span></div><div class="tline" data-t="940"><span class="ts">15:40</span><span class="tx">Lean doesn't allow us to do it. By the way, this is another picture, right? That, that promotes drugs use, and the model let me do it. I'm a good hacker, you know.</span></div><div class="tline" data-t="950"><span class="ts">15:50</span><span class="tx">I can just make it do forbidden pictures. Um, so if we look in the Lean again, what you see here is that the model now computes an answer, but it doesn't compute the answer, right?</span></div><div class="tline" data-t="963"><span class="ts">16:03</span><span class="tx">It creates an, an IO of answer. So this is a plan to generate the answer, and then it creates a proof that this, um, that that plan is safe.</span></div><div class="tline" data-t="974"><span class="ts">16:14</span><span class="tx">And the, the nice thing is here that you can get at that proof without having to run the agentic loop. But unfortunately, as I said, like, this proof, if it's, like, something of type IO, it's useless.</span></div><div class="tline" data-t="987"><span class="ts">16:27</span><span class="tx">Ah, shit, what can we do about that? So I keep kind of, like, moving you guys forward, and then we never get to the final answer.</span></div><div class="tline" data-t="995"><span class="ts">16:35</span><span class="tx">But there's one last trick, and you see the, the researchers here are becoming more, much more sophisticated. Instead of the flat 2D ones in the past, now they're like real people.</span></div><div class="tline" data-t="1008"><span class="ts">16:48</span><span class="tx">Um, and what is better than creating a plan of type IO of A is creating a program that represents an expression of type IO of A. Ooh, that sounds very meta, right?</span></div><div class="tline" data-t="1021"><span class="ts">17:01</span><span class="tx">Um, not meta in terms of Meta. I don't think they're very meta, but, um, meta in the terms of like, you know, like meta. You, you know, you know what I mean.</span></div><div class="tline" data-t="1032"><span class="ts">17:12</span><span class="tx">Um, and again, it's a small step for a signature, but a giant leap for safety, because now the model returns an expression, a program that re-represents a computation. If you know LINQ or C#, you will recognize that this is one of the tricks that I always use.</span></div><div class="tline" data-t="1052"><span class="ts">17:32</span><span class="tx">Um, if you know Lisp, this is of course second nature for you. Um, I cannot have like, you know, have a talk without talking about monads. So if you ask yourself, &quot;What is this expression thing?&quot;</span></div><div class="tline" data-t="1064"><span class="ts">17:44</span><span class="tx">Well, that's just a monad. But it's not just a monad, it's a free monad. What is a free monad? It's a monad that loves tie dyes.</span></div><div class="tline" data-t="1073"><span class="ts">17:53</span><span class="tx">Um, and now if you look at the, the signature of the, the, um, property to prove that something is safe, you see that it takes an expression of a computation that returns an answer.</span></div><div class="tline" data-t="1087"><span class="ts">18:07</span><span class="tx">Um, and if you have taken any compiler course in college, you know that it's trivial to do data flow analysis, type checking, and so on, on programs, right? So now we're safe, we're home safe.</span></div><div class="tline" data-t="1099"><span class="ts">18:19</span><span class="tx">And Geoff Huntley wanted to remind you that we can solve the trifecta problem just by doing taint analysis on these expression, on these programs. Okay, this is the last code I will show you because I'm running out of time, but just want to show you here that, you know, you now have a simple inductive recursive interpreter for</span></div><div class="tline" data-t="1120"><span class="ts">18:40</span><span class="tx">this language, and you have a simple inductive proof, and the models can generate these proofs. So to, um, recapitulate, like, uh, summarize, what we did is we went from unhinged LLMs that were s- like, you know, could give bad answers, to ones that were aligned.</span></div><div class="tline" data-t="1140"><span class="ts">19:00</span><span class="tx">Then we saw how tools wrecked it. Then we solved that by deferring execution, so by air-gapping the LLM from the tools. And then the real solution was to reify the plan into a program, and a program that we could prove to be safe.</span></div><div class="tline" data-t="1157"><span class="ts">19:17</span><span class="tx">Now, you would say, &quot;Erik, oh, you're a genius.&quot; No, um, my brain is the size of a peanut. This is th- something that's called proof-carrying code, and it was invented by academics in the 1990s, and I'm just stealing it.</span></div><div class="tline" data-t="1170"><span class="ts">19:30</span><span class="tx">Um, all right. At the higher level, if you didn't understand the code, three points.</span></div><div class="tline" data-t="1176"><span class="ts">19:36</span><span class="tx">Agents are dangerous until proven safe, so you should never, ever let your agents do something unless you can absolutely prove that it's safe. Um, the language that this agent generated was not designed, like, normal users don't understand Free Monads.</span></div><div class="tline" data-t="1193"><span class="ts">19:53</span><span class="tx">Does it matter? It's a machine that consumes it. It's a machine that generates it. It's a machine that proves it, so we should stop designing languages for humans, and it's all basic, only requires programming 101.</span></div><div class="tline" data-t="1205"><span class="ts">20:05</span><span class="tx">Um, here we go. All right. That's it. Um, the end of the story, if you're curious to play with this, a bunch of academics, in particular, Nada Amin from Harvard, have implemented this.</span></div><div class="tline" data-t="1219"><span class="ts">20:19</span><span class="tx">It's, it's there on GitHub. It uses a slightly different language than what I use. It uses also a slightly different language than Free Monads, but the idea is the same.</span></div><div class="tline" data-t="1230"><span class="ts">20:30</span><span class="tx">The language doesn't matter. It's, it's the, um, the principle that matters. So hopefully you've learned tonight that it is actually possible to have mathematically proven safe agentic compute, and it only requires very elementary type systems and programming language machinery.</span></div><div class="tline" data-t="1253"><span class="ts">20:53</span><span class="tx">Thank you so much. [audience applauding] [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

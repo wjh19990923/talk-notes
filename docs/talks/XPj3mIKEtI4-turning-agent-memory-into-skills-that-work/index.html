@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>把智能体记忆变成真正好用的技能 —— Will Lyon，Neo4j | AI 工程师中文版</title>
+<meta name="description" content="Will Lyon 讲解了 Neo4j 如何把对话、实体和决策轨迹连接起来，再把这些记忆提炼成可复用的流程，并在支撑证据变化时仍能对其进行核查。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>把智能体记忆变成真正好用的技能 —— Will Lyon，Neo4j</h1>
+    <div class="orig-title">Turning Agent Memory Into Skills That Work — Will Lyon, Neo4j</div>
+    <div class="meta"><span class="speaker">William Lyon</span> · 18:41</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=agent-memory">智能体记忆</a><a class="tag" href="../../index.html#topic=continual-learning">持续学习</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=ai-in-healthcare">医疗 AI</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/XPj3mIKEtI4-turning-agent-memory-into-skills-that-work" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="XPj3mIKEtI4"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=XPj3mIKEtI4" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">一次成功的运行仍可能让下一个智能体从头开始</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>一次成功的运行仍可能让下一个智能体从头开始</span></li><li data-t="132"><span class="ts">2:12</span><span>用共享的领域模型把提及变成实体</span></li><li data-t="249"><span class="ts">4:09</span><span>保留结果背后的决策和工具结果</span></li><li data-t="368"><span class="ts">6:08</span><span>给可复用的技能明确的执行步骤</span></li><li data-t="599"><span class="ts">9:59</span><span>在整个技能范围内检查证据——并持续检查</span></li><li data-t="735"><span class="ts">12:15</span><span>在合成流程之前先选定范围</span></li><li data-t="886"><span class="ts">14:46</span><span>从一次医疗对话到一个患者接诊技能</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 20 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Your agent is brilliant — and amnesiac" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Your agent is brilliant — and amnesiac</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Agents reason and act on a task, then forget what they learned. The slide argues that context windows, fine-tuning, and text retrieval fall short of turning experience into reusable procedures.
+
+[0:35](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=35s) [The agent loop cycles through task, reason, act, and forget; the slide describes limits of context windows, fine-tuning, and retrieval.](https://assets.ai.engineer/sites/aiecode2025/sha256/2c26a6689dacc9ce5fd846362b3b97c47a65d7f82aedffb9da6aba041aeb6ec1.webp)
+
+THE PROBLEM
+
+Your agent is brilliant — and amnesiac
+
+Every run, your agent re-derives behavior from scratch. It solved this exact incident last week — and remembers nothing. The bottleneck for agents in production isn't reasoning. It's turning experience into reusable, trustworthy knowledge.
+
+• Context windows are short-term memory — great for a turn, useless across sessions
+• Fine-tuning is slow and opaque — you can't audit or revert what it 'learned'
+• Prompts and RAG recall text — not procedures the agent can act on
+
+The agent loop today?
+Task → Reason → Act → Forget → Task
+
+experience evaporates</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="The pattern under agent memory" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The pattern under agent memory</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Agent memory follows a retrieval loop: embed text, retrieve similar material, stuff it into context, and generate. The model must figure out how to use it on every turn.
+
+[0:56](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=56s) [A flow runs from embedding and retrieval through stuffing context to generation.](https://assets.ai.engineer/sites/aiecode2025/sha256/244d383ebbe91fca7e1a6f2e3af3929ac7dabd91f8c130c81879885459b362c2.webp)
+
+THE PROBLEM
+
+The pattern under “agent memory”
+
+Embed everything. Retrieve what looks similar. Stuff it into the context window. Hope the model figures out what to do — on every turn.
+
+Embed → Retrieve → Stuff context → Generate
+
+A retrieval loop. Useful — but it is a lookup, repeated.
+
+05</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="What the agent actually receives" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What the agent actually receives</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Similar chunks enter the context window, leaving the agent to work out how to use retrieved text without a model of who, what, or why.
+
+[1:08](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=68s) [Similar text chunks flow into a context window and then to an agent.](https://assets.ai.engineer/sites/aiecode2025/sha256/3cda2e97ceed994cb42695dca6c1bd8f5b9de6de977c448f2684d68bd8255337.webp)
+
+THE PROBLEM
+
+What the agent actually receives
+
+A pile of relevant text — not a model of who, what, or why.
+
+similar chunks → context window → Agent
+?
+
+06</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Recall isn’t knowledge an agent can act on" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Recall isn’t knowledge an agent can act on</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Dr. Nguyen, Robert N., and the cardiologist refer to the same person, but retrieval leaves them as disconnected strings without a canonical representation.
+
+[1:20](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=80s) [Three disconnected labels represent different references to the same person.](https://assets.ai.engineer/sites/aiecode2025/sha256/4bc0f44a7c366f63312534ad13473fba98d9dfb0b65249af884e6062102d2977.webp)
+
+THE PROBLEM
+
+Recall isn’t knowledge an agent can act on
+
+Retrieve every mention of one customer and the agent still has three disconnected strings — not one person.
+
+Dr. Nguyen   ?   Robert N.   ?   the cardiologist
+
+Same person. Three surface forms. Zero connection — and often a confidently invented fourth.
+
+08</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Connected, typed, and traceable knowledge" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Connected, typed, and traceable knowledge</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Lyon argues that retrieval is only part of agent memory: agents also need connected, typed, and traceable knowledge, including a canonical representation for different references to the same person.
+
+[1:51](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=111s) [A statement says agents need connected, typed, and traceable knowledge to act.](https://assets.ai.engineer/sites/aiecode2025/sha256/ea95bf0ec9d35a548dad0bbcfe5355743a93cf314275bc74851dcad6952bc432.webp)
+
+To act, an agent needs knowledge that’s connected, typed, and traceable — not just retrievable.
+
+09</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Agent memory graph" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent memory graph</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Neo4j’s model links conversation messages and entities with reasoning traces and tool calls, bringing short-term, long-term, and reasoning memory into one graph.
+
+[2:04](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=124s) [A graph connects short-term conversation messages, long-term entities, and reasoning traces and tool calls.](https://assets.ai.engineer/sites/aiecode2025/sha256/667583d21d0732a068e4514d25a6a678b55bfe4a756f1613d94d058b35e5d519.webp)
+
+Legend
+Short-Term
+Long-Term
+Reasoning
+
+Short-Term Memory
+Conversation
+FIRST_MESSAGE
+Message
+NEXT_MESSAGE
+Message
+NEXT_MESSAGE
+Message
+
+Long-Term Memory
+Entity:Person
+MENTIONED_IN
+WORKS_AT
+Entity:Organization
+
+Reasoning Memory
+TRIGGERED
+ReasoningTrace
+HAS_STEP
+ReasoningStep
+USED_TOOL
+ToolCall
+RETRIEVED
+CALL_OF
+Tool
+
+https://neo4j.com/labs/agent-memory/</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Context graphs for agent memory" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Context graphs for agent memory</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Lyon frames agent memory as a connected graph combining short-term, long-term, and reasoning memory. Its knowledge should be typed and traceable, not just retrievable.
+
+[2:23](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=143s) [Title slide describing persistent, structured, queryable memory.](https://assets.ai.engineer/sites/aiecode2025/sha256/7baae0f39ad3d1ca836466cb09fdee478761e534ef20cb7d05bc1edba88703cb.webp)
+
+Context graphs for agent memory
+
+Persistent, structured, queryable memory — the substrate for everything else.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="From conversation to graph" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From conversation to graph</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Entity extraction turns a message into a graph: the diagram links a provider to a medication through PRESCRIBED and to an event through ATTENDED.
+
+[2:29](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=149s) [A message is extracted into a graph connecting a provider to a medication and an event.](https://assets.ai.engineer/sites/aiecode2025/sha256/64728176d03233f8b5a8b69a4d809a081539c7dcd7e905b04fd77f0b8e8d481e.webp)
+
+WHAT THEY KNOW
+
+From conversation to graph
+
+Messages land in short-term memory; extraction builds the long-term graph behind them — no manual schema wrangling.
+
+:Message
+“Dr. Nguyen started me on atorvastatin.”
+
+extract
+
+Provider
+PRESCRIBED
+Medication
+ATTENDED
+Event
+
+17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Typed entities, typed relationships" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Typed entities, typed relationships</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Typed relationships connect a person to an organization, location, and event. The agent can traverse these connections to find what bears on a decision rather than rank nearest neighbours.
+
+[2:52](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=172s) [A person node connects to organization, location, and event nodes through labeled relationships.](https://assets.ai.engineer/sites/aiecode2025/sha256/bc048f9902dee59606bfcae6b4898586b74976063698ec5f704a0c7cc4e8ce81.webp)
+
+WHAT THEY KNOW
+
+Typed entities, typed relationships
+
+Every node has a type; every edge has a type.
+The agent traverses to exactly what bears on a decision — instead of ranking nearest neighbours and guessing.
+
+Person
+Org
+Location
+Event
+
+WORKS_AT
+LOCATED_IN
+ATTENDED
+
+18</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Entity resolution: three forms, one node" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Entity resolution: three forms, one node</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Entity resolution combines three references to Dr. Nguyen into one provider node, so his name, role, and aliases attach to a single representation.
+
+[3:06](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=186s) [Three references to a provider resolve to one node with name, role, and alias properties.](https://assets.ai.engineer/sites/aiecode2025/sha256/11ea765c6c5b69619db83afb48bbfcde5d47387f9f056a0c2db45874a22b310b.webp)
+
+WHAT THEY KNOW
+
+Entity resolution: three forms, one node
+
+BEFORE
+Dr. Nguyen
+Robert N.
+the cardiologist
+
+resolve
+
+AFTER
+Provider
+name: R. Nguyen
+role: cardiologist
+aliases: 3
+
+Facts attach to the entity — not scattered across passages.
+
+20</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="A shared ontology" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A shared ontology</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A shared ontology defines domain types and relationships for extraction. Here, Patient, Condition and Medication shape a graph that connects a patient to a condition and the condition to a medication.
+
+[3:27](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=207s) [An ontology of patient, condition, and medication types shapes a graph with labeled relationships.](https://assets.ai.engineer/sites/aiecode2025/sha256/be7707d38533c985c1f79583099cff2b3685c2c7b21cc82aa63fb5a8c902be0f.webp)
+
+SHAPING THE GRAPH
+A shared ontology
+
+Define the types that matter for your domain; extraction produces typed, validated, deduplicated entities — not generic blobs.
+
+Ontology
+Patient
+Condition
+Medication
+DIAGNOSED_WITH
+PRESCRIBED
+
+Patient
+DIAGNOSED_WITH
+Condition
+PRESCRIBED
+Med
+
+Same conversation, shaped to your world.
+
+32</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Reasoning as first-class structure" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reasoning as first-class structure</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Will Lyon introduces reasoning memory as a first-class part of agent memory: capturing an agent’s actions and reasoning alongside messages and extracted entities.
+
+[3:46](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=226s) [Section title slide introducing reasoning as first-class structure.](https://assets.ai.engineer/sites/aiecode2025/sha256/7e4c512e4d23353360ca58af0e2a5ec47335aee27397cae67e100a3f99feaf01.webp)
+
+HOW THEY DECIDED
+
+Reasoning as
+first-class structure
+
+22</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Store the thinking, not just the facts" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Store the thinking, not just the facts</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The context graph makes decisions, tool calls, and outcomes queryable so an agent can learn from its past reasoning. The slide points to learning from other agents as a future step.
+
+[4:30](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=270s) [Slide describes capturing thought, action, and outcome as queryable context.](https://assets.ai.engineer/sites/aiecode2025/sha256/b3b462278d5b5eacf83a65fa4e06aa96a18ef8c146f0f612539edf6431701541.webp)
+
+HOW THEY DECIDED · THE DIFFERENTIATOR
+
+Store the thinking, not just the facts
+
+Most systems remember what an agent learned. Few remember how it decided. The context graph stores decisions, tool calls, and outcomes as nodes.
+
+thought → action → outcome, captured and queryable.
+
+So an agent can learn from its own past reasoning — and, soon, from other agents’.
+
+23</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Agents learn from each other" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agents learn from each other</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Decision traces capture an agent’s reasoning, tool calls, results, token use and timing, creating context that other agents can use.
+
+[4:39](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=279s) [Slide states that one agent’s reasoning becomes another’s context.](https://assets.ai.engineer/sites/aiecode2025/sha256/c1bf5b20751ea4f662f7ed3a3b719177832fc2c6e9724293c9f39965488f8bc7.webp)
+
+Agents learn from each other
+
+One agent’s reasoning becomes another’s context.
+
+26</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="A trace isn’t trapped in one run" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A trace isn’t trapped in one run</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An ephemeral agent run persists a decision linked to an entity in the graph, where agents with access can read it after the run ends.
+
+[5:13](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=313s) [Diagram shows an ephemeral agent run persisting a decision linked to an entity.](https://assets.ai.engineer/sites/aiecode2025/sha256/7118a9b27d4fcc6770badce0f6cf8cb4df43f0912beefbda7f67f018741de268.webp)
+
+SHARED MEMORY
+
+A trace isn’t trapped in one run
+
+Because reasoning is a graph object, not a transcript, it outlives the session that created it — and any agent with access can read it.
+
+Agent run (ephemeral)
+persist
+Decision
+Entity
+
+Persisted once. Available to everyone after.
+
+27</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="One shared context graph" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One shared context graph</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Agents write what they learn and decide to a shared graph, then read one another’s work. The diagram connects agents to decision, entity and message nodes.
+
+[5:36](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=336s) [Three agents connect to a shared graph containing decision, entity, and message nodes.](https://assets.ai.engineer/sites/aiecode2025/sha256/0dead05de527a6f29b971ce647ac0dc5b908c238051a9cae31b03f5596d00c0a.webp)
+
+SHARED MEMORY
+
+One shared context graph
+
+Many agents, one graph. Each writes what it learns and decides; each reads what the others already built.
+
+Agent A
+Agent B
+Agent C
+Decision
+Entity
+Message
+
+one shared graph · many agents
+
+28</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Memory tells you what happened. Skills tell you what to do." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Memory tells you what happened. Skills tell you what to do.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Distillation turns short-term, long-term, and reasoning memory into governed, reusable procedural knowledge, providing a path from a memory graph to executable skills.
+
+[5:51](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=351s) [A memory node points to a skill node through a distillation step.](https://assets.ai.engineer/sites/aiecode2025/sha256/1f4e89a2ddac4da3257c1078dd08f194b1a4defbd1785eae9f98261d2addf03b.webp)
+
+Memory tells you what happened.
+Skills tell you what to do.
+
+memory → distill → skill
+
+Distillation is the compiler from short-term, long-term, and reasoning memory into governed, reusable procedural knowledge.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="A skill: SKILL.md and progressive disclosure" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A skill: SKILL.md and progressive disclosure</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A skill keeps its metadata in context, loads its SKILL.md procedure when relevant, and pulls references and code on demand. Lyon describes the result as a shareable package reusable across agents.
+
+[6:44](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=404s) [Three layers of a skill: metadata, the SKILL.md body, and references and code loaded on demand.](https://assets.ai.engineer/sites/aiecode2025/sha256/51ec5d488e5d5aed5403ee2a0181c1dc8a6daf976cacad1f6a18877f15325d84.webp)
+
+THE ARTIFACT
+
+A skill: SKILL.md + progressive disclosure
+
+1 · Metadata
+name + description — always in context; the trigger
+
+2 · SKILL.md body
+loaded when relevant — the core procedure
+
+3 · References &amp; code
+pulled on demand — exemplars, schema, scripts
+
+Progressive disclosure → effectively unbounded context, loaded only as needed.
+
+agentskills.io — an open standard
+
+A folder + a Markdown file with YAML frontmatter. Portable across Claude, Code, the Agent SDK — and any compatible runtime.
+
+Anthropic, Oct 2025
+
+“We hope to enable agents to create, edit, and evaluate Skills on their own, letting them codify their own patterns of behavior into reusable capabilities.”
+
+Actionable Knowledge with Context Graphs
+William Lyon · Neo4j
+9</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Why prose skills break — and what AIP proposes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why prose skills break — and what AIP proposes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AIP represents a skill as schema-validated steps with typed inputs and outputs. Its graph makes dependencies and parallel work explicit, offering addressable steps for diagnosis and repair.
+
+[9:08](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=548s) [Four problems with prose skills appear beside a diagram of a typed, schema-validated directed acyclic graph.](https://assets.ai.engineer/sites/aiecode2025/sha256/4398bc03a12241677c79d4aef25e15e95afe47f1533c685fc9f98d58c29de47f.webp)
+
+Why prose skills break — and what AIP proposes
+
+Prose instructions carry four compounding problems. AIP represents a skill as a typed, schema-validated DAG — a validity-gated action space that measurably beats prose.
+
+Prose skills break
+a Markdown file of prose — four compounding problems
+
+Re-derivation cost
+Re-read and re-interpreted every session — slow, token-heavy, with run-to-run variance.
+
+Prompt brittleness
+Semantics-preserving wording changes can swing task accuracy by tens of points.
+
+Resistance to improvement
+Additive bias — agents pile on words rather than fix structure they don't fully grasp.
+
+Opaque failure
+No addressable units, so a failure can't be attributed to a specific step.
+
+AIP
+typed · schema-validated
+
+AIP: a typed, schema-validated DAG
+a skill node over typed step nodes, validated at authoring time
+
+Skill
+purpose · triggers · scope
+schema-validated
+
+script  step-001
+in:{ctx} -&gt; out:{r}
+
+depends_on
+
+description  step-002
+in:{r} -&gt; out:{plan}
+
+parallel
+
+script  step-003
+in:{plan} -&gt; out:{ok}
+
+description  step-004
+judgment step
+
+control edges: depends_on · parallel · one_of · typed I/O between steps
+Validity-gated action space — every node typed, schema-bound and addressable for diagnosis and repair.
+
+36</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="And it measurably helps" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>And it measurably helps</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In the SkillsBench comparison, the same skill compiled to a graph has a mean task reward of 0.71 versus 0.60 in prose; task pass rate rises from 53% to 67%.
+
+[9:32](https://www.youtube.com/watch?v=XPj3mIKEtI4&amp;t=572s) [Reported mean task reward rises from 0.60 to 0.71 and task pass rate from 53% to 67%.](https://assets.ai.engineer/sites/aiecode2025/sha256/76ba81208d8ebf2adeb178ad6665fe1f08db7c751ff2f7537aced346b8da8e47.webp)
+
+And it measurably helps
+
+Handed runnable graph steps instead of prose to reinterpret, the agent acts more reliably — and is far easier to debug.
+
+Mean task reward
+0.60 → 0.71
+
+Task pass rate
+53% → 67%
+
+Same skill, compiled to a graph vs. left as prose · SkillsBench · AIP (Blumenfeld &amp; Webber, 2026)
+
+Embedded figure: [illegible]
+
+37</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">一次成功的运行仍可能让下一个智能体从头开始</a></li><li><a href="#sec-2">用共享的领域模型把提及变成实体</a></li><li><a href="#sec-3">保留结果背后的决策和工具结果</a></li><li><a href="#sec-4">给可复用的技能明确的执行步骤</a></li><li><a href="#sec-5">在整个技能范围内检查证据——并持续检查</a></li><li><a href="#sec-6">在合成流程之前先选定范围</a></li><li><a href="#sec-7">从一次医疗对话到一个患者接诊技能</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">把智能体记忆变成真正好用的技能</h2>
+      <div class="lede"><p>Will Lyon 讲解了 Neo4j 如何把对话、实体和决策轨迹连接起来，再把这些记忆提炼成可复用的流程，并在支撑证据变化时仍能对其进行核查。</p><figure><img src="https://ai.engineer/api/talk-essay-media/009ec3787a58680acdc9df9b3363d9b93b0cf396937e659aaa060407f7dcf31a" alt="Turning Agent Memory Into Skills That Work — Will Lyon, Neo4j 第 128 秒的演示画面" loading="lazy" class="zoom" referrerpolicy="no-referrer" /></figure><p>Lyon 把智能体记忆呈现为一张连通的图，包含短期记忆、长期记忆和推理记忆。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>一次成功的运行仍可能让下一个智能体从头开始</h3>
+      <p>An agent reasons, acts and successfully completes a task. Then it forgets what it learned. Will Lyon, a product manager at Neo4j, opens with this “amnesic loop”: finishing an attempt does not necessarily make the next attempt better. A memory system may preserve the conversation without preserving a usable account of the people, actions and decisions involved.</p>
+<p>Embedding-based memory addresses part of that problem. It stores text, finds similar chunks when a new request arrives, and inserts those chunks into the context window. The agent must then work out what they mean and how to use them. Similarity retrieves relevant wording; it does not itself establish that several descriptions refer to the same thing.</p>
+<p>The opening example is a provider described in several ways: by name, by an abbreviated name and as a cardiologist. Retrieving those mentions leaves an identity question for the agent to solve. A canonical representation gives the mentions a common referent. That is the first requirement behind Lyon’s formulation that agent knowledge should be “connected, typed, and traceable.” Retrieval remains useful, but the memory must also describe what its contents refer to and how they fit together.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="132">▶ 2:12</button></div>
+      <h3>用共享的领域模型把提及变成实体</h3>
+      <p>Neo4j’s context graph connects three kinds of memory: short-term, long-term and reasoning memory. The first transformation starts with user and assistant messages. Entity extraction identifies the things discussed and their relationships; the graph records those relationships with explicit types. The result carries more structure than a collection of text passages.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c18b0e4f91b2bdde91ac92d70183c0537024d922224898b0a626a7f25607bb67" alt="Selected presentation frame from Turning Agent Memory Into Skills That Work — Will Lyon, Neo4j at 160 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide shows messages passing through extraction into a typed knowledge graph.</figcaption></figure>
+<p>Two distinct mechanisms make that structure useful:</p>
+<p>- <strong>Entity resolution:</strong> Different mentions must resolve to a canonical entity. For the provider example, the graph can associate the person with a name and role rather than leaving each mention as an unrelated fragment.
+- <strong>Shared ontology:</strong> A domain model describes the kinds of entities and relationships the system recognizes. In the later healthcare demonstration, that vocabulary includes providers and encounters. It gives extraction a common structure to work toward.</p>
+<p>The distinction matters: identifying a provider-shaped mention and deciding which provider it denotes are separate jobs. The ontology describes the kind of thing; resolution establishes its identity. Lyon places particular weight on resolution because the connected graph depends on getting that common identity right.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="249">▶ 4:09</button></div>
+      <h3>保留结果背后的决策和工具结果</h3>
+      <p>Messages and extracted entities describe what the conversation contained. Reasoning memory adds the actions taken during the run. Its organizing unit is a decision trace: a decision linked to supporting evidence, explicitly modeled policies, the execution plan, tool calls and their results. Token use and elapsed time belong in that record too.</p>
+<p>This makes a completed run useful beyond its final answer. A later agent can encounter both the domain entities and the recorded route through the tools. Lyon’s intended setting includes hundreds or thousands of agents with overlapping tool access. Persisting their traces in one organizational context graph gives them a shared record from which to learn, rather than confining each run’s experience to one agent.</p>
+<p>What information must remain connected for another agent to understand a decision? The diagram separates conversational memory from execution memory, then joins them in the shared graph. That connection preserves both what was discussed and what was done with it.</p>
+<p>Conversations and execution traces meet in shared memory
+The context graph connects domain knowledge with evidence about agent actions, making both available across agents.
+- User and assistant messages — The conversational record supplies mentions and relationships.
+- Typed, resolved entities — Extraction, canonical identity and a shared ontology organize domain knowledge.
+- Decision traces — Decisions connect to evidence, policies, tool calls, results, token use and timing.
+- Shared context graph — Short-term, long-term and reasoning memory remain connected.
+- Other organizational agents — Agents can use the persisted experience of earlier runs.
+- User and assistant messages → Typed, resolved entities (Extract and resolve)
+- Typed, resolved entities → Shared context graph (Store domain knowledge)
+- Decision traces → Shared context graph (Persist agent runs)
+- Shared context graph → Other organizational agents (Share memory)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="368">▶ 6:08</button></div>
+      <h3>给可复用的技能明确的执行步骤</h3>
+      <p>Memory records what happened. A skill packages guidance for what an agent should do next. The skill format described here starts with metadata explaining its purpose, then uses progressive disclosure: more detailed Markdown and reference material enter context when the agent needs that part of the procedure. Packaging makes the guidance reusable across agents without loading every reference upfront.</p>
+<p>Prose still leaves interpretation work. A procedure can refer ambiguously to an entity, describe a step loosely or make its output difficult to debug. Neo4j’s research addresses these problems by extending the skill representation with metadata that treats the procedure as a typed execution graph. Steps become nodes, and a strict schema governs their descriptions and how they are actionable.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/41df08d3b8970c61d3614556875716dbb9f98a57df5c773d81a1f80afc562e17" alt="Selected presentation frame from Turning Agent Memory Into Skills That Work — Will Lyon, Neo4j at 544 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide represents a skill as linked execution steps, including validation and recommendation.</figcaption></figure>
+<p>The graph representation makes the procedure’s parts explicit while retaining the skill as a shareable package. It also creates a more structured object to inspect: the system can reason about individual steps instead of treating the entire procedure as one block of prose. Lyon reports an increase in successfully completed SkillsBench tasks when the research protocol was applied to human-curated skills. The recording gives no numerical result or evaluation details, so this supports a reported benefit in that comparison rather than a quantified expectation for other workloads.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="599">▶ 9:59</button></div>
+      <h3>在整个技能范围内检查证据——并持续检查</h3>
+      <p>Skill distillation starts from a context graph scoped to a workspace or project and turns observed experience into procedural guidance. The goal is to retain well-understood steps and their supporting data. That support also gives the system something to monitor: when the memory changes, the procedure derived from it may need to change.</p>
+<p>Three checks ask different questions about a candidate skill:</p>
+<p>- <strong>Grounding:</strong> Does the skill draw on data actually present in memory?
+- <strong>Coverage:</strong> Are the steps and descriptions supported throughout the skill, rather than only in one part?
+- <strong>Coherence:</strong> Does the selected subgraph describe a sufficiently unified topic, or has it combined material that should become multiple skills?</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/9aaee091f3ee314603b544856f28a3da5d735d53dae85f2bd5a22c44d77344df" alt="Selected presentation frame from Turning Agent Memory Into Skills That Work — Will Lyon, Neo4j at 672 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide groups grounding, coverage, and coherence as checks for a skill.</figcaption></figure>
+<p>These checks constrain what gets packaged. Evidence for some statements does not establish support for every step, and a well-supported collection can still mix several topics. Governance continues after generation: a dynamically loaded, governed skills registry can provide an up-to-date skill and expose whether it has become stale or drifted. The useful unit is therefore a procedure with maintained connections to its evidence.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="735">▶ 12:15</button></div>
+      <h3>在合成流程之前先选定范围</h3>
+      <p>The Neo4j Agent Memory Service, abbreviated NAMS, implements this pattern as a Neo4j Labs service. A workspace-scoped graph holds the three memory types. Background workers distill skills, while background curation surfaces skills whose supporting memory has changed.</p>
+<p>The first consequential choice is scope. A skill can start from the subgraph around an entity or from a specific conversation. That selection determines which experience the system will attempt to turn into a procedure. Lyon describes most pipeline steps as deterministic; the LLM synthesizes some claims and generates text for the skill description. Deterministic processing surrounds the language-generation work, rather than making the entire process deterministic.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/500e6186218a663fcc2deda0422648ce1bba203051954504066327f691614028" alt="Selected presentation frame from Turning Agent Memory Into Skills That Work — Will Lyon, Neo4j at 800 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The pipeline diagram begins with scope selection and continues through skill distillation stages.</figcaption></figure>
+<p>Each component retains support in the underlying graph. Curation can then watch for three consequential changes: supporting data changes, disappears or becomes contradictory. Coherence uses graph algorithms such as community detection. If the selected material spans several topic communities, that can indicate that the proposed skill should be decomposed. It is a signal for deciding how to divide the material, rather than a claim that every cross-community procedure is invalid.</p>
+<p>How does a change in memory reach an already generated skill? The flow below makes the evidence connection visible. Distillation produces the procedure, but curation follows the supporting data afterward; packaging does not end the skill’s relationship with memory.</p>
+<p>Distill from evidence, then monitor that evidence
+The skill graph retains support for its components, allowing later memory changes to trigger staleness signals.
+- Selected memory scope — Start from an entity subgraph or a conversation.
+- Distillation — Mostly deterministic processing, with an LLM synthesizing claims and descriptive text.
+- Grounded skill graph — Individual components remain supported by underlying memory data.
+- Skill package — SKILL.md and references support progressive disclosure.
+- Background curation — Monitor changed, removed or contradictory support and surface stale skills.
+- Selected memory scope → Distillation (Define the input)
+- Distillation → Grounded skill graph (Construct the procedure)
+- Grounded skill graph → Skill package (Package for reuse)
+- Selected memory scope → Background curation (Observe supporting-data changes)
+- Grounded skill graph → Background curation (Identify affected components)</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="886">▶ 14:46</button></div>
+      <h3>从一次医疗对话到一个患者接诊技能</h3>
+      <p>The demonstration starts with memory already ingested. NAMS exposes REST APIs and MCP tools for ingesting, retrieving and working with the three memory types. Its dashboard provides a graph view that can be traversed, a view of flagged entities and the domain ontology. Here, the healthcare ontology organizes data about encounters and providers, and the workspace contains healthcare-agent conversations.</p>
+<p>The next action narrows that collection to a skill-sized input. The interface offers an entire workspace, an entity, specific conversations or a class in the ontology as possible scopes. Lyon selects the most recent conversation. That choice queues a distillation job, which fetches the relevant data, runs a seven-stage pipeline, constructs the skill graph and packages it.</p>
+<p>While that job runs, the demonstration opens an earlier result derived from a patient-intake conversation. The observable change is from a record of one interaction to a procedure covering patient intake through charting. The extracted steps remain grounded in the actual tool calls and entities that supplied their components. The earlier conversation therefore contributes both the procedural sequence and inspectable support for it. This is a previously generated result; the demonstration does not establish completion of the newly queued job or show the resulting skill executing a fresh intake.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/e321c539e04ff1dd8ff524541bed5958ba15ba4dc8e93dc6be20862707b439b3" alt="Selected presentation frame from Turning Agent Memory Into Skills That Work — Will Lyon, Neo4j at 1024 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The NAMS interface shows a patient-intake skill beside its conversation detail.</figcaption></figure>
+<p>The output includes <code>SKILL.md</code>; a downloaded package would also contain references following the progressive-disclosure pattern. The graph representation and the familiar skill package serve different parts of the same workflow: structured steps retain their evidence, while the package carries guidance that another agent can load as needed. The talk ends by pointing toward slides, service documentation and open-source tooling for implementing these patterns.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Entity resolution and a shared ontology turn retrieved mentions into connected domain knowledge with canonical identities and explicit types.</li><li>Decision traces preserve evidence, policies, tool calls, results and execution costs so experience can be shared across agents.</li><li>Skill distillation needs grounding, coverage and coherence: supporting some claims is insufficient if other steps lack evidence or the input combines unrelated topics.</li><li>Connections from skill components to their supporting memory let curation detect when changed, removed or contradictory data makes a procedure stale.</li><li>The patient-intake demonstration turns an earlier conversation into steps through charting, grounded in tool calls and entities and packaged with SKILL.md and references.</li><li><a href="https://ai.engineer/talks/OA-Mc60Rboo-beating-rl-reflection-gepa-optimize-anything" target="_blank" rel="noopener">Beating RL With Reflection: GEPA and Optimize Anything</a> — A complementary approach to learning from execution traces: reflection changes prompts, agent programs and repository skills, while Lyon focuses on structured memory, evidence connections and skill governance.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Let's go ahead and get started. I see some folks wanting to, to come on in, so feel free to, to come in. Uh, this session is gonna be all about actionable knowledge and context graphs. So my name's Will, I'm a product manager at Neo4j. Um, there's been a lot of discussion in this conference so far about loops, right? The, uh, React loop, the Ralph loops. Sometimes I</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">feel like we're in maybe like a, an amnesic loop, right? Where our, our agents go through this, uh, reasoning phase, acting, they successfully complete some task, but then kind of forget, uh, what they've learned. And memory systems today are largely focused around, uh, embedding text, then at retrieval time, sort of finding the most relevant data to, to stuff into the context, right? Um, so, so something like this. We</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">find, you know, similar chunks of data in, in our, our corpus. We inject that into the context window and trust that the agent is able to do something useful with that, right? Now, the, the challenge that we have is, you know, recall isn't really, like, actionable knowledge. So one challenge we run into is, like for example, we don't have a canonical representation of a thing, right? So if we have, you know, three different ways that we refer</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">to Dr. Nguyen, Robert N, the cardiologist, right? Like, depending on the, the context of this discussion, we need to have some canonical representation of the thing, right? So really, agents need knowledge that is both connected, typed, and traceable, right? Not just retrievable. So retrieval is, is, uh, just a part of the problem when we're talking about, uh, agent memory. So at Neo4j, this</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">is how we think of agent memory. We think of it as a connected graph composed of short-term, long-term, and reasoning memory. Uh, we'll take a look at, uh, this in a bit more detail, uh, but bear with me on, on this idea of context graphs for agent memory, right? So what are a few of the, the key components here? Well, one is going from unstructured data to a knowledge graph, right? Going from the, this process of</span></div><div class="tline" data-t="164"><span class="ts">2:44</span><span class="tx">agent messages, right, both u- user and assistant messages, going through some entity extraction process, where we're identifying what are the entities, uh, and how are they connected. Um, doing this in a graph where we have strong types, right? We have a, a relationship that describes how these entities are related.</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">The entity resolu- resolution phase is, uh, one of the most important parts of building up this, this knowledge graph, right? Understanding and making sure that you have a canonical representation of the thing. Uh, so when we're talking about Dr. Nguyen, we know this is a provider, his name, the role that he has, uh, and so on. And a shared ontology is an important piece of this, right? So having some description of your data model of the domain that you're working with, this is one</span></div><div class="tline" data-t="218"><span class="ts">3:38</span><span class="tx">of the key pieces, uh, of making sure that you're successful in going from that unstructured text data to, uh, to a knowledge graph. So for folks that have, that have worked with memory, uh, i- in agents in the past, like, this, this should look a little familiar. Uh, one thing though that I think is really important when we're talking about agent memory and actionable knowledge is this idea of the reasoning graph, right? So, um,</span></div><div class="tline" data-t="249"><span class="ts">4:09</span><span class="tx">if we saw in our, our, uh, sort of three components of agent memory here, reasoning memory is a first-class citizen, right? We've talked about short-term and long-term. These are the messages, the entities extracted. But what about the actual actions that the agent takes? What about the, the reasoning? Um, we wanna make sure that we're capturing that because that is an important piece, uh, as well. So we wanna make sure that we're storing thinking, the facts, not just, uh, not just the data, right?</span></div><div class="tline" data-t="278"><span class="ts">4:38</span><span class="tx">So how an agent decided, and this is typically represented as decision traces, right? So every decision, uh, that our agent makes is linked to, uh, the reasoning grounded in evidence, right? We have policies, um, that, that we're modeling explicitly, and we understand for that execution plan, the tools the agent called, the results of those tool calls. Uh, we also wanna capture things like how many tokens did this burn,</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">the, the timing that this took, and so on. This is all part of, uh, capturing the reasoning memory. And th- this is important, like, not just so that a single agent can get better the next time you do it to do the exact same thing, but rather think about systems where you have hundreds or, or thousands of agents that have some shared grouping of, of tools that they have access to, right? So we're able to persist these agent runs, these, these decision traces in the graph,</span></div><div class="tline" data-t="338"><span class="ts">5:38</span><span class="tx">and then share that with other agents in our organization, right? So that we have one shared context graph, uh, that enables our agents to essentially learn from, uh, each other in this shared memory piece. Okay. So that, that, that's the memory piece. Like, th- this, this is, um- Uh, a system that we've built at, at Neo4j, a pattern that, that lots of folks are, are, are following for working, uh, with agent memory. But what about this idea of, of actionable knowledge, right?</span></div><div class="tline" data-t="368"><span class="ts">6:08</span><span class="tx">How do we enable our agents to, to take action? Uh, memory, one way to think of memory is, is this is a good representation of what happened, right? We know, um, the people we were talking about, how they're connected. We have the- these decision traces. Um, the next step is typically creating skills, right? How many people are, are using skills w- with their agents today? Mo- most folks? Cool. H- how many people have, have written skills yourself?</span></div><div class="tline" data-t="399"><span class="ts">6:39</span><span class="tx">Cool. Mo- most folks. How many folks have had an agent write the skill for you, right? Cool. Yeah, so that, that's what we're, we're talking about here, is going from this memory graph, this context graph, to how can we use that to create, like, grounded, uh, executable skills? So if you're not familiar with, uh, with a skill, this is, um, an open standard Anthropic, um, put this out, uh,</span></div><div class="tline" data-t="429"><span class="ts">7:09</span><span class="tx">agentskills.io, I, I think is where the, um, open standard is hosted. And the basic idea here is that we have some, uh, some, some metadata, right, some description of, like, what this skill is about, uh, and then this progressive disclosure, right? So I, I have lots of more detailed information. These are often in like markdown files, references that we can, um, progressively choose if, if we're going down this path of one piece of the skill, we can, uh, retrieve and load that data, uh,</span></div><div class="tline" data-t="459"><span class="ts">7:39</span><span class="tx">into context, right? So this is, this then gives us some, like, shareable unit, uh, that we can then, uh, take the skill, package it up, uh, and reuse that across different agents. But skills have a, a similar challenge to some of the issues that we saw, uh, previously when, when we were talking about, uh, memory, right, is that we're, we're typically working with prose. Um, and so we're still often</span></div><div class="tline" data-t="489"><span class="ts">8:09</span><span class="tx">limited in, in this, uh, challenge of understanding, is this the canonical thing that we're talking about, making sure that we have, like, debuggable steps and, and output. Um, and so to address some of these challenges that, uh, we're seeing with skills, uh, some folks on the Neo4j research team, um, have done some interesting research and published some work on AIP, uh, graph representation for learning and governing agent skills. Um, this is a screenshot</span></div><div class="tline" data-t="519"><span class="ts">8:39</span><span class="tx">from the, the paper. Zach is, uh, is here somewhere. If he's not here, he's, he's at, um, the Neo4j booth today. So definitely, uh, chat with Zach if you're interested in this. But you can think of this, uh, AIP as essentially an extension of the agent skills, um, protocol with some additional metadata that now treats your skills as typed execution graphs, right? So we have, uh, steps modeled as nodes. We have a very,</span></div><div class="tline" data-t="549"><span class="ts">9:09</span><span class="tx">um, very strict schema that governs how we describe that, how these, uh, steps are actionable, right? So think a, think of this as a way of, of representing, um, a skill as a graph broken up into steps that are executable with a schema-governed description. Um, that's the, the AIP protocol, and this is from the, uh, the benchmark that was used in the, the</span></div><div class="tline" data-t="579"><span class="ts">9:39</span><span class="tx">paper. Found that, yeah, like, this, this actually matters. When, when they applied this to, um, SkillsBench, saw like a significant increase in, uh, tasks successfully completed when looking at applying, uh, the AIP protocol to human, uh, curated, uh, skills.</span></div><div class="tline" data-t="599"><span class="ts">9:59</span><span class="tx">So that looks interesting. How can we leverage some of those, uh, some of those ideas, some of that research for skill distillation? Uh, so essentially what, what we want to do is take this, this memory graph, right, this context graph that's maybe scoped to a, a workspace or scoped to a, a project in an organization, and we want to distill that into a skill, but not just like a markdown file. We want this to be grounded</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">in actual data that we've observed. We want this to be like deterministic, right? We want, uh, well-understood procedural steps in our graph, and we want to be able to govern this over time, right? If, if the underlying data that makes up our skill changes in memory, we want to be able to understand that and, and know about that. Um, grounding is, is, is an important piece here, right? Making sure that the, the data that makes up our skill is, is grounded in our memory system, but</span></div><div class="tline" data-t="659"><span class="ts">10:59</span><span class="tx">that, that's, that's not enough for it to be useful, right? There are other heuristics that we need to look at here. So, uh, things like coverage. Are we making sure that the, uh, steps and descriptions of our, um, throughout our skill are grounded across the skill? Coherence. Coherence is interesting. This is a way that we can detect, uh, maybe if the, um, information, the piece, the subgraph going into the skill</span></div><div class="tline" data-t="688"><span class="ts">11:28</span><span class="tx">distillation is split across multiple topics, and we can suggest, well, you may want to create multiple skills here, um, and so on. So those are, are some of the pieces that lead up to generating the skill. Uh, skill governance is an important piece that I mentioned, making sure that we can understand, uh, as that skill changes, uh, as the data changes, are, are we able to update the skill? And with dynamic loading, you can think of, uh, having sort of like a</span></div><div class="tline" data-t="718"><span class="ts">11:58</span><span class="tx">governed skills registry that allows us to retrieve, uh, for any agent, the, the most recent up-to-date skill. Understand, uh, if that skill may have been, uh, stale or, or, or drifted, right?</span></div><div class="tline" data-t="735"><span class="ts">12:15</span><span class="tx">Cool. So we've implemented this in, uh, the Neo4j Agent Memory Service, or we, we call it NAMS. This is, um, an agent memory as a service, as part of our Neo4j Labs efforts. Um, we also have open source tooling ar- around that, that, uh, implements these patterns. And essentially, the way this works is we, we have a, a workspace-scoped context graph, right? That has our three types of agent memory, short-term, long-term, reasoning memory. Um, we</span></div><div class="tline" data-t="765"><span class="ts">12:45</span><span class="tx">have, uh, background workers that are capable of going through this distillation process. We'll, we'll take a look at, at what this looks like in a minute. Um, and then having some background curation process that is still making sure to take care of that governance to surface when, uh, our skills become stale based on the data that we have in the memory system. Um, this is the, the pipeline that, that we go through t- to generate these. Um, the... I won't go through this in, in</span></div><div class="tline" data-t="794"><span class="ts">13:14</span><span class="tx">detail. The, the one thing that we're trying to point out here is that most of these steps are deterministic. Um, we're really only leveraging an LLM here, uh, for synthesizing some of the claims, uh, generating some of the, the text that we use for some of the skill description. Uh, and then the other thing I wanna call out here is the, the first piece is really identifying the scope. Like, what, where, what is your starting scope for distilling one of these skills? Is it around a certain</span></div><div class="tline" data-t="824"><span class="ts">13:44</span><span class="tx">entity, the subgraph around that? Is it a specific conversation, uh, and that sort of thing. And so we can decompose, uh, the, the way we represent the skill and make sure that each of these components is grounded, again, in underlying data, and that's the piece that we're looking at for if that skill, uh, essentially becomes stale, if any of that underlying data changes, is removed, or, uh, becomes, uh, contradictory.</span></div><div class="tline" data-t="856"><span class="ts">14:16</span><span class="tx">Um, cool, and then we can also, as I mentioned before, we can also compose skills, right? So this is where that coherence piece comes in. We use, um, graph algorithms like community detection, right? So if we're mixing, uh, topics from multiple communities, that can be an indication that we need to decompose our skill, and we'll catch that in, um, the skill governance piece. Cool. So I've got a few minutes left here. Let's see what this looks like. Um, so this is NAMS, the Neo4j Memory Service. Um, this is,</span></div><div class="tline" data-t="886"><span class="ts">14:46</span><span class="tx">this is, uh, free. Currently, anyone can, can sign in and, and try this out. Um, this is what the, the dashboard looks like. The, the basic idea here is that we have, um, REST API and MCP tools that we can expose to our agents that map to, um, ingesting, retrieving, working with long-term, short-term reasoning memory. Um, we're going through this entity extraction and resolution</span></div><div class="tline" data-t="916"><span class="ts">15:16</span><span class="tx">process, so I can, uh, look at some graph representation of my, uh, agent memory here. I, I, I can traverse that and, and so on. Um, we can look at entities that have been flagged. Um, one important piece here is this idea of an ontology. So here, we're using a healthcare ontology, so we- we're going to be working with data about, you know, encounters, providers, uh, that sort of thing.</span></div><div class="tline" data-t="946"><span class="ts">15:46</span><span class="tx">Uh, and then I have ingested a bunch of conversations here. So we can see the conversations that have been, um, ingested related to, uh, a healthcare agent, right? And so now we're ready to distill a skill. Um, and we said the, the first piece is to decide, like, what is the, the scope of that s- of that skill. We can do this for, you know, an entire workspace. That's often not what the case we want. We can do this</span></div><div class="tline" data-t="975"><span class="ts">16:15</span><span class="tx">around, um, you know, a certain entity, specific conversations, a, a class in the ontology. Let's do this around, um, our most recent conversation, and we're gonna see, this is gonna kick off, um, in the, the distillation queue and go through and fetch the data, go through that seven-stage pipeline and, um, construct the skill as a graph and then package that up for us. Um, here's one... While this is running,</span></div><div class="tline" data-t="1006"><span class="ts">16:46</span><span class="tx">let's just take a look at this guy. So here's one, uh, that we ran previously. This is, uh, was run on a patient intake, uh, conversation, and as you can see here, that we've essentially extracted out the steps that make up the skill to run from a patient intake, um, all the way through, uh, charting for the patient. But we can see each one of these steps is grounded in the actual tool calls and the</span></div><div class="tline" data-t="1036"><span class="ts">17:16</span><span class="tx">entities that constructed the underlying components of the skill, and we package this up with SKILL, um, .md file. Uh, if we downloaded this, we would... This would be packaged up with, uh, other references and, and, and so on, uh, following that progressive disclosure, uh, standard that we use with agent skills. Cool. So that was a, a quick look at</span></div><div class="tline" data-t="1066"><span class="ts">17:46</span><span class="tx">kind of how we think about agent memory as part of this context graph, uh, with Neo4j, and I'll leave up some, uh, resources. You can ca- grab the slides here. There's a link, uh, to the slides and a QR code. Um, the Neo4j Memory Service that I mentioned, um, is listed here as well as lots of documentation, uh, and resources for some of our open source tooling. So that's it. I'm out of time, but we</span></div><div class="tline" data-t="1096"><span class="ts">18:16</span><span class="tx">have a Neo4j booth, uh, so I will be there as well as lots of other folks from the Neo4j team. So we'll see you there. Thanks, folks.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>沙箱里的 1000 个智能体任务：当 LLM 运行代码时什么会坏掉 —— Kevin Orellana，AWS | AI 工程师中文版</title>
+<meta name="description" content="Kevin Orellana 通宵进行的 AgentCore 实验，把“坏掉的接口”与“受限的执行环境”区分开来——并说明为什么本地跑通，对判断一个远程智能体能否完成任务几乎说明不了什么。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>沙箱里的 1000 个智能体任务：当 LLM 运行代码时什么会坏掉 —— Kevin Orellana，AWS</h1>
+    <div class="orig-title">1,000 Agent Tasks in a Sandbox: What Breaks When LLMs Run Code — Kevin Orellana, AWS</div>
+    <div class="meta"><span class="speaker">Kevin Orellana</span> · AI Engineer World's Fair 2026 · 15:19</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=developer-workflows-and-testing">开发工作流与测试</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=agent-auth">智能体认证</a><a class="tag" href="../../index.html#topic=evals">评测</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/k72eLcYpVys-1-000-agent-tasks-in-sandbox-what" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="k72eLcYpVys"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=k72eLcYpVys" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">给智能体与客户使用的相同环境</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>给智能体与客户使用的相同环境</span></li><li data-t="186"><span class="ts">3:06</span><span>把工作流结果存放在并发智能体都能用的地方</span></li><li data-t="316"><span class="ts">5:16</span><span>三次失败揭示了两个需要调查的地方</span></li><li data-t="376"><span class="ts">6:16</span><span>智能体选择的路线变成了一项环境需求</span></li><li data-t="471"><span class="ts">7:51</span><span>浏览器标签页暴露了代码测试没发现的内存上限</span></li><li data-t="558"><span class="ts">9:18</span><span>小小的执行约束可能卡住整个任务</span></li><li data-t="721"><span class="ts">12:01</span><span>远程测试，并给智能体一个检查失败的方法</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 17 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="1,000 Agent Tasks in a Sandbox" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>1,000 Agent Tasks in a Sandbox</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Kevin Orellana let a coding agent try to break his team’s cloud sandbox hosting environment overnight. This talk covers what he found.
+
+[0:22](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=22s) [Title slide for Kevin Orellana’s talk on testing sandbox-hosted agent tasks.](https://assets.ai.engineer/sites/aiecode2025/sha256/bc0055ed4d3ffa37ab8c311613e0c8f8a61a7d6d0a9bb07f519fe3d99f33aaf8.webp)
+
+aws
+
+1,000 Agent Tasks in a Sandbox
+
+What breaks when LLMs write and run code in your sandboxes
+
+Kevin Orellana
+Amazon AgentCore
+
+© 2026, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+
+Interface text: CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Agents as API and service callers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agents as API and service callers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>As more direct callers are sandbox-hosted agents, Orellana asks how to simulate customers and test the service as agents use it.
+
+[1:00](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=60s) [Text states that direct API and service callers are increasingly agents and are also sandbox-hosted.](https://assets.ai.engineer/sites/aiecode2025/sha256/a33ad78623e742dfa91d8b7467e64d420bae9de3b9cdef82a8557ebf1118f091.webp)
+
+Our direct API/service callers are increasingly agents.
+
+And are also sandbox-hosted
+
+Interface text: CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="The sandbox testing harness" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The sandbox testing harness</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A coding agent writes tests into a SQLite plan. A runner executes them against the cloud sandbox through an MCP server, then findings feed a fix-and-rerun loop.
+
+[3:04](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=184s) [Diagram connects a coding agent, SQLite test plan and runner through an MCP server to a cloud sandbox and findings, with a feedback loop for fixes.](https://assets.ai.engineer/sites/aiecode2025/sha256/eecc49d9b7249acb47c745cee2ecf2a8ee5797ea6d0538b0d8409c44d96de11d.webp)
+
+The harness — an agent testing a sandbox through its own interface
+Same MCP wire a customer's agent uses — tested the way it's actually used.
+
+LOCAL
+Your machine — agent, test plan, runner
+
+CLOUD
+isolated environment — system under test
+
+Coding agent
+writes the tests and drives each run
+
+authors
+
+SQLite test plan
+~1,000 tests, by domain
+agent-authored
+
+Hardened runner
+cred refresh · pass/fail
+triage: service-bug ≠ input-bug
+runs each test
+
+MCP server
+the standard agent interface · open-source
+the SAME wire
+a customer's agent uses
+
+tool calls over MCP
+results stream back
+
+system under test
+Cloud sandbox
+hosted service under test
+
+pass / fail
+
+Findings
+real bugs, triaged and reported
+fixed before customers hit them
+
+fix the bug, then re-run — a closed loop</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="1,000 tests across nine domains" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>1,000 tests across nine domains</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each dot represents a customer workflow. The agent authored and ran 1,000 tests in one night; session and reliability was the largest category, with 200 tests.
+
+[3:47](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=227s) [A grid of colored dots represents 1,000 tests across nine domains, including reliability, file transfer, workflows and error handling.](https://assets.ai.engineer/sites/aiecode2025/sha256/b6772c1bfa279a01dd87d8e451740fec553312aa3e6fa6e15528f8933828f7e2.webp)
+
+1,000 tests, one night — each dot is a test
+
+Authored and run by the agent, across every domain a customer would touch.
+
+Session &amp; reliability — 200 tests
+File I/O &amp; transfer — 160 tests
+Workflows &amp; perf — 150 tests
+Code &amp; package exec — 150 tests
+Error handling — 110 tests
+Data science &amp; ML — 110 tests
+Security &amp; regression — 90 tests
+Media &amp; images — 20 tests
+Other — 10 tests
+
+1,000 tests total
+nine domains
+
+Interface text:
+aws</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="The jobs real customers run" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The jobs real customers run</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The same testing method covered different sandbox demands: code jobs ranged from ML training to PDF generation, while browser jobs included scraping, form submission and login flows.
+
+[4:23](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=263s) [Examples of code sandbox workloads, including ML training and PDF generation, alongside cloud browser workloads such as scraping and form submission.](https://assets.ai.engineer/sites/aiecode2025/sha256/70f06192eff481940a09d2bffb7275e46ab860c6cc2efeb1422ffd3db08c6fce.webp)
+
+A thousand of what? The jobs real customers run.
+A sample of the real workloads the agent authored and ran — across both services.
+
+same method
+
+CODE SANDBOX
+run code · crunch data · make files
+
+End-to-end ML training
+upload · clean · sweep · train · export
+
+Generate a PDF report
+50-page report, under 30 seconds
+
+ETL data pipeline
+3 CSVs · Parquet · DuckDB · export
+
+Write &amp; run a program
+author Python / JS · run · verify output
+
+Financial modeling
+portfolio opt · Monte-Carlo VaR · report
+
+Image processing
+resize · crop · watermark · export
+
+CLOUD BROWSER
+navigate · scrape · automate the web
+
+Multi-page web scrape
+paginate a catalog into JSON
+
+Research &amp; fact-check
+read sources · extract · cross-check
+
+Fill &amp; submit a form
+type · select · submit · read result
+
+Extract a data table
+pull live rows into records
+
+Automate a login flow
+sign in · scrape behind the login
+
+Aggregate news / docs
+headlines &amp; API docs across tabs</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Three example failures and fixes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Three example failures and fixes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An image download returned the base64 alphabet, a null byte ended a string, and a /tmp file could not be read. The slide pairs each failure with an encoding, validation, or permission fix.
+
+[5:13](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=313s) [Three columns describe incorrect binary encoding, null-byte truncation, and a file download permission failure, with a fix for each.](https://assets.ai.engineer/sites/aiecode2025/sha256/f74ff86a4375e905b7f7e8536b60b2f05e9a19fbdc1b1a6279effafa3f33f5db.webp)
+
+Honing in on three example failures and how we can prevent them
+
+Incorrect Binary download
+Asked for an image. Got back the base64 alphabet — the lookup table, not my file. The bytes were never encoded.
+✅ Fix: Proper encoding
+
+Null byte
+A 100-byte file of null bytes came back as an empty string — the zero read as &quot;end of string.&quot; Data gone.
+✅ Fix: Data/Control check
+
+/tmp file
+Wrote a file, then tried to download it — &quot;could not read file&quot;
+✅ Fix: Filesystem permission update
+
+aws
+© 2025, Amazon Web Services, Inc. or its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Failure type patterns" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Failure type patterns</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Orellana separates interface failures, such as encoding and validation problems, from sandbox failures involving compute, permissions and lifecycle. Agent workflows place different demands on the environment.
+
+[6:10](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=370s) [Two columns list interface-layer and sandbox-layer failure patterns.](https://assets.ai.engineer/sites/aiecode2025/sha256/97fe6ec66543a8a3cfde40de18ea5ee09aa64687abae03b32f116209385f50a8.webp)
+
+Failure type patterns
+
+Interface Layer
+- Complete confidence in the MCP tool (silent)
+- Protocol misalignments (binary encoding)
+- Input/output validation
+
+Sandbox Layer
+- Compute constraints
+- Permission model misalignments
+- Sandbox lifecycle management
+- Sandbox fingerprints</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="1,000 tests across two services" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>1,000 tests across two services</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Across 1,000 tests per service, the code sandbox passed 890 and the cloud browser 812. The browser also had 94 crash errors; Orellana attributes many failures to memory constraints.
+
+[7:50](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=470s) [Stacked bars compare test outcomes for a code sandbox and a cloud browser. They show 890 and 812 passes respectively and highlight 94 browser crash errors.](https://assets.ai.engineer/sites/aiecode2025/sha256/6a895ad1e36c608ec82f810eb78894353d337532d93cca918139bf247f867f75.webp)
+
+1,000 tests, twice — same method, two services
+Both mostly pass. The difference is the tail: the browser carries a crash band the sandbox never shows.
+
+Code sandbox: 890, 40, 67
+no crash band
+
+Cloud browser: 812, 74, 94
+loud crash band
+94 errors
+
+X-axis ticks: 0, 200, 400, 600, 800, 1000
+Tests (out of 1,000 each)
+
+Legend: Pass, Fail, Partial, Skip, Error (crash)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Where the failures landed" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Where the failures landed</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Of 33 mapped findings, the code sandbox had 8 silent filesystem failures; the cloud browser had 9 loud session/resource errors. Transport produced silent failures in both services.
+
+[8:23](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=503s) [A matrix maps findings across control surfaces for the code sandbox and cloud browser, distinguishing silent failures from loud errors.](https://assets.ai.engineer/sites/aiecode2025/sha256/99be136fb9ab1da18c4ef173987c5ca44f26da0cee336e2c28380c6f902a0fe8.webp)
+
+Where the failures landed — controls to findings
+33 of 40 findings, across two sandboxed services, mapped to the control surface each one exercised.
+
+Code sandbox — 16 findings
+Cloud browser — 17 findings
+
+Network egress
+net namespace · routing · firewall · DNS-resolves ≠ connect
+Code sandbox: SILENT 1
+Cloud browser: LOUD 2
+
+Filesystem
+mount ns · perms/ownership · tmpfs · exec-view ≠ transfer-view
+Code sandbox: SILENT 8
+Cloud browser: –
+
+Execution permissions
+kernel caps · seccomp · app-layer runtime flags (Deno)
+Code sandbox: SILENT 2
+Cloud browser: –
+
+Transport / the wire
+base64 · null-byte framing · stdout/stderr · interface capture
+the interface, not a control
+Code sandbox: SILENT 5
+Cloud browser: SILENT 6
+
+Session / resources
+cgroup mem+CPU · timeouts · renderer-process-per-tab
+Code sandbox: –
+Cloud browser: LOUD 9
+
+SILENT (pink/purple) — wrong result, no error surfaced
+LOUD (teal) — crash / hard error
+cell shade scales with finding count within each family
+
+33 of 40 findings mapped to the control surface each exercised. Counts are real; primitive attribution is analytical. Generic surfaces — the services I tested.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Sandbox controls and domain-specific success" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Sandbox controls and domain-specific success</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Sandbox controls affect workloads differently: filesystem rules can make a saved PDF unexportable, while transport can silently turn binary into base64 text or drop exit codes.
+
+[9:17](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=557s) [A table links sandbox controls and underlying primitives to possible effects on different workloads.](https://assets.ai.engineer/sites/aiecode2025/sha256/78bf7178d1f3a476180df2bac9cd166e23125c4f5889b3ed807939c9bb3696e6.webp)
+
+The same controls that define your sandbox define domain-specific success for your agent
+
+Control (what secures) | The primitives underneath | What it CAN cost — depends on your domain
+
+Network egress | net namespace · routing · firewall · socket syscalls · DNS resolves ≠ connect | ML: pip / model pull dies · SWE: git clone, npm/cargo · Enterprise: internal API / DB port blocked
+
+Filesystem | mount namespace · perms + ownership · tmpfs / overlayfs · exec-view ≠ transfer-view | ML: checkpoint to /tmp → empty download · Web: screenshot dir resets · Doc: PDF “saved,” unexportable
+
+Execution permissions | kernel capabilities · seccomp-bpf · + app-layer flags (e.g. Deno --allow-read) | ML: Numba JIT kills the session · fork past pids.max → silent 1-core · Any: JS can't read files or env
+
+Transport (NOT isolation — the wire) | base64 encoding · null-byte framing · stdout/stderr channels | All domains, all SILENT: binary → base64 alphabet · null byte truncates a file · stdout → stderr · exit code dropped
+
+Session / resources | cgroup mem + CPU · wall-clock / idle timeouts · renderer-per-tab | ML: training killed, checkpoint lost · Web: 3+ tabs → ~28% crash · Any: state you assumed persisted, gone
+
+Environment fingerprint | automation user-agent · screen ≠ viewport dims · timezone/locale · header order | web/scraping: the target site flags you as a bot and blocks the workflow — everything runs, nothing succeeds</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Anatomy of a sandbox" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Anatomy of a sandbox</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The host virtualizes a microVM; its guest kernel and isolation primitives constrain the runtime and agent code. Those primitives control network, filesystem, execution and resources, while MCP transport carries calls across the boundary.
+
+[9:59](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=599s) [A layered diagram shows a host, microVM, guest kernel, isolation primitives, language runtime, and agent code, alongside a legend connecting primitives to control surfaces.](https://assets.ai.engineer/sites/aiecode2025/sha256/0452cc656ad0e6b320b840a92fb2dc91c6b99429261b7112575fc35c476d6690.webp)
+
+Anatomy of a sandbox — what's actually isolating your agent
+Generic microVM primitives — this is how sandboxes work, not any one product's config.
+
+MCP / transport — the agent's calls cross here
+the boundary the agent talks through
+
+HOST
+Hardware-virtualized isolation · KVM (/dev/kvm) · microVM manager (VMM) — the hypervisor boundary
+
+THE microVM
+Guest kernel
+own address space · own syscall surface
+
+Isolation primitives
+the sandbox controls
+
+Namespaces
+net · mount · PID
+user · IPC · UTS
+
+cgroups v2
+memory.max
+cpu.max · pids.max
+
+seccomp-bpf
+syscall filter
+
+capabilities
+dropped CAP_* set
+
+Language runtime
+Python · Deno
+
+The agent's code
+what actually runs
+
+The primitives ARE the dials
+primitive → control surface
+
+Network egress
+namespaces (net) + routing / firewall
+
+Filesystem
+namespaces (mount) + perms
+
+Execution permissions
+seccomp + capabilities
+
+Session / resources
+cgroups + timeouts
+
+Transport
+the MCP wire
+not a control — the boundary
+
+Host virtualizes the microVM; the guest kernel, namespaces, cgroups, seccomp and dropped capabilities isolate the runtime and the code that runs inside it.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="The failure has a name" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The failure has a name</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide connects wrong tool results that look successful to Byzantine faults and silent semantic failure. It cites a 2025 case of an agent deleting a production database, fabricating data, and reporting success.
+
+[10:56](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=656s) [Slide comparing trust boundaries, Byzantine faults, silent semantic failure, and agents overtrusting tools.](https://assets.ai.engineer/sites/aiecode2025/sha256/2778a6a06a88086a687570c3be03a4d7dbd3d68b5c5d94cecd55ba76570e0326.webp)
+
+I'm not the first to hit this — the failure has a name
+When a tool returns wrong data but reports success, the whole field has a word for it.
+
+“Every data boundary is a trust boundary”
+You sanitize input, you guardrail output — but your agent blindly trusts every tool result.
+Tian Pan, tianpan.co, 2026
+
+Byzantine fault
+A component that fails not by crashing, but by lying: it keeps responding, and the response is wrong in a way that looks correct.
+Lamport, Shostak &amp; Pease, ACM, 1982
+
+“Silent semantic failure”
+Output is well-formed and confidently returned, yet wrong — invisible to completion-based monitoring.
+Mehta, arXiv, 2026
+
+Agents overtrust tools
+LLMs report a tool's answer even when they'd have been right without it; they don't detect silent tool errors.
+“Tools Fail,” CMU, EMNLP 2024
+
+NOT HYPOTHETICAL
+2025: an AI coding agent deleted a live production database during an explicit code freeze — then fabricated data and reported the run as a success.
+Fabricated results + false success reporting.
+publicly documented, 2025
+
+All of it shares one signature: the call says success. The bytes don't.
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Why this matters now" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why this matters now</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Moving coding agents from a laptop to a remote sandbox can break local assumptions: files in /tmp may be missing and internal endpoints may be unreachable, leaving the agent to quietly come up short.
+
+[11:59](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=719s) [Slide contrasts resources available on a laptop with constraints in a remote sandbox.](https://assets.ai.engineer/sites/aiecode2025/sha256/7a7c71613f0d7a9c3a7b704a34441154891580b0e43725016d8ea43f2ab8779b.webp)
+
+Why this matters now
+
+Local &lt;&gt; Remote: the portability gotchas when building agents locally and moving them to remote environments
+
+On your laptop
+Your codebase, a local DB, a dev server, your /tmp, your network. One machine — every assumption holds.
+
+In a sandbox
+The /tmp you wrote to may not exist. Internal endpoints unreachable. The agent doesn't know — it just quietly comes up short.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Hosting coding agents on Amazon Bedrock AgentCore" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Hosting coding agents on Amazon Bedrock AgentCore</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AgentCore lets customers SSH into sandboxes to investigate problems as they scale coding agents beyond their laptops.
+
+[12:39](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=759s) [Screenshot of an AWS blog article about hosting coding agents on Amazon Bedrock AgentCore.](https://assets.ai.engineer/sites/aiecode2025/sha256/3736e172003a4f2f1cae939d5f156a05a9a50ebc49e5eddec6f1ed8ae9456f5c.webp)
+
+Artificial Intelligence
+
+It’s safe to close your laptop now: Hosting coding agents on Amazon Bedrock AgentCore
+
+by Evandro Franco, Eashan Kaushik, Kosti Vasilakakis, Mark Roy, Abhimanyu Siwach, and Shreyas Subramanian | on 08 JUN 2026 | in Amazon Bedrock AgentCore, Expert (400), Technical How-to
+
+There’s a habit going around. Walking from one meeting to the next with the laptop cradled half-open. Sitting through a 1:1 with the lid propped just enough to keep the screen alive. Riding home while holding your laptop because it must stay running. Anywhere except closed on a desk, because closed on a desk is what kills the coding agent running inside (Claude Code, Codex, Kiro, OpenCode, Gemini CLI, Cursor CLI, or whatever harness the developer pulled together). Business Insider has a piece on it.
+
+Interface text:
+AWS Blogs
+Home
+Blogs
+Editions
+Permalink | Share</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Capability lives in the environment" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Capability lives in the environment</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>With GPT-4 Turbo held constant, the agent-built interface raises SWE-bench Lite results from 11.0% to 18.0%. The slide also shows HotpotQA F1 falling from 44.8 to 4.7 in a corrupted tool environment.
+
+[13:23](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=803s) [Slide compares agent benchmark results across interfaces, tool feedback, and harness configurations.](https://assets.ai.engineer/sites/aiecode2025/sha256/c3118fe14f5b1e80d342bfdb89517f9caf8673481796e95474883dbb3bdc9658.webp)
+
+Don't take my word for it — capability lives in the environment
+Same model. Change only the environment around it. Watch what it can do.
+
+SWE-agent · same model (GPT-4 Turbo) · change only the interface
+11.0% — basic shell/editor
+18.0% — agent-built interface
++64% more software tasks solved on SWE-bench Lite
+Yang et al., “SWE-agent,” NeurIPS 2024.
+
+FEEDBACK QUALITY ALONE
+Same agent, same prompt.
+44.8 → 4.7
+F1 on HotpotQA — good vs. corrupted tool environment
+“Don't Blindly Trust It,” arXiv 2026.
+
+HARNESS, NOT MODEL
+Independent monitoring, same model.
+up to 15 pts
+of benchmark swing from the scaffold alone
+“Stop Comparing LLM Agents Without Disclosing the Harness,” arXiv 2026.
+
+“The unit of performance is no longer just the model.”
+— UC Berkeley, “Software Harness Design,” 2026.
+
+The same agent is brilliant or crippled depending on the sandbox around it — and it can't see the difference. Neither can you, unless you test for it.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Test sandbox-specific constraints early" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Test sandbox-specific constraints early</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Run a wide set of domain-specific agent tasks against the remote sandbox to expose rough edges that can hinder task completion before customers encounter them.
+
+[14:15](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=855s) [Slide recommends testing remote environments with varied domain-specific agent tasks.](https://assets.ai.engineer/sites/aiecode2025/sha256/c04de2ceecd669cbb5146120db4998f32ef3569194cc8da5ced7bd9dd5fcbaaa.webp)
+
+Catch sandbox-specific constraints early using varied domain-specific agent-driven testing
+
+Point an agent at your remote environment. Give it a wide set of tasks from your domain. Watch where it hits the rough edges — you’ll likely find some before your customers do.
+
+Interface text: CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Thank you" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Thank you</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Kevin Orellana closes the talk.
+
+[14:58](https://www.youtube.com/watch?v=k72eLcYpVys&amp;t=898s) [AWS thank-you slide naming Kevin Orellana and Amazon AgentCore.](https://assets.ai.engineer/sites/aiecode2025/sha256/3a243e51afbb9eb2137977d1343b97515a3411161d4fe9e4b90d5f8595d1730f.webp)
+
+aws
+
+Thank you
+
+Kevin Orellana
+Amazon AgentCore
+
+© 2026, Amazon Web Services, Inc. or its affiliates. All rights reserved.
+
+Interface text:
+CC</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">给智能体与客户使用的相同环境</a></li><li><a href="#sec-2">把工作流结果存放在并发智能体都能用的地方</a></li><li><a href="#sec-3">三次失败揭示了两个需要调查的地方</a></li><li><a href="#sec-4">智能体选择的路线变成了一项环境需求</a></li><li><a href="#sec-5">浏览器标签页暴露了代码测试没发现的内存上限</a></li><li><a href="#sec-6">小小的执行约束可能卡住整个任务</a></li><li><a href="#sec-7">远程测试，并给智能体一个检查失败的方法</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">沙箱里的 1000 个智能体任务：当 LLM 运行代码时什么会坏掉</h2>
+      <div class="lede"><p>Kevin Orellana 通宵进行的 AgentCore 实验，把“坏掉的接口”与“受限的执行环境”区分开来——并说明为什么本地跑通，对判断一个远程智能体能否完成任务几乎说明不了什么。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>给智能体与客户使用的相同环境</h3>
+      <p>Kevin Orellana pointed a coding agent at his team’s cloud sandbox platform, told it to “Try to break it,” and left it running overnight. The experiment began with a practical testing question: if customers increasingly use agents to drive a platform, could an agent exercise that platform the way a customer would?</p>
+<p>Orellana works on Amazon Bedrock AgentCore, which provides sandboxes alongside agent identity, memory, runtimes and gateways. To make the sandbox accessible to a coding agent, the team spent a day or two building an MCP server around the service. MCP supplied the interface through which the agent could use the cloud environment; refining the exposed tools and smoke-testing them came next.</p>
+<p>The first checks were small: write and execute a Python file, or convert a Python file into Java. Then the request expanded to 1,000 tests across ten domains. The number was arbitrary—a way to cast a wide net, rather than a coverage guarantee. A run expected to take hours and consume substantial tokens also needed credential management and injection, plus a way to investigate whether a failure belonged to the service or its MCP wrapper.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="186">▶ 3:06</button></div>
+      <h3>把工作流结果存放在并发智能体都能用的地方</h3>
+      <p>The harness had three main parts: a coding agent, an MCP server wrapping the cloud sandbox, and a local SQLite database for findings. Results went into the database rather than the Markdown files agents tend to produce. At 1,000 tests, collecting findings as structured records made the experiment more manageable and supported multiple local subagents executing tests concurrently and recording their results.</p>
+<p>A “test” could be a complete customer workflow. The coverage included several different demands:</p>
+<p>- <strong>Sandbox lifecycle and stress.</strong> Exercise how reliably an environment behaves under pressure.
+- <strong>File transfer and performance.</strong> Upload files, download them again, and test the service’s behavior around filesystem I/O.
+- <strong>Software development.</strong> Write Python or Java packages, or run an end-to-end machine-learning training program.
+- <strong>Document and browser work.</strong> Generate a PDF report or open a webpage.</p>
+<p>AgentCore hosted both a code sandbox and a cloud browser, and the useful workloads differed between them. Browser tests could create many tabs, scrape and summarize pages, take and download screenshots, fill forms, or automate a login. Those activities put different demands on the environment from compiling a package or generating a report. Testing the platform therefore meant testing what each hosted application actually did.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="316">▶ 5:16</button></div>
+      <h3>三次失败揭示了两个需要调查的地方</h3>
+      <p>The clearest failure began with an image round trip. Upload an image, download it, and compare what came back with what went in. The returned image did not match the input. Investigation located an incorrect encoding layer in the MCP wrapper. The workflow had exposed a defect in the interface carrying the data, rather than establishing a defect in the sandbox’s execution machinery.</p>
+<p>Two other cases broadened the diagnosis:</p>
+<p>- <strong>A null byte disrupted the tests.</strong> Orellana connects the case to the special treatment a zero byte can receive, including marking the end of a string in some languages. The account does not identify which component mishandled it or give a precise failure mechanism.
+- <strong>Written files could not be retrieved.</strong> Files were written to a particular directory inside the sandbox, but were unavailable when the test tried to get them back. Orellana identifies this as a sandbox-layer case without specifying the directory or its underlying cause.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/1c6f934c9fb3b8d013af206c3f1e00987857da64030da8c0d86a57e2aba63911" alt="The slide names three concrete failures and the proposed fixes: binary encoding, null-byte data/control checking, and filesystem permissions for a /tmp file." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide names three concrete failures and the proposed fixes: binary encoding, null-byte data/control checking, and filesystem permissions for a /tmp file.</figcaption></figure>
+<p>These examples produced a useful split: investigate the <strong>interface layer</strong>, which exposes operations and carries inputs and outputs, separately from the <strong>sandbox layer</strong>, where the workload runs. A failed customer task can cross both. The image test is especially instructive because its intended result is simple—get back what was uploaded—yet the wrapper was enough to break that expectation.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="376">▶ 6:16</button></div>
+      <h3>智能体选择的路线变成了一项环境需求</h3>
+      <p>A conventional API service usually exposes a relatively predictable operation: send a request and receive a shaped response from a backend whose work you understand. An agent inside a sandbox can choose a much wider range of intermediate actions. A gateway may expose access to it, but the workload’s actual compute requirements depend on the route the agent takes.</p>
+<p>That route can look odd from the outside. An agent might download an unexpected package or convert a CSV into JSON and then into a PDF. Each intermediate step adds requirements: enough memory and CPU, permission to launch or use processes, and permission to access the relevant files. A task can fail because one of those operations is unavailable even when the agent has a plausible plan for producing the final answer.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="471">▶ 7:51</button></div>
+      <h3>浏览器标签页暴露了代码测试没发现的内存上限</h3>
+      <p>What changes when the same platform hosts a browser instead of a code interpreter? Orellana’s failure comparison puts the code sandbox above the cloud browser and marks sandbox terminations in red. Opening browser tabs consumed enough memory that many browser tests failed from memory constraints; this was not a comparable failure pattern in the code-interpreter environment. The comparison makes application-specific pressure visible, although the talk gives no numerical failure rates or memory allocations.</p>
+<p>The browser tests were unforgiving: starving sessions and sandboxes of memory counted as complete failures. That is a different outcome from a tool returning an error while leaving the environment available. Here, the environment itself could no longer sustain the workflow.</p>
+<p>Grouping failures around sandbox primitives suggested more concrete questions to ask. For files, those questions include which filesystems are mounted, which paths permit reading, writing or execution, and whether storage persists or is ephemeral. These are properties a workload depends on. A platform intended to accept varied customer workflows has to account for how those properties affect task completion.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="558">▶ 9:18</button></div>
+      <h3>小小的执行约束可能卡住整个任务</h3>
+      <p>The discussion then moves below application tools into the controls composing the sandbox. Kernel capabilities and interception mechanisms can affect whether a workload can make outbound calls or reach internal company services. The consequential relationship is that an agent’s requested operation must also be permitted by the environment executing it.</p>
+<p>Three examples make that dependency tangible:</p>
+<p>- <strong>Starting a process.</strong> A machine-learning package may need to spawn another process. Its workflow depends on the process or container being allowed to do so.
+- <strong>Finding a Python package.</strong> Downloading a package is only useful if it lands where the Python kernel can pick it up.
+- <strong>Executing a Rust binary.</strong> A coding agent needs the binary in an appropriate location before it can run the program.</p>
+<p>These details accumulate into the ability to solve the business problem. Generating unit tests or integration tests can exercise known behavior, but a sandboxed agent also depends on low-level controls that may be easy to overlook when specifying the task. Orellana’s proposed extension is broad workflow fuzz testing: ask an agent to attempt many tasks across domains, then inspect which combinations expose those constraints. The 1,000-workflow run is a way to discover sharp edges, not a claim that generated tests exhaust the possible workloads.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="721">▶ 12:01</button></div>
+      <h3>远程测试，并给智能体一个检查失败的方法</h3>
+      <p>The local-to-remote move gives this testing strategy an immediate use. Running more coding-agent workspaces eventually strains a developer’s laptop; remote sandboxes let teams work through more GitHub pull requests. But the tools, MCP connections and running applications on that laptop may differ from what the remote environment provides. A successful local attempt does not exercise those differences.</p>
+<p>At the time of the talk, AgentCore had recently added SSH access to sandboxes so customers could inspect what was happening inside. The investigator could be a human or the coding agent working alongside them. That access provides a way to enter the actual failing environment and look for the conditions preventing the application from running smoothly.</p>
+<p>Environment design can also distort how agent capability appears in evaluations. Orellana cites a UC Berkeley study in which an exploit agent with suitable environment controls reportedly reached up to 100% on SWE benchmarks. He contrasts it with another study where broken tools substantially reduced agents’ effectiveness on business tasks. Neither study is identified sufficiently here to establish its evaluation scope or reproduce the result; their role in the argument is to show how favorable or broken tooling can change the outcome attributed to a model.</p>
+<p>The closing challenge is concrete: test locally, then fuzz-test a wide set of domain workflows remotely. Once an application can choose arbitrary actions inside a sandbox, its failure points include every execution constraint along that chosen route. Exercising real workflows in the destination environment makes those constraints observable before customers discover them through unfinished tasks.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Separate interface failures from sandbox failures: the image round trip failed because of MCP encoding, while another test wrote files it could not retrieve from the sandbox.</li><li>Choose tests around hosted workflows. Browser tabs exhausted memory in a way the code-interpreter tests did not.</li><li>Task completion depends on practical execution details, including process permissions, package placement, binary locations and filesystem behavior.</li><li>Broad agent-generated workflows can reveal overlooked constraints, but local testing must be complemented by tests in the remote environment where the agent will run.</li><li><a href="https://ai.engineer/talks/OA-Mc60Rboo-beating-rl-reflection-gepa-optimize-anything" target="_blank" rel="noopener">Beating RL With Reflection: GEPA and Optimize Anything</a> — Explains how execution traces, tool errors and other diagnostic feedback can guide changes to prompts and agent programs after failures have been exposed.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Hello, everyone. I think we can get started.</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">So a few months ago, I did something that was, um, a bit slightly absurd. I took a coding agent, I pointed it at my team's, uh, cloud sandbox hosting environment, and I said, &quot;Try to break it.&quot; And I let that run overnight, and this talk is a bit about what we found.</span></div><div class="tline" data-t="39"><span class="ts">0:39</span><span class="tx">Uh, my name is Kevin. I work at Amazon Bedrock AgentCore. It's a sandbox hosting environment or platform, and we do more than that. We provide agents identity, memory, um, runtime environment, sandboxes, gateways, anything you wanna use to build and host your agents on, agents on the cloud.</span></div><div class="tline" data-t="61"><span class="ts">1:01</span><span class="tx">So the way this started was basically with me taking a hard look at how, um, customers use our platform. And increasingly, I think a lot of us in the industry see that, uh, a lot of platform components on the internet are just agents. And increasingly, they're also sandbox hosted. I think today's talks will maybe walk you through all the architectures that can exist in cloud-hosted, uh, sandbox environments. And so this kinda got me thinking, how can I perhaps</span></div><div class="tline" data-t="91"><span class="ts">1:31</span><span class="tx">emulate, simulate the customer, and also test the service the same way agents use our platform?</span></div><div class="tline" data-t="99"><span class="ts">1:39</span><span class="tx">So the first thing I think we, we set out to do was create an attraction or interface that allows coding agents as well as agent applications to interact with our service, uh, in a way that's pretty native to them. And today, we know that frontier models know the MCP protocol pretty well. So we spent a day or two just creating an MCP server to expose access to our environment and platform, um, just so it can get started pretty quickly. The second piece was</span></div><div class="tline" data-t="129"><span class="ts">2:09</span><span class="tx">polishing that. Uh, we spent some time refining the tools that can be made accessible and, uh, smoke testing some runs and, and things like that. So some of the tests we ran just by hand was, uh, for example, write a Python code file and execute it, or take a Python file and, uh, convert it into Java. And then we realized we wanted to just expand the test domains that we, we were gonna set the coding agents to do. So we asked to just plainly write a thousand tests across ten domains, and a</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">thousand tests here was pretty arbitrary. It was just to cast a wide net and see what we caught back. This took a bit of polishing because we knew that a thousand tests would take a, a few hours and was gonna be a little token heavy, so we, um, did things like credential management, credential management injection, um, what happens when a test fails? Is it a service issue? Is it an MCP layer issue? Uh, those are the kinda things we, we let the agent, um, figure out.</span></div><div class="tline" data-t="186"><span class="ts">3:06</span><span class="tx">So the architecture is honestly very simple, but it's also very powerful, and I think a lot of us have probably seen this in our day-to-day, uh, development. So we have our coding agent on top left. We have an MCP server that basically wraps our cloud sandbox environment, and all the findings get sent back to us. We store them in a SQLite database just because, as some of you might have seen, um, agents are pretty prone to write markdown files, but that doesn't really scale when you have a thousand tests that you wanna run.</span></div><div class="tline" data-t="217"><span class="ts">3:37</span><span class="tx">And this allowed us to tap into concurrency. We can have multiple sub-agents running locally and running and executing their tests and storing those results, uh, locally.</span></div><div class="tline" data-t="227"><span class="ts">3:47</span><span class="tx">Now, a thousand tests, I think, is kind of easy to just say out loud, but really every single dot on the screen kind of represents a, a workflow that a customer would actually run. So we did things like testing the sandbox, uh, life cycle. How reliable is it when you put it under stress? Um, things like file system IO. What happens when you upload a file and download it from the sandbox? Uh, tested performance. We tested some software development life cycles like, uh, for example,</span></div><div class="tline" data-t="258"><span class="ts">4:18</span><span class="tx">writing Python packages, Java packages, um, and the like.</span></div><div class="tline" data-t="264"><span class="ts">4:24</span><span class="tx">So to give you a perspective of what's one of these dots could represent, it could be an end-to-end machine learning training, uh, program. It could be generating a PDF report. Uh, it could also just be, um, as simple as opening a webpage. And we re-- quickly realized that our platform, which at the time was hosting two, uh, major applications, one was a code sandbox, the other one was a cloud browser, would have different tests that mattered differently to the sandboxes that they were hosted in. So for example, here in</span></div><div class="tline" data-t="294"><span class="ts">4:54</span><span class="tx">the browser, we c- ask the agent to create a bunch of, uh, tabs and try to scrape them all and summarize them, maybe take some screenshots, download them, maybe fill out a form, automate a login workflow. But the point here is these sandbox hosted applications, uh, tend to go through different workflows that demand different requirements from the sandbox.</span></div><div class="tline" data-t="316"><span class="ts">5:16</span><span class="tx">So we ran through the tests, and I wanna talk about just three failures that I think, um, showcase some of the patterns we saw, uh, from these, uh, sandbox hosted applications. So a simple one was we uploaded an image, we downloaded it, and we wanted to see if the same thing that we put up, uh, we got back when we asked to download it. And lo and behold, that was not the case. Uh, we deep dived a bit into it, and we found that the encoding layer at the MCP layer was incorrect. The second one was a bit interesting too, which was</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">a null byte. It just threw off, off our tests. Um, a null byte can be a zero. It could also be a marker in some coding languages that just mean that-- means that the string is, is, uh, complete. Now, an interesting one that was particular to the sandbox layer is one where we actually wrote files to a specific directory in the sandbox, and when we tried to get it back, it just wouldn't be available. So, so now we started to segregate the patterns, uh, and failures into</span></div><div class="tline" data-t="376"><span class="ts">6:16</span><span class="tx">two layers. One was at the interface, and the other one was at the sandbox layer. And it's important, I think, to draw a distinction because, uh, when we start to host applications in sandboxes, we, um, they deviate a little bit from the typical API service pattern where you have a long-running service that has-- exposes an API, uh, and you, you know, send a request, you get an output that's reasonably, um, shaped, and you, you kind of know what your backend service does. But obviously in today's world, we, th- we no longer have as many long-running</span></div><div class="tline" data-t="405"><span class="ts">6:45</span><span class="tx">applications. Rather, we have specialized agents that are, uh, sandboxed in an environment. We expose access to them through a gateway, and the demands that they have on their, let's say, compute environment are gonna differ greatly. We know that-- And, and this is an experience I think a lot of us can relate to, which is you are developing something locally, and you just start to see your agent, uh, either a hero, cloud, Codex, whatever it might be, do funny things. Like, it might, uh, download a, a package you might not have expected, or it might</span></div><div class="tline" data-t="436"><span class="ts">7:16</span><span class="tx">translate a CSV file to a JSON to PDF for whatever reason. And all of these workflows that your agents want to do are gonna demand, uh, different things from your environment. So things, for example, like how much memory or CPU your sandbox has, the permissions that are available to your processes and file systems. I think in a lot of the talks we'll see today, there are a lot of different architectures that your sandboxes can have, and the wider point here, I think, is all of these constraints have pretty massive implications for your</span></div><div class="tline" data-t="466"><span class="ts">7:46</span><span class="tx">agent's ability to solve these problems.</span></div><div class="tline" data-t="471"><span class="ts">7:51</span><span class="tx">And just to kind of visualize that, these are some of the faults that we saw when we compared two different applications hosted in sandboxes. So at the top, we have the code sandbox, and the bottom, we have the c- uh, cloud browser. At the bottom right, we have the failure modes that are highlighted in red, which signify how many times the sandbox actually, uh, perished. In this case, because cloud browsers, we know that whenever we open up tabs, they're pretty memory heavy, and so a lot of our tests failed just due to memory constraints. And that wasn't really a</span></div><div class="tline" data-t="501"><span class="ts">8:21</span><span class="tx">fault we saw in the, uh, code interpreter environment. And when we map them out a little bit differently, we start to see that the failure modes coalesce around sandbox primitives. So we know some of the components around file systems tend to be file system permissions, uh, mounted file systems, uh, permissions to read, write, execute files, um, whether or not the file system, uh, is persistent or, uh, ephemeral. Um, and the tests, uh, were pretty unforgiving. Um,</span></div><div class="tline" data-t="531"><span class="ts">8:51</span><span class="tx">for example, in the bottom right, we have, uh,  the browser tests just starving the, the, the sessions and sandboxes out of memory and signaling that as a complete failure. And I think the wider point here is, as we host these applications in sandboxes, and we expect our customers to be able to build, uh, pretty arbitrary workloads in these sandboxes, we have to be pretty careful that the sandbox constraints have massive implications as to those agents' ability to complete those problems.</span></div><div class="tline" data-t="558"><span class="ts">9:18</span><span class="tx">Now, if we look a little bit closely, and this slide is pretty heavy, on the second column, we have a lot of the primitives used to compose what a sandbox container, um, might look like. So we can go as deep as kernel capabilities, things like kernel interceptors, um, these things called extended VP- VPF programs, which allow you to run kernel modules and intercept programs at the, at the Python layer. Um, those might, uh, control how your agent actually can make some</span></div><div class="tline" data-t="588"><span class="ts">9:48</span><span class="tx">egress calls, maybe make a internal API call to, um, your internal company services.</span></div><div class="tline" data-t="599"><span class="ts">9:59</span><span class="tx">If we diagram this out, this is kind of what a, a very high-level overview of how the components in the sandbox might, uh, affect your, um, workload's ability to do its job. So here, for example, I think earlier in our talks we spoke about, uh, security, secure compute, which controls the system control programs that your applications might want to run. So for example, say I have a machine learning package that needs to spawn a process. Does my process or container even have the ability to start a new process?</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">Um, perhaps I have a code interpreter, uh, task that needs to download a Python repor-- a Python package into a very specific module for, uh, the Python kernel to be able to pick it up. Or are the Rust binaries in the right location for when the coding agent is able to, um, run or execute a program? All these very, very small things tend to add up into your agent's ability to, uh, execute th-the business problem.</span></div><div class="tline" data-t="659"><span class="ts">10:59</span><span class="tx">Now, just taking a step back, I think this was kind of interesting, uh, which was the idea of, like, using an LLM to generate basically unit tests. I think we've all done it. We-- I don't know if anyone writes unit tests by hand anymore. Uh, and similarly, if we go up a s- up a layer, integration tests, uh, we, we, we can anticipate agents to be pretty good at understanding the problem space and writing tests for them. But as we move towards hosting more and more applications, which are just agents, uh, in</span></div><div class="tline" data-t="688"><span class="ts">11:28</span><span class="tx">sandboxes, we start to see the cracks in the model, which is, um, these very low-level primitives and controls, um, might actually hamper your agent's ability to do its stated goal. Um, and what we were hoping to relay here is a, a very strong way to actually surface these failure modes that are m- that are pretty innocuous to us is just through fuzzy testing your agent sandbox, asking it to complete, perhaps, in this case, a thousand workflows and seeing what</span></div><div class="tline" data-t="718"><span class="ts">11:58</span><span class="tx">results you get.</span></div><div class="tline" data-t="721"><span class="ts">12:01</span><span class="tx">And just to also make it a little bit more tangible, um, a lot of us here, developers, we are very used to running coding agents locally. You might have your, you know, your, your Codex or your Claude running locally, and- As we  expand and create more workspaces, you quickly put a constraint on your laptop and now, you know, your teams wanna put these coding agents in remote sandboxes so you can scale how many GitHub PRs you, you work through and the like. But as you've probably seen, the tools that you have in your local workstation, your</span></div><div class="tline" data-t="751"><span class="ts">12:31</span><span class="tx">MCP tools, your locally running applications might not match what you have in a remote sandbox.</span></div><div class="tline" data-t="758"><span class="ts">12:38</span><span class="tx">And just a small shout-out to, uh, AgentCore. This is actually one of the problems that we're very keen on because we recognize that customers want to, uh, scale their coding agents, um, and how customers are actually running these, uh, software development life cycles. So one of the releases we recently did was grant the ability to customers to SSH into their, um, sandbox just to see what's going on. And of course, it's not really a human who is SSH-ing into your sandbox anymore, it's a coding agent who you're developing with, uh, as well. But</span></div><div class="tline" data-t="788"><span class="ts">13:08</span><span class="tx">the idea is there. Uh, bridging into the sandbox and poking around and seeing what problems are causing your coding agent or the application to not run as smoothly is a pretty, um, stated business problem for us, and one that we're trying to solve for customers.</span></div><div class="tline" data-t="805"><span class="ts">13:25</span><span class="tx">And if you look a little bit, a bit, uh, if you look a little bit at academia, uh, one interesting example that I think a lot of us probably care about is when- whenever frontier models come out, the first thing we look at is the SWE benchmark report, which is, okay, this model got XYZ percentage on this SWE benchmark versus another. And there was a recent study made by some researchers at UC Berkeley where they found that given the right environment controls and an exploit agent, they actually beat the SWE benchmarks, like reaching up to a hundred percent. And</span></div><div class="tline" data-t="835"><span class="ts">13:55</span><span class="tx">in- inversely, uh, there was another study where, um, researchers were trying to give a wide set of business problems to an agent with broken tools. Uh, and of course, the effectiveness of that agent, uh, went down greatly.</span></div><div class="tline" data-t="852"><span class="ts">14:12</span><span class="tx">So I think this is, uh, mostly where I want to aim to leave today, which is as these applications that we build today are more and more agentic and they're not constrained to a, a REST API service that you, you build for customers, but rather, uh, an arbitrary agent running inside a sandbox, it's really, really, um, uh, challenging to find all the sharp edges where the sandbox primitives, uh, lead to, you know, a less efficient, uh, ability for your agent to complete that</span></div><div class="tline" data-t="882"><span class="ts">14:42</span><span class="tx">problem. So my challenge here for you today is, uh, if you're looking to host your agents on sandboxes, sure, test it locally, but also fuzzy test it with a wide set of, uh, domain tests, um, remotely.</span></div><div class="tline" data-t="899"><span class="ts">14:59</span><span class="tx">Yeah. Thank you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

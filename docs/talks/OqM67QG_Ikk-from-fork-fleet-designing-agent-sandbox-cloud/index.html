@@ -1,0 +1,1228 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>从 fork() 到机群：设计一个智能体沙箱云 —— Abhishek Bhardwaj，OpenAI | AI 工程师中文版</title>
+<meta name="description" content="智能体需要一个安全执行代码的地方、保存工作成果的持久存储，以及一个能在任何有空闲算力的地方恢复这些工作的调度器。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>从 fork() 到机群：设计一个智能体沙箱云 —— Abhishek Bhardwaj，OpenAI</h1>
+    <div class="orig-title">From fork() to Fleet: Designing an Agent Sandbox Cloud — Abhishek Bhardwaj, OpenAI</div>
+    <div class="meta"><span class="speaker">Abhishek Bhardwaj</span> · AI Engineer World's Fair 2026 · 44:34</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=ai-security">AI 安全</a><a class="tag" href="../../index.html#topic=harness-engineering">框架工程</a><a class="tag" href="../../index.html#topic=sandboxes-and-execution-isolation">沙箱与执行隔离</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/OqM67QG_Ikk-from-fork-fleet-designing-agent-sandbox-cloud" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="OqM67QG_Ikk"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=OqM67QG_Ikk" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">从看似合理的答案到可执行的答案</div></div>
+      <div class="label row">章节跳转 <span>共 14 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="15"><span class="ts">0:15</span><span>从看似合理的答案到可执行的答案</span></li><li data-t="231"><span class="ts">3:51</span><span>产品仍然需要执行环境</span></li><li data-t="543"><span class="ts">9:03</span><span>为什么 fork 和 exec 还不够</span></li><li data-t="722"><span class="ts">12:02</span><span>容器隔离资源，但共享内核</span></li><li data-t="987"><span class="ts">16:27</span><span>插入一个应用级内核</span></li><li data-t="1109"><span class="ts">18:29</span><span>给客户机一个独立的内核边界</span></li><li data-t="1393"><span class="ts">23:13</span><span>让监视器更小，并约束它的设备</span></li><li data-t="1540"><span class="ts">25:40</span><span>把一个 VMM 进程变成智能体沙箱</span></li><li data-t="1632"><span class="ts">27:12</span><span>为更强的隔离支付运营成本</span></li><li data-t="1804"><span class="ts">30:04</span><span>一台有用的计算机需要一块持久的磁盘</span></li><li data-t="2021"><span class="ts">33:41</span><span>选择保存什么，以及以什么粒度保存</span></li><li data-t="2321"><span class="ts">38:41</span><span>用写时复制构建增量快照</span></li><li data-t="2403"><span class="ts">40:03</span><span>通过分层的块存储持续持久化</span></li><li data-t="2481"><span class="ts">41:21</span><span>把沙箱放在它的框架附近——以及它保存的状态附近</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 25 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="From fork() to fleet: designing an agent sandbox cloud" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From fork() to fleet: designing an agent sandbox cloud</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Abhishek Bhardwaj introduces sandboxes from first principles and explores how to design a cloud that runs them securely and reliably at scale.
+
+[0:27](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=27s) [Title slide for Abhishek Bhardwaj’s talk on designing an agent sandbox cloud.](https://assets.ai.engineer/sites/aiecode2025/sha256/1f0a8165e49cad77d296f19fd981acad997657644909e66dfaf5c61982267402.webp)
+
+From fork() to fleet:
+designing an agent
+sandbox cloud
+
+OpenAI
+
+Abhishek Bhardwaj
+Member of Technical Staff,
+Reinforcement Learning and Agent Infrastructure</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Last years’ AIE talk" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Last years’ AIE talk</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Bhardwaj calls this talk a spiritual sequel to his earlier talk, Arrakis: how to build an AI sandbox from scratch.
+
+[1:14](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=74s) [Reference to the talk “Arrakis: how to build an AI sandbox from scratch,” with a QR code.](https://assets.ai.engineer/sites/aiecode2025/sha256/2f31e2c7a31b3ae8f094e2e533d40979b6963ab1a4d74e85f01aa5b45b204a60.webp)
+
+Last years’ AIE talk
+Arrakis: how to build an AI sandbox from scratch</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Why the explosion of agent sandboxes? Training" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why the explosion of agent sandboxes? Training</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>During training, the harness executes model-requested tools in a sandbox. A grader scores the result, and the training loop uses the reward to update the model’s weights.
+
+[1:29](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=89s) [Training workflow connecting an RL framework, harness, model, tool runtime and grader.](https://assets.ai.engineer/sites/aiecode2025/sha256/1f9c32b5a05e31e15a91049754a5a6173fe5be1dbaded1de29a1fc6329cb4c01.webp)
+
+WHY SANDBOXES · TRAINING
+
+Why the explosion of agent sandboxes?
+
+Reasoning models can emit a tool and its parameters. A harness executes the call; a grader scores the result; training adjusts the weights.
+
+RL framework
+training loop
+
+Harness
+calls model and tools
+
+Model
+emits tool + parameters
+
+Grader
+grades result
+
+Tool runtime
+sandbox executes the call
+
+Update weights
+Task
+Call model
+Response / tool call
+Reward
+Result
+Execute tool call
+Observation
+
+Where and how does this run?
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Why the explosion of agent sandboxes? Inference" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why the explosion of agent sandboxes? Inference</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At inference, the harness executes model-generated tool calls in a sandbox and returns observations. The runtime can be on a laptop or in the cloud, where isolation helps protect the host and other users.
+
+[3:49](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=229s) [Inference workflow connecting a task, harness, model and sandboxed tool runtime.](https://assets.ai.engineer/sites/aiecode2025/sha256/1f5b32f1a4dbdcb0c44c2376b6fbd7bf743a21fcdbdccce59f4b5fb2f85485c1.webp)
+
+WHY SANDBOXES · INFERENCE
+
+Why the explosion of agent sandboxes?
+
+At inference time, tool calls are still model output. The harness executes them on the model's behalf and returns the observation.
+
+Task
+user request + context
+
+Harness
+calls model and tools
+
+Model
+returns answer or tool call
+
+Task
+Result
+Call model
+Response / tool call
+Parse and execute tool call
+Observation
+
+Tool runtime
+sandbox executes the call
+
+Where and how does this run?
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="OpenClaw: a peek into agent clouds" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>OpenClaw: a peek into agent clouds</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An ad shows a claw keeping a laptop open so agents stay awake. Bhardwaj sees local OpenClaw use as a preview of persistent, long-running agents in the cloud.
+
+[5:38](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=338s) [Slide about OpenClaw alongside a mock advertisement for a device that keeps a laptop slightly open.](https://assets.ai.engineer/sites/aiecode2025/sha256/cb481a1c63cfbe24b780d0deb62ca8432925432c698e4396dee9eb42d3cbc86e.webp)
+
+AGENT CLOUDS · LOCAL TO CLOUD
+
+OpenClaw:
+a peek into agent clouds
+
+OpenClaws
+
+Keep your agents running 24/7.
+
+A precision claw that keeps your Mac slightly open so background agents can stay alive.
+
+Only $199
+
+Run non-stop
+Keep your Mac open for continuous performance.
+
+Stays cool
+Improves airflow. Better performance.
+
+Secure hold
+Soft, durable grip. No scratches. No slip.
+
+Pre-order now
+Ships next month.
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Research vs. product sandbox platforms" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Research vs. product sandbox platforms</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Research sandboxes prioritize throughput for parallel rollouts; product sandboxes prioritize latency so users see results quickly. Both need reliability and security, with different resources to protect.
+
+[6:43](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=403s) [Table comparing research and product sandbox platforms on optimization, reliability and security.](https://assets.ai.engineer/sites/aiecode2025/sha256/e8d76b4ac97cfc53fd171912f319014f9b86515beca5189342c5346951470668.webp)
+
+AGENT CLOUDS · LOCAL TO CLOUD
+Research vs. product sandbox platforms
+
+Research | Product
+
+Primary optimization
+Research: Throughput
+Product: Latency
+
+Why
+Research: Many parallel rollouts
+Keep GPU compute utilized
+Product: People see results fast
+Responsive product experience
+
+Reliability
+Research: Avoid wasted tokens
+Avoid restarting rollouts
+Product: Paramount
+Unreliable products fail
+
+Security
+Research: Prevent generated code from gaining root
+Protect internal resources
+Resist reward hacking
+Product: Protect the host and platform resources
+Isolate other production resources
+Protect user data
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Runtime, persistence and orchestration" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Runtime, persistence and orchestration</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The sandbox cloud rests on three pillars: runtime executes sandboxes securely, persistence saves their state, and orchestration places them across infrastructure at scale.
+
+[8:23](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=503s) [Three pillars of the agent sandbox cloud: runtime, persistence and orchestration.](https://assets.ai.engineer/sites/aiecode2025/sha256/964ebe197707149958274732094174d1c315a914e83c89985ce57651f5a71447.webp)
+
+AGENT PLATFORM
+Runtime, persistence and orchestration
+
+AGENT SANDBOX CLOUD
+
+1
+RUNTIME
+HOW SANDBOXES RUN
+SECURE EXECUTION
+LOW-LATENCY CREATION
+LOW-LATENCY TOOL EXECUTION
+
+2
+PERSISTENCE
+HOW AGENT STATE SURVIVES
+SAVE SANDBOX STATE
+LONG-RUNNING TASKS
+RELIABLE RECOVERY
+
+3
+ORCHESTRATION
+WHERE SANDBOXES RUN
+CLUSTER SELECTION
+NODE SELECTION
+LOW-LATENCY CREATES
+
+SECURE RUNTIME • DURABLE STATE • FLEET-SCALE PLACEMENT
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Runtime from first principles: Linux execution model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Runtime from first principles: Linux execution model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Linux threads run in userspace and request access to privileged resources through the kernel. The diagram shows ioctl and syscall paths to devices, while the kernel gates hardware access.
+
+[9:03](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=543s) [Userspace processes and instructions access privileged resources through the Linux kernel.](https://assets.ai.engineer/sites/aiecode2025/sha256/2d15d26b6db2b1d02faf017acf52c4f1d4b4945004b3c70ffca7580d9639e87f.webp)
+
+RUNTIME
+Runtime from first principles:
+linux execution model
+
+Userspace
+
+Process 1
+Thread
+task_struct
+
+Process 2
+Thread
+task_struct
+
+Program instructions
+mov eax, 1
+xor ebx, ebx
+in 0x80
+
+ioctl
+/dev/kvm
+
+syscall
+/dev/sda1
+
+Linux kernel-privileged access
+• Kernel gates access to hardware
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Runtime from first principles: Linux execution model" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Runtime from first principles: Linux execution model</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>System calls switch the CPU from user mode in ring 3 to the kernel in ring 0 and back. Root remains in ring 3; a kernel exploit runs code in ring 0.
+
+[9:44](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=584s) [User mode and kernel mode shown alongside CPU privilege rings and system call transitions.](https://assets.ai.engineer/sites/aiecode2025/sha256/a028d8c5287265969a9152e4359288439fef6e7a4b0a24a2ab4305799a8ffe69.webp)
+
+RUNTIME
+
+Runtime from first principles:
+linux execution model
+
+RING 3 • USER MODE
+
+PROCESS 1
+THREAD
+
+PROCESS 2
+THREAD
+
+PROGRAM INSTRUCTIONS
+mov
+xor
+syscall
+
+ROOT USER • STILL RING 3
+
+PRIVILEGE GATE
+SYSCALL / IOCTL
+RETURN
+CPU SWITCHES RING 3 → RING 0 → RING 3
+
+RING 0 • KERNEL MODE
+LINUX KERNEL
+SCHEDULER
+MEMORY
+FILESYSTEMS
+DEVICES
+KERNEL EXPLOIT • CODE RUNS IN RING 0
+PRIVILEGED ACCESS TO HARDWARE
+
+CPU PRIVILEGE RINGS
+RING 3
+USER PROGRAMS
+syscall
+return
+RING 0
+KERNEL
+
+ROOT USER | MORE OS PERMISSIONS • STILL RING 3
+KERNEL EXPLOIT | EXECUTES IN RING 0
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Fork() as runtime" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fork() as runtime</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The API server fork-execs a host process for each tool call. The processes share the kernel and host resources, creating security risks and allowing CPU and memory contention to cause unreliable latency.
+
+[10:51](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=651s) [An API server launches host processes for tool calls, sharing kernel and host resources and creating security and noisy-neighbor risks.](https://assets.ai.engineer/sites/aiecode2025/sha256/fcb0833b55300a05f6591a19c2a4e366171a6b1a0e6dfb46b6763e92174c9937.webp)
+
+RUNTIME
+
+Fork() as runtime
+
+A Sandbox API service fork-execs one host process per tool call. Orchestration can manage load, but it cannot create isolation.
+
+HARNESS
+HOST NODE
+API SERVER
+
+fork-exec
+TOOL CALL A
+rg
+
+fork-exec
+TOOL CALL B
+kubectl
+
+fork-exec
+TOOL CALL C
+sed
+
+USERSPACE
+SHARED KERNEL + HOST RESOURCES
+KERNEL • SECRETS • PRIVILEGED RESOURCES • OTHER USERS' DATA
+CPU + MEMORY
+
+INSECURE
+HOST ATTACK • ROOT • EXFILTRATION
+OTHER USERS' DATA
+
+NOISY NEIGHBOR
+CPU + MEMORY CONTENTION
+UNRELIABLE LATENCY
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="From fork() to containers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From fork() to containers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The API server starts containers that share the host kernel. Namespaces give them separate resource views, while cgroups account for and limit resource use.
+
+[12:01](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=721s) [An API server starts containers that use namespaces and cgroups while sharing the host kernel.](https://assets.ai.engineer/sites/aiecode2025/sha256/069044063f8ab57dedaca89367c07a3013cd74d3170644d950fc9312e74cf79e.webp)
+
+RUNTIME
+From fork() to containers
+
+Namespaces provide resource abstraction. Cgroups cap resource usage. Together, they turn host processes into containers.
+
+HARNESS
+HOST NODE
+API SERVER
+start container
+start container
+start container
+
+CONTAINER A
+rg
+NAMESPACE
+CGROUP
+
+CONTAINER B
+kubectl
+NAMESPACE
+CGROUP
+
+CONTAINER C
+sed
+NAMESPACE
+CGROUP
+
+USERSPACE
+SHARED HOST KERNEL
+
+NAMESPACES
+SEPARATE RESOURCE VIEWS
+
+CGROUPS
+ACCOUNT + LIMIT RESOURCES
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Containers: why? And what?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Containers: why? And what?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Namespaces give the same processes different PIDs inside and outside a container. A bind mount exposes the host’s /srv/data at /foo inside the container; both views share the host kernel.
+
+[12:42](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=762s) [Container and host views show different process IDs and mount paths for the same tasks and directory, backed by a shared kernel.](https://assets.ai.engineer/sites/aiecode2025/sha256/20b0d258c9de40224264da398c8820ee4227297bba4057614e08beb96eb59063.webp)
+
+RUNTIME
+Containers: why? And what?
+
+CONTAINER PID VIEW
+PID NAMESPACE
+1
+2
+3
+
+SAME RUNNING PROCESSES
+SAME TASK
+CONTAINER PID 1 • HOST PID 100
+SAME TASK
+CONTAINER PID 2 • HOST PID 101
+SAME TASK
+CONTAINER PID 3 • HOST PID 102
+
+HOST PID VIEW
+PID NAMESPACE
+100
+101
+102
+
+ONE SET OF TASKS • DIFFERENT PID NAMESPACE VIEWS
+
+CONTAINER MOUNT VIEW
+MOUNT TREE
+/
+/foo
+
+MOUNT NAMESPACE EXAMPLE
+SAME DIRECTORY
+SHARED DATA
+BIND MOUNT
+
+HOST MOUNT VIEW
+MOUNT TREE
+/
+/srv
+/srv/data
+
+SAME DIRECTORY • DIFFERENT PATHS AND VISIBILITY
+The host directory /srv/data is bind-mounted at /foo in the container’s mount namespace.
+
+SHARED HOST KERNEL
+TASKS • PID NAMESPACE TABLES • MOUNT TREES
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Namespaces and Cgroups from first principles" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Namespaces and Cgroups from first principles</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Namespaces give each container its own view of processes, mounts and networking; cgroups account for and limit resources. Both containers still enter the same host kernel.
+
+[13:37](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=817s) [Two containers have separate namespace views and resource budgets but share the host kernel.](https://assets.ai.engineer/sites/aiecode2025/sha256/6bf3c33ebbbf5495d5eac1661a77e85e94b13291edeb5878c7210fba36b4366a.webp)
+
+RUNTIME
+Namespaces and Cgroups from first principles
+
+HOST NODE
+
+CONTAINER A
+NAMESPACE VIEW
+PIDS: PID 1
+MOUNTS: /app
+NETWORK: eth0
+ITS OWN VIEW
+
+CGROUP BUDGET
+CPU
+MEMORY
+I/O
+ACCOUNTED + LIMITED
+
+CONTAINER B
+NAMESPACE VIEW
+PIDS: PID 1
+MOUNTS: /workspace
+NETWORK: eth0
+ITS OWN VIEW
+
+CGROUP BUDGET
+CPU
+MEMORY
+I/O
+ACCOUNTED + LIMITED
+
+UNRESOLVED BOUNDARY
+
+SHARED HOST KERNEL
+BOTH CONTAINERS ENTER THE SAME KERNEL
+
+[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Containers: security story" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Containers: security story</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A container process and a trusted host process both call the shared host kernel. A malicious container process can try to exploit that kernel and gain access to other sandboxes’ data or control of the node.
+
+[14:17](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=857s) [A container process and a trusted host process both make calls to the shared host kernel.](https://assets.ai.engineer/sites/aiecode2025/sha256/a844898a8519ef495b5c54d083359475edbc02c20bf3f5c5f74eb1f49b42c888.webp)
+
+RUNTIME
+Containers: security story
+
+root namespace · userspace
+
+Container
+Malicious or buggy process
+PID 1
+PID namespace - host PID 100
+syscall/ioctl
+
+Trusted host process
+PID 200
+syscall/ioctl
+
+Shared host kernel
+The attack surface is shared
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Containers: sandboxing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Containers: sandboxing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A seccomp filter limits the system calls and arguments a container can send to the kernel, reducing its attack surface. Unknown call requirements can cause user requests to be blocked.
+
+[14:51](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=891s) [A seccomp filter allows selected system calls and arguments between a container and the kernel.](https://assets.ai.engineer/sites/aiecode2025/sha256/3a4ecfd6e084780f5fe9f54fb29b73d63ca1907e3218e49562bfc858c603c248.webp)
+
+RUNTIME
+Containers: sandboxing
+
+Container
+Malicious or buggy process
+PID 1
+
+Seccomp filter
+Allow only required calls and arguments
+open(flags allowlist)
+mmap2(arg2 == 0)
+mummap
+close
+All other syscalls are denied
+
+Kernel
+Smaller attack surface
+
+Capabilities + syscall policy jail the container
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Containers interact with the same host kernel" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Containers interact with the same host kernel</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An untrusted container and its neighbor share a host kernel. The diagram shows how a kernel vulnerability could lead to host-level execution, exposing other sandboxes, host resources and connected infrastructure.
+
+[15:49](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=949s) [An untrusted container and a neighboring container share a host kernel; a kernel exploit could affect other sandboxes, host resources and connected infrastructure.](https://assets.ai.engineer/sites/aiecode2025/sha256/6e933ced971127609fff67168057e73932ffed2d6f829b0b91d3aa669fc41274.webp)
+
+RUNTIME
+Containers interact with the same host kernel
+
+HOST NODE
+
+UNTRUSTED CONTAINER
+MODEL-GENERATED CODE
+THIRD-PARTY DEPENDENCIES
+NAMESPACES + CGROUPS
+
+NEIGHBOR CONTAINER
+ANOTHER USER'S DATA
+ANOTHER SESSION
+
+KERNEL VULNERABILITY
+
+SHARED HOST KERNEL
+EVERY CONTAINER CROSSES THIS BOUNDARY
+
+HOST ROOT / KERNEL EXECUTION
+
+ONE KERNEL • SHARED BLAST RADIUS
+
+NEIGHBOR SANDBOXES
+CROSS-TENANT DATA
+
+HOST RESOURCES
+SECRETS • CREDENTIALS
+
+CONNECTED INFRASTRUCTURE
+NODE IDENTITY • INTERNAL SERVICES
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Recap fork() to containers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Recap fork() to containers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Containers add resource isolation to raw fork, but they still share the host kernel. The next question is how to reduce that exposure.
+
+[16:04](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=964s) [A progression compares raw fork, containers and the goal of reducing host-kernel exposure.](https://assets.ai.engineer/sites/aiecode2025/sha256/8400e0e4b7ac35c40f4fa537ffda3c67ed1f9dfb03fe8a5789868f54573ee501.webp)
+
+RUNTIME
+Recap fork() to containers
+
+Raw fork
+No isolation
+Host processes share everything
+
+Containers
+Resource isolation
+shared host kernel
+
+Can we do better?
+Reduce host-kernel exposure
+
+Containers are strictly better—the unresolved boundary is security
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="gVisor architecture: sentry and gofer" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>gVisor architecture: sentry and gofer</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A platform layer routes syscalls and page faults to Sentry, which implements Linux APIs in userspace. Gofer mediates filesystem access; both sit above host-kernel protections.
+
+[16:25](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=985s) [A sandboxed workload communicates through a platform layer with the Sentry userspace kernel and Gofer filesystem mediator, above host-kernel protections.](https://assets.ai.engineer/sites/aiecode2025/sha256/b9651a1851d73e327468cbdcb5ea8eb490026c791f620b9a57c9217fa7642695.webp)
+
+RUNTIME
+
+gVisor architecture: sentry and gofer
+
+An application kernel replaces the workload's direct interface to the host kernel
+
+SANDBOXED WORKLOAD
+APPLICATION
+
+SYSCALLS
+PAGE FAULTS
+PLATFORM LAYER
+
+SENTRY
+USERSPACE KERNEL • GO
+PROCESS + MEMORY
+SIGNALS
+FILESYSTEM
+NETSTACK
+USERSPACE NETWORKING
+LINUX APIs IMPLEMENTED HERE
+NO 1:1 SYSCALL PASS-THROUGH
+
+LISAFS
+
+GOFER
+FILESYSTEM MEDIATION
+
+SECCOMP • NAMESPACES • CGROUPS • MINIMAL CAPABILITIES
+
+PACKET I/O
+HOST FILESYSTEM
+HOST KERNEL
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="gVisor security boundary and residual risk" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>gVisor security boundary and residual risk</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An attacker could chain a gVisor runtime exploit with a host-kernel exploit to reach root. gVisor makes the chain harder, but the host kernel remains reachable.
+
+[17:24](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=1044s) [Diagram shows a potential exploit chain from untrusted code through gVisor and the host kernel to root.](https://assets.ai.engineer/sites/aiecode2025/sha256/bae0f72a0b2874c70d681055d29d4e44c9a88baa6a643bc5cea8736357962ba7.webp)
+
+RUNTIME
+
+gVisor security boundary and residual risk
+
+Untrusted code
+Increasingly capable model
+exploit 01
+
+gVisor runtime
+Userspace kernel APIs
+exploit 02
+
+Host kernel
+Still the foundation
+host root
+
+Root
+
+The chain is harder - but the host kernel is still reachable
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Can we do better on security guarantees?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Can we do better on security guarantees?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>gVisor reduces the host syscall surface, but fork(), gVisor and containers can still leave the host kernel reachable. The next goal is to protect the host even if the guest is compromised.
+
+[18:15](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=1095s) [Comparison of fork, gVisor and containers, with the goal of protecting the host when a guest is compromised.](https://assets.ai.engineer/sites/aiecode2025/sha256/92a4d965ab73a23f357b8f7767151c07d747a9e2583afaf9241c0ef72caa44a6.webp)
+
+RUNTIME
+Can we do better on security guarantees?
+
+fork()
+No process isolation
+Direct host syscalls
+Large attack surface
+
+gVisor
+Userspace kernel APIs
+Smaller host syscall surface
+Host kernel underneath
+
+Containers
+Namespaces + cgroups
+Resource isolation
+Shared kernel
+
+A vulnerability chain can still reach host root
+Next goal: protect the host even when the guest is compromised
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Virtualization from first principles" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Virtualization from first principles</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A container shares the host kernel; a VM runs its own kernel in a separate CPU context, containing a guest-kernel compromise. Switching between guest and host contexts carries a performance penalty.
+
+[18:56](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=1136s) [Diagram contrasts a container sharing the host kernel with a virtual machine running in a separate guest CPU context.](https://assets.ai.engineer/sites/aiecode2025/sha256/92e9d04005061eda8e0fb18bcb546e939f4a1f4f98bde3a9299ba94ac391c165.webp)
+
+RUNTIME
+Virtualization from first principles
+
+Untrusted code runs in a different processor context, with its own kernel and userspace.
+A guest-kernel compromise stays inside the guest.
+
+PHYSICAL HOST
+
+HOST USERSPACE
+CONTAINER
+P1  P2  P3
+SYSCALL / IOCTL
+SHARED HOST KERNEL
+
+SEPARATE GUEST CPU CONTEXT
+VIRTUAL MACHINE
+GUEST USERSPACE
+P1  P2  P3
+GUEST KERNEL
+GUEST KERNEL COMPROMISED
+CONTAINED IN GUEST
+NO DIRECT HOST ACCESS
+ENTER GUEST / VM EXIT
+HARDWARE VIRTUALIZATION
+VT-x / AMD-V
+
+HOST KERNEL + HARDWARE
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Virtualization from first principles" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Virtualization from first principles</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Guest ring 0 runs in a separate CPU context from host ring 0. VM entry and exit switch between them, while second-stage page tables gate access from guest physical to host physical memory.
+
+[20:01](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=1201s) [Diagram compares guest and host privilege contexts, VM entry and exit, and second-stage memory translation.](https://assets.ai.engineer/sites/aiecode2025/sha256/b076c7ed4fdfa1d7b0147d9f1da1267300094af72fa08ed1514a9bef4cf5713f.webp)
+
+RUNTIME
+Virtualization from first principles
+
+GUEST RING 0 ≠ HOST RING 0
+
+VMX NON-ROOT • GUEST CONTEXT
+RING 3
+GUEST APPLICATIONS
+RING 0
+GUEST KERNEL
+COMPROMISED GUEST KERNEL
+STILL VMX NON-ROOT
+FULL CONTROL INSIDE THE GUEST
+
+VM ENTRY
+HOST/ROOT → GUEST/NON-ROOT
+VM EXIT
+GUEST/NON-ROOT → HOST/ROOT
+CPU SWITCHES THE COMPLETE EXECUTION CONTEXT
+
+VMX ROOT • HOST CONTEXT
+RING 3
+HOST USERSPACE
+RING 0
+HOST KERNEL / HYPERVISOR
+CONTROLS THE MACHINE
+
+GUEST KERNEL COMPROMISE DOES NOT AUTOMATICALLY BECOME HOST RING 0
+
+GUEST VIRTUAL (GVA) → GUEST PHYSICAL (GPA) → SECOND-STAGE PAGE TABLES (EPT), HARDWARE-ENFORCED GATE → HOST PHYSICAL (HPA)
+GUEST CANNOT MAP ARBITRARY HOST MEMORY
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="Paravirtualized and hardware based virtualization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Paravirtualized and hardware based virtualization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The VMM's vCPU thread enters the guest through KVM. Guest virtio drivers communicate with block and network backends through virtqueues.
+
+[20:29](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=1229s) [Diagram connects guest virtio drivers to VMM block and network backends and shows the vCPU thread using KVM.](https://assets.ai.engineer/sites/aiecode2025/sha256/3a6920d8d69563f55ec50485303cc4c586a78af3cc3e635e9108b329be765891.webp)
+
+RUNTIME
+Paravirtualized and hardware based virtualization
+
+GUEST CONTEXT
+GUEST USERSPACE
+P1
+P2
+P3
+
+GUEST KERNEL
+virtio-blk DRIVER
+virtio-net DRIVER
+
+ENTER GUEST / VM EXIT
+
+VIRTQUEUES
+DESCRIPTORS • NOTIFY • COMPLETION
+
+VMM • HOST USERSPACE
+vCPU THREAD
+BLOCK BACKEND
+NETWORK BACKEND
+
+HOST KERNEL + CPU HARDWARE
+/dev/kvm
+KVM • VT-x / AMD-V
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="23" data-cap="Crosvm: security-first rust VMM" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Crosvm: security-first rust VMM</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Crosvm uses Rust and jails block and network devices separately, limiting which resources each device can access if compromised.
+
+[23:11](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=1391s) [Diagram contrasts a traditional single VMM process with crosvm's separately jailed block and network devices.](https://assets.ai.engineer/sites/aiecode2025/sha256/62f5aa9b3da8da782c2c4c3107fda07621e9a7cd7005aa52c739e72257652420.webp)
+
+RUNTIME
+Crosvm: security-first rust VMM
+
+Traditional VMM - QEMU
+C-broad device surface
+
+One VMM process
+Block
+Net
+One compromise reaches the process
+
+Jailed architecture
+
+crosvm
+Rust - hardware virtualization only
+
+Block device
+Minijail + seccomp
+Only block resources
+
+Net
+Jail
+Contained
+
+Compromise one device - do not expose unrelated host data or devices
+
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="24" data-cap="MicroVMs: Why “micro”?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MicroVMs: Why “micro”?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A microVM can run the same Linux guest on KVM as a general-purpose VM. Its purpose-built VMM supports fewer features, reducing memory use and boot time.
+
+[24:28](https://www.youtube.com/watch?v=OqM67QG_Ikk&amp;t=1468s) [Diagram compares general-purpose and microVM monitors beneath equivalent Linux guests, both using KVM.](https://assets.ai.engineer/sites/aiecode2025/sha256/18a22327a0b9488e749ab54039bf0134d81269431910d1baf20eab9f0b004aac.webp)
+
+RUNTIME
+MicroVMs: Why &quot;micro&quot;?
+
+MICRO = SMALLER VMM, NOT A SMALLER GUEST
+
+GENERAL-PURPOSE VM
+LINUX GUEST
+USERSPACE
+KERNEL
+
+GENERAL-PURPOSE VMM
+MANY ARCHITECTURES
+LEGACY DEVICES
+SOFTWARE EMULATION
+MORE CODE PATHS
+
+MICROVM
+LINUX GUEST
+USERSPACE
+KERNEL
+
+PURPOSE-BUILT VMM
+REQUIRED ARCH
+BLOCK
+NET
+
+FEWER CODE PATHS → FASTER BOOT
+LESS VMM BLOAT → LOWER MEMORY
+
+SAME LINUX HARDWARE-VIRTUALIZATION STACK • KVM
+CROSVM • FIRECRACKER • CLOUD HYPERVISOR
+
+OpenAI</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">从看似合理的答案到可执行的答案</a></li><li><a href="#sec-2">产品仍然需要执行环境</a></li><li><a href="#sec-3">为什么 fork 和 exec 还不够</a></li><li><a href="#sec-4">容器隔离资源，但共享内核</a></li><li><a href="#sec-5">插入一个应用级内核</a></li><li><a href="#sec-6">给客户机一个独立的内核边界</a></li><li><a href="#sec-7">让监视器更小，并约束它的设备</a></li><li><a href="#sec-8">把一个 VMM 进程变成智能体沙箱</a></li><li><a href="#sec-9">为更强的隔离支付运营成本</a></li><li><a href="#sec-10">一台有用的计算机需要一块持久的磁盘</a></li><li><a href="#sec-11">选择保存什么，以及以什么粒度保存</a></li><li><a href="#sec-12">用写时复制构建增量快照</a></li><li><a href="#sec-13">通过分层的块存储持续持久化</a></li><li><a href="#sec-14">把沙箱放在它的框架附近——以及它保存的状态附近</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">从 fork() 到机群：设计一个智能体沙箱云</h2>
+      <div class="lede"><p>智能体需要一个安全执行代码的地方、保存工作成果的持久存储，以及一个能在任何有空闲算力的地方恢复这些工作的调度器。</p><p>对 Linux 进程、文件和 API 有基本了解会有帮助；隔离和存储机制会从基本原理讲起。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="15">▶ 0:15</button></div>
+      <h3>从看似合理的答案到可执行的答案</h3>
+      <p>What is <code>3 + 3</code>? How many Rs are in <code>strawberry</code>? Early ChatGPT could produce fluent answers while remaining unreliable on questions whose answers were straightforward to check. Abhishek Bhardwaj, who works on OpenAI’s reinforcement-learning and agent infrastructure, uses this contrast to begin a first-principles design of sandbox infrastructure. It follows his earlier talk, <a href="https://sessionize.com/abhishek-bhardwaj/" target="_blank" rel="noopener">How to Build an AI Sandbox from Scratch</a>.</p>
+<p>Bhardwaj’s intuition is that familiar arithmetic appeared frequently in training data, while explicit counts of letters in particular words did not. The useful engineering response is to give the model a way to calculate and check an answer. These questions can become small executable tasks:</p>
+<p>``<code>python
+print(3 + 3)
+print(&quot;strawberry&quot;.count(&quot;r&quot;))
+</code>``</p>
+<p>Code execution supplies an observable result that a grader can evaluate. It also gives the model a way to improve through repeated attempts on tasks with <strong>verifiable rewards</strong>.</p>
+<p>The training loop has several distinct responsibilities:</p>
+<p>1. The training framework supplies a task to the model.
+2. The model emits a response that may request code execution.
+3. The harness parses that request and runs the code through a tool runtime.
+4. A grader evaluates the result.
+5. The training loop uses the reward to update the model’s weights.</p>
+<p>This trains two behaviors together: deciding <strong>when to use a tool</strong>, and generating code that actually solves the task. The harness and runtime are therefore part of the learning system, not merely conveniences added after training.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/1f0c07183816e094c85376ed51bde33567e708b5ccd7e99eb2f71c72586111ec" alt="Slide titled “Why the explosion of agent sandboxes?” with arrows connecting an RL framework, harness, model, grader, and highlighted tool runtime." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The training loop connects the model, harness, tool runtime, and grader.</figcaption></figure>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="231">▶ 3:51</button></div>
+      <h3>产品仍然需要执行环境</h3>
+      <p>At inference time, the weight-update loop disappears, but the harness still has to parse tool requests, execute them, and return observations. A model trained to solve problems through code cannot exercise that capability unless the product supplies an execution environment.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/842799b346c47c0e1afc5e66245680067b4a3cb59b80194555b967f0c859fe91" alt="Diagram connecting task, harness, and model, with a highlighted tool runtime below the harness and arrows for execution and observation." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>At inference time, the harness executes tool calls and returns observations.</figcaption></figure>
+<p>That environment might be a laptop running Codex, or a cloud node serving Codex Web or ChatGPT. In either case, generated code must be treated as <strong>untrusted code</strong>. Damage need not come from deliberate malice: an overzealous agent might try to obtain root privileges to complete its task. A kernel exploit could compromise the machine, and on a shared cloud node an escape could expose another user’s data. A sandbox must let useful work proceed while containing these behaviors.</p>
+<p>Long-running agents make the cloud case especially compelling. Bhardwaj points to OpenClaw and a picture of a laptop with its lid held open so its agents will not sleep. Users renting Hetzner VPSs or hosted Mac Minis are already seeking an environment that stays available independently of their personal computer. His expectation is that persistent cloud agents will make that improvised laptop arrangement unnecessary.</p>
+<p>Research and product workloads share the need for security and reliability, but emphasize different performance goals:</p>
+<p>| Concern | Research | Product |
+|---|---|---|
+| Performance | Throughput across parallel rollouts | Low startup and tool latency |
+| Reliability | Preserve useful training work | Avoid failed tasks and lost users |
+| Security | Protect infrastructure and model weights | Protect infrastructure and user data |</p>
+<p>A rollout is one attempt at a task; research needs many attempts in parallel. Product users experience each delay directly. In both settings, runtime failures waste work already paid for in GPU-generated tokens. These requirements lead to three design problems: a secure <strong>runtime</strong> on one node, <strong>persistence</strong> for the agent’s disk, and <strong>orchestration</strong> across a fleet.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="543">▶ 9:03</button></div>
+      <h3>为什么 fork 和 exec 还不够</h3>
+      <p>On Linux, a thread is the smallest unit of execution. When a userspace program needs a privileged resource, it asks the kernel through system calls, including interfaces such as <code>ioctl</code>. In the processor model used here, userspace executes in <strong>ring 3</strong>, while the kernel executes in <strong>ring 0</strong>. A system call transfers control into the privileged kernel context.</p>
+<p>Becoming root and exploiting the kernel are different escalations. Root is a highly privileged user identity, but root’s userspace code still runs in ring 3. It may nevertheless gain access to secrets such as SSH keys and encrypted-data credentials. A kernel exploit can go further, allowing execution in ring 0 and access to other processes’ memory. That is the kind of incident Bhardwaj describes as a potential newspaper headline.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/8c271a91547ad93adf11e27047e4fb3a0a09ba932a475a751d2521c1e84901ef" alt="Linux execution diagram showing ring 3 user mode above ring 0 kernel mode, alongside concentric CPU privilege rings and root-user and kernel-exploit labels." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Linux separates user-mode execution from privileged kernel execution.</figcaption></figure>
+<p>The simplest tool runtime is an API server that receives a harness request, calls <code>fork()</code>, and uses <code>exec()</code> to run the requested program. This gives native process execution without an additional isolation layer, but the child can still exercise the host kernel’s attack surface. It can also exhaust the node: a tool that repeatedly forks processes can prevent unrelated tool calls from running. <strong>Security isolation and resource isolation are separate requirements</strong>, and raw fork/exec supplies neither boundary by itself.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="722">▶ 12:02</button></div>
+      <h3>容器隔离资源，但共享内核</h3>
+      <p>Linux containers build on two mechanisms: <strong>namespaces</strong> isolate resource views, and <strong>cgroups</strong> constrain resource consumption. A PID namespace can make processes appear inside a container as PIDs <code>1</code>, <code>2</code>, and <code>3</code>, while the host sees those same processes under ordinary host PIDs. A mount namespace allows a filesystem to be mounted at a path inside the container without changing what the host sees at that path. Network namespaces apply the same separation of views to networking.</p>
+<p>A private view does not limit consumption. Cgroups add CPU and memory limits so that a runaway workload cannot consume the entire node’s resources. Together, namespaces and cgroups address much of the noisy-neighbor problem. The processes remain native host processes, however, and their system calls still reach the shared host kernel. A successful escape through that boundary can compromise other sandboxes.</p>
+<p><strong>Seccomp</strong> reduces the exposed kernel surface by filtering which system calls a process may invoke and which arguments those calls may use. The operational difficulty is predicting an open-ended agent’s future behavior. A restrictive filter may block a legitimate tool, leaving users waiting for the runtime operator to revise the policy. Containers and syscall filtering provide meaningful protection, but the question remains: can the workload reach less of the host kernel while retaining broad Linux functionality?</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="987">▶ 16:27</button></div>
+      <h3>插入一个应用级内核</h3>
+      <p><a href="https://gvisor.dev/docs/architecture_guide/intro/" target="_blank" rel="noopener">gVisor</a> moves much of the Linux API implementation into userspace. Its Go-written <strong>Sentry</strong> acts as an application kernel, implementing facilities such as process management. A companion daemon, the <strong>Gofer</strong>, handles filesystem access. Workload system calls are intercepted and serviced through this layer rather than being passed directly to the host kernel as ordinary application calls.</p>
+<p>An exploit in that application-kernel implementation initially lands in userspace, not automatically in host kernel mode. Bhardwaj frames the remaining risk as an exploit chain: first compromise the Sentry or Gofer, then find a way through its restricted interface to compromise the host kernel. The extra boundary makes the attack harder, but the underlying host still matters. Increasing model capability at finding bugs and chaining exploits motivates asking for another kind of separation.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b22303040a9b5041e1a86dcc06c60e3df591693025fcbc1de6705ce2529be2dd" alt="gVisor architecture diagram showing a sandbox workload, platform, sentry, gofer, and underlying host kernel with filesystem and packet I/O paths." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>gVisor places the sentry and gofer between the workload and host kernel.</figcaption></figure>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="1109">▶ 18:29</button></div>
+      <h3>给客户机一个独立的内核边界</h3>
+      <p>The next goal is to contain a workload even if it obtains root or compromises its own kernel. Hardware virtualization supplies a separate processor execution context. In the Intel terminology used in the talk, the guest kernel executes in ring 0 in <strong>VMX non-root mode</strong>, while the host kernel and hypervisor execute in <strong>VMX root mode</strong>. Guest ring 0 grants control inside the guest; it does not itself grant host control. Transitions between guest and host contexts carry a performance cost.</p>
+<p>A <strong>virtual machine monitor</strong>, or VMM, manages this environment from the host. QEMU is a familiar example. In the simplified startup path, the VMM configures the guest kernel, root filesystem, and memory, then calls Linux’s KVM interface through <code>/dev/kvm</code> to run the guest. Inside, the guest sees a separate Linux system with block and network devices. Access to those virtual devices can transfer control back to host-side device backends that service the request.</p>
+<p><strong>Paravirtualization</strong> makes that communication more efficient by using guest drivers that know they are running in a VM. With <code>virtio</code>, the guest and host communicate through a virtualization-aware device interface. In the illustrated arrangement, devices appear through PCI, and device interactions can cause exits into host processing. Bhardwaj describes the host-side execution thread as appearing blocked while the CPU runs the guest, then resuming VMM work when guest execution exits. The application still uses ordinary Linux interfaces; the virtualization machinery sits below them.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="1393">▶ 23:13</button></div>
+      <h3>让监视器更小，并约束它的设备</h3>
+      <p>A hardware boundary still leaves host-side software to defend. QEMU supports many architectures and devices, and its C device implementations have historically supplied targets for VM escapes. Bhardwaj’s team at Google worked on <code>crosvm</code> to run Linux VMs on Chromebooks with a narrower device set and a Rust implementation. Memory safety reduces one class of implementation risk; a smaller supported surface reduces the amount of code that must be defended.</p>
+<p>Device-level jailing adds another boundary. A block backend can receive access to storage resources without network access; a network backend can receive networking permissions without access to block resources. Compromising one device should not automatically grant the permissions of every other device. This is a concrete use of least privilege inside the VMM architecture.</p>
+<p>The <strong>micro</strong> in microVM refers here to the reduced monitor footprint, device scope, and boot overhead, not to a restriction on what the guest can do. <a href="https://aws.amazon.com/blogs/aws/firecracker-lightweight-virtualization-for-serverless-computing/" target="_blank" rel="noopener">Firecracker</a> began from <code>crosvm</code> and serves AWS serverless workloads. That lineage predates the talk’s suggested 2023 turning point: AWS publicly announced Firecracker in 2018. <a href="https://github.com/cloud-hypervisor/cloud-hypervisor/blob/main/docs/api.md" target="_blank" rel="noopener">Cloud Hypervisor</a> is another Rust VMM, with a more general scope and contributions from multiple organizations.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1540">▶ 25:40</button></div>
+      <h3>把一个 VMM 进程变成智能体沙箱</h3>
+      <p>The control path is a sequence of API operations:</p>
+<p>1. The harness launches a <code>cloud-hypervisor</code> process.
+2. The process exposes an API over a Unix domain socket.
+3. The harness creates a VM configuration, supplying the root filesystem, kernel, CPU allocation, and memory.
+4. It starts the VM, causing the VMM to enter the KVM execution path.</p>
+<p>The talk describes this conceptually as create, then start. Current Cloud Hypervisor documentation names those operations <code>vm.create</code> and <code>vm.boot</code>. With the API socket available and the kernel and root disk prepared, that sequence looks like:</p>
+<p>```bash
+curl --fail --unix-socket /tmp/agent-vmm.sock \
+  -X PUT http://localhost/api/v1/vm.create \
+  -H 'Content-Type: application/json' \
+  -d '{
+    &quot;cpus&quot;: {&quot;boot_vcpus&quot;: 2},
+    &quot;memory&quot;: {&quot;size&quot;: 1073741824},
+    &quot;payload&quot;: {
+      &quot;kernel&quot;: &quot;/srv/agent/vmlinux&quot;,
+      &quot;cmdline&quot;: &quot;console=ttyS0 root=/dev/vda rw&quot;
+    },
+    &quot;disks&quot;: [{&quot;path&quot;: &quot;/srv/agent/rootfs.img&quot;}]
+  }'</p>
+<p>curl --fail --unix-socket /tmp/agent-vmm.sock \
+  -X PUT http://localhost/api/v1/vm.boot
+```</p>
+<p>The resource sizes and paths above make the configuration concrete; the essential mechanism is the separation between defining the VM and booting it.</p>
+<p>Once the guest is running, the harness also needs a control channel into it. In the described sandbox design, guest <code>PID 1</code> exposes an API server for requests such as saving state or coordinating device operations. Host and guest can communicate through <code>vsock</code>, a socket mechanism designed for that boundary, or through the node’s IP networking stack. The VMM API controls the machine; the guest API coordinates work inside it.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1632">▶ 27:12</button></div>
+      <h3>为更强的隔离支付运营成本</h3>
+      <p>MicroVM isolation is strong, but VM escapes remain possible through vulnerabilities in KVM or device handling. Granular device jails and seccomp policies add defenses around that remaining surface. The operational costs appear in several places:</p>
+<p>- <strong>Execution overhead:</strong> guest/host transitions are expensive relative to staying within one execution context.
+- <strong>Memory sharing:</strong> a balloon driver asks the guest to return memory, making reclamation cooperative and reactive rather than immediately available to the host.
+- <strong>GPU access:</strong> <code>virtio-gpu</code> provides graphics-oriented interfaces, while direct device access introduces assignment and sharing constraints. The talk’s single-sandbox limitation applies to whole-device passthrough; <a href="https://docs.kernel.org/driver-api/vfio-mediated-device.html" target="_blank" rel="noopener">VFIO mediated devices</a> can expose separate instances when the hardware and vendor driver support them.</p>
+<p>These are workload and capacity-planning decisions as well as runtime implementation details.</p>
+<p><strong>Optimize performance around the security boundary you need.</strong> Bhardwaj prefers this approach because a performance problem can often be mitigated with systems techniques, while a security breach can permanently damage trust. His recurring experience is that teams move through containers, gVisor, or V8-based environments before discovering that their agents need a complete Linux machine. His advice to founders is to start with microVMs and investigate alternatives if that choice fails their requirements. The promised avoidance of years of grief is practical encouragement, not a migration estimate.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/41c01ec06e0adbace03f856134facebbf89f108d1ae298a52cc2c4a014ab5fa5" alt="MicroVM trade-offs slide with two green benefit bullets and three yellow cost bullets, plus the statement that systems tricks cannot undo a security breach." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>MicroVM trade-offs include stronger isolation, performance overhead, memory sharing, and GPU emulation complexity.</figcaption></figure>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="1804">▶ 30:04</button></div>
+      <h3>一台有用的计算机需要一块持久的磁盘</h3>
+      <p>Imagine a laptop that loses your work whenever you close it. An ephemeral cloud sandbox creates a similar experience for an agent. The next requirement is <strong>disk persistence</strong>—distinct from preserving live process memory. A microVM’s disk may be a host file or another attached block device, and it can accumulate installed packages, presentations, and entire repositories. Losing that state after a node failure or an interrupted model run wastes both user work and the computation that produced it.</p>
+<p>Periodic checkpoints let the system recreate a sandbox’s saved disk state on another node after a node or cluster failure. The same mechanism supports intentional movement during cluster upgrades or node A/B tests. Persistence therefore improves fleet reliability and flexibility, rather than merely adding a storage feature.</p>
+<p>Bhardwaj reports a personal Codex goal-mode run of roughly three days. As tasks stretch across longer periods, checkpoints give the harness a place from which to recover instead of repeating all preceding work. His example is an anecdote about task duration, without a specified workload or success criterion.</p>
+<p>Saved states also enable branching exploration. A harness can checkpoint a workspace, try a solution, backtrack, and branch again—an execution substrate for Monte Carlo tree search. Multi-day rollouts can then explore alternatives without destroying their common starting point. Bhardwaj connects this possibility to ambitions such as drug discovery, but the enabling requirement is immediate and concrete: reliable primitives for saving and restoring the environment.</p>
+    </section>
+<section class="section" id="sec-11">
+      <div class="section-head"><span class="num">11</span>
+      <button class="seek" data-t="2021">▶ 33:41</button></div>
+      <h3>选择保存什么，以及以什么粒度保存</h3>
+      <p>At ChatGPT or Codex scale, repeatedly uploading a full disk would make frequent checkpointing costly and slow. <strong>Incremental snapshots</strong> save changes since an earlier snapshot. Saving must be cheap enough for a harness to use routinely, and restoring must be fast enough to serve as ordinary sandbox creation.</p>
+<p>Several independent choices shape the storage contract:</p>
+<p>| Choice | Option A | Option B |
+|---|---|---|
+| Trigger | Always saving | Explicit save calls |
+| Snapshot contents | Full copy | Incremental changes |
+| Coverage | Entire root filesystem | Selected folders or mounts |
+| Change granularity | Whole changed files | Changed blocks |</p>
+<p>Saving whole changed files can amplify writes when only a small part of a large file changes. Block-level snapshots can preserve the smaller change. The overall flow remains straightforward: identify changes, compress them, upload them, then download and reapply them during restoration.</p>
+<p>Linux exposes a disk as logical blocks numbered from zero onward. The filesystem uses metadata such as inodes to map file offsets onto those blocks; device firmware maps logical blocks onto physical sectors or pages. Snapshotting at the block layer works below the file abstraction, preserving the blocks that encode both file data and filesystem state.</p>
+<p>That abstraction also affects VM I/O. A shared-folder interface can require host service for many filesystem operations. Giving the guest a block device lets its own filesystem and caches handle more work internally, reaching the host when block access is required. Bhardwaj favors the latter path for reducing exits and retaining guest-side caching.</p>
+<p>In an always-on design, the VM sees an image as a block device while a distributed backing layer carries writes toward cloud storage. In an explicit design, the harness calls a Save API. That API packages the changes since the preceding snapshot and returns a <strong>snapshot ID</strong>. Restoring the ID means resolving its lineage, fetching the required artifacts, and applying them on the destination node before recreating the microVM.</p>
+    </section>
+<section class="section" id="sec-12">
+      <div class="section-head"><span class="num">12</span>
+      <button class="seek" data-t="2321">▶ 38:41</button></div>
+      <h3>用写时复制构建增量快照</h3>
+      <p>A copy-on-write filesystem such as reflink-enabled XFS can create a writable copy of an image while initially sharing its data blocks. Bhardwaj describes the initial copy as near-zero latency, without supplying a benchmark. The mechanism avoids copying all the data up front: new storage is required when a write separates the writable copy from the shared original.</p>
+<p>Start with <code>base.image</code>, create a writable copy, and attach that copy to the VM. For a concrete teaching example, suppose logical blocks <code>0</code>, <code>1</code>, and <code>2</code> contain <code>A</code>, <code>B</code>, and <code>C</code>. The writable image initially shares all three. Writing <code>B2</code> to its logical block <code>1</code> leaves the base at <code>A, B, C</code>, while the writable image becomes <code>A, B2, C</code>; blocks <code>0</code> and <code>2</code> remain shared. This is the state separation that makes an incremental artifact possible.</p>
+<p>One write separates the writable image from its base
+Only the changed block needs separate storage; the base remains unchanged.
+Constructed example: Logical block numbers 0–2 and values A, B, C, and B2 are teaching values. This illustrates a local copy-on-write operation, not an executed snapshot upload.
+Write to the writable image — unchanged: Replace logical block 1: B → B2
+Operation: Allocate a private block for the changed value while preserving the base image and sharing unchanged blocks.
+- base.image · block 0
+  - Before: Writable image shares the base: A
+  - After: After the illustrated block write: A
+- base.image · block 1
+  - Before: Writable image shares the base: B
+  - After: After the illustrated block write: B
+- base.image · block 2
+  - Before: Writable image shares the base: C
+  - After: After the illustrated block write: C
+- Writable image · block 0
+  - Before: Writable image shares the base: A · shared with base
+  - After: After the illustrated block write: A · shared with base
+- Writable image · block 1
+  - Before: Writable image shares the base: B · shared with base
+  - After: After the illustrated block write: B2 · private block
+- Writable image · block 2
+  - Before: Writable image shares the base: C · shared with base
+  - After: After the illustrated block write: C · shared with base
+Only the changed block needs separate storage; the base remains unchanged.</p>
+<p>In the reference design, <a href="https://docs.kernel.org/filesystems/fiemap.html" target="_blank" rel="noopener">FIEMAP</a> supplies extent information used to identify ranges for the snapshot artifact. FIEMAP itself returns file extent mappings, not a ready-made difference between snapshots. An implementation still needs to establish which ranges changed and define a consistent snapshot boundary. Once identified, those ranges are compressed and uploaded.</p>
+<p>The Save API can return before its background upload completes, keeping the harness moving while storage work continues. That creates two distinct states: a snapshot has been acknowledged, and its artifacts are durably available for restoration elsewhere. The described API does not specify the transition between them, so a caller must not equate an early response with completed remote persistence. Restoration downloads the required diffs, applies their extents over the base image, and starts a microVM with the reconstructed disk state. This restores disk contents, not live process memory.</p>
+    </section>
+<section class="section" id="sec-13">
+      <div class="section-head"><span class="num">13</span>
+      <button class="seek" data-t="2403">▶ 40:03</button></div>
+      <h3>通过分层的块存储持续持久化</h3>
+      <p>For always-on persistence, the goal is to give the guest familiar filesystem behavior while moving durability behind a block interface. Bhardwaj raises concerns about NFS and favors standard POSIX behavior for model workloads. The relevant <a href="https://man7.org/linux/man-pages/man5/nfs.5.html" target="_blank" rel="noopener">Linux NFS caveat</a> is specific: close-to-open consistency and cross-client caching can require coordination. That does not establish a blanket performance or POSIX verdict for every NFS configuration.</p>
+<p>His alternative uses <strong>NBD</strong>, the Network Block Device interface, to present a disk backed by a storage system with tiered block caches. Writes go first to an in-cluster tier, which writes back to durable object storage such as GCS or S3. The guest runs its filesystem over the block abstraction, retaining its normal filesystem interfaces and caching behavior while the backing service manages remote storage.</p>
+<p>The architectural opportunity is broader than keeping files between sessions. Fast snapshot and restore allow the harness to recover from failures and revisit earlier states during search. Storage becomes part of how an agent explores a problem, as well as how its work survives.</p>
+    </section>
+<section class="section" id="sec-14">
+      <div class="section-head"><span class="num">14</span>
+      <button class="seek" data-t="2481">▶ 41:21</button></div>
+      <h3>把沙箱放在它的框架附近——以及它保存的状态附近</h3>
+      <p>A secure runtime on one node still fails when that node disappears. To build a fleet, group nodes into clusters and distribute clusters across regions. A top-level control plane chooses a cluster using regional load and proximity to the ChatGPT service or harness. Within that cluster, a scheduler selects a node using load and health information, avoiding nodes that are failing. The design goal remains low latency and reliable execution; no particular orchestration framework is required to explain the hierarchy.</p>
+<p>Startup offers three strategies:</p>
+<p>- <strong>Warm pool:</strong> keep sandboxes ready and assign one when a request arrives.
+- <strong>Memory-snapshot restore:</strong> recreate a prepared guest from saved memory on demand.
+- <strong>Hybrid:</strong> serve from a warm pool and expand it using memory snapshots.</p>
+<p>Bhardwaj says memory snapshots can support startup in milliseconds, without specifying hardware, image size, cache state, or measurement boundaries. Unlike the earlier disk snapshots, this technique saves guest memory to avoid repeating startup work. Warm pools exchange idle CPU and memory consumption for readiness; a hybrid uses snapshot restoration to replenish that capacity.</p>
+<p>Persistence can also guide the scheduler’s placement decision. Consider the closing example: a restore needs a lineage of four snapshot layers. Nodes A and C have only some of those layers cached, while node B has all the required layers. A layer-aware scheduler gives B the highest score because it needs the fewest downloads. It uses the structure of the saved state to reduce the work required to recreate the sandbox.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ef077c7af85bb454cb577ecad627436d041c81b71a582363d4c74b45a8be64de" alt="Snapshot-restore diagram routing a restore request through a layer-aware scheduler to selected node B, with cached and missing layers compared across nodes A, B, and C." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The layer-aware scheduler selects node B, which has all required snapshot layers cached.</figcaption></figure>
+<p>Here the three design problems meet. The runtime supplies the isolation boundary, persistence makes the workspace recoverable, and orchestration places that workspace where it can become useful quickly. Snapshot locality turns storage knowledge into a scheduling advantage, completing the path from one untrusted tool call to a fleet of securely operated agent computers.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/abshkbh/arrakis" target="_blank" rel="noopener">Arrakis</a> — The speaker's self-hosted agent sandbox project, with microVM isolation, backtracking, computer use, and a Python SDK.</li><li><a href="https://sessionize.com/abhishek-bhardwaj/" target="_blank" rel="noopener">Arrakis: How To Build An AI Sandbox From Scratch</a> — The speaker's companion-talk listing, including links to its slides and Arrakis project.</li><li><a href="https://aws.amazon.com/blogs/aws/firecracker-lightweight-virtualization-for-serverless-computing/" target="_blank" rel="noopener">Firecracker's original announcement</a> — AWS's 2018 account of Firecracker's crosvm origins, minimal device model, isolation, and serverless use.</li><li><a href="https://gvisor.dev/docs/architecture_guide/intro/" target="_blank" rel="noopener">gVisor security architecture</a> — How the Sentry application kernel and Gofer restrict workload access to the host kernel.</li><li><a href="https://github.com/cloud-hypervisor/cloud-hypervisor/blob/main/docs/api.md" target="_blank" rel="noopener">Cloud Hypervisor API</a> — Unix-socket API examples for creating, booting, and managing virtual machines.</li><li><a href="https://docs.kernel.org/filesystems/fiemap.html" target="_blank" rel="noopener">FIEMAP extent mappings</a> — Linux's interface for retrieving file extent locations, lengths, and mapping flags.</li><li><a href="https://docs.kernel.org/driver-api/vfio-mediated-device.html" target="_blank" rel="noopener">VFIO mediated devices</a> — The kernel framework for creating and assigning mediated instances of supported physical devices.</li><li><a href="https://man7.org/linux/man-pages/man5/nfs.5.html" target="_blank" rel="noopener">Linux NFS consistency and configuration</a> — NFS mount options, caching, close-to-open consistency, and concurrent-access limitations.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[on-hold music]</span></div><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Welcome everyone. Can you guys hear me okay?</span></div><div class="tline" data-t="14"><span class="ts">0:14</span><span class="tx">Yeah.</span></div><div class="tline" data-t="15"><span class="ts">0:15</span><span class="tx">I've been standing here for fifteen minutes without saying anything, so [laughs] we can start now. My name's Abhishek. I'm on the RL and agent infrastructure team at OpenAI. Um, what that means is we work on the infra for reinforcement learning specifically, and on the product side, we also develop infra that helps run untrusted code, uh, as part of</span></div><div class="tline" data-t="36"><span class="ts">0:36</span><span class="tx">ChatGPT, Codex Web securely and reliably at scale. This talk is called From fork() to Fleet: Designing an Agent Sandbox Cloud. Um, I'll be very clear that there are a lot of words in the title that have OS and infra concepts, but this is a first principles talk.</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">Uh, so we'll cover what sandboxes are and why they are needed from first principles. We will also try to cover design intuitions around designing an agent sandbox, uh, cloud to run sandboxes securely and reliably at scale.</span></div><div class="tline" data-t="67"><span class="ts">1:07</span><span class="tx">So if, if some of these words don't mean anything, don't be worried. We'll explain from first principles and, and go from there.</span></div><div class="tline" data-t="75"><span class="ts">1:15</span><span class="tx">Um, last year I gave a ta- talk called, uh, How to Build an AI Sandbox from Scratch. Uh, if, if you're interested, you can, uh, look at that talk as well.</span></div><div class="tline" data-t="84"><span class="ts">1:24</span><span class="tx">Think of this as a spiritual sequel, uh, to that talk.</span></div><div class="tline" data-t="91"><span class="ts">1:31</span><span class="tx">Okay, so now let's forget about sandboxes or clouds for a second. Let's just go back in time. ChatGPT came out. It's a very large pre-trained model. Uh, people ask all sorts of questions, and it responds really, really well, really, really human-like answers.</span></div><div class="tline" data-t="105"><span class="ts">1:45</span><span class="tx">But when people ask questions like, &quot;What is three plus three?&quot; Or, &quot;What, how many Rs in strawberry?&quot; Sometimes it works and sometimes it doesn't.</span></div><div class="tline" data-t="114"><span class="ts">1:54</span><span class="tx">It answers questions like, &quot;What is three plus three?&quot; quite well because it's trained on the entire Internet, and apparently people have written three plus three equal to six many, many times on the Internet, so it gets it right.</span></div><div class="tline" data-t="127"><span class="ts">2:07</span><span class="tx">Uh, but people haven't asked how many Rs in strawberry enough on the Internet, and so it gets it wrong. And so it's obvious that for anything code or math related, uh, or any problem which has a verifiable reward, which means that it can be tested whether it's true or false, uh, the model needs something more.</span></div><div class="tline" data-t="146"><span class="ts">2:26</span><span class="tx">And the key unlock was that given the model, uh, tool calling capability or a way to execute code, the model gets these verifiable reward questions around code and math correctly.</span></div><div class="tline" data-t="159"><span class="ts">2:39</span><span class="tx">And that's from first principles came that if we give the models the ability to execute code, it can hill climb and be very, very good at, uh, math, code, and other domains that have verifiable rewards.</span></div><div class="tline" data-t="171"><span class="ts">2:51</span><span class="tx">Like cut to twenty twenty-six, and we are seeing the, the consequences of doing that at scale. Uh, so now how can it answer what is three plus three, and how can it answer how many Rs in strawberry?</span></div><div class="tline" data-t="184"><span class="ts">3:04</span><span class="tx">Well, it can write code to do this [laughs]. So if you see the diagram, like, uh, we have a training loop, and the training loop gives it tasks or questions, and then the training and the harness then parses the response of the model, and the response might say, &quot;Hey, execute code on my behalf.&quot;</span></div><div class="tline" data-t="201"><span class="ts">3:21</span><span class="tx">Uh, the, the harness is responsible for executing the code, and then a grader judges whether the answer is correct or not, and then the training loop backprops and changes the weights and that's how we train it to do two things.</span></div><div class="tline" data-t="214"><span class="ts">3:34</span><span class="tx">We train it to call code execution or tools on certain classes of problems, and secondly, we ensure that the code it executes actually solves the problem. So this is why, like, tool calling is important, uh, on the training side.</span></div><div class="tline" data-t="231"><span class="ts">3:51</span><span class="tx">Now let's talk about the product side. In the previous slide, we showed how the models are trained to emit, uh, code in order to solve certain tasks. The agent executes the code, and we verify the reward.</span></div><div class="tline" data-t="244"><span class="ts">4:04</span><span class="tx">Well, all of this is useless if we don't support this model on the product side. So it's basically the same slide as before, but we don't have a training loop, and now the harness is parsing the response and calling, uh, the tools and executing the code somewhere, right?</span></div><div class="tline" data-t="261"><span class="ts">4:21</span><span class="tx">So where is this code or tool being executed, right? This could be your laptop, like with Codex or any agent you want, or it could be a node on the cloud with Codex Web or ChatGPT.</span></div><div class="tline" data-t="273"><span class="ts">4:33</span><span class="tx">While we can expect the model to generate non-malicious code, but good security practices and hygiene mean that we want to protect our environment, whether it's a laptop or the cloud node.</span></div><div class="tline" data-t="284"><span class="ts">4:44</span><span class="tx">Attacks can be, like, intentional or unintentional, and we want to protect against those. And it could be like trying to get root on your system or trying to exploit a kernel vulnerability.</span></div><div class="tline" data-t="295"><span class="ts">4:55</span><span class="tx">The models are getting really, really big, and they might try to help you in an overzealous fashion and try to get root to do so. So we want to try and avoid and make sure, like, it doesn't attack the node or where it's running.</span></div><div class="tline" data-t="307"><span class="ts">5:07</span><span class="tx">Thus, this is where the sandbox come, comes in. We need the sandbox to run this untrusted code and ensure that it can do its work, but it shouldn't be able to exploit any vulnerabilities and get root on your system.</span></div><div class="tline" data-t="319"><span class="ts">5:19</span><span class="tx">In the cloud, other sandboxes with other users' data must, might be running as well, and we don't want it attacking and getting data of other users out. So a sandbox is a place, uh, an environment in which you can run these tool calls and execute code on behalf of the model securely, and it could be on your</span></div><div class="tline" data-t="336"><span class="ts">5:36</span><span class="tx">laptop, or it could be on the cloud.</span></div><div class="tline" data-t="340"><span class="ts">5:40</span><span class="tx">Uh, I, I think that, like, everyone's probably used OpenClaw or any agent like that. Um, I think it's a very, very, very big peek into what's to come. A lot of these agents are running locally on your laptops, and I think it's [laughs] it's kind of a slap on the face for twenty years of cloud computing that everyone's</span></div><div class="tline" data-t="361"><span class="ts">6:01</span><span class="tx">running this locally on, on their laptops. And if you see the, the image, I don't know if this is an actual product, but it's very funny because the lid of the laptop is open.</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">It's because you don't want your agents to sleep. Well, we have a whole cloud. There are, like, industries built on this thing, so I think, like, the future is, like- Us running your agents in the cloud, like they're persistent, long-running, and I really, really hope that moving forward, this is not something you see, uh, anywhere.</span></div><div class="tline" data-t="388"><span class="ts">6:28</span><span class="tx">But people rented like VPSs, they ran OpenClaws on Hetzner or Mac Minis in the cloud. So I think like OpenClaw was a very, very good like peek into like what might be for like sandbox clouds in the future.</span></div><div class="tline" data-t="405"><span class="ts">6:45</span><span class="tx">We've discussed why sandboxes, uh, are important in both research and product, uh, but they have slightly different needs. Um, on research, we want to optimize for throughput. We want to run many, many training loops at scale, uh, and have many, many rollouts.</span></div><div class="tline" data-t="422"><span class="ts">7:02</span><span class="tx">Um, a rollout is one version of a task. So what is three plus three? And you might have five or five answers to it, and one answer is a rollout.</span></div><div class="tline" data-t="430"><span class="ts">7:10</span><span class="tx">Um, we want to take many, many shots on goal in parallel. Uh, and so throughput is very, very important, uh, in research. In product, latency is very important. I think any, any successful product in the last twenty years has been super fast.</span></div><div class="tline" data-t="445"><span class="ts">7:25</span><span class="tx">So if, if you don't start a sandbox in time, and you don't execute code fast enough, people will churn, uh, from your product. Um, reliability is important on both, both sides.</span></div><div class="tline" data-t="456"><span class="ts">7:36</span><span class="tx">Like if you fail constantly, you've wasted like GPU tokens, uh, on both sides, and GPU is like gold right now. So you want to just make sure all the tokens you're getting, uh, are useful.</span></div><div class="tline" data-t="468"><span class="ts">7:48</span><span class="tx">Um, and similarly on like if, if you're not-- if your agents aren't reliable on the product side, like it's game over, right? Like people will churn from your product.</span></div><div class="tline" data-t="476"><span class="ts">7:56</span><span class="tx">Uh, security is also important. Um, on the research side, like, uh, we are training on OpenAI infrastructure, so if a model gets root and it's not aligned, it can try to attack OpenAI infrastructure, it can exfiltrate and release our model weights or whatever.</span></div><div class="tline" data-t="492"><span class="ts">8:12</span><span class="tx">And then on the product side, it can exfiltrate other users' data, attack the infrastructure as well. So security is important for like both, both, uh, research and product.</span></div><div class="tline" data-t="505"><span class="ts">8:25</span><span class="tx">So today we'll focus on these three pillars. There are many, many parts of a sandbox cloud, but we'll specifically focus on runtime. So how can we run a sandbox on one node securely?</span></div><div class="tline" data-t="515"><span class="ts">8:35</span><span class="tx">Secondly, we'll focus on persistence. Uh, I think compute was the first unlock. People realized you give sandboxes a, a Linux computer, and they do crazy things because they're pre-trained on so much Linux data.</span></div><div class="tline" data-t="528"><span class="ts">8:48</span><span class="tx">But I think now if you help them-- if you give them a computer with an actual disk that can be saved, then they become a true knowledge worker. And the last part is orchestration and how to run these at scale for many, many users at ChatGPT, uh, and Codex scale.</span></div><div class="tline" data-t="543"><span class="ts">9:03</span><span class="tx">Yeah. So before we start, this is a first principles talk. So let's discuss like how Linux executes code on your machine, right? So on Linux, a thread is the smallest unit of execution.</span></div><div class="tline" data-t="558"><span class="ts">9:18</span><span class="tx">Um, the kernel is the thing that provides privileged access to a thread via something called system calls or IOCTLS. So whenever, whenever the user space program wants to access some hardware or some privileged resource, it needs to talk to the kernel and call this like operation that switches the hardware context, uh, to a more privileged context.</span></div><div class="tline" data-t="582"><span class="ts">9:42</span><span class="tx">And so let's look at what that looks like.</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">So if you see here, your processor has like different rings of execution. So based on which ring you're executing in, you get different privileges. So the kernel mode is executing in ring zero.</span></div><div class="tline" data-t="596"><span class="ts">9:56</span><span class="tx">It has the highest privilege, and anything in user mode is, uh, running in ring three. Whenever we want to access privileged resources, we call system call instructions that change the context of the CPU.</span></div><div class="tline" data-t="610"><span class="ts">10:10</span><span class="tx">And so there are two attack vectors in a Linux system, right? First is getting root. In getting root, you're still in ring three, but you're the highest privileged user on the system.</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">So you can actually pretty much do anything on the system. You can read your SSH keys, encryption data, et cetera. And then the second version is actually running a, a kernel mode exploit, so running code in ring zero.</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">Uh, this is terrible. You can actually dump processes, memories, and like, like I don't even want to say what all can happen. So you can get root, and you can have kernel exploits, and if you get kernel exploit, it's like it's a, it's a New York Times article waiting to happen.</span></div><div class="tline" data-t="647"><span class="ts">10:47</span><span class="tx">So, so these are the two attack vectors on a Linux, uh, system.</span></div><div class="tline" data-t="652"><span class="ts">10:52</span><span class="tx">Uh, so with that background, let's design the simplest way to execute tools on a Linux system. Uh, for example, we can literally have an API server that your har-harness is calling, and it-- for every tool call, it can fork a process, exec the tool that the model needs, and just have a fork and exec model, right?</span></div><div class="tline" data-t="675"><span class="ts">11:15</span><span class="tx">So now there are a couple of problems, uh, with this, uh, model, right? A, as we discussed the execution model, the forked process can now directly talk to the kernel, and so the model can try to attack the kernel, get root, or try to get a kernel exploit, right?</span></div><div class="tline" data-t="692"><span class="ts">11:32</span><span class="tx">The second thing is imagine [chuckles] you have a while loop and just forking processes in one tool call, right? So now you've kind of become a bad neighbor or a noisy neighbor, and you've kind of brought down the node and no other tool calls can run, right?</span></div><div class="tline" data-t="706"><span class="ts">11:46</span><span class="tx">So fork exec is the simplest thing you can do. It has one thing going for it. It's the most performant solution, uh, because there's-- it's, it's as fast as just forking something.</span></div><div class="tline" data-t="716"><span class="ts">11:56</span><span class="tx">It's native performance. But everything else is very bad about this solution. Yeah.</span></div><div class="tline" data-t="722"><span class="ts">12:02</span><span class="tx">Uh, [clears throat] so like we saw that fork and exec-ing was bad. There was a noisy neighbor issue, and there's a security issue. We now turn to something called containers on Linux.</span></div><div class="tline" data-t="733"><span class="ts">12:13</span><span class="tx">Uh, you must have heard of Docker and other things associated with the containers. But remember, this is the first principles talk. So let's go what-- in deep into what containers are in their very raw form.</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">Containers rely on two concepts on Linux, uh, namely namespaces and cgroups. Uh, namespaces are for resource isolation, and cgroups are for controlling the amount of resources a, a set of processes, uh, can consume, right?</span></div><div class="tline" data-t="759"><span class="ts">12:39</span><span class="tx">So, let's see in depth how they can help our problems.</span></div><div class="tline" data-t="764"><span class="ts">12:44</span><span class="tx">So, in this diagram, you can see that there are different type of namespaces, uh, a set of processes can have. So, on the left, you can see, uh, this container has a PID namespace.</span></div><div class="tline" data-t="776"><span class="ts">12:56</span><span class="tx">So inside, inside that process namespace, it looks like we have a process hierarchy of PIDs one, two, and three. But if you look at the PIDs from outside the container, they're just regular processes with other PIDs, right?</span></div><div class="tline" data-t="790"><span class="ts">13:10</span><span class="tx">So, you've abs-abstracted one resource, which is the process inside this container. Another example is a mount namespace. So, if you see the bottom half of the diagram, you can mount any file system on top of, uh, any mount inside the container.</span></div><div class="tline" data-t="805"><span class="ts">13:25</span><span class="tx">But from outside, the original mount is still visible, right? So, this is a nice way of like isolating different resources in a container, and there are many namespaces like PID, network, mount, et cetera.</span></div><div class="tline" data-t="816"><span class="ts">13:36</span><span class="tx">Uh, so moving on to the second principle of containers, right? Like cgroups. So now we have a way to isolate resources within containers via namespaces. But remember, I gave the example of, uh, someone doing a while with fork(), right?</span></div><div class="tline" data-t="833"><span class="ts">13:53</span><span class="tx">Like, how can we control that? Well, we can have cgroups and control how much CPU and memory a container can, uh, uh, consume, and that way, like, we can, like, uh, make sure that one container doesn't bring down the entire node.</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">So, namespaces and cgroups provide some amount of isolation, uh, and control on the, uh, system resources to not bring it down in case it's malicious or bad. Yeah.</span></div><div class="tline" data-t="859"><span class="ts">14:19</span><span class="tx">Um, if you've seen the previous diagrams, uh, there's-- the, the fundamental problem with containers is that there are still native processes, uh, running on the host. So, even if we abstract resources and two containers can't attack each other because their resources are isolated, but a process in a container can still exploit the kernel boundary and try to</span></div><div class="tline" data-t="880"><span class="ts">14:40</span><span class="tx">get root or a kernel exploit, right? And once they can get root, they can attack other people's data from other sandboxes, exfiltrate data, and try to get control of the node like we discussed before.</span></div><div class="tline" data-t="890"><span class="ts">14:50</span><span class="tx">Yeah. So, security is a spectrum. Like, you can still get a decent amount of protection from containers. Uh, one example to do this is something called seccomp. So, you can actually have a filter on the amount of system calls, uh, your container can call, and you can also control the arguments each system call can take.</span></div><div class="tline" data-t="913"><span class="ts">15:13</span><span class="tx">So, you can say that you're reducing the attack surface of the kernel, uh, for, for this, like, container and, like, kinda have some amount of sanity on how it can attack the kernel.</span></div><div class="tline" data-t="923"><span class="ts">15:23</span><span class="tx">The problem with this is that many times you don't know beforehand what system calls some container might call, right? So, now you are blocking requests for users, and later on, like, you have to, like, change the seccomp filter to allow something or not allow something.</span></div><div class="tline" data-t="938"><span class="ts">15:38</span><span class="tx">So, the feedback loop is, like, pretty bad for a product like OpenClaw or any agent that wants to do, like, crazy things, right? Like, you want to make magical experiences happen in the sandbox, and you don't want to restrict them, right?</span></div><div class="tline" data-t="951"><span class="ts">15:51</span><span class="tx">So yeah, th-this is the fight. Like, to sum it up, like, containers interact with the same host kernel, so they do, they do have some protections, but at the end, it's the same host kernel they're trying to attack, right?</span></div><div class="tline" data-t="961"><span class="ts">16:01</span><span class="tx">And they can get root and kernel exploits, et cetera.</span></div><div class="tline" data-t="966"><span class="ts">16:06</span><span class="tx">Yeah. So, we went from, like, forking to containers. Like, raw fork was obviously very, very bad for all the reasons. Uh, containers are better than fork because they still have some protection, and you can still have seccomp for reducing the attack surface.</span></div><div class="tline" data-t="980"><span class="ts">16:20</span><span class="tx">Can we do better? Can we reduce the host kernel exposure, uh, a little bit more?</span></div><div class="tline" data-t="987"><span class="ts">16:27</span><span class="tx">Yeah. So, the second thing we can discuss is, uh, to solve the attack surface problem is something called gVisor. The crux of the security boundary is the kernel API from before.</span></div><div class="tline" data-t="997"><span class="ts">16:37</span><span class="tx">So, gVisor uses this point as its key security story. Um, so gVisor implements a lot of syscalls in user space. You can think of it as an application kernel.</span></div><div class="tline" data-t="1009"><span class="ts">16:49</span><span class="tx">Its sentry is a user space kernel written in Go, and the file system is accessed by another daemon called the gofer. So, the sentry, uh, implements the Linux API itself, including process management, workload management.</span></div><div class="tline" data-t="1023"><span class="ts">17:03</span><span class="tx">And whenever you call a system call, it's intercepted, and it's, like, serviced by this user space, uh, program. So, then you can argue that you're not implementing an attacking code that's running in ring zero or kernel mode.</span></div><div class="tline" data-t="1036"><span class="ts">17:16</span><span class="tx">You're actually running in user space and ring three, and any exploit you have is still in user space, so it's better than you exploiting the kernel directly.</span></div><div class="tline" data-t="1046"><span class="ts">17:26</span><span class="tx">But the fundamental problem is that the sentry and the gofer, like, just going back, the sentry and the gopher are still on top of the host kernel. So, if there is an exploit on them, you can still have a chained two-step exploit.</span></div><div class="tline" data-t="1061"><span class="ts">17:41</span><span class="tx">So, you first exploit a problem in the sentry or the gofer, and then you exploit from the gopher to the kernel, right? You can still get to the host kernel eventually.</span></div><div class="tline" data-t="1070"><span class="ts">17:50</span><span class="tx">And with, with these models, uh, of, like, five point six and other types, like, you can have, like, like, them, like, figuring out bug reports and these things and, like, trying to chain exploits, right?</span></div><div class="tline" data-t="1081"><span class="ts">18:01</span><span class="tx">So, you can still get to the host kernel, right?</span></div><div class="tline" data-t="1085"><span class="ts">18:05</span><span class="tx">So yeah, the chain is harder here because it's a two-step chain compared to the others, but it's still reachable. Like, can we do better than this? Yeah.</span></div><div class="tline" data-t="1098"><span class="ts">18:18</span><span class="tx">Yeah. That's the same slide. It's saying that in all of these, uh, solutions, you can eventually get to the host kernel, whether it's fork, gVisor, or containers. Yeah.</span></div><div class="tline" data-t="1109"><span class="ts">18:29</span><span class="tx">So the key question is, can we have a way in which untrusted or malicious code can have exploits, but they can never or find it very, very hard to exploit the host, right?</span></div><div class="tline" data-t="1120"><span class="ts">18:40</span><span class="tx">So even if I can get root, even I, if I can exploit the kernel, I still want my host to be protected, right? Like, that's the final goal we have.</span></div><div class="tline" data-t="1129"><span class="ts">18:49</span><span class="tx">So do we have something that we can use for this? So if you've used-- if you've, like, known some of my background, you'll know where I'm going with this.</span></div><div class="tline" data-t="1137"><span class="ts">18:57</span><span class="tx">Uh, so turns out Linux provides a very, very nice thing called virtualization, uh, which is hardware-powered at the CPU level.</span></div><div class="tline" data-t="1147"><span class="ts">19:07</span><span class="tx">And it provides an abstraction at the hardware level, so-- which means that even if you can get, uh, root or ex-execute in, like, ring zero in the guest, your host is still protected.</span></div><div class="tline" data-t="1160"><span class="ts">19:20</span><span class="tx">And this happens because the guest kernel runs in ring zero, but in a separate processor context called VMX non-root, while the host kernel and the hypi-hypervisor run in ring zero in something called VMX root mode.</span></div><div class="tline" data-t="1173"><span class="ts">19:33</span><span class="tx">So ring zero gives the guest kernel full control inside the guest, but no control on the host. So you can exploit the guest all you want, but the host is still protected.</span></div><div class="tline" data-t="1184"><span class="ts">19:44</span><span class="tx">Uh, the processor has to switch between the guest and the host whenever the guest wants to access some privileged, uh, resource. We'll see how that works. But that is a key trade-off here.</span></div><div class="tline" data-t="1194"><span class="ts">19:54</span><span class="tx">There's a performance penalty you pay every time the CPU is switching back and forth between these two modes. Let's see with a diagram what I mean, um.</span></div><div class="tline" data-t="1203"><span class="ts">20:03</span><span class="tx">So you can see in, in the, in the old diagram, we showed ring zero and ring three for executing users, user space and kernel code. But here, the guest kernel and the guest user space, uh, are running in separate, like, CPU context.</span></div><div class="tline" data-t="1217"><span class="ts">20:17</span><span class="tx">So this is guaranteed at a hardware level. And so if you can-- even if you can get to ring zero in the guest, like, your host is, uh, like, protected, uh, from it.</span></div><div class="tline" data-t="1231"><span class="ts">20:31</span><span class="tx">Yeah. Now let's talk about, uh, what, what does paravirtualized and hardware-based virtualization mean. This is the key of all the VM sandboxes you might have seen on Hacker News or Reddit.</span></div><div class="tline" data-t="1242"><span class="ts">20:42</span><span class="tx">So we'll, we'll go from step by step, right? So on the right-hand side, you see something called the VMM. Um, is-- can any- can everyone see that on the right-hand side?</span></div><div class="tline" data-t="1251"><span class="ts">20:51</span><span class="tx">Yeah. It-- The VMM stands for virtual machine monitor.</span></div><div class="tline" data-t="1256"><span class="ts">20:56</span><span class="tx">Um, this software is called a virtual machine monitor, and you might have heard of QEMU when you search, search for Linux virtualization. QEMU and other VMMs, their sole job is to talk to /dev/kvm.</span></div><div class="tline" data-t="1269"><span class="ts">21:09</span><span class="tx">So you see that arrow going down, like the /dev/kvm is the hypervisor API of the Linux kernel. All QEMU and other VMMs do is set up the kernel root FS, set up some-- allocate some memory for this guest virtual machine, and call, like, into the devkvm API.</span></div><div class="tline" data-t="1289"><span class="ts">21:29</span><span class="tx">As discussed inside, when the, when the guest runs on the left-hand side, it's running as a completely different Linux system. It doesn't know what's happening on the host side, but it has these devices like a block device or a net device coming up as regular Linux devices.</span></div><div class="tline" data-t="1306"><span class="ts">21:46</span><span class="tx">But when it actually tries to access the devices, they exit out to the host context, and if you see the block back-end and the network back-end, there act-- there's actually code running emulating the devices in the host, uh.</span></div><div class="tline" data-t="1319"><span class="ts">21:59</span><span class="tx">So whenever the guest exits out, it's being serviced by the VMM process and these device processes.</span></div><div class="tline" data-t="1326"><span class="ts">22:06</span><span class="tx">So what do we mean by paravirtualization? Uh, so paravirtualization means that we want good performance while we want to access hardware in the guest. So the guest drivers, when you t- when the user space talks to them, the guest drivers are aware that they're running in a virtual machine.</span></div><div class="tline" data-t="1343"><span class="ts">22:23</span><span class="tx">And so they talk via something called virtio, uh, which is a more efficient way of the guest and the host talking to each other. Uh, and so inside, there are just PCI devices like any other hardware, and when you talk to the PCI devices, you magically exit out onto the host.</span></div><div class="tline" data-t="1359"><span class="ts">22:39</span><span class="tx">Uh, so fifteen, twenty years ago, a bunch of Linux wizards [chuckles] made this thing happen and made this performant, and it, it lit-- it truly is magical, like how it works reliably and performantly across different, uh, hardware processors.</span></div><div class="tline" data-t="1371"><span class="ts">22:51</span><span class="tx">And so from the host's point of view, when this is running, you just see a blocked thread. Like if you do a ps, you'll see a blocked thread, but that's running on the guest context.</span></div><div class="tline" data-t="1382"><span class="ts">23:02</span><span class="tx">And when the thread exits out, the thread finally wakes up. It wakes up in this VMM process, and the process runs, and it's running inside. Yeah.</span></div><div class="tline" data-t="1393"><span class="ts">23:13</span><span class="tx">Yeah. So we had this seismic shift in twenty twenty-three where a bunch of new VMMs came. For a long time, it was just QEMU that was used for running virtual machines.</span></div><div class="tline" data-t="1405"><span class="ts">23:25</span><span class="tx">But QEMU has a lot of cruft. It supports many, many architectures. It has many devices, and it's written in C. And historically, many, many escape attacks were attacking the devices written in C.</span></div><div class="tline" data-t="1417"><span class="ts">23:37</span><span class="tx">So the first w- the first Rust-based VMM was something called crosvm, which our team at Google wrote, uh, when I was there, to support Linux virtual machines on top of Chromebooks.</span></div><div class="tline" data-t="1428"><span class="ts">23:48</span><span class="tx">And the key point here was that we don't need all the cruft of QEMU, QEMU, and we can use Rust to be a memory-safe implementation of this tricky system software.</span></div><div class="tline" data-t="1438"><span class="ts">23:58</span><span class="tx">And secondly, like, we have these emulated devices that we can jail. So if you attack the block device, we've only given it permission to at-access block resources. So you can't access network resources.</span></div><div class="tline" data-t="1450"><span class="ts">24:10</span><span class="tx">Similarly, if you attack the net device, we've, we've jailed it, and we don't give it access to block resources. So then you can still have a second gate of security.</span></div><div class="tline" data-t="1459"><span class="ts">24:19</span><span class="tx">So both Rust-based safety, like being memory-safe, and this jailing at a more granular level at the device, like, provides better safety than just QEMU. Yeah.</span></div><div class="tline" data-t="1471"><span class="ts">24:31</span><span class="tx">So you must have heard this word microVMs, like, everywhere and, like, no one really answers, like, uh, why the word micro comes. Uh, so turns out it has nothing to do with what's running inside the guest.</span></div><div class="tline" data-t="1483"><span class="ts">24:43</span><span class="tx">It's, it's everything to do with the VMM itself. So all these new age Rust-based VMMs, uh, they have a much smaller memory footprint because they don't support as many devices, and they also boot much faster because they don't have as much cruft.</span></div><div class="tline" data-t="1498"><span class="ts">24:58</span><span class="tx">So a mixture of, like, just less bloo- less bloat and just booting up faster is why the industry has called them, uh, microVMs. Yeah.</span></div><div class="tline" data-t="1508"><span class="ts">25:08</span><span class="tx">Uh, one second. Uh, yeah, sorry. Uh, and then you must have seen Firecracker and cloud-hypervisor. I-- There's a lot of confusion around what-- who came before. [chuckles] crosvm was the first, like, Rust-based VMM that came before, and then Firecracker forked CrossVM, and it's used on Amazon for their Lambda and serverless load.</span></div><div class="tline" data-t="1528"><span class="ts">25:28</span><span class="tx">And cloud-hypervisor is a more general, like, VMM that many, many companies, like, contribute to. And when you s- historically see microVMs on the internet, like, it's powered by one of these VMMs, basically.</span></div><div class="tline" data-t="1540"><span class="ts">25:40</span><span class="tx">Yeah. So it may seem complicated, but at the end, everything is APIs. Uh, microVMs are no different. Um, so here's a small view of how you can actually start a microVM.</span></div><div class="tline" data-t="1553"><span class="ts">25:53</span><span class="tx">So your harness actually forks a cloud-hypervisor binary process. When the process starts, it exposes an API over a Unix domain socket. And if you can see in step two, we call the create API and give it, like, the root FS, kernel, CPU, and memory.</span></div><div class="tline" data-t="1569"><span class="ts">26:09</span><span class="tx">And then we finally call start. And when we call start, you can see from previous diagrams that the VMM literally calls into /dev/kvm just like before, and it starts these, uh, like, guest, uh, microVM.</span></div><div class="tline" data-t="1584"><span class="ts">26:24</span><span class="tx">And then once the guest is running, the, like, in this case, the agent sandbox is running, it might be that I want to talk to something inside the sandbox to say that, &quot;Hey, save your state,&quot; or I'm attaching some devices, or I'm doing some XYZ operation.</span></div><div class="tline" data-t="1598"><span class="ts">26:38</span><span class="tx">So generally in, in agent sandboxes, you have a PID1 that exposes an API server, and your harness or something on out- outside is talking to this, uh, uh, API, uh, server.</span></div><div class="tline" data-t="1610"><span class="ts">26:50</span><span class="tx">Uh, and then this is the way how you can use, like, microVMs to be, uh, agent sandboxes, uh, that, that can run, like, pr- more securely than the other primitives, uh, that we showed.</span></div><div class="tline" data-t="1621"><span class="ts">27:01</span><span class="tx">Yeah. Uh, in this case, we are using vsock, which is a socket that can help you communicate between the guest and the host, or you can use the IP stack on the node itself.</span></div><div class="tline" data-t="1632"><span class="ts">27:12</span><span class="tx">Yeah. And so there are no free lunches in systems. Uh, and so there are some trade-offs. So obviously you get really, really good isolation using microVMs at a hardware level.</span></div><div class="tline" data-t="1644"><span class="ts">27:24</span><span class="tx">Uh, you can still attack the host, but it's much harder. You have to attack the KVM stack, and then you have to attack the device. The chain is much, much harder to do, but it has been seen, and I'm sure it will be seen more with these models.</span></div><div class="tline" data-t="1658"><span class="ts">27:38</span><span class="tx">Um, you can jail the devices gran- granularly, so you can use seccomp and other security hardening things for the devices. So even if you get compromised on one device, your whole system cannot be brought down.</span></div><div class="tline" data-t="1670"><span class="ts">27:50</span><span class="tx">Um, and like I said, there is a performance overhead. Like, we-- like, when you are ex- exiting and, and entering the host and the guest context, it's a very, very heavy, uh, operation and you pay in, like, performance.</span></div><div class="tline" data-t="1683"><span class="ts">28:03</span><span class="tx">Um, memory sharing is not as easy. There's something called a balloon driver, and so you have to actually ask the guest to give back memory and reclaim it. So it's always a, like, reactive thing.</span></div><div class="tline" data-t="1694"><span class="ts">28:14</span><span class="tx">You can't immediately, like, reclaim and claim memory. Um, and then a lot of sandboxes these days have GPU access, uh, presumably for autoresearch or some sort of, like, ML research type of agents.</span></div><div class="tline" data-t="1707"><span class="ts">28:27</span><span class="tx">This is not as easy with microVMs. Uh, there's something called virtio-gpu, but that provides high-level graphic library type, uh, access. Um, for metal acc- direct metal access, there's something called VFIO, but it can only be shared by one sandbox at a time.</span></div><div class="tline" data-t="1722"><span class="ts">28:42</span><span class="tx">It cannot have multi-tenant things. But given all of this, my view is [chuckles] that security, like system tricks can cover performance issues, but they cannot hide security breaches. And as a company, you can lose trust once and it's, like, very hard to regain.</span></div><div class="tline" data-t="1738"><span class="ts">28:58</span><span class="tx">So I always prefer the more secure solution and try to make, make, make, make up with system tricks for performance issues. And in my history of, like, working on sandboxes, I've seen there are like-- I would call it like the seven stages of grief, the seven stages of sandboxing.</span></div><div class="tline" data-t="1754"><span class="ts">29:14</span><span class="tx">Like, in the end, everyone always wants a VM because they tried everything. They tried containers, gVisor, v8s, and then they realize, &quot;Oh, I want a whole Linux box because I don't want to, like, end up without XYZ functionality.</span></div><div class="tline" data-t="1768"><span class="ts">29:28</span><span class="tx">And if I want a whole Linux box, I want to obviously be secure.&quot; So if you're a startup or a founder, like, in this space, like, let me save you the story and two years of grief.</span></div><div class="tline" data-t="1778"><span class="ts">29:38</span><span class="tx">Just please use microVMs from the start. And then if it doesn't work, tell me, and then we can talk about other things. [chuckles] So now we've discussed how to run untrusted code on one node, and I think [clears throat] now, like, people have woken up to the fact that these models are very, very good drivers of Linux boxes.</span></div><div class="tline" data-t="1796"><span class="ts">29:56</span><span class="tx">Like, so if you give them a computer, they can just pretty much do magical things, as we've seen with OpenClaw. They just pre-train on a lot of Linux, right?</span></div><div class="tline" data-t="1804"><span class="ts">30:04</span><span class="tx">However, like, imagine if I gave you a computer without a disk. Every time you close the laptop, like, your data and your work goes away, right? Like, that's not a fun world to live in.</span></div><div class="tline" data-t="1815"><span class="ts">30:15</span><span class="tx">And, and somehow the agents are some, in the cloud at least, are in this sort of world right now, right? So we want to give them durable storage. And so this, this part of the presentation is specifically working on disk storage, not memory persistence, but disk persistence.</span></div><div class="tline" data-t="1830"><span class="ts">30:30</span><span class="tx">So let's see why it's important and how we can do it. Like-</span></div><div class="tline" data-t="1836"><span class="ts">30:36</span><span class="tx">So as shown in previous diagrams, your microVMs have disks attached to them. Uh, they might be just files or other disk devices on the node that you pass through to the VM.</span></div><div class="tline" data-t="1846"><span class="ts">30:46</span><span class="tx">Um, and so from a product perspective, the task, the tasks that the users are doing in these sandboxes are becoming much more complicated and much more longer horizon. So people are making like presentations and entire GitHub repos are being created inside the sandbox now.</span></div><div class="tline" data-t="1863"><span class="ts">31:03</span><span class="tx">Now, imagine if, like, the node dies on the cloud or the model has a flake, and you created this, like, presentation and, like, you just lost it, right? It's, it's A, bad for us because we wasted a bunch of GPU tokens.</span></div><div class="tline" data-t="1875"><span class="ts">31:15</span><span class="tx">It's obviously bad for the user because you did a lot of this work and, and you lost it. So not just from a product perspective, uh, but just from like a good experience and like utilization perspective, we need to have some way to save the disk state of the sandbox.</span></div><div class="tline" data-t="1893"><span class="ts">31:33</span><span class="tx">And let's go into like three big use cases, uh, on what persistence can unlock, right?</span></div><div class="tline" data-t="1900"><span class="ts">31:40</span><span class="tx">So counterintuitively, persistence actually helps reliability and scale. Uh, they might seem like orthogonal concepts, but, but they're very much related. So, for instance, you have a long-running task in a sandbox that has many packages installed and, and you've created like GitHub repos and presentations and things, right?</span></div><div class="tline" data-t="1918"><span class="ts">31:58</span><span class="tx">If you keep checkpointing it periodically, and if the node fails or the cluster fails, you can now restore the sandbox in the exact checkpoint state on another node. You can also do it intentionally if you want to upgrade a cluster or do some AB testing on nodes.</span></div><div class="tline" data-t="1933"><span class="ts">32:13</span><span class="tx">The persistence has now let you reliably run sandboxes across your fleet, right? So it's a very good way to scale and be reliable. [clears throat]</span></div><div class="tline" data-t="1943"><span class="ts">32:23</span><span class="tx">Like I said, like, how many of you have used goal mode in Codex or know what it is? Yeah. Amazing, right? So if you, if you run goal mode, now it's like, like my-- I think three days is my record for running, uh, uh, something.</span></div><div class="tline" data-t="1957"><span class="ts">32:37</span><span class="tx">But, like, now people are doing longer and longer tasks, and I think this trend will continue in the cloud as well. So to support this, we obviously, like, need to have checkpointing so that the model can save state, restore it on another node, and, like, you can keep going forward and forward, right?</span></div><div class="tline" data-t="1973"><span class="ts">32:53</span><span class="tx">Like, uh, and so you're resilient to any failures, uh, across in the, in the infrastructure.</span></div><div class="tline" data-t="1980"><span class="ts">33:00</span><span class="tx">This is the most interesting part, actually, right? Like, so if your harness wants to explore multiple, like, solutions or sample spaces, it can actually checkpoint the sandbox state, and it can, like, do a Monte Carlo, like, tree search and, like, go ahead and, like, backtrack, checkpoint again.</span></div><div class="tline" data-t="1997"><span class="ts">33:17</span><span class="tx">So this way, it can actually do rollouts over many, many days and come back with the actual, like, uh, solution, right? And I think my sincere hope is that if, if we make this infrastructure correct, we can help, like, solve diseases, like find new drugs, because the model can just keep going on for longer and longer, right?</span></div><div class="tline" data-t="2015"><span class="ts">33:35</span><span class="tx">But it doesn't happen till we have really, really rock-solid primitives to do this. Yeah.</span></div><div class="tline" data-t="2021"><span class="ts">33:41</span><span class="tx">And so given the needs and the, the, the</span></div><div class="tline" data-t="2025"><span class="ts">33:45</span><span class="tx">pillars we want to support, here are some of the things that this snapshotting solution should support, right? Uh, first, at ChatGPT or Codex scale, we want to do incremental snapshotting.</span></div><div class="tline" data-t="2036"><span class="ts">33:56</span><span class="tx">And what that means is like, if you call snapshot twice, I'm just snapshotting the diff between the two snapshots. Otherwise, if I have to save gigabytes of data at every turn, like, like, I'm gonna bankrupt the company and, uh, like, it's just a slow experience regardless, right?</span></div><div class="tline" data-t="2052"><span class="ts">34:12</span><span class="tx">Um, the snapshotting ex-- uh, API itself should be very, very cheap and fast, so the model and the harness can keep snapshotting and exploring, like, very fast. Um, and similarly, like, just like creation should be fast for products, like restoring is just nothing but just re-creation from a snapshot.</span></div><div class="tline" data-t="2071"><span class="ts">34:31</span><span class="tx">And so restoring should also be very, very fast for a good product experience. And then we have two paradigms we'll discuss. One is always saving, uh, in which the harness doesn't have to explicitly call a save API versus explic-explicit saving, where the harness is calling save, save, save.</span></div><div class="tline" data-t="2090"><span class="ts">34:50</span><span class="tx">We'll see how we can implement both. So I'll give a reference solution, um, yeah.</span></div><div class="tline" data-t="2097"><span class="ts">34:57</span><span class="tx">Uh, and then there are some more design choices with disk snapshotting, right? So first, like I said, on the left-hand side, do you want incremental or full snapshots? I argue, I think at our scale, we want incremental snapshotting.</span></div><div class="tline" data-t="2109"><span class="ts">35:09</span><span class="tx">Secondly, like, do you want to, uh, snapshot the entire root FS, or do you want to have certain folders like workspace or mount something, something that you want to, uh, you want to keep that, like, configurable?</span></div><div class="tline" data-t="2122"><span class="ts">35:22</span><span class="tx">And lastly, like, you-- we can see how you can snapshot at a file system level or at a block. So at-- In Linux, disks are nothing but block devices, and each file maps to different blocks.</span></div><div class="tline" data-t="2132"><span class="ts">35:32</span><span class="tx">We'll see after this. And so you can do very, very efficient, like, snapshotting by just zipping up the blocks that have changed for a file. Or you can do entire files that have changed, right, for more write amplification.</span></div><div class="tline" data-t="2145"><span class="ts">35:45</span><span class="tx">Uh, and the high level flow of snapshotting is basically you figure out what's changed, you zip it up, put it to the cloud, and then when you restore, you pull it down and, and you restore the microVM, right?</span></div><div class="tline" data-t="2159"><span class="ts">35:59</span><span class="tx">And so this is a first principles talk, and so I just wanted to go over how Linux storage works from first principles. So Linux represents disks as block devices.</span></div><div class="tline" data-t="2169"><span class="ts">36:09</span><span class="tx">So you see on the right, like, it thinks of a block device as having logical blocks from zero to N. Um, a file system maps directories and files into something called an inode data structure, and the inode says, okay, offset zero in file F maps to this block, logical block in disk D.</span></div><div class="tline" data-t="2189"><span class="ts">36:29</span><span class="tx">And then on the disk itself, there's firmware running which says, oh, logical block one is like sector hundred or sector five hundred or page XYZ. So the hierarchy is on these logical blocks up to the file system, uh, and we leverage that for block-based snapshotting.</span></div><div class="tline" data-t="2205"><span class="ts">36:45</span><span class="tx">And then within a microVM, there are two ways of accessing storage. On the left-hand side, you can think of this as sharing a folder like Google Drive, but it's very, very inefficient because you're-- the VM is doing file system operations, exiting at every file system operation, which is very inefficient.</span></div><div class="tline" data-t="2223"><span class="ts">37:03</span><span class="tx">Uh, on the right-hand side, you actually give a disk-like abstraction at a block. So you give a block device to the, uh, microVM, and it is way more efficient because you can use the caches inside, uh, the guest, and you don't have to exit out as much.</span></div><div class="tline" data-t="2237"><span class="ts">37:17</span><span class="tx">You only exit out when you truly need to access the block device and the host has to service you.</span></div><div class="tline" data-t="2245"><span class="ts">37:25</span><span class="tx">This is the high level, uh, diagram of how you will have always-on persistence, uh, in disk snapshotting. So if you have two microVMs, uh, they have a block device which it-- They will see this dot image as a block device inside.</span></div><div class="tline" data-t="2262"><span class="ts">37:42</span><span class="tx">And as they are writing to the block device, we are writing through to the cloud. So there's some sort of like distributed file system that we mount inside that's giving this, uh, always-on persistence.</span></div><div class="tline" data-t="2273"><span class="ts">37:53</span><span class="tx">And like I mentioned, for explicit persistence, uh, we have an actual API called the Save API.</span></div><div class="tline" data-t="2281"><span class="ts">38:01</span><span class="tx">Calling the Save API from the harness figures out what, figures out what's changed between the last snapshot. Uh, it bundles up this diff into an artifact and returns a snapshot ID.</span></div><div class="tline" data-t="2294"><span class="ts">38:14</span><span class="tx">Later on, you can give us this snapshot ID. We figure out the lineage of snapshots that make this snapshot ID, and then we download them one by one and apply it on the node, and you get a microVM restored with this thing.</span></div><div class="tline" data-t="2307"><span class="ts">38:27</span><span class="tx">Uh, so let's see like how, how we can implement this, right?</span></div><div class="tline" data-t="2312"><span class="ts">38:32</span><span class="tx">Give me one second. I wanna see how we are doing on time.</span></div><div class="tline" data-t="2321"><span class="ts">38:41</span><span class="tx">I think we have five minutes left, so we'll go faster. Yeah. So, uh, we can do explicit persistence, uh, using something called Copy-on-Write. So Linux has these XFS file systems, uh, XFS-like file systems.</span></div><div class="tline" data-t="2334"><span class="ts">38:54</span><span class="tx">So you can do pretty, pretty much have zero latency copies because you don't change any blocks when you copy. But when you actually change the blocks on a file, that's when you pay the penalty.</span></div><div class="tline" data-t="2345"><span class="ts">39:05</span><span class="tx">And so in this, in this design, we have a base dot image, which might be the Codex base image or whatever, like the ChatGPT base image. We create a zero copy on top of it, which is a writable layer.</span></div><div class="tline" data-t="2357"><span class="ts">39:17</span><span class="tx">And then when you write to it, now you're changing the blocks in this layer. And then when you want to snapshot, I use something called FIEMAP, which tells me what blocks have changed and what ranges.</span></div><div class="tline" data-t="2368"><span class="ts">39:28</span><span class="tx">I zip that up and store it to the cloud.</span></div><div class="tline" data-t="2372"><span class="ts">39:32</span><span class="tx">And I can do something very nifty here. I can actually lie to you while I'm uploading to the cloud, so the snapshot can happen, return very fast as I'm uploading in the background.</span></div><div class="tline" data-t="2382"><span class="ts">39:42</span><span class="tx">I don't have to wait till I'm back, uh, till I'm done uploading. And then on the other side, like I have this diff, I download this like artifact, I figure out what extents have changed, and then I apply it back on top of the base image, and I start the microVM again.</span></div><div class="tline" data-t="2397"><span class="ts">39:57</span><span class="tx">So now we have a restored sandbox with the exact same state at a block level, right?</span></div><div class="tline" data-t="2403"><span class="ts">40:03</span><span class="tx">Now, how can we do always-on persistence, right? Like, uh, so this is one way of doing this. I know there's NFS also and other like distributed file systems, but NFS, for instance, isn't as performant, and it's not POSIX-compliant.</span></div><div class="tline" data-t="2416"><span class="ts">40:16</span><span class="tx">And I think our models are just very good at anything POSIX-compliant and standard. So you can write a s-- you can write a file system actually on top of a, a GCS or S3 on durable block storage, and you can use something called NBD.</span></div><div class="tline" data-t="2430"><span class="ts">40:30</span><span class="tx">So i- within the sandbox, you'll actually see a block device, but inside it will have literally a tiered cache of blocks that are persisted first to an in-cluster cache, and then the in-cluster cache is like writing back to the, uh, uh, block storage, the object storage.</span></div><div class="tline" data-t="2446"><span class="ts">40:46</span><span class="tx">So you have this like nice global tiered architecture where you're actually like caching things at the block level and finally inside the microVM and get a very performant, uh, like file system inside.</span></div><div class="tline" data-t="2459"><span class="ts">40:59</span><span class="tx">Yeah. So that's the persistence part of the presentation. Uh, uh, and so the one takeaway I want you guys to think about is I think storage is the next unlock here.</span></div><div class="tline" data-t="2468"><span class="ts">41:08</span><span class="tx">As you're working on sandboxes, think of what, what all you can snapshot and restore fast to give like this new paradigm to harnesses so they can re-recover from failures and explore, do Monte Carlo like searches.</span></div><div class="tline" data-t="2481"><span class="ts">41:21</span><span class="tx">Uh, so we've discussed running things on one node, and of course, uh, if our one node dies, we are done. So we want to be able to run across many, many nodes across the world.</span></div><div class="tline" data-t="2490"><span class="ts">41:30</span><span class="tx">So I'm not gonna mention about Kubernetes or other like orchestration things. This is a first principles talk, so we'll lightly hint about the challenges here.</span></div><div class="tline" data-t="2499"><span class="ts">41:39</span><span class="tx">So [clears throat] ideally, we want multiple machines to support the runtime we discussed. So we can group nodes into clusters and spread the clusters across the regions. A top-level control plane chooses a cluster using region load and other factors, and it's not very different from the orchestrators you are familiar with.</span></div><div class="tline" data-t="2518"><span class="ts">41:58</span><span class="tx">Um, these, like it ideally chooses a cluster close to your ChatGPT cluster, so you can like have fast like, uh, access to the harness. Inside the cluster, there's a scheduler also, and the scheduler tells you which node to pick based on the load and other factors, right?</span></div><div class="tline" data-t="2532"><span class="ts">42:12</span><span class="tx">So if nodes are dying or failing, it won't choose that. It will intelligently like route the sandbox to the thing. And again, low latency and reliability remain very, very key north stars for this architecture. [clears throat]</span></div><div class="tline" data-t="2546"><span class="ts">42:26</span><span class="tx">And so here, like we can use some microVM features to support low latency creation ideas. So a lot of systems cheat for low latency. They pre-- they pre-warm like sandboxes, and they pick one, which is great.</span></div><div class="tline" data-t="2558"><span class="ts">42:38</span><span class="tx">Another way to do this is you can actually take a memory snapshot of a microVM and just in time start it, start it in milliseconds as the request comes.</span></div><div class="tline" data-t="2567"><span class="ts">42:47</span><span class="tx">And so you can leverage this like nice microVM property that you can save the guest memory and start from that. And the third one is a hybrid solution. So you can have a warm pool, but as it's growing, you can like grow it from the memory snapshot, so you can get best of both worlds.</span></div><div class="tline" data-t="2582"><span class="ts">43:02</span><span class="tx">Like the trade-off for a warm pool is that you're, you're consuming CPU and memory, uh, in idle state. Ideally, you don't want to do that, right? So there's a trade-off between, uh, one and three and two, basically.</span></div><div class="tline" data-t="2594"><span class="ts">43:14</span><span class="tx">Yeah. And so here is a way where we can use snapshot r-restore for better orchestration. So remember we discussed that a snapshot can have a lineage of many, many layers.</span></div><div class="tline" data-t="2606"><span class="ts">43:26</span><span class="tx">So once you want to restore from a snapshot and you find out you have like, let's say four layers that you want to pull down and that makes the lineage, you can actually like smartly route you to a node which has to download the least amount of stuff.</span></div><div class="tline" data-t="2619"><span class="ts">43:39</span><span class="tx">So in this diagram you can see node A has some layers, node C has some layers, but node B has all the layers that you need. So the scheduler then routes you and it, it gives it the highest score and routes it because it has all the snapshot layers.</span></div><div class="tline" data-t="2632"><span class="ts">43:52</span><span class="tx">So you can use like snapshot with orchestration to just have faster like, uh, uh, creates and even just more reliable, uh, uh, uh, like orchestration. Yeah. This is the talk, and, uh, hopefully it gives you some design intuition around like sandboxes, why they're important, what's the next unlock, and I, I want to see more of you guys</span></div><div class="tline" data-t="2653"><span class="ts">44:13</span><span class="tx">using it in a secure way. Thank you. [audience applauding] [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

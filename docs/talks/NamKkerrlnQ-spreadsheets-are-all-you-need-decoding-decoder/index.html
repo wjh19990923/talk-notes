@@ -1,0 +1,901 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>电子表格就是你所需要的一切：不写代码解读解码器 LLM | AI 工程师中文版</title>
+<meta name="description" content="Ishan Anand 在 Excel 里打开一个语言模型，追踪一次“星期几”预测如何穿过它的各层，并通过加上一个向量改变了它的补全结果。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>电子表格就是你所需要的一切：不写代码解读解码器 LLM</h1>
+    <div class="orig-title">Spreadsheets-are-all-you-need: Decoding the Decoder LLM without de code</div>
+    <div class="meta"><span class="speaker">Ishan Anand</span> · AI Engineer World's Fair 2024 · 17:08</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=context-engineering">上下文工程</a><a class="tag" href="../../index.html#topic=distillation">蒸馏</a><a class="tag" href="../../index.html#topic=embeddings-and-representation-learning">嵌入与表示学习</a><a class="tag" href="../../index.html#topic=gpu-programming-and-kernel-optimization">GPU 编程与内核优化</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=multimodal-models-and-applications">多模态 AI</a><a class="tag" href="../../index.html#topic=structured-outputs">结构化输出</a><a class="tag" href="../../index.html#topic=transformers-and-attention">Transformer 与注意力</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/NamKkerrlnQ-spreadsheets-are-all-you-need-decoding-decoder" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="NamKkerrlnQ"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=NamKkerrlnQ" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">把句子补全变成一次电子表格计算</div></div>
+      <div class="label row">章节跳转 <span>共 9 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="24"><span class="ts">0:24</span><span>把句子补全变成一次电子表格计算</span></li><li data-t="206"><span class="ts">3:26</span><span>检查 token 及其 768 维的嵌入</span></li><li data-t="331"><span class="ts">5:31</span><span>解读一个因果注意力头和一个 MLP</span></li><li data-t="469"><span class="ts">7:49</span><span>把最终状态投影成下一个 token 的分数</span></li><li data-t="556"><span class="ts">9:16</span><span>把残差流当作检查点</span></li><li data-t="629"><span class="ts">10:29</span><span>跟随“星期三”穿过整个网络</span></li><li data-t="735"><span class="ts">12:15</span><span>找到一个可以被引导的特征</span></li><li data-t="805"><span class="ts">13:25</span><span>通过加上一个解码器向量改变补全结果</span></li><li data-t="924"><span class="ts">15:24</span><span>把对架构的理解带进提示词编写</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 20 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Presenting sponsor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting sponsor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Microsoft is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=5s) [Microsoft logo beneath the heading Presenting Sponsor.](https://assets.ai.engineer/sites/aiecode2025/sha256/9f227e03d5413a3f145480f3998b2dc3d19988d231e026e1f23d34ccc7102bb5.webp)
+
+PRESENTING SPONSOR
+
+Microsoft</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/630a2c443ecc7597c52e9d1aeb861e20a19a5346dd1d271a75cb61d0c3f5b66c.webp" alt="AWS is the innovation sponsor; MongoDB, Google Cloud and Neo4j are platinum sponsors." loading="lazy" data-lb="1" data-cap="Innovation and platinum sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Innovation and platinum sponsors</h3>
+        <p>AWS is the innovation sponsor; MongoDB, Google Cloud and Neo4j are platinum sponsors.</p>
+        <details><summary>幻灯片原文</summary><pre>INNOVATION SPONSOR
+aws
+
+PLATINUM SPONSORS
+MongoDB®
+Google Cloud
+neo4j</pre></details>
+        <button class="ts" data-t="10">▶ 0:10</button>
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Evolution of GPT" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evolution of GPT</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide maps GPT releases onto a human-evolution illustration, highlighting GPT-2 (2019), the early ChatGPT precursor Ishan will examine in Excel.
+
+[0:55](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=55s) [An evolution illustration labels GPT-1 through GPT-4, with GPT-2 highlighted.](https://assets.ai.engineer/sites/aiecode2025/sha256/0212e99f827b43990b966eb621af6766ea31735bbd5fa7d7da463f2e532e6600.webp)
+
+Evolution of GPT
+
+1 AI Year = 500,000 Human Years of Evolution !?!
+
+GPT-1 (2018)
+AUSTRALOPITHECUS
+
+GPT-2 (2019)
+HOMO HABILIS
+
+GPT-3 (2020)
+HOMO ERECTUS
+
+ChatGPT (2022)
+HOMO NEANDERTHALENSIS
+
+GPT-4 (2023)
+HOMO SAPIENS SAPIENS</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="GPT-2 spreadsheet demonstration" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>GPT-2 spreadsheet demonstration</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An Excel implementation of GPT-2 Small predicts “quickly” after the prompt “Mike is quick. He moves”. The prompt is entered one word or punctuation mark per row.
+
+[1:01](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=61s) [An Excel sheet displays the prompt “Mike is quick. He moves” and predicts “quickly” as the next token.](https://assets.ai.engineer/sites/aiecode2025/sha256/6605560e4997344942aac632fcda079d8d1f0da33e47df3c8ce8dcc15c551ecb.webp)
+
+Type Prompt Below Here
+Mike
+is
+quick
+.
+He
+moves
+
+Predicted Next Token
+quickly
+
+Each word/punctuation of the prompt needs to be entered as a separate row in the second column.
+
+Limits:
+- You'll need to manually include the spaces between words
+- Limited to sequences of 10 tokens or less
+- Limited to words that are 10 characters or less
+
+Interface text:
+GPT2-spreadsheets-are-all-you-need.v0.6.1-MRI
+AutoSave Off
+Search
+File  Home  Insert  Draw  Page Layout  Formulas  Data  Review  View  Help
+Comments  Share
+Insert Function  AutoSum  Recently Used  Financial  Logical  Text  Date &amp; Time  Lookup &amp; Reference  Math &amp; Trig  More Functions
+Name Manager  Define Name  Use in Formula  Create from Selection
+Trace Precedents  Trace Dependents  Remove Arrows  Show Formulas  Error Checking  Evaluate Formula  Watch Window
+Calculation Options  Calculate Now  Calculate Sheet
+Function Library  Defined Names  Formula Auditing  Calculation
+R9C2
+README  Type_Prompt_Here  Predicted_Token  Steer_Block_5  Block_5  Prompt_to_Tokens  Constants  Tokens_to_Text_Embeddings
+Ready  200%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Spreadsheet demo: steering off" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Spreadsheet demo: steering off</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>With the Jedi steering vector set to 0, the spreadsheet predicts “phone” as the next token for “Mike pulls out his.”
+
+[1:05](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=65s) [Excel spreadsheet predicts “phone” for “Mike pulls out his,” with the Jedi steering control set to 0.](https://assets.ai.engineer/sites/aiecode2025/sha256/278f43b77762f8230b6356e75309e04b2ee1c453fc61980ede7182d5895c26dc.webp)
+
+Each word/punctuation of the prompt needs to be entered as a separate row in the second column.
+
+Limits:
+- You'll need to manually include the spaces between words
+- Limited to sequences of 10 tokens or less
+- Limited to words that are 10 characters or less
+
+Type Prompt Below Here
+Mike
+pulls
+out
+his
+
+Predicted Next Token
+phone
+
+Turn Jedi steering vector on/off by setting to 1 or 0
+0
+
+Interface text:
+Excel  File  Edit  View  Window
+Wed Jun 26 4:37 PM
+AutoSave Off
+Ishan Anand
+File  Home  Insert  Draw
+Comments  Share
+Window menu:
+Minimize
+Zoom
+Bring All to Front
+Tokens-excerpt - Excel
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-quick - Excel
+MRI-excerpt-final-3 - Excel
+GPT2-spreadsheets-are-all-you-need.v0.6.1-Jedi-SAE -2 - Excel
+Insert Function  AutoSum  Recently Used  Financial
+Trace Precedents  Trace Dependents  Remove Arrows  Show Formulas  Error Checking  Evaluate Formula  Watch Window  Calculation Options  Calculate Now  Calculate Sheet
+Formula Auditing  Calculation
+R4C2
+out
+Columns: 1  2  3  4  5
+Rows: 1–15
+README  Type_Prompt_Here  Predicted_Token  Steer_Block_2  Block_2  Steer_Block_5  Blo
+Ready  Display Settings  158%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="GPT2 at a glance" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>GPT2 at a glance</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GPT-2 turns prompt text into tokens and numeric embeddings, processes them through 12 attention and perceptron blocks, then predicts the next token. The chart maps each stage to spreadsheet tabs.
+
+[3:13](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=193s) [Diagram traces text through tokenization, embeddings, twelve attention and perceptron blocks, and a language head to the predicted next token.](https://assets.ai.engineer/sites/aiecode2025/sha256/c98b1b6c8b6082f2c540b5a6272f5c9fddb1177245ad41e8023043bc53991363.webp)
+
+GPT2 at a glance
+
+GPT2 Phase
+Input — Text
+Tokenization (BPE) — Text into tokens
+Text &amp; Position Embeddings — Tokens into numbers
+Multi-head Attention
+Multilayer Perceptron
+12x — “Number crunching”
+Language Head — Numbers into text
+Output — Text (Next Token)
+
+[3:25](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=205s) [Diagram maps GPT-2 processing phases to actions and spreadsheet tabs.](https://assets.ai.engineer/sites/aiecode2025/sha256/37925ea7ee651a2c3a274fe045f7c6bbd6c7690ae0e3a0a6aaac64abfd4776cb.webp)
+
+GPT2 at a glance
+
+GPT2 Phase | Action | Tab in Spreadsheet
+Input | Enter prompt text | Type_Prompt_Here
+Tokenization (BPE) | Split into tokens | Prompt_to_Tokens, Constants
+Text &amp; Position Embeddings | Convert tokens to numbers | Token_to_Text_Embeddings
+Multi-head Attention
+Multilayer Perceptron
+12x | Iteratively refine prediction | Block_0, Block_1, ... Block_11
+Language Head | Pick most likely next token | Layer_Norm, Logits
+Output | Output next token | Predicted_Token</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Prompt and predicted token" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Prompt and predicted token</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The spreadsheet takes Mike is quick. He moves one word or punctuation mark per row and predicts quickly after about 30 seconds. Spaces must be entered manually; sequences are limited to 10 tokens.
+
+[3:40](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=220s) [Spreadsheet shows a prompt entered by row and the predicted next token, quickly.](https://assets.ai.engineer/sites/aiecode2025/sha256/6d147d15d214d9ea242fac70436c870047935447730675a0a8ce3f780d583eb9.webp)
+
+Type Prompt Below Here
+Mike
+is
+quick
+.
+He
+moves
+
+Predicted Next Token
+quickly
+
+Each word/punctuation of the prompt needs to be entered as a separate row in the second column.
+
+Limits:
+- You'll need to manually include the spaces between words
+- Limited to sequences of 10 tokens or less
+- Limited to words that are 10 characters or less
+
+Interface text:
+Excel  File  Edit  View  Window
+Wed Jun 26 4:39 PM
+AutoSave Off
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-q...
+Search
+Ishan Anand
+File  Home  Insert  Draw  Page Layout  Formulas  Data  Review  View  Help
+Comments  Share
+R6C2
+He
+[illegible]pt_Here  Prompt_to_Tokens  Constants  Tokens_to_Text_Embeddings  Block_0  Blc...
+Display Settings
+148%
+World's Fair
+MongoDB</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Prompt tokenization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Prompt tokenization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The spreadsheet splits the prompt into tokens and assigns each a numeric ID. In this example, each word is one token; the speaker notes that words can also split into multiple tokens.
+
+[3:50](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=230s) [Spreadsheet displays the prompt split into tokens with corresponding token IDs; a window menu is open above it.](https://assets.ai.engineer/sites/aiecode2025/sha256/ea6670eb019a6e4f865e40ce0239a260a510deb2c8ea7d5f6acc17252ccec27e.webp)
+
+Pass: 19
+Input: Mike
+Possible Pairs: Mike
+Score
+Max Score: 0 0 0 0 0 0 0 0
+Is max score?: FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FA
+Is blank input?: FALSE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TR
+Is prev sibling max score?: FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FA
+Output: Mike
+
+END
+Final token list: Mike | is | quick | . | He | moves
+Tokens to id: 16073 | 318 | 2068 | 13 | 679 | 6100
+
+Interface text:
+Excel  File  Edit  View  Window
+Wed Jun 26 4:40 PM
+AutoSave Off
+Minimize
+Zoom
+Bring All to Front
+Tokens-excerpt - Excel
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-quick - Excel
+MRI-excerpt-final-3 - Excel
+GPT2-spreadsheets-are-all-you-need.v0.6.1-Jedi-SAE -2 - Excel
+Comments  Share
+R194C5
+[illegible]pt_Here  Prompt_to_Tokens  Constants  Tokens_to_Text_Embeddings  Block_0
+World's Fair  Google Cloud
+Display Settings  150%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Word examples and tokenization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Word examples and tokenization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The spreadsheet splits funology into “fun” and “ology,” but splits reinjury into “rein” and “jury.” The speaker explains that common subword units do not always match a reader’s intuition.
+
+[4:05](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=245s) [Zoomed spreadsheet shows example words entered in separate prompt rows.](https://assets.ai.engineer/sites/aiecode2025/sha256/721fe060d688a7dce223e4d34b356fffb74357335618a85426db277a14812db0.webp)
+
+Each word/punctuation of the prompt needs to be entered as a separate row in the second column.
+
+Limits:
+- You'll need to manually include the spaces between words
+- Limited to sequences of 10 tokens or less
+- Limited to words that are 10 characters or less
+
+Type Prompt Below Here
+flavorize
+chillify
+funology
+reinjury
+
+Predicted Next Toke
+.
+
+Interface text:
+Excel
+Tokens-excerpt • Saved to this PC
+SECURITY WARNING Automatic update of links has been disabled
+Enable Content
+Prompt_to_Tokens
+Constants
+Tokens_to_Text_Embeddings
+184%
+
+[4:17](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=257s) [Excel shows example words split into tokens with corresponding token IDs.](https://assets.ai.engineer/sites/aiecode2025/sha256/62a144a30e304c9cf4fa7de0ea26e4805c71242187d74b493a11932f2f48e03a.webp)
+
+Input: flavor | ize
+Possible Pairs: flavorize | ize
+Score
+Max Score: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+Is max score?: FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+Is blank input?: FALSE FALSE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE TRUE
+Is prev sibling max score?: FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE FALSE
+Output: flavor | ize
+
+END
+Final token list: flavor | ize | chill | ify | fun | ology | rein | jury
+Tokens to id: 9565 | 1096 | 20493 | 1958 | 1257 | 1435 | 6865 | 21871
+
+Interface text:
+Excel
+Tokens-excerpt • Saved to this PC
+SECURITY WARNING Automatic update of links has been disabled
+Enable Content
+Prompt_to_Tokens
+Constants
+Tokens_to_Text_Embeddings
+100%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Token and positional embeddings" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Token and positional embeddings</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each prompt token gets a row of text embeddings starting in column 3. For GPT-2 Small, each embedding has 768 numbers. A second table shows text embeddings combined with positional embeddings.
+
+[5:02](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=302s) [Excel displays prompt tokens, their IDs, text embeddings and text plus positional embeddings.](https://assets.ai.engineer/sites/aiecode2025/sha256/58c939b63c5e3c539fc201d1016c82ca2accabed04c80dd869baf6252078f632.webp)
+
+Prompt Tokens | Prompt Token Ids | Token Text Embeddings
+Mike | 16073 | -0.0535642 | -0.0399244 | 0.22336002 | -0.167944 | -0.1447556 | 0.08387017 | -0.2168577 | -0.2140928 | 0.13772395 | [illegible]
+is | 318 | -0.0097235 | 0.01005133 | 0.05557884 | -0.1124128 | -0.114197 | 0.12660722 | -0.2651107 | -0.1186538 | -0.0361108 | [illegible]
+quick | 2068 | -0.0083826 | -0.0301929 | 0.19690648 | -0.0992415 | 0.05808483 | 0.1255142 | -0.343964 | 0.0056699 | 0.09639783 | [illegible]
+. | 13 | 0.04664114 | -0.0113024 | 0.02832778 | 0.04635079 | 0.03903805 | -0.0651892 | -0.237793 | -0.0276248 | -0.0089369 | [illegible]
+He | 679 | -0.0628225 | -0.0067801 | 0.05482207 | 0.04971102 | -0.1953016 | 0.01469301 | -0.2241214 | 0.02183576 | -0.0672066 | [illegible]
+moves | 6100 | -0.0512676 | -0.0075469 | 0.19366609 | -0.1639904 | 0.03652867 | 0.19645189 | -0.3264861 | -0.1652143 | -0.0661089 | [illegible]
+
+Prompt Tokens | Token Position | Text + Positional Emedding
+Mike | 1 | -0.0723849 | -0.237343 | 0.22738675 | -0.1565971 | -0.0809315 | -0.0211431 | -0.1799207 | -0.3821224 | 0.08861294 | [illegible]
+is | 2 | 0.01423593 | -0.0437407 | -0.0392998 | -0.1253222 | -0.1242475 | 0.15766723 | -0.2141962 | 0.06617522 | 0.00749735 | [illegible]
+quick | 3 | -0.0041666 | -0.1149568 | 0.25142141 | -0.1039098 | 0.03202019 | 0.14083831 | -0.3174657 | 0.06491473 | 0.09101275 | [illegible]
+. | 4 | 0.04635777 | -0.085105 | 0.13385425 | 0.04700242 | 0.02346371 | -0.0544767 | -0.2264214 | 0.03231859 | -0.0221707 | [illegible]
+He | 5 | -0.0551851 | -0.0318704 | 0.18177843 | 0.04345733 | -0.207683 | 0.03242477 | -0.2150212 | 0.07397148 | -0.0680859 | [illegible]
+moves | 6 | -0.0416654 | -0.0414321 | 0.3248988 | -0.1678452 | 0.02628004 | 0.20791907 | -0.3108249 | -0.1168797 | -0.0753199 | [illegible]
+
+Interface text:
+Excel; File; Edit; View; Window
+AutoSave Off
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-q...
+Search; Ishan Anand; Comments; Share
+File; Home; Insert; Draw; Page Layout; Formulas; Data; Review; View; Help
+R2C3
+=IF(RC[-1]&lt;&gt;&quot;&quot;, OFFSET(model_wte!R1C1,Tokens_to_Text_Embeddings!RC[-1],0,1,768),&quot;&quot;)
+[illegible]pt_Here; Prompt_to_Tokens; Constants; Tokens_to_Text_Embeddings; Block_0; [illegible]
+Display Settings; 125%
+World's Fair; Google Cloud</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Prompt tokens in the embeddings sheet" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Prompt tokens in the embeddings sheet</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each prompt token occupies a row; its text embedding starts in column 3. Mike’s row contains 768 numbers in GPT-2 Small. The lower table shows the text and positional embeddings together.
+
+[5:11](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=311s) [Excel highlights a prompt token row and displays a formula referencing the tokenization sheet.](https://assets.ai.engineer/sites/aiecode2025/sha256/27b3b53d712485f438ff96ef226f5d118f0808da25aa181f67ff0f2c5fed11fe.webp)
+
+Prompt Tokens | Prompt Token Ids | Token Text Embeddings
+Mike | 16073 | -0.0535642 | -0.0399244 | 0.22336002 | -0.167944 | -0.1447556 | 0.08387017 | -0.2168577 | -0.2140928 | 0.13772395 | [illegible]
+is | 318 | -0.0097235 | 0.01005133 | 0.05557884 | -0.1124128 | -0.114197 | 0.12660722 | -0.2651107 | -0.1186538 | -0.0361108 | [illegible]
+quick | 2068 | -0.0083826 | -0.0301929 | 0.19690648 | -0.0992415 | 0.05808483 | 0.1255142 | -0.343964 | 0.0056699 | 0.09639783 | [illegible]
+. | 13 | 0.04664114 | -0.0113024 | 0.02832778 | 0.04635079 | 0.03903805 | -0.0651892 | -0.237793 | -0.0276248 | -0.0089369 | [illegible]
+He | 679 | -0.0628225 | -0.0067801 | 0.05482207 | 0.04971102 | -0.1953016 | 0.01469301 | -0.2241214 | 0.02183576 | -0.0672066 | [illegible]
+moves | 6100 | -0.0512676 | -0.0075469 | 0.19366609 | -0.1639904 | 0.03652867 | 0.19645189 | -0.3264861 | -0.1652143 | -0.0661089 | [illegible]
+
+Prompt Tokens | Token Position | Text + Positional Emedding
+Mike | 1 | -0.0723849 | -0.237343 | 0.22738675 | -0.1565971 | -0.0809315 | -0.0211431 | -0.1799207 | -0.3821224 | 0.08861294 | [illegible]
+is | 2 | 0.01423593 | -0.0437407 | -0.0392998 | -0.1253222 | -0.1242475 | 0.15766723 | -0.2141962 | 0.06617522 | 0.00749735 | [illegible]
+quick | 3 | -0.0041666 | -0.1149568 | 0.25142141 | -0.1039098 | 0.03202019 | 0.14083831 | -0.3174657 | 0.06491473 | 0.09101275 | [illegible]
+. | 4 | 0.04635777 | -0.085105 | 0.13385425 | 0.04700242 | 0.02346371 | -0.0544767 | -0.2264214 | 0.03231859 | -0.0221707 | [illegible]
+He | 5 | -0.0551851 | -0.0318704 | 0.18177843 | 0.04345733 | -0.207683 | 0.03242477 | -0.2150212 | 0.07397148 | -0.0680859 | [illegible]
+moves | 6 | -0.0416654 | -0.0414321 | 0.3248988 | -0.1678452 | 0.02628004 | 0.20791907 | -0.3108249 | -0.1168797 | -0.0753199 | [illegible]
+
+Interface text:
+Excel; File; Edit; View; Window
+AutoSave Off
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-q...
+Search; Ishan Anand; Comments; Share
+File; Home; Insert; Draw; Page Layout; Formulas; Data; Review; View; Help
+R2C1
+=TRANSPOSE(OFFSET(Prompt_to_Tokens!R[192]C[1],0,0,1,Constants!R2C2))
+Column headings: 1 2 3 4 5 6 7 8 9 10 11
+Sheet tabs: [illegible]pt_Here; Prompt_to_Tokens; Constants; Tokens_to_Text_Embeddings; Block_0; Bl[illegible]
+Average: 20.90104795; Count: 770; Sum: 16072.90588
+Display Settings; 125%
+Google Cloud; World's Fair
+Wed Jun 26 4:41 PM</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="End of the embedding vectors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>End of the embedding vectors</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The presenter scrolls to column 770, showing the end of Mike’s 768-number embedding. Each token has its own embedding.
+
+[5:25](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=325s) [Excel is scrolled to the final columns of the embedding vectors.](https://assets.ai.engineer/sites/aiecode2025/sha256/137918e9ba6c127172d7fabb98bff014fb26f53e20a124e2a6bde2256aca803d.webp)
+
+Columns: 762 763 764 765 766 767 768 769 770 771 772 773 774
+2: -0.0322433 -0.2041573 0.04210549 -0.1941567 -0.0337377 -0.0140298 -0.0548472 0.17085117 0.10322969
+3: 0.03112987 -0.0578284 -0.0048877 -0.1208498 0.0827383 0.12230988 0.11449675 -0.0380058 -0.0253776
+4: 0.1879622 0.10449877 0.00884306 -0.1109806 -0.0010153 -0.0896271 0.02193703 -0.0981571 -0.007186
+5: 0.03521487 0.05278434 0.06358501 -0.1213379 -0.0481142 -0.0620358 -0.0735107 0.04961816 0.09631975
+6: 0.04236459 0.05269665 0.03167193 -0.1118901 -0.0842511 0.02349967 -0.0649237 -0.1334008 0.00767906
+7: 0.04224393 -0.0127879 -0.145407 -0.1240168 -0.00721 0.06284418 0.0246263 0.11907776 0.03719359
+15: -0.0609105 -0.1497047 -0.0107547 -0.1915964 -0.0421658 -0.0106627 -0.097891 0.19911836 0.1577198
+16: -0.0197206 -0.0597304 0.03870856 0.12663222 0.10139856 0.14472212 0.14866676 -0.0278339 -0.0255333
+17: 0.19602236 0.0964385 0.05325932 0.39281827 -0.0050069 -0.0754438 0.04168174 -0.0788322 -0.0286098
+18: 0.04628251 0.04643719 0.09219964 0.50180053 -0.0543619 -0.0467346 -0.0633534 0.06727764 0.08923437
+19: 0.04606928 0.04782401 0.05007859 0.51012177 -0.0881775 0.03510271 -0.0564594 -0.1235466 0.00066735
+20: 0.04309698 -0.0141439 -0.1367273 0.46456384 -0.0099876 0.07460251 0.03052035 0.1262 0.02971943
+
+Formula bar: =IF(RC[-1]&lt;&gt;&quot;&quot;, OFFSET(model_wte!R1C1,Tokens_to_Text_Embeddings!RC[-1],0,1,768),&quot;&quot;)
+
+Interface text:
+Excel  File  Edit  View  Window
+Wed Jun 26 4:41 PM
+AutoSave Off
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-q...
+Search  Ishan Anand  Comments  Share
+File  Home  Insert  Draw  Page Layout  Formulas  Data  Review  View  Help
+R2C1
+[illegible]pt_Here  Prompt_to_Tokens  Constants  Tokens_to_Text_Embeddings  Block_0  Blc...
+Google Cloud  AI Engineer World's Fair
+Display Settings  125%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Multi-Head Attention &amp; Multilayer Perceptron" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Multi-Head Attention &amp; Multilayer Perceptron</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In the example, “moves” helps disambiguate “quick” as physical movement for the perceptron. The spreadsheet represents the iterative refinement in twelve block tabs.
+
+[6:17](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=377s) [A diagram shows attention and a multilayer perceptron refining the example “Mike is quick. He moves around,” with arrows and icons representing possible meanings of quick.](https://assets.ai.engineer/sites/aiecode2025/sha256/949bd33b44d965e0abe6f403393d68759c33aa119fd19da1d6478a2317dbf0cf.webp)
+
+Multi-Head Attention &amp; Multilayer Perceptron
+
+GPT2 Phase
+Multi-head Attention
+Multilayer Perceptron
+
+Action
+Iteratively refine prediction
+
+Tab in Spreadsheet
+Block_0, Block_1, ... Block_11
+
+Mike is quick. He moves around</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="MLP weights and GELU activation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MLP weights and GELU activation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In Block_0, the spreadsheet applies GELU to the preceding MLP weights and bias values. The speaker identifies twelve block tabs, from Block_0 to Block_11.
+
+[6:32](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=392s) [Excel displays MLP weights and bias above the resulting GELU activation values.](https://assets.ai.engineer/sites/aiecode2025/sha256/6023c9101e6846141de9ee9aa7323f52507679da0837515b728fe41aa4741311.webp)
+
+Step 13
+MLP Weights &amp; Bias
+-0.10196  -1.127741  -1.739994  -1.1544668  -1.2801751  -0.408972  -1.1476778  -1.0520765  -1.0325314  -0.9526721  2.54560388  -1.534475[illegible]
+0.21423011  -1.3461291  -0.9203452  -1.7251741  -1.0781989  -0.946085  -1.757487  -1.4880547  -1.2252617  -1.0736151  -1.8184657  -1.892719[illegible]
+0.27839521  -0.2935705  -1.1337944  -0.2934172  -0.3713959  0.06697744  -2.2256063  -0.7928095  -0.0233477  0.32740891  -1.4950161  -1.618376[illegible]
+0.20063742  -1.985376  -1.3248134  -1.6382619  -1.5526012  -1.5026976  -1.5758196  -1.9747974  -1.6320095  -1.5349703  -1.7225435  -1.520379[illegible]
+0.53459897  -0.9391814  -0.889415  -1.7190772  -1.1608613  -1.1381011  -1.1731385  -1.5863421  -1.1723992  -1.1297768  -1.1826773  -2.0585702
+0.21662861  -1.3162311  -0.9008409  -1.0308721  -0.9632543  -1.0399885  -1.3610073  -0.5778182  0.56583137  0.05932912  -1.5099054  -2.2160084
+
+Step 14
+Apply GELU activation
+-0.0468399  -0.1464792  -0.0713258  -0.1435344  -0.1285551  -0.1395822  -0.1442922  -0.154176  -0.1559851  -0.1624505  2.53217263  -0.09604[illegible]
+0.12528457  -0.1202145  -0.1645867  -0.0730026  -0.1516366  -0.1629101  -0.0693716  -0.101956  -0.1352898  -0.1520918  -0.0627828  -0.0552562
+0.16972052  -0.1128928  -0.1458215  -0.112851  -0.1319149  0.03527702  -0.0286923  -0.1696989  -0.0114564  0.20571428  -0.1010653  -0.085611[illegible]
+0.11627066  -0.046673  -0.122932  -0.0831995  -0.0937609  -0.100084  -0.0908567  -0.0476065  -0.0839549  -0.0959834  -0.0733022  -0.0978325
+0.37608791  -0.1633786  -0.1663365  -0.0736979  -0.1428148  -0.1453501  -0.141418  -0.0895498  -0.1415026  -0.1462586  -0.1403196  -0.0405445
+0.12688975  -0.124021  -0.1657251  -0.1561349  -0.1616871  -0.1553044  -0.1183088  -0.1627965  0.40411585  0.03106799  -0.099165  -0.0292952
+
+Interface text:
+Excel  File  Edit  View  Window
+Wed Jun 26 4:42 PM
+AutoSave Off
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-q...
+Search  Ishan Anand
+File  Home  Insert  Draw  Page Layout  Formulas  Data  Review  View  Help
+Comments  Share
+R248C3
+=gelu(OFFSET(R[-17]C,0,0,Prompt_Token_Length,Number_of_Embedding_Dimensions*4))
+Column headers: 1 2 3 4 5 6 7 8 9 10 11 12 13 14
+Row headers: 229–258
+Type_Prompt_Here  Prompt_to_Tokens  Constants  Tokens_to_Text_Embeddings  Block_0  Blc...
+Ready  Display Settings  100%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Attention softmax in Excel" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Attention softmax in Excel</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In this attention head, “He” assigns about 48% of its attention to “Mike.” Zeros above the diagonal prevent tokens from looking ahead.
+
+[6:40](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=400s) [Excel shows a token attention matrix with zeros above the diagonal and attention values for each token.](https://assets.ai.engineer/sites/aiecode2025/sha256/d18d1753a7dee67960dcdde1d00f33347f3696ae1ad9b156703cae3f36715b38.webp)
+
+=IF(ISBLANK(R[-14]C), &quot;&quot;, softmax(OFFSET(R[-14]C,0,0,1,Prompt_Token_Length)))
+
+Row 134: -0.1586306  -1.7272946  -0.2850466  -1.7243237  -1.366624  -0.6824425
+
+Step 7
+Softmax (Queries X Keys)
+Columns: Mike  is  quick  .  He  moves
+Mike: 1  0  0  0  0  0
+is: 0.94777331  0.05222669  0  0  0  0
+quick: 0.7715472  0.13198773  0.09646507  0  0  0
+.: 0.73666228  0.10407032  0.12952591  0.02974149  0  0
+He: 0.48141189  0.17749555  0.15566261  0.0672688  0.11816114  0
+moves: 0.31352195  0.06531393  0.27629062  0.06550826  0.09367917  0.18568607
+
+Step 8
+Attention = Values x Step7
+Row 158: 0.09853721  0.01022933  -0.0556607  0.01273062  -0.0357852  -0.1267442  -0.1740955  0.15841974  -0.0036449  -0.0342343  -0.1472656  -0.076701[illegible]
+Row 159: 0.10550518  -0.0027665  -0.0373695  0.00587342  -0.0434672  -0.1091745  -0.1467437  0.15497381  -0.0050562  -0.0408998  -0.1410612  -0.072364[illegible]
+Row 160: 0.08187503  -0.0365351  -0.0191837  -0.0153088  -0.0271848  -0.0334119  -0.0911324  0.185265  -0.0009378  -0.0700112  -0.0940269  -0.078658[illegible]
+Row 161: 0.05666287  -0.0321816  -0.0394944  -0.0157213  -0.0130762  -0.0216042  -0.0954766  0.19431328  0.00102442  -0.0704222  -0.0771372  -0.087065[illegible]
+Row 162: 0.02118376  -0.0412584  0.02886328  -0.0329363  0.03418392  0.06562852  0.00736474  0.15428667  0.00207396  -0.0743987  -0.0415451  -0.06678[illegible]
+
+Interface text:
+Excel  File  Edit  View  Window
+Wed Jun 26 4:43 PM
+AutoSave Off
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-q...
+Search  Ishan Anand
+File  Home  Insert  Draw  Page Layout  Formulas  Data  Review  View  Help  Comments  Share
+R147C3
+Columns: 1  2  3  4  5  6  7  8  9  10  11  12  13  14
+Type_Prompt_Here  Prompt_to_Tokens  Constants  Tokens_to_Text_Embeddings  Block_0
+Ready  Display Settings  100%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="MLP formula in Excel" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>MLP formula in Excel</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The spreadsheet shows the MLP’s weights and bias above its GELU activation values. The speaker points to MMULT as the matrix multiplication used to apply the weights, then moves through the activation function.
+
+[7:24](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=444s) [Excel shows MLP weights and GELU activation values while a formula is being edited.](https://assets.ai.engineer/sites/aiecode2025/sha256/90cc0b61d834bbd099f98097cf932653e3850b79bde864a7736492f5661623e4.webp)
+
+Step 13
+MLP Weights &amp; Bias
+
+Formula bar: =R[17]C(OFFSET(R[-14]C,0,0,Prompt_Token_Length,Number_of_Embedding_Dimensions), INDIRECT(R[-219]C[-1], FALSE))+INDIRECT(R[-218]C[-1], FALSE)
+Function tooltip: MMULT(array1, array2)
+
+Row 231: =R[17]C(  -1.127741  -1.739994  -1.1544668  -1.2801751  -0.408972  -1.1476778  -1.0520765  -1.0325314  -0.9526721  2.54560388  -1.534475[illegible]
+Row 232: 0.21423011  -1.3461291  -0.9203452  -1.7251741  -1.0781989  -0.946085  -1.757487  -1.4880547  -1.2252617  -1.0736151  -1.8184657  -1.892719[illegible]
+Row 233: 0.27839521  -0.2935705  -1.1337944  -0.2934172  -0.3713959  0.06697744  -2.2256063  -0.7928095  -0.0233477  0.32740891  -1.4950161  -1.618376[illegible]
+Row 234: 0.20063742  -1.985376  -1.3248134  -1.6382619  -1.5526012  -1.5026976  -1.5758196  -1.9747974  -1.6320095  -1.5349703  -1.7225435  -1.520379[illegible]
+Row 235: 0.53459897  -0.9391814  -0.889415  -1.7190772  -1.1608613  -1.1381011  -1.1731385  -1.5863421  -1.1723992  -1.1297768  -1.1826773  -2.0585702
+Row 236: 0.21662861  -1.3162311  -0.9008409  -1.0308721  -0.9632543  -1.0399885  -1.3610073  -0.5778182  0.56583137  0.05932912  -1.5099054  -2.2160084
+
+Step 14
+Apply GELU activation
+
+Row 248: [illegible]0468399  -0.1464792  -0.0713258  -0.1435344  -0.1285551  -0.1395822  -0.1442922  -0.154176  -0.1559851  -0.1624505  2.53217263  -0.09604[illegible]
+Row 249: 0.12528457  -0.1202145  -0.1645867  -0.0730026  -0.1516366  -0.1629101  -0.0693716  -0.101956  -0.1352898  -0.1520918  -0.0627828  -0.0552562
+Row 250: 0.16972052  -0.1128928  -0.1458215  -0.112851  -0.1319149  0.03527702  -0.0286923  -0.1696989  -0.0114564  0.20571428  -0.1010653  -0.085611[illegible]
+Row 251: 0.11627066  -0.046673  -0.122932  -0.0831995  -0.0937609  -0.100084  -0.0908567  -0.0476065  -0.0839549  -0.0959834  -0.0733022  -0.0978325
+Row 252: 0.37608791  -0.1633786  -0.1663365  -0.0736979  -0.1428148  -0.1453501  -0.141418  -0.0895498  -0.1415026  -0.1462586  -0.1403196  -0.0405445
+Row 253: 0.12688975  -0.124021  -0.1657251  -0.1561349  -0.1616871  -0.1553044  -0.1183088  -0.1627965  0.40411585  0.03106799  -0.099165  -0.0292952
+
+Interface text:
+Excel  File  Edit  View  Window
+Wed Jun 26 4:43 PM
+AutoSave Off
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-q...
+Search  Ishan Anand  Comments  Share
+File  Home  Insert  Draw  Page Layout  Formulas  Data  Review  View  Help
+R248C3
+Type_Prompt_Here  Prompt_to_Tokens  Constants  Tokens_to_Text_Embeddings  Block_0
+Point  Display Settings  100%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Language Head &amp; Output" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Language Head &amp; Output</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The language head turns the last token into a probability distribution. At temperature zero, the spreadsheet selects the highest-probability token: “quickly” at 43%.
+
+[8:00](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=480s) [A language head diagram and probability table show quickly as the highest-probability token, completing the example sentence.](https://assets.ai.engineer/sites/aiecode2025/sha256/b4be0f934674233094d5475bf73bf9391870f5114dd75341ee96c2c33c7594fc.webp)
+
+Language Head &amp; Output
+
+GPT2 Phase
+Language Head
+Output
+
+Action
+Pick most likely next token
+Output next token
+
+Tab in Spreadsheet
+Layer_Norm, Logits
+Predicted_Token
+
+Token | Probability
+quickly | 43%
+fast | 19%
+like | 17%
+around | 11%
+... | ...
+
+Mike is quick. He moves quickly
+
+Interface text:
+Microsoft
+World's Fair
+
+[8:18](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=498s) [Language head selects the most likely next token, illustrated by “quickly” completing a sentence.](https://assets.ai.engineer/sites/aiecode2025/sha256/beda04ef7bcf51cea34cd158049678f261958cff1886ab9336ab75d559e8f119.webp)
+
+Language Head &amp; Output
+
+GPT2 Phase
+Language Head
+Output
+
+Action
+Pick most likely next token
+Output next token
+
+Tab in Spreadsheet
+Layer_Norm, Logits
+Predicted_Token
+
+Token | Probability
+quickly | 43%
+fast | 19%
+like | 17%
+around | 11%
+... | ...
+
+Mike is quick. He moves quickly
+
+Interface text:
+Microsoft
+World's Fair
+Google Cloud</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Layer normalization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Layer normalization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Layer_norm sheet takes the output of block 11, the final block, and applies layer normalization before the logits calculation.
+
+[8:38](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=518s) [Excel worksheet showing the last block output and layer normalization values.](https://assets.ai.engineer/sites/aiecode2025/sha256/14514f913c96bd3aa59659f51836a5b18f2b2c62a9374315f168da496c795221.webp)
+
+Output of last block
+1  Block_11!  -2.6771065  -4.5938173  -6.2433778  17.4122142  -16.847802  0.66556983  7.64631411  -0.8924433  4.52706169  -9.1660916  -5.3477215  -2.2944577  [illegible]
+
+Layer Norm
+2  -0.3126738  -0.1692066  -0.5560096  -0.4125716  1.20065451  -1.269863  0.89105216  0.7231737  -0.1187833  0.31320324  -0.6792695  -0.3933366  -0.1302234  [illegible]
+
+Formula bar:
+=OFFSET(Block_11!R[277]C[1],Prompt_Token_Length-1,0,1,Number_of_Embedding_Dimensions)
+OFFSET(reference, rows, cols, [height], [width])
+
+Interface text:
+Excel  File  Edit  View  Window
+Wed Jun 26 4:44 PM
+AutoSave Off
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-q...
+Search  Ishan Anand
+File  Home  Insert  Draw  Page Layout  Formulas  Data  Review  View  Help
+Comments  Share
+SUM
+Sheet tabs: Block_5  Block_6  Block_7  Block_8  Block_9  Block_10  Block_11  Layer_norm  Logits
+Edit  Display Settings  100%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Predicted token" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Predicted token</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The sheet finds the maximum logit and looks up token ID 2952 as “quickly,” the predicted next token.
+
+[8:59](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=539s) [Excel worksheet displays predicted token ID 2952 and the token “quickly”.](https://assets.ai.engineer/sites/aiecode2025/sha256/25094248b0b70383ac743a00f33d726990611bc7b6a89cc6ab49e526539e7056.webp)
+
+Predicted Token ID: 2952
+Predicted Token: quickly
+
+Selected cell formula:
+=MATCH(MAX(Logits!C[-1]),Logits!C[-1],0)-1
+
+Interface text:
+Excel
+File Edit View Window
+Wed Jun 26 4:45 PM
+AutoSave Off
+GPT2-spreadsheets-are-all-you-need.v0.6.1-mike-is-q...
+Search
+Ishan Anand
+File Home Insert Draw Page Layout Formulas Data Review View Help
+Comments Share
+R1C2
+Block_7 Block_8 Block_9 Block_10 Block_11 Layer_norm Logits Predicted_Token
+Ready
+Display Settings
+200%</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Imaging" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Imaging</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A robot in an MRI scanner introduces a virtual look at how GPT-2’s components work together.
+
+[9:23](https://www.youtube.com/watch?v=NamKkerrlnQ&amp;t=563s) [A robot lying in a medical imaging scanner.](https://assets.ai.engineer/sites/aiecode2025/sha256/abd0187490a87e4e54b6ed68bfb6e058b818941678315f0f3e2fd377c9c28fe1.webp)
+
+Imaging
+
+34
+
+Interface text:
+Microsoft
+World's Fair
+Google Clou[illegible]</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">把句子补全变成一次电子表格计算</a></li><li><a href="#sec-2">检查 token 及其 768 维的嵌入</a></li><li><a href="#sec-3">解读一个因果注意力头和一个 MLP</a></li><li><a href="#sec-4">把最终状态投影成下一个 token 的分数</a></li><li><a href="#sec-5">把残差流当作检查点</a></li><li><a href="#sec-6">跟随“星期三”穿过整个网络</a></li><li><a href="#sec-7">找到一个可以被引导的特征</a></li><li><a href="#sec-8">通过加上一个解码器向量改变补全结果</a></li><li><a href="#sec-9">把对架构的理解带进提示词编写</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">电子表格就是你所需要的一切：不写代码解读解码器 LLM</h2>
+      <div class="lede"><p>Ishan Anand 在 Excel 里打开一个语言模型，追踪一次“星期几”预测如何穿过它的各层，并通过加上一个向量改变了它的补全结果。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="24">▶ 0:24</button></div>
+      <h3>把句子补全变成一次电子表格计算</h3>
+      <p>How can a computer complete <code>Mike is quick, he moves</code> with <code>quickly</code>? Ishan Anand approaches that question wearing scrubs: the audience will become AI brain surgeons, <strong>GPT-2 Small</strong> is the patient, and an Excel workbook is the operating table. His <a href="https://github.com/ianand/spreadsheets-are-all-you-need" target="_blank" rel="noopener">Spreadsheets are all you need</a> project implements the model using pure Excel functions, without Python or model API calls. Anand describes more than 150 tabs and more than 124 million parameter cells. For engineers without a machine-learning degree, the demonstration offers three ways into that machinery: study its anatomy, inspect it with a virtual MRI, then intervene with a little brain surgery.</p>
+<p>Computers already know how to complete a different kind of expression: <code>2 + 2 = 4</code>. To make sentence completion computational, the model turns a word problem into a numerical one. It breaks text into tokens, maps those tokens to embeddings, and processes the resulting numbers through multi-headed attention and a multilayer perceptron, or MLP. An embedding is a vector of many numbers, not the single number used in the introductory illustration. The output also differs from elementary arithmetic: instead of one exact answer, the model produces a distribution over possible next tokens. Selecting a token and converting it back into text completes the path from language to numbers and back again.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="206">▶ 3:26</button></div>
+      <h3>检查 token 及其 768 维的嵌入</h3>
+      <p>The workbook makes that path navigable through its tabs. Entering the opening prompt produces <code>quickly</code>. For this spreadsheet's next-token calculation, Anand reports a wait of about 30 seconds. Excel is serving as an inspection tool here; he explicitly warns against using this implementation in production.</p>
+<p>Tokenization is the first operation to inspect. The words in the initial example fit into individual tokens, but that is not a general rule. Two contrasting examples expose the difference between a tokenizer's units and a reader's intuition:</p>
+<p>- <code>funology</code> splits into <code>fun</code> and <code>ology</code>, a division that resembles meaningful word parts.
+- <code>reinjury</code> splits into <code>rein</code> and <code>jury</code>, rather than the intuitive prefix <code>re</code> followed by <code>injury</code>.</p>
+<p>The algorithm selects frequent subword units. Those units can line up with morphemes, but they need not preserve a word's linguistic structure. A token is therefore neither reliably a whole word nor reliably a meaningful part of one.</p>
+<p>Next comes the embedding lookup. Each token in GPT-2 Small has a 768-number embedding. In the displayed sheet, tokens occupy separate rows, with their embeddings beginning in column 3. The row for <code>Mike</code> stretches through column 770. Scrolling across that row makes the representation tangible: the model processes a long vector for each token, not a single numerical label.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="331">▶ 5:31</button></div>
+      <h3>解读一个因果注意力头和一个 MLP</h3>
+      <p>The next tabs contain the model's layers. Attention lets a token position gather context from other positions: <code>he</code> can refer back to <code>Mike</code>, while the position containing <code>moves</code> can draw on the earlier <code>quick</code>. That context matters because <em>quick</em> can describe physical speed, wit, the sensitive tissue beneath a fingernail, or—in an older usage—the living. At <code>moves</code>, the surrounding phrase supports a continuation about movement, such as <code>quickly</code> or <code>fast</code>. The model has twelve blocks, numbered <code>0</code> through <code>11</code>, each with attention followed by an MLP.</p>
+<p>Inside one attention head, a table shows how strongly each token position attends to the others. The zeros above the diagonal encode a constraint: a position can use itself and earlier positions, but cannot look ahead. This is causal masking. Each row's attention weights sum to one, and the initial <code>Mike</code> position can only attend to itself. In the displayed head, the query token <code>he</code> assigns approximately 0.48 of its attention weight to the key token <code>Mike</code>. That is an interpretable relationship in this particular head; other heads are less immediately legible, and an attention weight alone does not establish a token's causal importance to the final answer.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/5b6d5839783c469bbf54b76a1ead3f45bc13f07782a474b3948b21dbb4a84ae1" alt="The actual attention sheet: future positions are zero, and the “He” row assigns about 0.48 to “Mike”." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The actual attention sheet: future positions are zero, and the “He” row assigns about 0.48 to “Mike”.</figcaption></figure>
+<p>Further down the sheet, the MLP makes another part of the computation visible. Excel's <code>MMULT</code> performs matrix multiplication by learned weights, and an activation function supplies the nonlinear transformation. The spreadsheet exposes these as ordinary calculations: attention gathers contextual information, and the MLP transforms the resulting representation.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="469">▶ 7:49</button></div>
+      <h3>把最终状态投影成下一个 token 的分数</h3>
+      <p>The language head turns the final token position's representation into scores for possible continuations. This operation is called unembedding: a projection into the vocabulary, rather than a literal reversal of the original embedding lookup. The workbook uses greedy selection—the behavior described here as temperature zero—so its output is the highest-scoring candidate.</p>
+<p>The displayed calculation starts with block <code>11</code>'s output, applies <code>LayerNorm</code>, then uses another <code>MMULT</code> with the unembedding matrix. The resulting values are <strong>logits</strong>, or raw token scores. Probabilities are a normalized interpretation of those scores; the two should not be confused. For greedy selection, the distinction does not change the winner: the largest logit also corresponds to the largest probability. The next sheet finds that maximum, obtains its token ID, and looks up the corresponding text. That finishes the forward pass for one next-token prediction.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="556">▶ 9:16</button></div>
+      <h3>把残差流当作检查点</h3>
+      <p>Before the virtual MRI, one architectural detail changes how to picture the whole network: residual connections. Addition operations preserve an existing representation while adding contributions from attention or the MLP. Information therefore has a path around each transformation, rather than having to be replaced by that transformation's output.</p>
+<p>Imagine the residual stream as a highway with one lane per token position. Attention moves information between lanes; the MLP transforms information within each lane. Successive layers read from and write to this shared stream. The <strong>logit lens</strong> uses that arrangement as an inspection point: apply the language head to intermediate representations and examine the candidate tokens it exposes. These projections provide a vocabulary-level view of the computation before the final layer. They are useful observations of intermediate states, rather than literal transcripts of the model's thoughts.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="629">▶ 10:29</button></div>
+      <h3>跟随“星期三”穿过整个网络</h3>
+      <p>The MRI example begins with <code>If today is Tuesday, tomorrow is</code>, which the model completes with <code>Wednesday</code>. The talk reports correct next-day completion for all seven weekday variants of this prompt. Yet the intermediate views do not steadily announce the correct answer. At block <code>3</code>, the final token position's leading candidates are <code>not</code>, <code>still</code>, and <code>just</code>. None is the desired weekday.</p>
+<p>The inspection then searches for <code>Wednesday</code> elsewhere in the chart. At block <code>0</code>, it appears among the displayed candidates at the position containing <code>Tuesday</code>, then disappears from the displayed lists. In later layers, time-related candidates surface: <code>tomorrow</code>, <code>forever</code>, <code>Tuesday</code>, and <code>Friday</code>. <code>Wednesday</code> returns in third place before rising to the leading position and remaining there. Disappearing from these short candidate lists does not mean all information about Wednesday has vanished from the residual stream.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/e994964561a4dc476aa7deeee69017d9d22d78a1c90e0abb7dc63fb9385224b8" alt="The logit-lens sheet follows “Wednesday” through the later blocks, rising to the top of the displayed candidates." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The logit-lens sheet follows “Wednesday” through the later blocks, rising to the top of the displayed candidates.</figcaption></figure>
+<p>The talk reports a circuit of four components sufficient for correct completion across the seven weekday variants. The components are:</p>
+<p>- The layer-0 MLP.
+- One attention head in layer 9.
+- The layer-9 MLP.
+- Attention in layer 10.</p>
+<p>That component-isolation result is attributed to researchers; it is a stronger claim than simply observing the logit-lens chart. The visible trace is consistent with early processing followed by useful information becoming prominent again in later layers. Together, the components illustrate a circuit for this particular task, with different layers communicating through the residual stream.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="735">▶ 12:15</button></div>
+      <h3>找到一个可以被引导的特征</h3>
+      <p>With the anatomy and MRI complete, the demonstration moves to surgery. Its inspiration is <strong>Golden Gate Claude</strong>, the bridge-obsessed version of <strong>Claude</strong> associated with Anthropic's <a href="https://www.anthropic.com/research/mapping-mind-language-model" target="_blank" rel="noopener">Mapping the mind of a large language model</a>. The conceptual tool is a sparse autoencoder: another learned model that decomposes residual-stream activations into features whose meanings researchers investigate. Once a feature has an interpretable association, an intervention can amplify or suppress its contribution to the residual stream and change the language model's behavior.</p>
+<p>The talk credits Joseph Bloom, Neel Nanda, and collaborators with developing sparse-autoencoder features for open models such as GPT-2 Small. The feature selected for this operation is associated with Jedi: feature <code>7650</code> in the demonstration's layer-2 autoencoder. Its index identifies a feature within that particular autoencoder, not a universal Jedi coordinate shared by language models.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="805">▶ 13:25</button></div>
+      <h3>通过加上一个解码器向量改变补全结果</h3>
+      <p>The intervention begins with the Jedi feature's decoder vector. The workbook multiplies that vector by a coefficient, arranges it for injection, and adds it to the residual stream at the start of block <code>2</code>. If the existing residual representation is <code>r</code>, the decoder direction is <code>d_Jedi</code>, and the coefficient is <code>α</code>, the operation is simply:</p>
+<p>``<code>math
+r' = r + \alpha d_{\mathrm{Jedi}}
+</code>``</p>
+<p>The prompt is <code>Mike pulls out his</code>. Without the intervention, the displayed completion is <code>phone</code>. Turning on the Jedi direction changes the model's internal representation while leaving those input words fixed.</p>
+<p>Selecting <code>Calculate now</code> starts the spreadsheet's recalculation. While Excel works, the talk distinguishes the current operation from nearby steering methods:</p>
+<p>- <strong>Anthropic's feature intervention</strong> shares the idea of changing internal features, but its procedure differs from this decoder-vector addition.
+- <strong>Representation engineering</strong>, as described here, derives a steering direction using principal component analysis, or PCA.
+- <strong>Activation steering</strong> can construct a direction from contrasting activations: run the model on an input associated with what should be amplified, such as Jedi, and another associated with what should be suppressed, such as phone. Subtract the latter activations from the former and inject the resulting direction into the residual stream.</p>
+<p>Then the calculation finishes. Against the earlier <code>phone</code> baseline, the completion is now <code>lightsaber</code>:</p>
+<p>| Fixed prompt | Intervention state | Displayed completion |
+| --- | --- | --- |
+| <code>Mike pulls out his</code> | Jedi direction off | <code>phone</code> |
+| <code>Mike pulls out his</code> | Scaled Jedi decoder vector added at block 2 | <code>lightsaber</code> |</p>
+<p>The audience cheers: the patient has become a Jedi. The successful-operation metaphor lands because the change is so concrete—the same prompt, with an added internal vector, now produces a different continuation.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c9033ad4a0ef7dad555efeef1775e43e38aad084c6a75824722e21854e1940cf" alt="The completed spreadsheet calculation: with Jedi steering turned on, “Mike pulls out his” produces “lightsaber”." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The completed spreadsheet calculation: with Jedi steering turned on, “Mike pulls out his” produces “lightsaber”.</figcaption></figure>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="924">▶ 15:24</button></div>
+      <h3>把对架构的理解带进提示词编写</h3>
+      <p>Opening the model helps engineers understand tool behavior and limitations, follow new research, and explain results to stakeholders without treating the system as magic. The closing example brings that architectural knowledge back to an everyday engineering task: arranging a prompt.</p>
+<p>The talk compares a conventional transformer prompt template with one for <strong>RWKV</strong>. The RWKV template shown recommends swapping the relative order of instructions and context, because its mechanism does not access earlier information in the same way as transformer attention. This is a recommendation attached to the demonstrated template, rather than a universal rule about prompt order. It shows how a difference inside the model can affect the way an engineer supplies information at its input.</p>
+<p>The closing handoff points to the research behind the demonstration and invites viewers to <a href="https://github.com/ianand/spreadsheets-are-all-you-need" target="_blank" rel="noopener">download the workbook</a>. At the time of the recording, Anand also announces a Maven course covering the spreadsheet step by step. The workbook itself offers the immediate experiment: enter a prompt on your own machine, move through the tabs, and follow the numbers that produce its continuation.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/ianand/spreadsheets-are-all-you-need" target="_blank" rel="noopener">GPT-2 in Excel</a> — Anand's workbook makes the model's forward pass inspectable through ordinary spreadsheet functions.</li><li><a href="https://www.anthropic.com/research/mapping-mind-language-model" target="_blank" rel="noopener">Mapping the mind of Claude</a> — The 2024 feature-steering work behind Golden Gate Claude, contrasted with Anand's GPT-2 intervention.</li><li><a href="https://github.com/decoderesearch/SAELens" target="_blank" rel="noopener">SAELens</a> — Current tooling for sparse autoencoders; use a matching historical checkpoint before attempting to reproduce the Jedi feature.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Hope you're all having a good conference. And I hope you're ready because if you came to this conference or the AI engineering field</span></div><div class="tline" data-t="24"><span class="ts">0:24</span><span class="tx">without a machine learning degree, then this is gonna be your crash course in how machine learning models actually work under the hood.</span></div><div class="tline" data-t="35"><span class="ts">0:35</span><span class="tx">Let's, let's bring up, uh, the slides. There we go. Thank you. Okay. So I'm Ishan, and I'm dressed in scrubs because today we're all going to be AI brain surgeons, and our patient will be none other than GPT-2, an early precursor to ChatGPT.</span></div><div class="tline" data-t="58"><span class="ts">0:58</span><span class="tx">And our operating table will be a table, but it'll be a table of numbers. It'll be an Excel spreadsheet. This Excel spreadsheet implements all of GPT-2 Small entirely in pure Excel functions.</span></div><div class="tline" data-t="75"><span class="ts">1:15</span><span class="tx">No API calls, no Python. In theory, you can understand GPT-2 just by going tab by tab, function by function through this spreadsheet. But you wanna hold onto those VLOOKUPs because there's over 150 tabs and over 124 million cells for every single one of the parameters in GPT-2 Small.</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">I will give you the abbreviated tour. So we'll do three things today in our little med school. First, we'll study the anatomy of our patient, how he's put together.</span></div><div class="tline" data-t="106"><span class="ts">1:46</span><span class="tx">Then we're gonna put him through a virtual MRI to see how he thinks. And then finally, we're gonna change his thinking with a little AI brain surgery.</span></div><div class="tline" data-t="117"><span class="ts">1:57</span><span class="tx">Okay. Let's start with anatomy. You're probably familiar with the concept that large language models are trained to complete sentences, to fill in the blank of phrases like this one.</span></div><div class="tline" data-t="127"><span class="ts">2:07</span><span class="tx">Mike is quick, he moves. And as a human, you might reasonably guess quickly. But how do we get a computer to do that? Well, here's a fill-in-the-blank that computers are very good at.</span></div><div class="tline" data-t="137"><span class="ts">2:17</span><span class="tx">Two plus two equals four, right? They're really good at math. In fact, you can make it very complex and they do it very well. So what we're gonna do, in essence, is we're gonna take a word problem and turn it into a math problem.</span></div><div class="tline" data-t="149"><span class="ts">2:29</span><span class="tx">In order to do that, we take our whole sentence or our phrases and we break them into sub-word units called tokens, and then we map each of those tokens onto numbers called embeddings.</span></div><div class="tline" data-t="160"><span class="ts">2:40</span><span class="tx">Now, I've shown it for simplicity here as a single number, but in the embedding for each token is many, many, many numbers, as we'll see in a bit. And then instead of the simple arithmetic shown here, we're doing the much more complex math of multi-headed attention and the multi-layer perceptron.</span></div><div class="tline" data-t="175"><span class="ts">2:55</span><span class="tx">Multi-layer perceptron, just another name for a neural network. And then finally, instead of getting one precise, exact answer like you used to get in elementary school, we're gonna interpret the result as a probability distribution as to what the next token should be.</span></div><div class="tline" data-t="190"><span class="ts">3:10</span><span class="tx">So here's our setup. We get input text, we turn that text into tokens, we turn those tokens into numbers, we do some number crunching, and then we reverse the process.</span></div><div class="tline" data-t="201"><span class="ts">3:21</span><span class="tx">We turn the numbers back out into tokens or text, and then get our next-token prediction.</span></div><div class="tline" data-t="206"><span class="ts">3:26</span><span class="tx">So this handy chart shows where each of those actions maps to one or more tabs inside our friendly patient spreadsheet. Let's take a look. So the first thing you do is we get our prompt, right?</span></div><div class="tline" data-t="218"><span class="ts">3:38</span><span class="tx">Here the prompt is, &quot;Mike is quick, he moves.&quot; And then it will output after about 30 seconds since we're running in a spreadsheet, don't use this in production, the next predicted token of quickly.</span></div><div class="tline" data-t="229"><span class="ts">3:49</span><span class="tx">So the first step is to split this into tokens. Now, you see that every word here goes into a single token, but that's not always the case. In fact, it's not uncommon to be two or more tokens.</span></div><div class="tline" data-t="240"><span class="ts">4:00</span><span class="tx">Let me give you some examples. So here's another version of the sheet. Let me zoom this up so you can see it a little better. Right. I've put actually some fake words.</span></div><div class="tline" data-t="248"><span class="ts">4:08</span><span class="tx">Reinjury is a real word, but funology isn't a real word. Uh, but you know what it means, right? Because it's the word fun with ology put together. Those are the morphemes as linguists like to call them.</span></div><div class="tline" data-t="258"><span class="ts">4:18</span><span class="tx">And the tokenization algorithm actually is able to recognize that in some cases. Whoa, there we go. Right there.</span></div><div class="tline" data-t="268"><span class="ts">4:28</span><span class="tx">You see funology split into fun and ology. If we zoom that one up.</span></div><div class="tline" data-t="274"><span class="ts">4:34</span><span class="tx">There we go. But it doesn't always work. So notice how reinjury got split up right here. It's rein and jury, and that's 'cause the algorithm's a little dumb. It just picks the most common sub-word units it finds in its iterations, and it doesn't always map to your native intuition.</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">And so in practice, machine learning experts feel like it's a necessary evil. Um, and then the next step is we have to map each of these tokens to the embeddings.</span></div><div class="tline" data-t="300"><span class="ts">5:00</span><span class="tx">So let's go back to the original one, and that's in this tab here. So we have each of our tokens in a separate row, and then right here, starting in column three, is where our embeddings begin.</span></div><div class="tline" data-t="310"><span class="ts">5:10</span><span class="tx">So this is row right here. The second row is all the embeddings for Mike. Now, in the case of GPT-2 Small, the embeddings are 768 numbers, so we're starting column three.</span></div><div class="tline" data-t="320"><span class="ts">5:20</span><span class="tx">So that means if we go to column 770, we will see the last end of this. And so there's the end of our embeddings for Mike. And let's go back.</span></div><div class="tline" data-t="331"><span class="ts">5:31</span><span class="tx">And each one of these, again, is the embedding for, uh, each token. Okay. Then we get to the layers. This is the heart of the number crunching. So there are two key components.</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">There's attention, and then the neural network or multi-layer perceptron. And in the attention phase, basically the tokens look around at the other tokens next to them to figure out the context in which they sit.</span></div><div class="tline" data-t="352"><span class="ts">5:52</span><span class="tx">So the token he might look at the word Mike to look at the antecedent for its pronoun, or moves might look at the word quick because quick actually has multiple meanings.</span></div><div class="tline" data-t="363"><span class="ts">6:03</span><span class="tx">Quick can mean movement in physical space, it can mean smart as in quick of wit, it can mean a body part like the quick of your fingernail, and in Shakespearean English, it can mean alive or dead, like the quick or the dead.</span></div><div class="tline" data-t="375"><span class="ts">6:15</span><span class="tx">And seeing that the word moves here helps it disambiguate for the next layer, the perceptron, that, oh, we're talking about moving in physical space. So maybe it's quickly or maybe it's fast or maybe it's around, but it's certainly not something about your fingernail.</span></div><div class="tline" data-t="389"><span class="ts">6:29</span><span class="tx">So let's see where this is all happening. So these are our layers. Now, there's twelve of them. So this is block zero all the way to block eleven. Each one's a tab.</span></div><div class="tline" data-t="397"><span class="ts">6:37</span><span class="tx">And then if you go up here, we can't go through all of this in the time we have, but this is one of the attention heads. This is step seven.</span></div><div class="tline" data-t="403"><span class="ts">6:43</span><span class="tx">This is where you can see where each token is paying attention to every other token. And you'll notice that there's a bunch of zeros up at the top right, and that's because no token is allowed to look forward.</span></div><div class="tline" data-t="414"><span class="ts">6:54</span><span class="tx">They can only look backwards in time. And you'll see here that Mike is looking at Mike a hundred percent of the time. Higher values mean more attention. These are all normalized to one.</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">Uh, here is the word he, or the token he, I should say. And you'll notice zero point four eight, so about half of its attention, is focused on its an- the antecedent of its pronoun.</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">Now, this is just one of many heads. If I scroll to the right, you'll see a lot more. Uh, they aren't always as directly interpretable as that, uh, but it gives you a sense of how the attention mechanism works.</span></div><div class="tline" data-t="441"><span class="ts">7:21</span><span class="tx">And then if we scroll further down, we'll see the multi-layer perceptron right here. If you know something about neural nets, you know they're just a large combination of, uh, multiplications and additions or a, a ma-matrix multiply.</span></div><div class="tline" data-t="453"><span class="ts">7:33</span><span class="tx">And so I don't know if you can see this in the back. There's a MMULT, which is how you do an Excel matrix multiply, and that's basically multiplying it times its weight.</span></div><div class="tline" data-t="460"><span class="ts">7:40</span><span class="tx">And then here we put it through its activation function to get the next prediction. Okay, let's keep going.</span></div><div class="tline" data-t="469"><span class="ts">7:49</span><span class="tx">Okay. Next, we have the language head, and this is where we actually reverse the process. So what we do is we take the last token and we unembed it and reverse the embedding process we did before, and we probabilistically look at which are the tokens the closest to the final last token's unembedding.</span></div><div class="tline" data-t="491"><span class="ts">8:11</span><span class="tx">And we interpret that as a probability distribution. Now, if you're at temperature zero, like we are in this spreadsheet, then you just take the thing with the highest probability.</span></div><div class="tline" data-t="499"><span class="ts">8:19</span><span class="tx">But if your temperature is higher, then you sample it according to some algorithm like beam search. Let's take a look.</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">And we'll go here. So, um, again, I don't know if you can see in the back, but this function here is basically... There we go.</span></div><div class="tline" data-t="520"><span class="ts">8:40</span><span class="tx">This function in the back basically is taking block eleven, the output of the very last block. It's putting it through a step called LayerNorm. Then we multiply it, another MMULT, times the unembedding matrix, and these are what are known as our logits.</span></div><div class="tline" data-t="534"><span class="ts">8:54</span><span class="tx">And then to predict the next most likely token,</span></div><div class="tline" data-t="538"><span class="ts">8:58</span><span class="tx">we just go to the next one. I don't know if you can see this function. It basically is looking at max of the previous column you saw in the previous sheet.</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">Um, and it's taking the, the highest probability token just like that, and that's our, our predicted token. We get a token ID, then we look it up in the matrix, and we know what the, the next likely token is.</span></div><div class="tline" data-t="556"><span class="ts">9:16</span><span class="tx">Okay. So that's the forward pass of how GPT-2 works. But how do all those components work together? So let's take our patient and put him through a virtual MRI so we can see how he thinks.</span></div><div class="tline" data-t="567"><span class="ts">9:27</span><span class="tx">Before we do that, there's something I forgot to mention. These are called residual connections. Inside every layer, there's an addition operation. And what this lets the model do is it lets it route information around and completely skip any part of these layers, either attention or the perceptron.</span></div><div class="tline" data-t="584"><span class="ts">9:44</span><span class="tx">And so you can reimagine the model as actually a communication network or a communication stream. So the residual stream here is every one of those tokens and information is flowing through them like an information superhighway.</span></div><div class="tline" data-t="597"><span class="ts">9:57</span><span class="tx">And what each layer is doing is we've got attention moving information across the lanes of this highway and then the perceptron trying to figure out what the likely token is for every single lane of the highway.</span></div><div class="tline" data-t="608"><span class="ts">10:08</span><span class="tx">But there are multiple of these layers, so they're really reading and writing to each other information in this communication bus. What we can do is we can do a technique called logit lens.</span></div><div class="tline" data-t="617"><span class="ts">10:17</span><span class="tx">We can take the language head we talked about earlier and stick it in between every single layer of the network and what was it thinking at that layer. So that's what I've done in this sheet.</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">So I gave it the prompt, &quot;If today is Tuesday, tomorrow is,&quot; and the predicted token is Wednesday. And GPT-2 does this correctly for all seven days. And what you see in this chart is essentially the columns here from three through nine are all those lanes of the information superhighway.</span></div><div class="tline" data-t="645"><span class="ts">10:45</span><span class="tx">And for example, here at block three, this is the top most predicted token at the last token position. So it predicted not. The second most likely word was gonna be still, then it was gonna be just.</span></div><div class="tline" data-t="658"><span class="ts">10:58</span><span class="tx">These are all wrong. So let's look for what we know is the right answer, Wednesday. So over here at block zero, we see Wednesday. It's at the bottom of the Tuesday stream for some reason on that highway.</span></div><div class="tline" data-t="669"><span class="ts">11:09</span><span class="tx">Well, it makes sense it'd be close to Tuesday. And then it completely disappears.</span></div><div class="tline" data-t="673"><span class="ts">11:13</span><span class="tx">And then, oh, over here towards the last few layers, suddenly we see tomorrow, forever, Tuesday, Friday. It knows we're talking about time, we're talking about days. And it gets Wednesday, but it's still the third most likely token.</span></div><div class="tline" data-t="684"><span class="ts">11:24</span><span class="tx">And then finally it moves it up to the final position, and then it locks it into place. So what's going on here? Well, a series of researchers, uh, basically took this logit lens technique on steroids and isolated that only four components out of the entire network were responsible for doing this correctly over all seven days.</span></div><div class="tline" data-t="703"><span class="ts">11:43</span><span class="tx">What they found was that all you needed was the perceptron from layer zero, attention from layer nine, and actually only one head, uh, the perceptron from layer nine, and then attention from layer ten.</span></div><div class="tline" data-t="715"><span class="ts">11:55</span><span class="tx">And that's kind of what we saw in the sheet, right? At the top, we saw Wednesday, and then it disappeared until the later layers pulled it back up and up in probability at towards the end of the process.</span></div><div class="tline" data-t="725"><span class="ts">12:05</span><span class="tx">So it's an example of where you can see each layer acting as a communication bus trying to jointly figure out and create what they call a circuit to accomplish a task.</span></div><div class="tline" data-t="735"><span class="ts">12:15</span><span class="tx">Okay, we are now out of med school and ready for surgery.</span></div><div class="tline" data-t="739"><span class="ts">12:19</span><span class="tx">So you may have heard about, uh, the pioneering work that Anthropic has done about scaling monosemanticity. This gave rise to what was known as Golden Gate Claude. It was a version of Claude that was very obsessed with the Golden Gate Bridge.</span></div><div class="tline" data-t="751"><span class="ts">12:31</span><span class="tx">To some, it felt like it thought it was the Golden Gate Bridge. Uh, conceptually, here's how this process worked. You have a large language model, and then you have this residual stream we talked about earlier, and then you use another AI technique, an autoencoder.</span></div><div class="tline" data-t="765"><span class="ts">12:45</span><span class="tx">This one's a sparse autoencoder, and you ask it to look at the residual stream and separate it out into interpretable features. And you then try and deduce what each feature is, and then you can actually turn up and down each of these features back in the residual stream in order to amplify or suppress certain concepts.</span></div><div class="tline" data-t="784"><span class="ts">13:04</span><span class="tx">It turns out a team of researchers led by Joseph Bloom, Neel Nanda, and others are building out sparse autoencoder features for open source models like GPT-2 Small. So here, for example, is layer two's feature 7650.</span></div><div class="tline" data-t="801"><span class="ts">13:21</span><span class="tx">I don't know if you can see it in the back. It's basically everything Jedi.</span></div><div class="tline" data-t="805"><span class="ts">13:25</span><span class="tx">So I've gone to our friendly patient again, and I've taken the vector for</span></div><div class="tline" data-t="814"><span class="ts">13:34</span><span class="tx">that feature while we wait for Excel to wake up. There it is. That first row is essentially what they call the decoder vector corresponding to Jedi. And then I've basically multiplied by a coefficient, and then I've basically formatted it so that I can inject it right into the residual stream.</span></div><div class="tline" data-t="830"><span class="ts">13:50</span><span class="tx">So this is the start of the block. You can see that steer block two, it's basically just taking that vector I showed you and adding it into the residual stream.</span></div><div class="tline" data-t="838"><span class="ts">13:58</span><span class="tx">Simple addition. Now we go to our prompt, and originally, normally you ask GPT-2, Mike pulls out his... Makes sense. He pulls out his phone. But if we turn the Jedi steering vector on, I'll give you one guess what he's probably gonna pull out.</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">Let's see. Okay, so now we hit Calculate now. Um, and this is where you get to witness the 30 seconds it takes. Um, and while we wait for it to, to run, a couple notes.</span></div><div class="tline" data-t="864"><span class="ts">14:24</span><span class="tx">So first of all, the way Anthropic did their steering was slightly different, but similar in spirit. There's a few other ways to do this kind of steering. One of those is called representation engineering, where the steering vector is deduced via PCA or Principal component analysis.</span></div><div class="tline" data-t="879"><span class="ts">14:39</span><span class="tx">And there's another technique called activation steering, where what you do is you take the thing you wanna amplify, like Jedi, and you'd run the model through just on that token, and then you'd run it on something you might wanna suppress, like in this case, phone, and then you'd create a phone-- a Jedi minus phone vector and inject</span></div><div class="tline" data-t="896"><span class="ts">14:56</span><span class="tx">that into the residual stream. Okay, there it is. There it is. Mike pulls out his lightsaber. There we go. [audience cheering] We have done it. [audience applauding]</span></div><div class="tline" data-t="908"><span class="ts">15:08</span><span class="tx">Our operation has been a success. We've created the world's first GPT-2 Jedi. Stick that on LMSYS Arena. Okay. Uh, well, hopefully I've given you a little better insight into how large language models work, but also why they work.</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">But the root message I wanna leave with is that to be a better AI engineer, it does help to unlock the black box. Partly, this is about just knowing your tools and their behavior and their limitations better.</span></div><div class="tline" data-t="934"><span class="ts">15:34</span><span class="tx">Uh, but also we're in a very fast-moving field, and if you wanna understand the latest research, it helps to know how these work. And then last but not least, when you communicate with non-technical stakeholders, there's very often a perception of magic, and the more you can clear that up, the more you can clear up misunderstandings.</span></div><div class="tline" data-t="950"><span class="ts">15:50</span><span class="tx">I'll give you just one example of where this bubbles up, where architecture bubbles up to how you use them. So this is the, uh, instructions for RWKV, which is a different type of model.</span></div><div class="tline" data-t="959"><span class="ts">15:59</span><span class="tx">But the template for a normal transformer's at the top, the template for an RWKV, uh, prompt is at the bottom. And what's interesting is that they recommend you swap the traditional order of instructions and context because the attention mechanism or the pseudo-attention mechanism in RWKV can't look back the same way a regular transformer can.</span></div><div class="tline" data-t="977"><span class="ts">16:17</span><span class="tx">So it's a great example of where model architecture matters all the way up to prompting. Okay, here are the references for the research we talked about today. And then if you want to learn more, you can go to Spreadsheets-are-all-you-need.ai, and you can download this spreadsheet, and you can run it on your own device.</span></div><div class="tline" data-t="996"><span class="ts">16:36</span><span class="tx">If you want to see me go through every single step of this spreadsheet, I just launched a course on Maven today, um, and the link to it is on that website as well.</span></div><div class="tline" data-t="1006"><span class="ts">16:46</span><span class="tx">Um, and that's it. Thank you. [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

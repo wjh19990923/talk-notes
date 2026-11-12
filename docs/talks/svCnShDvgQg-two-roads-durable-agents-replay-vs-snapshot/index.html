@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>通往持久化智能体的两条路：重放 vs 快照 —— Eric Allam，Trigger.dev 联合创始人 | AI 工程师中文版</title>
+<meta name="description" content="一个智能体必须同时保存它的对话和它的工作环境。Eric Allam 讲述了从可重放的工作流，到上下文日志和执行快照的演进路径，这些机制让工作能扛过用户暂停、代码变更和故障。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>通往持久化智能体的两条路：重放 vs 快照 —— Eric Allam，Trigger.dev 联合创始人</h1>
+    <div class="orig-title">Two Roads to Durable Agents: Replay vs. Snapshot — Eric Allam, Co-founder, Trigger.dev</div>
+    <div class="meta"><span class="speaker">Eric Allam</span> · AI Engineer World's Fair 2025 · 16:36</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=enterprise-ai">企业 AI</a><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=agent-memory">智能体记忆</a><a class="tag" href="../../index.html#topic=computer-use">计算机操作</a><a class="tag" href="../../index.html#topic=context-engineering">上下文工程</a><a class="tag" href="../../index.html#topic=harness-engineering">框架工程</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=sandboxes-and-execution-isolation">沙箱与执行隔离</a><a class="tag" href="../../index.html#topic=workflow-automation">工作流自动化</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/svCnShDvgQg-two-roads-durable-agents-replay-vs-snapshot" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="svCnShDvgQg"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=svCnShDvgQg" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">当智能体离开笔记本时，什么会改变</div></div>
+      <div class="label row">章节跳转 <span>共 9 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="21"><span class="ts">0:21</span><span>当智能体离开笔记本时，什么会改变</span></li><li data-t="85"><span class="ts">1:25</span><span>“请求加数据库”的历史包袱</span></li><li data-t="178"><span class="ts">2:58</span><span>重试收据而不重复扣款</span></li><li data-t="302"><span class="ts">5:02</span><span>当模型编排一个持续进行的会话</span></li><li data-t="435"><span class="ts">7:15</span><span>把对话状态与机器状态分开</span></li><li data-t="534"><span class="ts">8:54</span><span>暂停机器，再选择正确的恢复路径</span></li><li data-t="662"><span class="ts">11:02</span><span>对历史做检查点以及 CRIU 实现</span></li><li data-t="776"><span class="ts">12:56</span><span>让 microVM 快照更小，并按需恢复内存页</span></li><li data-t="880"><span class="ts">14:40</span><span>FCRun 以及由此形成的计算模型</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 20 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/24e440bf5dfd4ecccd4fffdc9ef9243be07fff10b16e87c6b80fbc594828e3ea.webp" alt="AI Engineer Europe logo in white on black." loading="lazy" data-lb="0" data-cap="AI Engineer Europe" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer Europe</h3>
+        <p>AI Engineer Europe logo in white on black.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+EUROPE</pre></details>
+        <button class="ts" data-t="0">▶ 0:00</button>
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Presenting sponsor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting sponsor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Google DeepMind is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=5s) [Presenting sponsor Google DeepMind.](https://assets.ai.engineer/sites/aiecode2025/sha256/9a43b90b83b6eca77e82f00387f025461fb2cd84d99ed7f55e0f7cc2bbdddc7d.webp)
+
+PRESENTING SPONSOR
+
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/1f27e96853bcd1da0f61dd05f01ac6be62a7e02868733318f44de318699bda8f.webp" alt="Platinum sponsors Braintrust, WorkOS, and OpenAI." loading="lazy" data-lb="2" data-cap="Platinum sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Platinum sponsors</h3>
+        <p>Platinum sponsors Braintrust, WorkOS, and OpenAI.</p>
+        <details><summary>幻灯片原文</summary><pre>PLATINUM SPONSORS
+
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        <button class="ts" data-t="10">▶ 0:10</button>
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Agent turn loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agent turn loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each turn streams a response, adds the message and response to history, then waits for the next user message. The loop stops at MAX_TURNS.
+
+[0:27](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=27s) [TypeScript code runs an agent loop, captures responses, updates history, and waits for a user message. A presenter appears in an inset.](https://assets.ai.engineer/sites/aiecode2025/sha256/1a2494b7bc81e149a7c6cd3d1e9f4971dbf53476e95741b3efe60f51a9fc5ebd.webp)
+
+agent.ts
+
+for (let turn = 0; turn &lt; MAX_TURNS; turn++) {
+  const result = streamText({
+    model, messages: [...history, msg], tools
+  });
+
+const response = await capture(result);
+  history.push(msg, response);
+
+msg = await wait.for&lt;Message&gt;({ id: &quot;user-message&quot; });
+}
+
+AIE
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Durable agent" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Durable agent</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Allam wants production agents to handle long-running work, persist across turns and code versions, and recover from errors.
+
+[0:40](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=40s) [Durable agents perform long-running meaningful work, persist across turns and versions, and recover from errors. A presenter appears in an inset.](https://assets.ai.engineer/sites/aiecode2025/sha256/0cb0dc1081f3af8c659f9a05fe5176c94acf5800e725b9cd48452ab7517579bb.webp)
+
+Durable agent
+
+• Long running, meaningful work
+• Durable across turns and versions
+• Recover from errors
+
+AIE
+Engineering the future of AI
+
+[0:44](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=44s) [Slide lists long-running meaningful work, durability across turns and versions, and recovery from errors.](https://assets.ai.engineer/sites/aiecode2025/sha256/d3561d326497b1e94e15b9f2cfeaced9ed0f357efd363f5ed14a60318a2a5e90.webp)
+
+Durable agent
+
+• Long running, meaningful work
+• Durable across turns and versions
+• Recover from errors
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="The agentic loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The agentic loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A meme pairs “i’m not successful” with “i’ll wait.” Eric Allam jokes about which person represents the agent and which represents the human.
+
+[0:57](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=57s) [A social media post compares the agentic loop to a meme about waiting for success.](https://assets.ai.engineer/sites/aiecode2025/sha256/e1c88c5ddfc18e449e49fd4787f201a51b09a589d05f76fae75572f14375a5e6.webp)
+
+this is basically what the agentic loop is
+
+love drops @lovedropx · Apr 4
+
+i’m not successful
+i’ll wait
+
+Interface text:
+leyland @leylndd
+1:13 AM · Apr 5, 2026 · 96.3K Views
+AIE
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="CGI request lifecycle" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>CGI request lifecycle</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For each CGI request, the web server forks a new process. The script receives request data, writes an HTML response to standard output, and exits.
+
+[1:24](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=84s) [Diagram shows a client request reaching a web server, which forks a process to run a script and return HTML before the process exits.](https://assets.ai.engineer/sites/aiecode2025/sha256/943a669a59800814c539155f398cdddef35c47560097c5e47a01029665d41149.webp)
+
+Client (Mosaic)
+GET /cgi-bin/search.pl
+Web Server
+fork()
+stdin: POST body
+New process
+search.pl
+(perl, c, etc.)
+STDOUT → html
+Process dies
+&lt;html&gt;Results for “hello”...&lt;/html&gt;
+
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="The LAMP stack" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The LAMP stack</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Linux, Apache, MySQL and PHP make up the LAMP stack. Allam describes reusing the PHP process and building responses from the request and database state.
+
+[1:57](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=117s) [Linux, Apache, MySQL and PHP logos.](https://assets.ai.engineer/sites/aiecode2025/sha256/d8a6ebcb3fa33bf02cccb8588f15ec1ced52f376f8e52698cff360b86e3cdb23.webp)
+
+Linux™
+MySQL™
+php
+™
+
+Interface text:
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="PHP request processing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>PHP request processing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The Apache process handles two requests from the same client. Each request connects to MySQL, queries data and produces HTML, repeating the work for the next request.
+
+[2:04](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=124s) [Two client requests run PHP code in an Apache process and query MySQL.](https://assets.ai.engineer/sites/aiecode2025/sha256/5461b7e007fbf24120231632189a6724fc0c30d9d64c9a125cda45bdf69963c0.webp)
+
+Apache Process
+
+Client A
+GET /home.php
+
+Request A
+$user = &quot;Alice&quot;
+$db = connect()
+$data = query(sql)
+
+echo &quot;&lt;html&gt;...&quot;
+
+Client A
+GET /home.php
+
+Request B
+$user = &quot;Alice&quot;
+$db = connect()
+$data = query(sql)
+
+echo &quot;&lt;html&gt;...&quot;
+
+MYSQL
+
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Request + DB = Response" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Request + DB = Response</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Each request combines with database state to produce a response. A second request repeats the work—an approach Allam calls shared nothing architecture.
+
+[2:29](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=149s) [Request plus database equals response; the shared nothing architecture was born.](https://assets.ai.engineer/sites/aiecode2025/sha256/c18b634d63280950628e2214a92d5210b642dbfc1827fa06d6b574bf6f2893ad.webp)
+
+Request + DB = Response
+
+The shared nothing architecture was born
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Shared nothing = Stateless compute" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Shared nothing = Stateless compute</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In shared-nothing architecture, the compute layer holds no meaningful state; state lives in the database. Allam describes this as the dominant backend infrastructure paradigm of the past 30 years.
+
+[2:34](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=154s) [Shared nothing is equated with stateless compute, described as a dominant backend architecture for 30 years.](https://assets.ai.engineer/sites/aiecode2025/sha256/a0ab1beeb6dd85aaf6c31ed75d8338be2cce9427e393da58661d1db292ccef18.webp)
+
+Shared nothing = Stateless compute
+
+Dominant backend infrastructure architecture for 30 years
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Request + Side effects + DB = Response" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Request + Side effects + DB = Response</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>As web apps grow more complex, they perform side effects outside the request and database lifecycle as async tasks, such as sending email or resizing an image.
+
+[2:57](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=177s) [Request plus side effects plus database equals response.](https://assets.ai.engineer/sites/aiecode2025/sha256/7766e2534f6f337b46acad98f442a78a8d268f2a86a41f5610823e1d914135bf.webp)
+
+Request + Side effects + DB =
+Response
+
+AIE
+
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Side effects as async tasks" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Side effects as async tasks</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Web applications run side effects outside the request and database lifecycle as async tasks. These range from sending email or charging a card to multi-step sequences.
+
+[3:07](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=187s) [Slide reads: Side effects = Async tasks.](https://assets.ai.engineer/sites/aiecode2025/sha256/b8b40666fc19e7d7dff9c63518dbfd553384ab4b9c28dcf960cf8e68e5ea43fc.webp)
+
+Side effects = Async tasks
+
+AIE
+
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Async order processing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Async order processing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The order flow fetches an order, charges the card, and sends a receipt in sequence. If sending the receipt fails, retrying the whole flow risks charging the card twice.
+
+[3:16](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=196s) [TypeScript code fetches an order, charges a card, and sends a receipt in sequence.](https://assets.ai.engineer/sites/aiecode2025/sha256/742c088f8bdd9fac2a884110fcbec1861d53ecec96f1e45ebcc78082621b9529.webp)
+
+processOrder.ts
+
+async function processOrder(id: string) {
+  const order = await fetchOrder(id);
+  const charge = await chargeCard(order);
+  await sendReceipt(order, charge);
+}
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Retrying an order after failure" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Retrying an order after failure</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After sendReceipt fails, retrying the whole order repeats fetchOrder and attempts chargeCard again, risking a second charge.
+
+[3:25](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=205s) [Two order-processing flows show a failed receipt in the first attempt and a failed card charge in the second.](https://assets.ai.engineer/sites/aiecode2025/sha256/62a02498b599d1e6c138b05b9d0515495b6d739ec563ab5ad9329fb33383b8a4.webp)
+
+processOrder ✗
+↓
+fetchOrder ✓
+↓
+chargeCard ✓
+↓
+sendReceipt ✗
+
+processOrder #2
+↓
+fetchOrder #2 ✓
+↓
+chargeCard #2 ✗
+↓
+sendReceipt
+
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Order processing as workflow steps" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Order processing as workflow steps</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The workflow wraps fetching, charging and sending in named steps. Each step is cached as it executes, so a retry can skip completed work and avoid charging the card twice.
+
+[3:40](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=220s) [TypeScript workflow wraps fetching the order, charging the card, and sending the receipt in named steps.](https://assets.ai.engineer/sites/aiecode2025/sha256/a77a0162ec48960d56808b3ca62c6e42f8d7dddd2497b068330681c639bab81f.webp)
+
+processOrder.ts
+
+defineWorkflow(&quot;process-order&quot;, async (ctx) =&gt; {
+  const order = await ctx.step(&quot;fetch&quot;, () =&gt; {
+    fetchOrder(id) });
+  const charge = await ctx.step(&quot;charge&quot;, () =&gt; {
+    chargeCard(order) });
+
+await ctx.step(&quot;send&quot;, () =&gt; {
+    sendReceipt(order, charge) });
+});
+
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Replaying an order workflow" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Replaying an order workflow</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After sendReceipt fails, the replay skips the completed fetch and charge steps, then sends the receipt without charging the card twice.
+
+[3:55](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=235s) [Two order workflows show completed fetch and charge steps being skipped on replay before the receipt is sent.](https://assets.ai.engineer/sites/aiecode2025/sha256/cc59d95e0ea3f75d9b3ccd64270ac0bfb96a7da7a2083cc0220f9371d50ea2d5.webp)
+
+processOrder ✗
+↓
+fetchOrder ✓
+↓
+chargeCard ✓
+↓
+sendReceipt ✗
+
+processOrder #2 ✓
+↓
+fetchOrder #2 [skip icon]
+↓
+chargeCard #2 [skip icon]
+↓
+sendReceipt ✓
+
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Replay: the good" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Replay: the good</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Replay builds durable execution on stateless compute and keeps an audit trail. Resuming from a recorded point supports both failure recovery and waits, such as waiting for a person to act.
+
+[4:07](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=247s) [Replay builds on stateless compute, provides an execution history as an audit trail, and supports waits through resumption.](https://assets.ai.engineer/sites/aiecode2025/sha256/770cc852855b90c0e7cf66c44f7476d6635ece96346f06214b76ec0c9f1225fd.webp)
+
+Replay: the good
+
+• Builds on stateless compute architecture
+• Execution history = audit trail
+• Resume = waits
+
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Replay: the not so good" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Replay: the not so good</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Replay imposes a rigid structure: side effects must be steps, and code outside them must be deterministic. Versioning the replay journal can also be tricky when deploying new code.
+
+[4:38](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=278s) [Replay requires side effects to be steps and code outside steps to be deterministic; journal versioning is tricky.](https://assets.ai.engineer/sites/aiecode2025/sha256/76817cbaf34476e178f4b885182109a4f11d0cd40d981b1b583e4f88d79f05f9.webp)
+
+Replay: the not so good
+
+• All side effects must be a step
+• Code outside steps = deterministic
+• Replay journal versioning is tricky
+
+AIE
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="2023: Code orchestrates the LLM" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>2023: Code orchestrates the LLM</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Allam describes early LLM use as another workflow step, such as classifying text, with code orchestrating the model.
+
+[5:01](https://www.youtube.com/watch?v=svCnShDvgQg&amp;t=301s) [A slide states that in 2023 code orchestrates the LLM.](https://assets.ai.engineer/sites/aiecode2025/sha256/04c65b293719df2912bce0fc63c69376cdbe9aec847c1855f3c7a94fa149e700.webp)
+
+2023
+
+Code orchestrates the LLM
+
+AIE
+
+Engineering the future of AI</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">当智能体离开笔记本时，什么会改变</a></li><li><a href="#sec-2">“请求加数据库”的历史包袱</a></li><li><a href="#sec-3">重试收据而不重复扣款</a></li><li><a href="#sec-4">当模型编排一个持续进行的会话</a></li><li><a href="#sec-5">把对话状态与机器状态分开</a></li><li><a href="#sec-6">暂停机器，再选择正确的恢复路径</a></li><li><a href="#sec-7">对历史做检查点以及 CRIU 实现</a></li><li><a href="#sec-8">让 microVM 快照更小，并按需恢复内存页</a></li><li><a href="#sec-9">FCRun 以及由此形成的计算模型</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">通往持久化智能体的两条路：重放 vs 快照</h2>
+      <div class="lede"><p>一个智能体必须同时保存它的对话和它的工作环境。Eric Allam 讲述了从可重放的工作流，到上下文日志和执行快照的演进路径，这些机制让工作能扛过用户暂停、代码变更和故障。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="21">▶ 0:21</button></div>
+      <h3>当智能体离开笔记本时，什么会改变</h3>
+      <p>Your agent works on your laptop. An outer loop handles user turns, while an inner LLM loop carries out the work within each turn. Now move it onto a production server. It needs to perform long-running, meaningful work, maintain continuity across turns and code changes, and recover when something fails. <strong>Preserving its progress becomes an infrastructure requirement.</strong></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ef73779419459f66d65e3b16d0c19d13a4a08683af8ef23228fa81e0b5833e13" alt="The opening requirement: meaningful work that survives turns, code versions and errors." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The opening requirement: meaningful work that survives turns, code versions and errors.</figcaption></figure>
+<p>Allam frames his work on <a href="https://trigger.dev/docs/how-it-works" target="_blank" rel="noopener">Trigger.dev</a> around this problem. What assumptions change when a backend hosts an ongoing agent rather than a request handler or a bounded workflow? His explanation starts with the infrastructure agents inherit.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="85">▶ 1:25</button></div>
+      <h3>“请求加数据库”的历史包袱</h3>
+      <p>Allam begins his condensed history with CGI in 1993. An HTTP request arrives, the server forks a process, and request data enters that process. The program does its work, writes a response to standard output, and exits. The process does not remain around to remember what happened for the next request.</p>
+<p>PHP and the LAMP stack reused processes, but retained the same basic application model: <code>request + database state → response</code>. A subsequent request performs the computation again, using its own inputs and whatever state the database now contains. Process reuse changes how the computation runs without making the process itself the durable home of application state.</p>
+<p>This is the <strong>shared-nothing architecture</strong> Allam emphasizes: the compute layer is stateless, while meaningful durable state lives in the database. He traces the same architectural tradition through Rails, Node.js and serverless systems. A backend can handle another request without needing the previous request's machine to survive.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="178">▶ 2:58</button></div>
+      <h3>重试收据而不重复扣款</h3>
+      <p>Applications soon needed work outside that request-and-database lifecycle: send an email, charge a credit card, resize an image. Individual asynchronous tasks became sequences of side effects. Allam's <code>processOrder</code> example makes the failure concrete: <code>fetchOrder</code> and <code>chargeCard</code> succeed, but <code>sendReceipt</code> fails. Calling <code>processOrder</code> again starts the sequence over, risking another charge before it reaches the receipt. The diagram shows why retrying a function is different from retrying only its unfinished work.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/866084d7f3a266f9ceea660bc88fac85d75babac64dd02331b4209519da3447e" alt="A payment succeeds before the receipt fails. Retrying the entire order risks repeating an external effect." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A payment succeeds before the receipt fails. Retrying the entire order risks repeating an external effect.</figcaption></figure>
+<p>Workflow and durable execution engines address this by wrapping side effects in recorded steps. In Allam's <strong>replay model</strong>, recovery works like this:</p>
+<p>1. Execute the charge step and durably record its successful result.
+2. Attempt to send the receipt; that operation fails.
+3. Restart the workflow. At the charge step, return the saved result instead of charging again.
+4. Reach the unfinished receipt step and retry it.</p>
+<p>The successful charge must have a saved completion record. If a payment succeeds externally but that record is lost, replay alone cannot establish exactly-once charging; payment-side idempotency still matters.</p>
+<p>Replay builds durability on top of stateless compute. Its execution history also supplies an audit trail, and resuming at a recorded point supports deliberate waiting as well as failure recovery. A workflow can pause for an external event, such as a human taking an action, and continue afterward.</p>
+<p>The programming constraints follow from the recovery mechanism. Side effects must sit inside recorded steps, while code outside those steps must satisfy the engine's <strong>determinism requirements</strong>. Re-executing the workflow needs to encounter a sequence compatible with its existing history. Deploying changed code can therefore create a versioning problem: the new control flow may no longer agree with the old replay journal.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="302">▶ 5:02</button></div>
+      <h3>当模型编排一个持续进行的会话</h3>
+      <p>Early LLM applications fit comfortably into this workflow structure. A model could classify some text as one step in a sequence the application had already determined. <strong>Tool calling reverses the orchestration relationship:</strong> instead of code deciding when to invoke the model, the model can decide which code to invoke next. The agent loop makes the LLM an orchestrator.</p>
+<p>Applying replay to that loop means turning each LLM call and each tool call into a journaled step. On resumption, the function executes from the top, consuming recorded results for completed steps until it reaches new work. Even one user turn can produce multiple entries, because the model may call tools and continue working before returning a response.</p>
+<p>As users keep interacting, the history grows. A particular replay implementation may limit the number of entries, the size of their contents, or both. Allam's concern is the pressure an increasingly long-lived agent places on those limits: every additional turn adds more history for the system to retain and handle during recovery.</p>
+<p>The distinction becomes more consequential as agents perform useful work over longer periods. A transaction or multi-step workflow has an intended beginning and end. <strong>An agent is a session</strong>, and that session may continue for as long as its user wants to keep working. Completing a predetermined sequence and sustaining an ongoing working relationship place different demands on the backend.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="435">▶ 7:15</button></div>
+      <h3>把对话状态与机器状态分开</h3>
+      <p>Allam separates an agent into two kinds of valuable state. The first is its <strong>context</strong>: system messages, user messages, tool calls, tool results and assistant responses. This is the history of what went into and came out of the LLM, and preserving it is fundamental to continuing the agent's work.</p>
+<p>The second is <strong>execution state</strong>. An increasingly capable agent wants the resources available on a laptop: files it can write, memory it can use and subprocesses it can create. These are valuable too, but they are different objects from messages and tool results. The two kinds of state can have separate durability mechanisms.</p>
+<p>For context, the mechanism is an <strong>append-only log</strong>. A database, object storage or a distributed filesystem can hold it durably. Once that history exists independently of the running machine, an upgraded agent harness can consume the same context, and a replacement machine can recover the conversation after a crash. Append-only storage also provides a scalable persistence primitive. The interaction history survives without requiring the original version of the harness to remain the only code capable of using it.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="534">▶ 8:54</button></div>
+      <h3>暂停机器，再选择正确的恢复路径</h3>
+      <p>Now consider the execution environment the agent has already prepared. It has cloned a GitHub repository, installed packages, loaded datasets into memory and started a development server. A sandbox may be running in a subprocess. Saving the conversation does not preserve that live environment: a tool result describing an installation is not the installed package, and a message about a server is not the running process.</p>
+<p>The agent now needs to wait for the next user message. The <code>agent.ts</code> slide makes that pause explicit with <code>wait.for</code> with type argument <code>Message</code> and the identifier <code>&quot;user-message&quot;</code>. The control flow has reached a waiting point, but the machine still contains the working state that the next turn will need.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/150208b648eeadaee8fafdb8fdf72c58bba7bc11bd3c17e37fe2c9a38f9e6196" alt="The example waits for the next user message while execution state can be suspended." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The example waits for the next user message while execution state can be suspended.</figcaption></figure>
+<p>Keeping the machine running throughout an indefinite pause retains that state, but also retains the compute expense. Allam proposes <strong>snapshot and restore</strong>: capture the machine's execution state, save the snapshot to disk, shut down the running machine, and restore it when another message arrives. If the user goes to lunch, the agent's prepared environment need not keep consuming live compute throughout the break. The cost shifts from keeping the machine live to retaining its saved state.</p>
+<p>Combining a durable context log with execution snapshots gives the system different recovery paths for different failures. Allam jokes about the supposedly impossible event of an LLM provider failing, then considers a request that cannot be retried for fifteen minutes.</p>
+<p>| Situation | State still available | Recovery path |
+| --- | --- | --- |
+| The provider is unavailable and the retry must wait. | The agent's execution environment is healthy. | Snapshot it, release running compute, then restore when the retry is due. |
+| The machine crashes or a shipped bug breaks execution. | The context log is saved independently. | Recover from the context without requiring the broken execution environment to resume. |</p>
+<p>A healthy machine waiting on that provider needs a different response from a machine that has itself become unusable.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="662">▶ 11:02</button></div>
+      <h3>对历史做检查点以及 CRIU 实现</h3>
+      <p>This leads Allam toward a backend model in which compute itself contains state worth preserving. Snapshotting is not a new idea, however. His historical example is an IBM mainframe from 1966: expensive jobs ran for hours, so programmers inserted checkpoints to avoid repeating all that work after a failure.</p>
+<p>He then turns to <a href="https://github.com/checkpoint-restore/criu" target="_blank" rel="noopener"><strong>CRIU</strong></a>, developed beginning in 2011 for checkpointing and restoring processes from userspace. In his explanation, a small helper is injected into a process to capture its state and then removed. The checkpointing can be transparent to the application, which does not need to implement its own checkpoint protocol, and it integrates with container runtimes. Allam reports that Trigger.dev had performed millions of snapshot restores after shipping its CRIU implementation in 2024.</p>
+<p>Covering the environment agents wanted to use proved harder. Allam describes three constraints encountered in Trigger.dev's integration:</p>
+<p>- <strong>Subprocesses.</strong> Workloads involving FFmpeg, Chrome and other processes were difficult to preserve with its process-oriented checkpointing approach.
+- <strong>Files.</strong> The integration's file capture depended on files being open at snapshot time, leaving a gap for agents working across a filesystem.
+- <strong>Registries.</strong> Container compatibility brought image push and pull operations into the system, adding latency to checkpointing and restoration.</p>
+<p>These practical constraints pushed the team toward a broader unit of preservation.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="776">▶ 12:56</button></div>
+      <h3>让 microVM 快照更小，并按需恢复内存页</h3>
+      <p>Allam describes moving to <a href="https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md" target="_blank" rel="noopener"><strong>Firecracker microVMs</strong></a> to capture the environment at the virtual-machine boundary. Guest memory and VM state become available for restoration together, rather than treating an individual application process as the unit of preservation. The upstream snapshot contract gives this whole-machine description a precise boundary: the integrator must preserve the backing disk files, and network connections need not survive a restore.</p>
+<p>Capturing a machine creates a size problem. In Allam's example, a VM configured with 512 MB of memory produces a naive 512 MB memory snapshot. Much of that capacity may not contain useful application data, yet the snapshot still creates storage and network-transfer costs.</p>
+<p>The implementation uses <strong>seekable compression</strong>, allowing it to access compressed portions of the snapshot without decompressing the entire memory image first. Restoration is demand-driven: when execution needs a memory page, the system retrieves and decompresses the relevant portion. The program can continue without eagerly restoring every page. With compression and additional snapshot layering, he reports reducing that example to about 14 MB. Allam mentions the layering without detailing its design; compression strength provides a knob for trading snapshot size against performance.</p>
+<p>After that compressed account of the engineering, Allam jokes about how much work remains hidden behind it. For this implementation, Allam reports snapshots taking slightly under a second and restores taking a few hundred milliseconds. He presents those timings in a comparison with the earlier CRIU implementation; the hardware and workload behind the comparison are unspecified.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="880">▶ 14:40</button></div>
+      <h3>FCRun 以及由此形成的计算模型</h3>
+      <p>The closing demonstration packages this work into <code>FCRun</code>, also called <code>F-Run</code> in the talk. Allam describes a <strong>Docker-like CLI</strong> for running containers inside Firecracker VMs and snapshotting and restoring them. Familiar container-oriented operations expose the underlying machinery without requiring the user to manage each checkpointing mechanism separately.</p>
+<p>He demonstrates launching Alpine, taking a snapshot of a running VM and forking a VM. These operations make the execution environment itself something that can be started, preserved and branched. An agent's prepared machine becomes reusable state, rather than something that must always be reconstructed by repeating its prior actions.</p>
+<p>The next benchmark concerns <strong>TTI</strong>, which Allam describes as the time until a VM is ready to interact with the internet. For the demonstrated FCRun benchmark, Allam reports approximately 15,000 VM starts per minute. That figure measures aggregate startup throughput, not the readiness latency of an individual VM. His accompanying analogy to roughly 30 frames per second captures the speed of the demonstration; it is not a conversion of starts per minute into a per-VM timing.</p>
+<p>At talk time, FCRun was intended to power Trigger.dev's future compute layer and was not yet open source, though Allam said a release was coming. He returns to the original agent loop with two complementary mechanisms: a durable context log for continuity across harness versions and recovery, and execution snapshots for preserving working state across turns and waits. Together, they support the shift he argues agents require: <strong>stateful compute whose working state can outlive a running machine.</strong></p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://trigger.dev/blog/v3-announcement" target="_blank" rel="noopener">Trigger.dev's 2024 checkpointing direction</a> — Historical context for the move from replay constraints toward checkpoint-and-resume execution.</li><li><a href="https://trigger.dev/docs/how-it-works" target="_blank" rel="noopener">Trigger.dev checkpoint and resume</a> — Task lifecycle and waiting documentation; the fetched explanation describes the CRIU generation of the implementation.</li><li><a href="https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md" target="_blank" rel="noopener">Firecracker snapshot guarantees and limits</a> — What VM snapshots preserve, which disk resources the host must manage, and why network and clone identity need attention.</li><li><a href="https://github.com/checkpoint-restore/criu" target="_blank" rel="noopener">CRIU</a> — The process checkpoint/restore project behind the earlier implementation discussed by Allam.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] How's everyone doing?</span></div><div class="tline" data-t="17"><span class="ts">0:17</span><span class="tx">Good. [chuckles]</span></div><div class="tline" data-t="18"><span class="ts">0:18</span><span class="tx">It's a full room. Look at this thing. [laughs]</span></div><div class="tline" data-t="21"><span class="ts">0:21</span><span class="tx">Um, okay, let's get started. Um, okay. So, here is our, you know, agent. You know, it's got the turn loop, it's got the LLM loop. Now, this, uh, little example sort of works well enough running on your own machine, but what if we want to sort of deploy these to production backends and, you know, run them on</span></div><div class="tline" data-t="39"><span class="ts">0:39</span><span class="tx">our servers? So what do we want them to do, right, when they run on our servers? We want them to do, you know, long-running, meaningful work. Uh, should be durable across turns and, and versions of our code, and it should be able to, you know, recover from errors.</span></div><div class="tline" data-t="56"><span class="ts">0:56</span><span class="tx">So I'm Eric, I'm one of the founders of Trigger.dev, and we've been sort of trying to make it easy to deploy these types of agents to production for the last few years.</span></div><div class="tline" data-t="65"><span class="ts">1:05</span><span class="tx">Um, what I like about this, uh, [chuckles] little meme here is which one is the agent and which one is the human? I have to think. [laughs]</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">Um, uh, yeah. So, uh, this talk is sort of about, like, the fundamental shift that agents are, like, posing to backend infrastructure, and some of the ideas for sort of how to achieve these durable agents.</span></div><div class="tline" data-t="85"><span class="ts">1:25</span><span class="tx">So before we go into that, I wanna do a little history lesson here. Um, let's take a step back and see sort of how we got here. So the very first dynamic web backend was CGI back in 1993.</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">Anyone here ever done CGI stuff? [laughs] Cool. Thanks.</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">Uh, so the model was really simple. Uh, a HTTP, HTTP request comes in, the server forks a whole new process, request data goes in, the process does some stuff, and then it writes the response to standard out, and then the process goes away.</span></div><div class="tline" data-t="115"><span class="ts">1:55</span><span class="tx">So it's completely stateless. Um, shortly after that, uh, PHP came out, which sort of turned into the LAMP stack. Um, and... Oops. Um, so sort of, uh, the LAMP stack sort of reused the PHP process, right?</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">Um, but it kept sort of the principle that, like, all you needed to do to create a response was the request, some state from the database, um, and then it would do the request.</span></div><div class="tline" data-t="141"><span class="ts">2:21</span><span class="tx">So the second request would come in, and it would do all the same work again, and it would produce the response. So this is sort of request plus DB equals the response.</span></div><div class="tline" data-t="150"><span class="ts">2:30</span><span class="tx">This sort of became known as the shared nothing architecture, right?</span></div><div class="tline" data-t="155"><span class="ts">2:35</span><span class="tx">So looking at another way, shared nothing sort of means that the compute layer is stateless, right? There's nothing, uh, there's no s- meaningful state, like, in the compute. The state is in the, in the database, right?</span></div><div class="tline" data-t="166"><span class="ts">2:46</span><span class="tx">So this became the dominant backend infrastructure for the last thirty years, right? Everything that followed from this, like, uh, Ruby on Rails, Node.js, serverless, it all follows the same paradigm.</span></div><div class="tline" data-t="178"><span class="ts">2:58</span><span class="tx">Um, as web applications became more, uh, you know, complicated and sophisticated, they started performing these, like, sort of side effects outside of the request and DB life cycle. Um, these side effects are async tasks.</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">So they s- you know, started out simple. Uh, send an email, charge a credit card, you know, resize an image. But soon, they became sort of these, like, multi-step side effects, right?</span></div><div class="tline" data-t="200"><span class="ts">3:20</span><span class="tx">That, like, this process order example here, um, where you sort of do things in sequence, right?</span></div><div class="tline" data-t="207"><span class="ts">3:27</span><span class="tx">Uh, you'd quickly run into a problem, how to handle failures in something like this, right? So if send receipt fails, uh, you can't just retry the whole process order thing again, um, without charging the credit card again twice.</span></div><div class="tline" data-t="220"><span class="ts">3:40</span><span class="tx">That's just bad. So about ten to fifteen years ago, workflow and durable execution engines were sort of adopted to solve this problem, right? So you'd write your code like this now, where you sort of, uh, wrap every single side effect in, like, a step that becomes cached as it's, uh, executed.</span></div><div class="tline" data-t="236"><span class="ts">3:56</span><span class="tx">So now it, you know, solves the problem nicely. When you call process order for the second time, uh, you skip the things you've already done, and then you do the thing that you want to do originally, right?</span></div><div class="tline" data-t="246"><span class="ts">4:06</span><span class="tx">And you don't charge the credit card twice. So this is, uh, I call this model sort of the replay model. Um, so it builds durable execution on top of existing, like, stateless compute architecture, which is, I covered was the, you know, that's how everything works, right?</span></div><div class="tline" data-t="259"><span class="ts">4:19</span><span class="tx">So, you know, you get this nice side effect of you get this, uh, execution history, this audit trail of everything that happened. Um, and also by being able to sort of resume to a specific point in time, you can, yeah, you can re- recover from a failure for that, but you can also, like, wait for something else</span></div><div class="tline" data-t="273"><span class="ts">4:33</span><span class="tx">to happen, right? Um, so you can wait for, like, a human to do something, and then you can resume execution.</span></div><div class="tline" data-t="280"><span class="ts">4:40</span><span class="tx">Um, some of the downsides of this replay system is, like, because now you sort of have to wrap everything in, in these steps, and e- everything outside of steps is de- has to be deterministic.</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">You kinda get this, like, uh, rigid structure. You have to write your code in a certain way or things break. Um, and also, like, replay journaling, uh, re- the replay journal versioning is, is kinda tricky if you deploy a new version.</span></div><div class="tline" data-t="302"><span class="ts">5:02</span><span class="tx">So this is sort of the very simple and truncated history of, like, sort of the state of the world in twenty twenty-three when LLMs came out. Um,</span></div><div class="tline" data-t="311"><span class="ts">5:11</span><span class="tx">at first, they really fit neatly into this paradigm, right? They would just become another step in a workflow, right? Um, they would, uh, they would classify some text or something.</span></div><div class="tline" data-t="319"><span class="ts">5:19</span><span class="tx">But it was still in this old workflow era, right? Uh, not long after that, we sort of got tool calling and tool calling got good, and we were sort of introduced to the agent loop, right?</span></div><div class="tline" data-t="330"><span class="ts">5:30</span><span class="tx">The big difference there is code is sort of no longer orchestrating the LLM. LLM sort of orchestrates the code, right?</span></div><div class="tline" data-t="337"><span class="ts">5:37</span><span class="tx">So we're back at our agent loop, right? And, like, what happens if we, uh... Yeah, you can see that. Um, if you can, if basically we wanna, you know, make this agent loop durable, and c- can we do it with this replay model, right?</span></div><div class="tline" data-t="349"><span class="ts">5:49</span><span class="tx">What does that look like? Um, so what does that look like? Every LLM call, right, becomes a, a step in, in the replay, uh, journal. Uh, every tool call becomes a step.</span></div><div class="tline" data-t="361"><span class="ts">6:01</span><span class="tx">Uh, on resume, you know, the function re-executes from the top and sort of replays all that stuff, right? Um, so after a single turn of the LLM not doing too much, you know, this is sort of what the, uh, the replay log looks like, right?</span></div><div class="tline" data-t="376"><span class="ts">6:16</span><span class="tx">And as you sort of keep interacting with the agent, the log grows and grows and grows. At a certain point, you might hit into some sort of like fundamental limit of your replay system.</span></div><div class="tline" data-t="386"><span class="ts">6:26</span><span class="tx">Um, that could be there are like too many actual entries, or it could be like the entries get, grow too large. Um, but yeah, th- this sort of, kind of falls over once you hit that limit.</span></div><div class="tline" data-t="397"><span class="ts">6:37</span><span class="tx">And sort of, uh, there's this measure of like how long agents, uh, can actually do meaningful work, and apparently it's doubling every four to seven months. So right now we're on about like a few hours, but like not too long from now we'll be on like multiple days of length as these agents build to actually do meaningful</span></div><div class="tline" data-t="416"><span class="ts">6:56</span><span class="tx">work. So, you know, replay gave us these like sort of durable transactions. But, you know, an agent isn't like a transaction. It's like a session, right? And it lasts like as long as the user wants it to last.</span></div><div class="tline" data-t="428"><span class="ts">7:08</span><span class="tx">Uh, multi-step workflows are sort of start and end, and sessions keep going for as long as possible.</span></div><div class="tline" data-t="435"><span class="ts">7:15</span><span class="tx">So if we sort of take a step back and think about what an agent needs to be durable like from first principles, um, I think of it as like an agent sort of has these two halves, right?</span></div><div class="tline" data-t="447"><span class="ts">7:27</span><span class="tx">Um, the first half is the context. So this is all, all your system messages, user messages, tool calls, tool results, assistant responses, right? So this is all like the actual context, everything that went in and out of the LLM.</span></div><div class="tline" data-t="459"><span class="ts">7:39</span><span class="tx">Um, so this is extremely valuable. Obviously, you wanna make that durable, right?</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">Um, but you also have this sort of execution layer, and as agents are, like, more complicated, doing more things, they kinda want a machine, right? They wanna be able to do stuff like they could do on your laptop, right?</span></div><div class="tline" data-t="475"><span class="ts">7:55</span><span class="tx">They wanna be able to write files, use memory, like create sub-processes. And so I, I, w- I think of both of these, um, as super valuable pieces of state, but they can be treated separately.</span></div><div class="tline" data-t="487"><span class="ts">8:07</span><span class="tx">So the context is first and the most important. It's, it's just an append-only log of sort of everything that happened, right, like I said.</span></div><div class="tline" data-t="494"><span class="ts">8:14</span><span class="tx">Um, and you can make this log durable using any sort of like primitive that already exists, like a database, object storage, like distributed file system. You know, there's a ton of like technologies that are coming out that, that are specialized in making this sort of thing durable, right?</span></div><div class="tline" data-t="511"><span class="ts">8:31</span><span class="tx">And when that is durable, you've, y- when that context log is saved somewhere, now you can have durability across versions of your code, right? So you upgrade your harness, and you can still use that same context, right?</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">Um, maybe the machine crashes, and you can still-- that is saved somewhere, so you can pick up where you left off, right? Um, and append-only logs scale really well.</span></div><div class="tline" data-t="534"><span class="ts">8:54</span><span class="tx">Uh, but what about making this sort of execution side durable, right? Uh, for these, you know, I was saying the types of agents right now that are doing meaningful work, we-- there's a lot of state that happens in the compute layer that we might wanna save.</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">Maybe you've cloned a GitHub repo, you know, you've installed some packages, you've got some datasets in memory, you're running a dev server, right? You sandbox in a subprocess, whatever it is, right?</span></div><div class="tline" data-t="555"><span class="ts">9:15</span><span class="tx">You can't really make that, uh, durable using a log.</span></div><div class="tline" data-t="559"><span class="ts">9:19</span><span class="tx">And how do we get this to work, right? So you, you have to wait for some amount of time for the next user message, right? And we can't just keep the machine running.</span></div><div class="tline" data-t="569"><span class="ts">9:29</span><span class="tx">It'd be nice, but we can't. It'd be too expensive.</span></div><div class="tline" data-t="573"><span class="ts">9:33</span><span class="tx">So instead of recreating the execution state from a log, we should use snapshot and restore. So this allows us to snapshot the machine, shut it down, save it to disk, and then when the user message comes in, we just restore it, right?</span></div><div class="tline" data-t="587"><span class="ts">9:47</span><span class="tx">So this gives us durability across turns. So when the user goes to lunch, right, we don't have to run the machine the whole time. Uh, it allows us to preserve everything that the agent was doing.</span></div><div class="tline" data-t="599"><span class="ts">9:59</span><span class="tx">Uh, and you know, effectively, compared to running the machine, um, live, it's pretty cheap.</span></div><div class="tline" data-t="606"><span class="ts">10:06</span><span class="tx">So I think if you combine these two things, then you sort of get a durable agent, right? Um, you've got the context, so you're sort of, uh, yeah, you-- context durability and execution durability, right?</span></div><div class="tline" data-t="620"><span class="ts">10:20</span><span class="tx">Um, and this also allows you to cov- recover from errors. So one of the whole, whole points of having these, like, durability guarantees is to recover, right? And so it depends on what happened, what went wrong, and you can cov- recover in different ways.</span></div><div class="tline" data-t="632"><span class="ts">10:32</span><span class="tx">So say the LLM isn't working for some reason. That never happens, but you never know. It could happen. Um, and it takes a long time to like retry. Maybe it says like, &quot;Wait, uh, wait, you know, fifteen minutes so you retry your next message.&quot;</span></div><div class="tline" data-t="644"><span class="ts">10:44</span><span class="tx">Well, you don't wanna wait in memory, so you snapshot, and then you restore when you can retry. But if there's something wrong with the machine, uh, maybe you've like shipped a bug, or maybe there's just an issue with the machine, right?</span></div><div class="tline" data-t="656"><span class="ts">10:56</span><span class="tx">But it crashes. You have the context log, and you can recover that.</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">So I think, you know, for thirty years, we sort of had this, uh, stateless compute as the sort of core of backend infrastructure, and I think agents are sort of forcing this, uh, move to become stateful compute.</span></div><div class="tline" data-t="676"><span class="ts">11:16</span><span class="tx">So, and sort of at the heart of that, I think, is, is gonna have to be this snapshot and restore, uh, capability. Um, but sort of, you know, this isn't actually new.</span></div><div class="tline" data-t="687"><span class="ts">11:27</span><span class="tx">Um, this is an IBM mainframe from nineteen sixty-six, and it actually has checkpoint and, and restore. Um, 'cause they would run these super expensive jobs for hours and, you know, if something ha- went wrong and they c- they couldn't afford to run it all again, so they would add these like checkpoints into their code, right?</span></div><div class="tline" data-t="711"><span class="ts">11:51</span><span class="tx">Fast-forward to twenty eleven, a thing called CRIU was, um, developed. It was a way to like suspend and restore s- uh, a process like from user space. So it would basically like inject a process with this like a parasite basically, and then they would force the process to like dump everything to memory, and then it would remove</span></div><div class="tline" data-t="729"><span class="ts">12:09</span><span class="tx">all the traces of the parasite, and it actually worked. Um, in twenty twenty-four, we actually shipped this, um- And we've done millions of, uh, snapshot restores since. You know, it's transparent for the process, so the process doesn't have to, like, participate in it, and it's compatible with container runtimes, which is good.</span></div><div class="tline" data-t="747"><span class="ts">12:27</span><span class="tx">So the downsides are you sort of can only checkpoint, like, a process. So if you're doing stuff with, like, FFmpeg or, like, you've got a Chrome instance running or anything else, right, it sort of doesn't work.</span></div><div class="tline" data-t="758"><span class="ts">12:38</span><span class="tx">Uh, it only captures open files, so if you're working with the file system, it has to be open at the time of snapshot or you won't get a snapshot.</span></div><div class="tline" data-t="765"><span class="ts">12:45</span><span class="tx">And then also if you [laughs] ... It, it, yeah, it's nice that it's compatible with containers, but once you are compatible with containers, you have to work with registries and push and pull, and it gets very slow.</span></div><div class="tline" data-t="776"><span class="ts">12:56</span><span class="tx">Uh, so last year we moved to, um, Firecracker microVMs, and this allows us to sort of snapshot, like, the entire machine, right? So everything that's just on a machine, on a VM, we can snapshot it, and then we can restore it, and it pick up right where it left off, no matter what was happening in the machine,</span></div><div class="tline" data-t="792"><span class="ts">13:12</span><span class="tx">right? But if you do that sort of, uh, in a naive way, uh, it can be quite expensive. So say you have a def- a default machine size of 512 megabytes, you know.</span></div><div class="tline" data-t="805"><span class="ts">13:25</span><span class="tx">Uh, if you do a snapshot, it's 512 megabytes on disk, so that's, that's not great. Um, so obviously you've got, like, networ- network transfer costs, you've got storage costs, and there's a lot of memory there that's not actually being used.</span></div><div class="tline" data-t="818"><span class="ts">13:38</span><span class="tx">Uh, so we actually solved this with, uh, compressing it. Uh, we actually use a, a seekable compression. Um, so when we restore, we actually on- don't restore all the memory pages at once.</span></div><div class="tline" data-t="831"><span class="ts">13:51</span><span class="tx">We actually, like, capture when it needs to be restored and just, like, com- decompress, like, that little bit that needs to be, um, restored at time. We also have a couple other techniques for layering the snapshot, and we can get the, the, um, snapshot down to, like, 14 megabytes compressed, and that's sort of like a knob you</span></div><div class="tline" data-t="848"><span class="ts">14:08</span><span class="tx">can tweak and, um, depending on how perform... what kind of performance you want, um, you can compress more or less.</span></div><div class="tline" data-t="856"><span class="ts">14:16</span><span class="tx">Um, so that's pretty much all we had to do other than all that. [laughs]</span></div><div class="tline" data-t="862"><span class="ts">14:22</span><span class="tx">Um, and once we did that, uh, we, we got super fast snapshot and restore times. So this is a sort of a stupid graph, uh, comparing [laughs] CRIU and Firecracker, but it's basically the, the moral of the story is that snapshots are, like, slightly under a second and restores are a couple hundred milliseconds.</span></div><div class="tline" data-t="880"><span class="ts">14:40</span><span class="tx">Um, we've actually bundled all of this into a tool that's gonna be open source here soon. Uh, it's called FCRun or F-Run, depending on who you ask. Um, so this allows you...</span></div><div class="tline" data-t="892"><span class="ts">14:52</span><span class="tx">It's like a Docker-like CLI, so you can drop in replacement for, like, the Docker command, um, for running containers in, in Firecracker VMs and snapshotting and restoring them.</span></div><div class="tline" data-t="901"><span class="ts">15:01</span><span class="tx">So for example, um, you can run Alpine and it's super fast, and you can snapshot a running VM and it's super fast. You can, like, fork a VM, also very fast.</span></div><div class="tline" data-t="915"><span class="ts">15:15</span><span class="tx">Um, this is a little benchmark for TTI, so basically how long it takes the VM to become, uh, interactable with the internet. So this is, uh, we're doing, like, 15,000 VM starts per minute.</span></div><div class="tline" data-t="929"><span class="ts">15:29</span><span class="tx">Um, you can almost render, uh, like, a video. The F- the FPS would be about 30 FPS. Um, so it's, it's extremely, extremely fast. Um, so this is gonna be powering sort of our future, like, compute layer, but it's open source.</span></div><div class="tline" data-t="945"><span class="ts">15:45</span><span class="tx">Um, not yet, but very soon. Um, so kind of back to where we started with our little agent loop here,</span></div><div class="tline" data-t="955"><span class="ts">15:55</span><span class="tx">and, um, we've sort of made it durable now by doing two different things: context log and execution snapshots. So we get durability across versions, durability across turns, across failures, and, uh, so this will lead to a future of, you know, stateful compute.</span></div><div class="tline" data-t="972"><span class="ts">16:12</span><span class="tx">So that's it. Yeah. [audience applauds] [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>同样的模型，不同的速度：为什么推理服务商很重要 —— FriendliAI | AI 工程师中文版</title>
+<meta name="description" content="Yunmo Koo 讲解了前缀复用、缓存放置和自适应推测解码如何改变运行开放权重模型的体验——以及为什么智能体能否完成任务，既取决于 token 速度，也取决于可靠性。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>同样的模型，不同的速度：为什么推理服务商很重要 —— FriendliAI</h1>
+    <div class="orig-title">Same Model, Different Speed: Why Your Inference Provider Matters — FriendliAI</div>
+    <div class="meta"><span class="speaker">Yunmo Koo</span> · AI Engineer World's Fair 2026 · 13:04</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=open-weights">开放权重模型</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=kv-caching-and-prefix-reuse">KV 缓存与前缀复用</a><a class="tag" href="../../index.html#topic=speculative-decoding">推测解码</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=inference">推理</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/_naLJOqVOEI-same-model-different-speed-why-your-inference" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="_naLJOqVOEI"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=_naLJOqVOEI" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">两个能玩的游戏让成本成为下一个问题</div></div>
+      <div class="label row">章节跳转 <span>共 6 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="13"><span class="ts">0:13</span><span>两个能玩的游戏让成本成为下一个问题</span></li><li data-t="179"><span class="ts">2:59</span><span>固定模型和智能体，只更换供应商</span></li><li data-t="329"><span class="ts">5:29</span><span>复用长输入——并把请求路由到它所在的地方</span></li><li data-t="449"><span class="ts">7:29</span><span>起草多个 token，再让验证物有所值</span></li><li data-t="569"><span class="ts">9:29</span><span>一次快速调用也还是得完成</span></li><li data-t="629"><span class="ts">10:29</span><span>测试你实际在服务的提示词和流量</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 15 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Fast and Reliable Inference for Frontier Open-Weight Models" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fast and Reliable Inference for Frontier Open-Weight Models</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>FriendliAI founding engineer Yunmo Koo explains how his team built a fast and reliable inference API for frontier open-weight models.
+
+[0:22](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=22s) [Title slide for Yunmo Koo’s talk at AI Engineer World’s Fair 2026.](https://assets.ai.engineer/sites/aiecode2025/sha256/c522f8ce91717935585c92c5574896b942fadf715e120da8945cd4074e9f10f2.webp)
+
+Fast and Reliable Inference for Frontier Open-Weight Models
+
+AI ENGINEER WORLD’S FAIR 2026
+
+Founding Engineer @FriendliAI
+Yunmo Koo</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Same Task, Similar Quality" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Same Task, Similar Quality</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Koo prompted GLM-5.2 and Opus 4.8 once to build tower defense games. Both produced maps where turrets shoot enemies within range.
+
+[2:08](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=128s) [Side-by-side tower defense game demos attributed to GLM-5.2 and Opus-4.8.](https://assets.ai.engineer/sites/aiecode2025/sha256/0d850163db82be4e61fc135514b97c3c7d8d44d32a0b84014f49a0e123924ad6.webp)
+
+Same Task, Similar Quality
+
+FriendliAI/GLM-5.2
+Anthropic/Opus-4.8
+
+Interface text:
+
+FriendliAI/GLM-5.2:
+TOWER DEFENSE
+GOLD 56
+LIVES 20
+WAVE 1/12
+ENEMIES 0
+Cannon 50g
+Frost 70g
+Sniper 100g
+Pause
+Speed 1x
+Early (+29)
+[illegible]
+
+Anthropic/Opus-4.8:
+TOWER DEFENSE
+GOLD 46
+LIVES 20
+WAVE 1/12
+ENEMIES 4
+Pause
+2x
+TOWER SHOP
+Cannon 50g
+Frost 85g
+Sniper 85g
+Pick a tower, then click a green tile to build. Keys 1/2/3 select, Esc cancels.
+ENEMIES
+Normal — balanced
+Fast — low HP, quick
+Tank — heavy, slow
+Boss — every 5th wave
+Wave 1 — 4 enemies left</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="But Very Different Cost" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>But Very Different Cost</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For the tower defense task, GLM-5.2 cost $0.269 versus $1.523 for Opus 4.8. The slide reports 5.6X cheaper overall and 7.2X cheaper per request.
+
+[2:43](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=163s) [A cost table and bullets report that GLM-5.2 was 5.6 times cheaper for the task and 7.2 times cheaper per request than Claude Opus 4.8.](https://assets.ai.engineer/sites/aiecode2025/sha256/6cc59237ade50b3997ea68e91316313002fccb99bf34de623a672820ef4f4557.webp)
+
+But Very Different Cost
+
+Model Comparison
+Model | Provider | Reqs | Tokens | Cost | $/Req
+claude-opus-4-8 | Anthropic | 7 | 407,296 | $1.523 | $0.218
+zai-org/GLM-5.2 | FriendliAI | 9 | 259,332 | $0.269 | $0.030
+
+Compared to Claude Opus 4.8, GLM-5.2 was...
+• 5.6X cheaper for the same task
+• 7.2X cheaper per request</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Same Model, Different Performance" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Same Model, Different Performance</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In an OpenRouter GLM-5.2 snapshot, average throughput ranges from 19 to 48 tok/s across providers. Friendli is highlighted at 48 tok/s; latency and reliability can also vary by provider.
+
+[3:08](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=188s) [A slide explains how inference providers affect latency, throughput, and reliability, alongside an OpenRouter throughput chart.](https://assets.ai.engineer/sites/aiecode2025/sha256/5a57cf06db76787b6cbb519e7c561d3edac31aafbc2c5e8e1c71b6658ab34432.webp)
+
+Same Model, Different Performance
+
+• Once open-weight models are strong enough, provider quality becomes the performance bottleneck
+• The same model can deliver very different latency, throughput, and reliability depending on the inference provider
+
+Median Throughput on OpenRouter
+Y-axis: Throughput (tok/s)
+Y-axis ticks: 0, 25, 50, 75, 100
+Timeline: 6월 17일 오전 2:00, 오전 6:00, 오전 10:00, 오후 2:00, 오후 6:00, 오후 10:00, 오전 2:00, 오전 6:00
+
+Providers | Min (tok/s) | Max (tok/s) | Avg (tok/s)
+Friendli | 13 | 96 | 48
+StreamLake | 39 | 53 | 45
+Cloudflare | 26 | 38 | 31
+io.net | 20 | 49 | 30
+NovitaAI | 17 | 42 | 28
+Parasail | 9 | 46 | 27
+Z.ai | 17 | 38 | 23
+DeepInfra | 15 | 33 | 22
+AtlasCloud | 14 | 25 | 19
+
+OpenRouter GLM-5.2 Providers
+
+Interface text: All locations</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Creating Mobile Games with GLM 5.2 + Kilo Code" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Creating Mobile Games with GLM 5.2 + Kilo Code</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The demo uses GLM 5.2 and the same coding-agent workflow to build Model Crush, a Candy Crush-style mobile game, with two inference providers.
+
+[3:47](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=227s) [Title card introducing a mobile-game demonstration using GLM 5.2 and Kilo Code.](https://assets.ai.engineer/sites/aiecode2025/sha256/47ee1596890acbc9cef13a00d7b29642c050ca272b7be936c62a027c4af03e3e.webp)
+
+Creating Mobile Games
+with GLM 5.2 + Kilo Code
+
+Background interface text, repeated across two panels:
+Kilo Code is an AI coding assistant. Ask it [illegible]
+[illegible]
+- Cascades work correctly.
+- Score updates correctly.
+- Board header stays above the grid.
+- Layout remains centered.
+
+After generation:</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Model Crush Saga" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Model Crush Saga</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The two boards show the Model Crush game. The speaker says FriendliAI generated it in under two minutes; another provider took over three, using the same model and coding agent.
+
+[4:10](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=250s) [Two colorful match-three game boards appear side by side with different scores.](https://assets.ai.engineer/sites/aiecode2025/sha256/f976789258dc262cf92eeaf6402afbb66f563280d8bdf63fbaf7c6366d8f1f1a.webp)
+
+Left:
+Model Crush Saga
+SCORE
+510
+Inference Engine
+
+Right:
+Model Crush Saga
+SCORE
+600
+Inference Engine</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Run GLM-5.2 on Kilo Code with FriendliAI" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Run GLM-5.2 on Kilo Code with FriendliAI</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker reports that FriendliAI generated the game in under two minutes, while another provider took more than three, using the same model and coding agent.
+
+[4:15](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=255s) [Title card reads “Run GLM-5.2 on Kilo Code with FriendliAI.”](https://assets.ai.engineer/sites/aiecode2025/sha256/14107b52704d0f52ae556fbb100e1b6ec7979e0e7292fdd6195ecbc313f0a741.webp)
+
+Run GLM-5.2
+on Kilo Code
+with FriendliAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Fast Inference Is a Full-Stack Problem" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fast Inference Is a Full-Stack Problem</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Provider experience depends on the whole inference stack: cache reuse, routing, scheduling, speculative decoding, quantization and GPU kernels work together toward lower latency and higher reliability.
+
+[4:23](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=263s) [Slide lists inference optimizations and their goal of lower latency and higher reliability.](https://assets.ai.engineer/sites/aiecode2025/sha256/e81cc34399799e47e1effcd461e961e983dd1336bd9c8e17f96e79297d91e8fb.webp)
+
+Fast Inference Is a Full-Stack Problem
+
+• Fast inference is not one optimization. It requires coordination across:
+  • KV cache reuse
+  • Request routing
+  • Scheduling and batching
+  • Speculative decoding
+  • Quantization
+  • GPU kernel optimization
+• The goal is lower latency and higher reliability on real production workloads.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Friendli Inference" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Friendli Inference</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Friendli’s runtime connects an inference server to a model executor on GPUs, coordinating batching, scheduling, caching, quantization, and other optimizations across the stack.
+
+[4:48](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=288s) [Slide describes the Friendli inference engine and diagrams its server, model executor, optimization layers, and GPUs.](https://assets.ai.engineer/sites/aiecode2025/sha256/a94a7ce4bf58884e0603ee2cbe654d6c50dde147c0e0a2d48c015463b9d6bb3c.webp)
+
+Friendli Inference
+
+Built from Scratch for Fast and Reliable Gen AI Inference
+
+• A full-stack inference engine for serving Gen AI models at scale — from request handling to GPU kernel execution
+• Not a wrapper around existing frameworks; every layer is designed and optimized together
+
+Friendli Inference Runtime
+
+Batching
+Scheduling
+Quantization
+Parallelism
+Caching
+Spec. decoding
+...
+
+Inference request
+Inference response
+Inference Server
+Model Executor
+Friendli IR
+Friendli DNN library
+GPU  GPU  GPU  GPU
+
+Load a model checkpoint
+Language models,
+Multimodal models</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="How We Optimized" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How We Optimized</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk turns to inference optimizations for production workloads.
+
+[5:16](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=316s) [Section title introduces inference optimizations for production workloads.](https://assets.ai.engineer/sites/aiecode2025/sha256/bff32937f8335cf77572a89272553f8691ca0db9d78e15067b4078e68c02b1f0.webp)
+
+How We Optimized
+Inference Optimizations For Production Workload</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Optimizing Long Context" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Optimizing Long Context</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Cache-aware routing sends requests to replicas that already hold the shared prefix. A cache hierarchy keeps hot blocks in GPU memory and offloads unused blocks for later prefetching.
+
+[5:27](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=327s) [Slide explains reuse of long inputs, cache-aware routing, and KV cache offloading.](https://assets.ai.engineer/sites/aiecode2025/sha256/21b2c02afe3ad35ea70919e6c82f264e220f5c6283a23cf8a4423b3453366710.webp)
+
+Optimizing Long Context
+
+• Most popular agent applications use long inputs (10K+ tokens) with relatively short outputs (often under 1K tokens).
+• A large portion of the input, often 50% to 80–90%, is repeated or shared across requests.
+• 👍 Rule of thumb
+  • Do not recompute what you already know.
+  • Route to the cache, not just to an available GPU.
+  • GPU memory is finite. Cache hierarchy determines scalability.
+
+CACHE-AWARE ROUTING
+Incoming Request (Prefix 'XYZ')
+Request Router
+Route to best replica
+Replica 1 (No Cache)
+Replica 2 (Has 'XYZ' Cache)
+Cache Hit
+Replica 3 (Busy)
+
+KV CACHE OFFLOADING
+GPU VRAM (Hot Cache)
+Offload unused blocks
+Prefetch needed blocks
+CPU RAM / NVMe (Warm/Cold Cache)
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Optimizing Interactive Speed" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Optimizing Interactive Speed</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Speculative decoding drafts multiple tokens for parallel verification. FriendliAI describes routing between model-based and model-free drafting, and training draft models on serving traffic; validation adds batch overhead.
+
+[7:38](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=458s) [Slide compares speculative decoding strategies and illustrates drafting and parallel verification.](https://assets.ai.engineer/sites/aiecode2025/sha256/a3317a59037995d3a7a45382010433ecf8ae953ab41d781fb4a6b4bb7278e507.webp)
+
+Optimizing Interactive Speed
+
+• Speculative Decoding: “Generate more tokens per step without changing output quality”
+• Drafting Strategies
+  • Model-based: A small draft model predicts future tokens → High AL, but costs compute
+  • Model-free: Pattern matching against the prompt or prior output to find likely continuations → Less overhead, but only works well when output resembles the input
+• Trade-off: Improves per-request latency, but validation of draft tokens adds overhead to the batch
+• Our Approaches
+  • Adaptive hybrid routing: Dynamically selects between model-based and model-free speculation
+  • Self-evolving speculation: Draft models are trained online during serving — the speculator continuously improves its predictions based on real traffic
+
+Diagram:
+Autoregressive Decoding
+Verify in Parallel
+Efficiently Draft</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Reliability Is Part of Speed" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Reliability Is Part of Speed</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A failed call can invalidate a multi-step agent workflow. In the 29 Jun 2026 OpenRouter GLM-5.1 provider snapshot, Friendli reports 99.98% uptime, 0.29s latency and 104 tps.
+
+[9:40](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=580s) [Slide discusses API reliability and shows an OpenRouter provider comparison sorted by uptime.](https://assets.ai.engineer/sites/aiecode2025/sha256/537e79813c1b5c9f8e1b83ddf9f640d829878358d0116aeb7957d56d108734ef.webp)
+
+Reliability Is Part of Speed
+
+• Timeouts, 5xx/429 errors, and failed streams all break the user experience.
+• For agentic workloads, one failed call can invalidate the entire multi-step workflow, even if every other step was fast.
+• FriendliAI optimizes for the full API experience, not just peak TPS.
+
+Provider | Input /M | Output /M | Cache Read /M | Latency | Throughput | Uptime
+Friendli | $1.40 | $4.40 | $0.26 | 0.29s | 104 tps | 99.98%
+SiliconFlow | $1.19 | $3.74 | $0.60 | 1.66s | 47 tps | 99.95%
+AtlasCloud | $1.26 | $3.96 | $0.234 | 2.00s | 39 tps | 99.93%
+StreamLake | $0.98 | $3.08 | $0.182 | 1.48s | 75 tps | 99.87%
+DeepInfra | $1.05 | $3.50 | $0.205 | 0.76s | 44 tps | 99.86%
+NovitaAI | $1.38 | $4.40 | $0.26 | 2.06s | 48 tps | 99.79%
+Baidu Qianfan | $0.98 | $3.08 | $0.182 | 1.10s | 27 tps | 99.43%
+Parasail | $1.40 | $4.40 | $0.26 | 0.61s | 72 tps | 99.35%
+Fireworks | $1.40 | $4.40 | $0.26 | 1.29s | 43 tps | 99.20%
+
+OpenRouter GLM-5.1 Providers (29 Jun 2026) | Sorted by Uptime
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="The Best Benchmark Is Your Own Application" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Best Benchmark Is Your Own Application</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Generic benchmarks miss the conditions of your application. Test your own prompts, context, and traffic pattern across speed, reliability, cost, and quality.
+
+[10:47](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=647s) [Slide recommends testing real workloads across speed, reliability, cost, and quality.](https://assets.ai.engineer/sites/aiecode2025/sha256/05944548bfd9a7e9622469a388591622bd90f659235407854b316af1d4df2a1f.webp)
+
+The Best Benchmark Is Your Own Application
+
+• Generic benchmarks are useful, but incomplete.
+• Bring your real prompts, context, and traffic pattern.
+• Compare the full API experience:
+  • Speed
+  • Reliability
+  • Cost
+  • Quality
+• FriendliAI makes it easy to test frontier open-weight models today.
+
+Interface text:
+CC</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="The Takeaway" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Takeaway</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In a GLM-5 split test, Kilo Code reports FriendliAI was consistently 7 times faster and had a significantly lower error rate than other third-party providers and direct usage from Zai.
+
+[11:44](https://www.youtube.com/watch?v=_naLJOqVOEI&amp;t=704s) [Slide summarizes the case for open-weight models and quotes a customer’s reported speed and reliability results.](https://assets.ai.engineer/sites/aiecode2025/sha256/2e5ff014a5a098df6abcaaa3605a70e8ff86bbed757853f836513da33f001589.webp)
+
+The Takeaway
+
+Open-Weight Models Are Ready. FriendliAI Makes Them Production-Ready.
+
+• Frontier open-weight models are becoming practical for real AI applications.
+• They offer strong quality and a much better cost curve for many workloads.
+• But production adoption depends on fast and reliable inference.
+• FriendliAI is built to deliver that inference layer.
+• Try frontier open-weight models on FriendliAI today.
+
+Over the past year, Kilo Code has tested several different inference providers hosting a range of both open and closed models. In a split test of GLM-5 usage, they were especially impressed by FriendliAI’s results. Compared against both other third-party providers and direct usage (from the model lab, Zai), FriendliAI was consistently 7 times faster and had a significantly lower error rate. FriendliAI is now a core component of the Kilo stack, enabling high-performance access to the latest open-weight models.
+
+Interface text: CC</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">两个能玩的游戏让成本成为下一个问题</a></li><li><a href="#sec-2">固定模型和智能体，只更换供应商</a></li><li><a href="#sec-3">复用长输入——并把请求路由到它所在的地方</a></li><li><a href="#sec-4">起草多个 token，再让验证物有所值</a></li><li><a href="#sec-5">一次快速调用也还是得完成</a></li><li><a href="#sec-6">测试你实际在服务的提示词和流量</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">同样的模型，不同的速度：为什么推理服务商很重要</h2>
+      <div class="lede"><p>Yunmo Koo 讲解了前缀复用、缓存放置和自适应推测解码如何改变运行开放权重模型的体验——以及为什么智能体能否完成任务，既取决于 token 速度，也取决于可靠性。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="13">▶ 0:13</button></div>
+      <h3>两个能玩的游戏让成本成为下一个问题</h3>
+      <p>A single prompt asks two models to build a tower defense game. Both produce working implementations: a map, turrets and enemies that the turrets shoot when they enter range. For Yunmo Koo, founding engineer at FriendliAI, this small experiment makes a practical question clearer than a leaderboard alone: once an open-weight model produces a useful result, what does it cost to keep using it?</p>
+<p>The comparison pairs <strong>GLM 5.2</strong> with <strong>Claude Opus 4.8</strong>. Koo describes their game structure and quality as similar. What does that similarity amount to? The maps and range-based turret behavior are the concrete features to compare in the demonstration; they establish a working game in each case, rather than a comprehensive evaluation of coding ability.</p>
+<p>For this task, Koo reports that the GLM 5.2 implementation was more than 5.6 times cheaper than the Opus 4.8 implementation. Repeated agent iterations make that difference consequential: each additional attempt adds another inference bill, so a lower cost per attempt changes how much work a team can afford. The recording gives a task-specific comparison without a detailed billing breakdown, so the ratio should stay attached to this experiment.</p>
+<p>The opening context is a shift in which models Koo considers usable. His audience mostly uses closed-weight frontier models, while he is moving more of his own workload toward open weights. Coding, reasoning and tool-use benchmark results motivate that move. His claim is scoped to many workloads: when model capability clears the required threshold, production speed, reliability and cost become the next decisions.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="179">▶ 2:59</button></div>
+      <h3>固定模型和智能体，只更换供应商</h3>
+      <p>The next demonstration changes the provider while keeping GLM 5.2 and the coding-agent workflow the same. The task is a Candy Crush-style mobile game called Model Crush. FriendliAI, shown on the left, finishes within two minutes; the other provider takes more than three. Where does the difference become visible? The useful comparison is the progress toward a completed game on each side, because completion time is what the agent’s user experiences. This is one demonstrated run, rather than an established latency distribution.</p>
+<p>Identical weights do not imply identical service. Latency, throughput and reliability depend on the system that runs those weights. Koo points to a provider comparison snapshot to reinforce that these differences are measurable, then opens up the stack behind them: cache systems, routing policy, scheduling, quantization and GPU kernels all contribute to the result.</p>
+<p>FriendliAI’s engineering premise is that these parts must work together. Batching and scheduling determine how requests share execution; cache management determines how much previous work can be reused; speculative decoding changes how output tokens are produced. The game comparison does not isolate the contribution of any one optimization. It motivates examining the whole inference engine rather than treating the API endpoint as interchangeable plumbing.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="329">▶ 5:29</button></div>
+      <h3>复用长输入——并把请求路由到它所在的地方</h3>
+      <p>Agent requests often have an uneven shape: very long inputs and relatively short outputs. Koo describes inputs exceeding 10,000 tokens, with roughly 50% to 80–90% of tokens repeated across requests in many workloads he encounters. Under those conditions, processing the input can dominate compute cost. This input-processing stage is called prefill; it builds the key-value, or KV, cache used during generation.</p>
+<p>A shared prefix creates an opportunity to avoid doing that work again. When a new request begins with a prefix already processed for an earlier request, the engine can reuse the corresponding cached tensors and skip that prefix computation. The immediate benefit is lower time to first token, or TTFT: less input work stands between receiving the request and starting its response.</p>
+<p>Two separate mechanisms make that reuse practical at scale:</p>
+<p>- <strong>Cache-aware routing.</strong> KV caches live on individual serving replicas. The router must send a request to a replica holding its relevant prefix; sending it elsewhere loses the reuse benefit.
+- <strong>A memory hierarchy.</strong> KV caches consume substantial memory and, for large models with long contexts, can exceed the model weights in size. Hot cache stays in fast, limited GPU VRAM, warm cache in CPU RAM, and colder cache can move to NVMe or disk. Less-used blocks are offloaded and prefetched when needed.</p>
+<p>Why are both mechanisms necessary? The diagram separates two placement decisions: which replica receives a request, and where cached blocks reside within the memory hierarchy. Routing makes an existing prefix reachable by the request; tiered storage preserves more cached work than scarce GPU memory alone can hold. Together, they reduce repeated prefill work for the long, repetitive inputs described here.</p>
+<p>Request placement and cache placement solve different problems
+The router selects a replica with the relevant prefix. Within cache storage, less-used blocks can leave GPU memory and return through prefetching; the two colder tiers are alternatives, not a required sequence.
+- Incoming request — Shares a prefix with a previous request.
+- Cache-aware router — Selects the replica holding the relevant prefix.
+- Replica with matching cache — Reuses prefix tensors instead of recomputing that input.
+- GPU VRAM — Hot cache; fastest storage, with limited capacity.
+- CPU RAM — Warm cache.
+- NVMe or disk — Colder cache.
+- Incoming request → Cache-aware router (Route the incoming request)
+- Cache-aware router → Replica with matching cache (Send to the replica with the prefix)
+- GPU VRAM → CPU RAM (Offload less-used blocks)
+- GPU VRAM → NVMe or disk (Offload colder blocks)
+- CPU RAM → GPU VRAM (Prefetch when needed)
+- NVMe or disk → GPU VRAM (Prefetch when needed)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="449">▶ 7:29</button></div>
+      <h3>起草多个 token，再让验证物有所值</h3>
+      <p>After reducing the wait before generation begins, the next problem is generation itself. Standard autoregressive decoding produces one token per forward pass. That makes progress sequential, and Koo notes that the GPU is often underused during decoding. Speculative decoding proposes several candidate tokens ahead, then asks the target model to validate them in a single pass.</p>
+<p>Accepted candidates let one target-model pass advance the output by multiple tokens, reducing time per output token. Koo calls accepted tokens “free”; the useful interpretation is that they avoid separate target-model passes, since drafting and validation still have costs. The target model remains responsible for validation, which is the basis of the talk’s claim that this acceleration preserves output quality.</p>
+<p>The candidates can come from two sources, each with a different cost:</p>
+<p>- <strong>Model-based speculation.</strong> A small draft model predicts future tokens. It can achieve a higher acceptance rate, but running that model requires extra compute.
+- <strong>Model-free speculation.</strong> Patterns in the prompt or earlier output supply candidates. This has lower overhead and works best when the next output resembles existing context.</p>
+<p>The fastest choice for one request may add undesirable work to the batch serving it. Validation has overhead, so speculation must earn back its cost through accepted tokens. FriendliAI uses a hybrid runtime that selects between model-based and model-free methods according to workload and request characteristics. The recording describes that decision at a high level without specifying selection thresholds.</p>
+<p>There is also a second timescale of adaptation. Beyond choosing a method for the current request, Koo describes “self-evolving speculation”: the draft model adapts using real serving traffic so its predictions better match the workload actually running in production. This makes the speculator workload-specific over time; the talk does not detail its training or update procedure.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="569">▶ 9:29</button></div>
+      <h3>一次快速调用也还是得完成</h3>
+      <p>“Reliability is part of speed” becomes concrete when an agent needs several model calls to finish one task. A timeout, a server-side <code>5xx</code> error or a <code>429</code> rate-limit response can interrupt the run. One failed call in the middle can invalidate the workflow, so low average response latency alone does not describe how quickly users receive completed work.</p>
+<p>That changes the optimization target from token throughput alone to the full API experience, including error rate and uptime. Koo cites a provider snapshot for <strong>GLM 5.1 Pro</strong> reporting more than 99.9% uptime on FriendliAI. The recording does not establish the snapshot’s measurement window or workload, so that figure supports the presented model-specific service comparison rather than a general availability guarantee.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="629">▶ 10:29</button></div>
+      <h3>测试你实际在服务的提示词和流量</h3>
+      <p>Provider speed claims are conditional. A benchmark uses particular inputs and operating conditions; an application brings its own prompt lengths, traffic patterns and latency expectations. Koo’s recommendation is to test those actual conditions and compare speed, reliability, cost and quality together. Long shared prefixes and context-like output patterns matter because they directly affect the cache reuse and speculation mechanisms described earlier.</p>
+<p>The closing customer example is Kilo Code, which Koo describes as a coding-agent platform processing several trillion tokens each week. After testing multiple inference providers, its GLM speed tests reportedly found FriendliAI up to seven times faster, with a substantially lower error rate. This is a customer result relayed in the talk; the recording does not supply enough test detail to transfer that multiplier to another application.</p>
+<p>The practical next step is to bring a real workload to the provider comparison. Hold the model and agent workflow steady, as in Model Crush, and judge the completed task alongside inference cost and failures. The tower defense example asks whether the model can produce useful work economically. The provider example asks how quickly and reliably that same class of work reaches the user.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>The same model and coding-agent workflow can have different completion times on different providers; the inference stack contributes to the user’s experience.</li><li>Prefix caching saves repeated prefill work, but distributed reuse also needs routing to the replica holding the prefix and memory management across GPU, CPU and colder storage.</li><li>Speculation trades drafting and validation overhead against accepted tokens. FriendliAI chooses between model-based and model-free methods at runtime and describes adapting its draft model to production traffic.</li><li>Evaluate providers on your own prompts and traffic, including errors and completed agent tasks: one failed model call can invalidate a longer workflow.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="13"><span class="ts">0:13</span><span class="tx">All right, let's get started. So, hello, everyone. My name is Yunmo. I'm a founding engineer at FriendliAI, uh, building a inference engine with our team to optimize inference performance. Uh, so today, I'm gonna talk about how we built the fast and reliable inference API for frontier open weight models. So . Oh, thank you . Okay, so before we dive in, let's do a quick show of</span></div><div class="tline" data-t="43"><span class="ts">0:43</span><span class="tx">hands. So who here uses closed weight frontier models like GPT or Claude? Okay, most of you are already using it. And then who here mainly use open weight models?</span></div><div class="tline" data-t="59"><span class="ts">0:59</span><span class="tx">Yeah, yeah, fewer than the closed weight models. So personally, I recently using a mix of both these days, but I'm gradually migrating more of my workload to open weight models. The reason is that open weight models, uh, have crossed the threshold these days. For example, in coding, reasoning, and agentic benchmarks, models like GLM five point two are competing in the same tier as the leading proprietary models. So as you can see from</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">this Code Arena re-leaderboard, uh, GLM five point two is ranked even higher than Claude Opus four point eight, so it is right, uh, below the Claude, uh, Fable five. So similarly, across various coding terminal and tool use benchmarks, uh, GLM five point two and MiniMax-M3 shows strong results. So the question is no longer, uh, only whether open weight models are good enough. For many workloads, now they are. So the</span></div><div class="tline" data-t="119"><span class="ts">1:59</span><span class="tx">next question is, how fast and reliably we can run them in production. So benchmark numbers alone, uh, don't really give a clear sense of how well things actually works. So instead, I ran a, a simple hands-on experiment to see how these models actually perform. So I asked both GLM five point two and Opus four point eight, uh, four point eight to build a tower defense game like this. So as you can see, both models produce working</span></div><div class="tline" data-t="149"><span class="ts">2:29</span><span class="tx">implementation with similar structure and quality. So both one has a map, and the turrets are shooting the, the enemies within the range. So yeah, both looks pretty great considering I made it with a si-uh, single prompt. But when we look at the cost, the difference becomes very clear. So GLM five point two was more than five point six times cheaper for this task. And in agent sly-style workflows where, uh, you need to iterate multiple times,</span></div><div class="tline" data-t="179"><span class="ts">2:59</span><span class="tx">the, the, the gap compounds quickly. So this is not just about model quality anymore. It is about what you can afford to run at scale. So after the model quality and cost, the next que-next question is provider quality. And provider quality is really about performance. So even if the model weights are the same, latency, throughput, and reliability can vary significantly depending on where you run it. Uh, so this one has a OpenRouter snapshot,</span></div><div class="tline" data-t="209"><span class="ts">3:29</span><span class="tx">which shows that, uh, these differences are measurable. So if you're building an AI product, you should not only ask which model to use, but you should also ask which providers gives you the best performance, reliability, and pricing. So I will show you another example. So here I use the same model as GLM five point two and the same coding agent workflow. So the task is to build a simple Candy Crush style mobile game, which we call Model Crush. So</span></div><div class="tline" data-t="239"><span class="ts">3:59</span><span class="tx">when you see this, the left side is FriendliAI. It generates the, the, the game within two minutes. Another provider needs, uh, more than three minutes. So the model is the same, the agent ev-ev is the same, but the provider was different. So model developer tools and coding agent, this i- this expe- this is the experience that users actually feels. So from this simple example, we saw that even with the same model</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">and the same task, the experience can feel very different depending on the provider. The difference comes from the entire inference stack. So the model architecture, cache system, routing policy, scheduler, quantization strategy, GPU kernels, all those things come together to shape what the developer actually experiences. So this is the, uh, core of FriendliAI's value. So we are not just exposing a model API via, uh... So FriendliAI is built as a full stack</span></div><div class="tline" data-t="299"><span class="ts">4:59</span><span class="tx">inference, uh, engine for GenAI models. This matters, uh, because fast and reliable inference is not just one optimization. It is batching, scheduling, quantization, spec decoding, mo- and kernels, all, all, everything should work together. So let me briefly explain, uh, how we built that and how we make, uh, the inference performance, uh, to the cutting-edge level. So in the</span></div><div class="tline" data-t="329"><span class="ts">5:29</span><span class="tx">modern agent applications, inputs are often very long. It easily exceeds, uh, ten k tokens, while outputs are relatively short. And more importantly, a large portion of the inputs are repeated across requests. In many real workloads, like fifty percent to eighty to ninety percents of the tokens are identical across different requests. So from a system perspective, this means, uh, most of the compute cost is in the prefill stage, where</span></div><div class="tline" data-t="359"><span class="ts">5:59</span><span class="tx">the model processes the entire inputs and build a KV cache. So if we recompute this k- uh, shared prefix every time, we are wasting both latency and GPU cycles. So when a new request share, uh, a prefix with the previous one, we can reuse those tensor and skip the re- corres- corresponding prefix computation and directly reduce the TTFT, and, uh, we can avoid recomputing large chunk of the input. And but however, making this work at scale requires two key che-</span></div><div class="tline" data-t="389"><span class="ts">6:29</span><span class="tx">uh, mechanisms. So first one is cache-aware routing. So in the distributed system, KV cache is not centralized. It lives on individual replicas. So the router must send incoming request to the replica that already holds the relevant prefix in its cache. Otherwise, we ru- we lose the benefit of reuse. The second thing is cache hierarchy. So KV cache is extremely memory-intensive. For large models and long context, KV cache size can exceed</span></div><div class="tline" data-t="419"><span class="ts">6:59</span><span class="tx">model weight. So, and as you know, GPU VRAM is the fastest, but it's also very limited resources. So, uh, we treat cache as a hierarchy, like hot cache stays in GPU memory, warm cache is in, uh, CPU RAM, and co- colder cache can be offloaded to NVMe or, uh, the disk spaces. The system dynamically offloads less used blocks and prefetches them when, uh, when they need it. So by combining cache elra- cache-aware routing and</span></div><div class="tline" data-t="449"><span class="ts">7:29</span><span class="tx">hierarchical memory management, we significantly reduce the prefix cost, lower TTFT, and making, uh, long context agent workload much more efficient. So the next thing is interactive speed. So standard autoregressive decoding, it generates one tokens per forward pass that makes decode, uh, inherently a sequencer, and during the decode, the GPU is often underutilized. And speculative decoding changes the shape of this problem. So</span></div><div class="tline" data-t="479"><span class="ts">7:59</span><span class="tx">instead of generating one token and stopping, it proposes multiple candidates tokens ahead. Then the target model validates those, uh, candidates in a single pass, and if the tokens are accepted, they are free. So this improves time per output token, uh, without changing model's, uh, output quality. And there are different ways to draft candidates. So one way is model-based speculation. It uses a small</span></div><div class="tline" data-t="509"><span class="ts">8:29</span><span class="tx">draft model to predict the future tokens, and then, and the benefit of it is it can achieve higher accep- acceptance rate, but the cost is the, uh, extra compute. And another method is model-free speculation. It uses pattern from a prompt or prior output, so it has lower overhead, but it works best only when the output resembles the existing context. So the important part is the trade-off. So</span></div><div class="tline" data-t="539"><span class="ts">8:59</span><span class="tx">speculation can improve per request latency, but validation adds overhead to the batch, so the best strategy is not static. And at FriendliAI, we take a hybrid approach, so the runtime can dynamically select between model-based and model-free speculation, uh, based on the workload and request, uh, characteristic. So we also think about speculation as something we can improve over time. So with self-evolving speculation, uh, draft model</span></div><div class="tline" data-t="569"><span class="ts">9:29</span><span class="tx">can adapt based on the real serving traffic. So the speculator continuously improves its prediction of the workload, uh, actually running in the, in your, uh, production. So the next thing I want to mention is reliability. So speed alone is not enough. So production AI application, uh, reliability is part of speed. So if an API is fast in average, but frequently hits timeout, like five,</span></div><div class="tline" data-t="599"><span class="ts">9:59</span><span class="tx">5XX error, 429 rate limit or fail, or that kind of failure, the user experiences, uh, speed bre- breaks. So this becomes even more important for agentic workloads. As you know, agent may need multiple model calls to complete one task, and if just one call fails in the middle, the entire workflow can be invalidated. So that's why we do not optimize only for the latency or throughput. We optimize the full API</span></div><div class="tline" data-t="629"><span class="ts">10:29</span><span class="tx">experiences, uh, including the error rate, uptime, all those things together. And this OpenAI snapshot for, uh, GM- GLM 5.1 Pro, uh, shows that FriendliAI is not only the fast, but it's also high reliable with over ninety-nine point nine percent uptime. So what I want to say is many inference provider out here, of course, in this venue as well, they will tell you that they are fast, and some point of them,</span></div><div class="tline" data-t="659"><span class="ts">10:59</span><span class="tx">uh, they are, but on cer- on certain benchmark, under certain condition. But for your application, the only benchmark that really matters is your own workload. So your prompt, uh, your token lengths, your traffic patterns, and your latency expectation. So our recommendation is simple. So please bring your workload to us and test the pu- free experience with us in terms of, like, speed, reliability, cost, and quality. And of</span></div><div class="tline" data-t="689"><span class="ts">11:29</span><span class="tx">course, um, we build our inference service for exactly these production workloads, and we, and we believe that we can give you the best experience. So we have a booth in this venue, so bring your hardest problem to us, and let's solve it together. So to close, I want to share a testimonial from one of our customer. It's a Kilo Code. So Kilo Code is one of the largest coding agent platform, processing, like, several trillions of tokens every week.</span></div><div class="tline" data-t="719"><span class="ts">11:59</span><span class="tx">So they have tested many different inference providers over past years, and in their speed test for, uh, GLM models, they were especially impressed by FriendliAI. So compared with many other inference provider, FriendliAI was over, like, f- seven time faster and had a sig- significantly lower error rate. So I believe you can get the same kind of experience with FriendliAI. So if you're building your frontier open weight models, building with your fr- frontier open weight</span></div><div class="tline" data-t="749"><span class="ts">12:29</span><span class="tx">models, come try them on FriendliAI and bring your real workload, and let us show you what fast and reliable inference can do. So this is the end of my talk, and if you have any question, feel free to ask. Thank you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

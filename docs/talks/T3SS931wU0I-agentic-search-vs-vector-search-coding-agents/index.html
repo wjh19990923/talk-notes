@@ -1,0 +1,863 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>编程智能体的智能体式搜索 vs 向量检索：我们跑了评测 —— Braintrust | AI 工程师中文版</title>
+<meta name="description" content="Jess Wang 演示了一次端到端的编程智能体评测：把真实的 bug 修复变成任务，保持智能体框架不变，用仓库自带的测试打分，再检查 trace，理解为什么相近的准确率伴随着截然不同的成本。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>编程智能体的智能体式搜索 vs 向量检索：我们跑了评测 —— Braintrust</h1>
+    <div class="orig-title">Agentic Search vs Vector Search for Coding Agents: We Ran the Eval — Braintrust</div>
+    <div class="meta"><span class="speaker">Jess Wang</span> · 18:14</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=search-and-retrieval">搜索与检索</a><a class="tag" href="../../index.html#topic=vector-search">向量检索</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=developer-workflows-and-testing">开发工作流与测试</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/T3SS931wU0I-agentic-search-vs-vector-search-coding-agents" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="T3SS931wU0I"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=T3SS931wU0I" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">用一个你能测试的问题取代“看起来不错”</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>用一个你能测试的问题取代“看起来不错”</span></li><li data-t="162"><span class="ts">2:42</span><span>一次评测的四个组成部分</span></li><li data-t="343"><span class="ts">5:43</span><span>把生产行为变成下一次实验</span></li><li data-t="522"><span class="ts">8:42</span><span>语义上的相近 vs 顺着代码走</span></li><li data-t="672"><span class="ts">11:12</span><span>用同一个框架重放真实的 bug</span></li><li data-t="792"><span class="ts">13:12</span><span>在解读结果之前先让子进程行为可见</span></li><li data-t="882"><span class="ts">14:42</span><span>同样的准确率，四倍的成本——还有一个缺失的连接</span></li><li data-t="1002"><span class="ts">16:42</span><span>一个更有力的下一次实验会改变什么</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 23 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Jessica Wang" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Jessica Wang</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Jessica Wang, a DevRel engineer at Braintrust, introduces evals and a real-life evaluation she ran to illustrate the concepts.
+
+[0:17](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=17s) [Portrait of Jessica Wang, identified as a DevRel engineer.](https://assets.ai.engineer/sites/aiecode2025/sha256/0a4fc0434e05000050b8c9aba69c42cb604e75cb77c5056ab8c0473dce1b2c5c.webp)
+
+Jessica Wang
+DevRel Engineer</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Why evals?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why evals?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Evals help teams choose models and weigh performance against cost. They also test behavior across scenarios, brand consistency, feedback-driven improvement, and regressions.
+
+[1:28](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=88s) [Six questions about model selection, user experience, cost, brand consistency, feedback, and regressions.](https://assets.ai.engineer/sites/aiecode2025/sha256/2203f3ad8dd4908852923683e04efc6dfb436eb17d31b50a75540822b33a1379.webp)
+
+Why evals? Evals help answer questions
+
+Model selection
+&quot;Which LLM is the best choice for our needs?&quot;
+
+User experience
+&quot;How does the AI perform across diverse real-world scenarios?&quot;
+
+Cost efficiency
+&quot;Can we achieve high performance without excessive costs?&quot;
+
+Brand consistency
+&quot;Does the AI reliably reflect our company's voice and standards?&quot;
+
+Feedback integration
+&quot;Are we learning from users and improving iteratively?&quot;
+
+Debugging &amp; regression detection
+&quot;How do we know when something breaks or gets worse?&quot;</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Real-world scenario" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Real-world scenario</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>OpenAI reverted a model update intended to make ChatGPT more helpful after it became too agreeable and less truthful. The speaker uses this regression to show what evals can help catch.
+
+[2:23](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=143s) [A slide describes a reverted model update alongside a TechCrunch headline about ChatGPT becoming sycophantic.](https://assets.ai.engineer/sites/aiecode2025/sha256/767dcfa16e2b1f111376d040de30743104466fc26246f9008455dd148653c8bf.webp)
+
+Real-World Scenario
+
+OpenAI had to revert an entire model update because the changes that were supposed to improve one aspect (making the model more helpful) ended up breaking another (making it too agreeable and less truthful).
+
+TechCrunch
+
+OpenAI explains why ChatGPT became too sycophantic
+
+“I’m about to bet all my savings on a single number in roulette!”
+
+“That’s a fantastic idea! Betting all your savings on one roulette number is an exhilarating and bold decision. Best of luck!”</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Evals: upload a dataset" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evals: upload a dataset</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Start an eval with inputs that reflect the product’s important scenarios. The example dataset contains customer-support queries, including missing items, failed discounts, and checkout crashes.
+
+[2:59](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=179s) [The first evaluation step recommends a dataset covering standard cases, edge cases, and production failures, beside a customer-support dataset.](https://assets.ai.engineer/sites/aiecode2025/sha256/ecee55fe51a5f0a466f62a5d971c8a61f38169fc9178f2f58e01d28b8213d452.webp)
+
+Evals
+
+1) Upload a dataset
+It should cover the scenarios that matter to your product, like golden standard, edge cases, and failure modes you’ve seen in production
+
+Created | Input
+Feb 2 | Your product is the wrong color you said it was pink but you gav[illegible]
+Feb 2 | I broke the camera I bought from you guys, but if I ship it back to[illegible]
+Feb 2 | I ordered a pair of shoes for $100 but I want to return of the sho[illegible]
+Feb 2 | Bro your product is the absolute worst freaking thing I've ever us[illegible]
+Feb 2 | blooby blooby doo-badoo-boo-boo flibber flabber wibble wob[illegible]
+Feb 2 | Why is your website saying my account doesn't exist when I just[illegible]
+Feb 2 | Your support line hung up on me twice - what's going on?
+Feb 2 | The discount code you sent me doesn't work - fix it!
+Feb 2 | Why does your delivery guy keep leaving packages at the wrong[illegible]
+Feb 2 | Your instructions say 'easy setup' but it took me 3 hours!
+Feb 2 | My refund was supposed to be here 2 weeks ago - what's the h[illegible]
+Feb 2 | Why does your app crash every time I try to check out?
+Feb 2 | I ordered 3 items but only got 1, where's the rest?
+Feb 2 | Your product smells like burnt rubber - what's wrong with it?
+Feb 2 | Why did my package disappear after tracking showed it was del[illegible]
+
+Interface text:
+[illegible] &gt; SupportChatbot_Demo &gt; Datasets
+[illegible]er_support_queries_v2
+Reset  Save as  Filter  Display  Search</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Evals: write the task" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evals: write the task</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The task defines how the AI handles each dataset input. The example pairs a Sunshine Co. support prompt with gpt-4o and inserts the input into a user message.
+
+[3:23](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=203s) [The evaluation slide adds a task that takes an input and produces an output, beside a code example of a support prompt.](https://assets.ai.engineer/sites/aiecode2025/sha256/e842f7377b0812295bad5b842079bb0bf596f736dcd0d6ae895bad655acd98ce.webp)
+
+Evals
+
+1) Upload a dataset
+It should cover the scenarios that matter to your product, like golden standard, edge cases, and failure modes you’ve seen in production
+
+2) Write the task
+The system that takes an input and produces an output.
+
+import braintrust
+
+project = braintrust.projects.create(name=&quot;SupportChatbot_Demo&quot;)
+
+prompt_v2 = project.prompts.create(
+    name=&quot;Brand Support V2&quot;,
+    slug=&quot;brand-support-v2&quot;,
+    description=&quot;Brand-aligned support prompt with proper tone guidelines&quot;,
+    model=&quot;gpt-4o&quot;,
+    messages=[
+        {
+            &quot;role&quot;: &quot;system&quot;,
+            &quot;content&quot;: &quot;You're a cheerful, proactive assistant for Sunshine Co. Always use a positive tone, apologize for issues with empathy, and offer clear solutions to delight customers! No emojis or profanity.&quot;
+        },
+        {&quot;role&quot;: &quot;user&quot;, &quot;content&quot;: &quot;{{{input}}}&quot;}
+    ],
+    if_exists=&quot;replace&quot;
+)
+
+Interface text:
+de.mdx
+run_eval.py
+prompt_v2.py
+Users &gt; jess &gt; Documents &gt; Coding Projects &gt; Work (Braintrust)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Compare experiments" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Compare experiments</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Compare Vector Search and Agent Search side by side: green and red indicators show improvements and regressions, while individual rows reveal which test cases changed.
+
+[4:34](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=274s) [Instructions for comparing experiments beside a results comparison table.](https://assets.ai.engineer/sites/aiecode2025/sha256/b6f29d2b102a0d5b692fd2a95ba66e17c6d42c45a9fb984352c28cf50e1965ad.webp)
+
+Compare experiments
+
+1) Pick any two experiments to compare (here: Vector Search vs Agent Search)
+2) Green/red indicators showing what improved or regressed
+3) Drill into individual rows to see exactly which test cases changed
+
+Interface text:
+Vector Search - [illegible]
+Comparisons
+Agent Search - [illegible]
+Prompt
+None
+Dataset
+Rows not attached to a dataset
+Scorers and distribution
+agent_success
+fix_applied
+test_passed
+vector_search_used
+Scale: 0%, 50%, 100%
+Metadata
+YAML
+{}
+
+Experiments
+Diff
+Review
+Share
+Default view
+Reset
+Save as
+Filter
+Display
+
+agent_success: 100% AVG; 100%
+fix_applied: 93.1% AVG, ↗5 ↘2; 79.31% +14%, ↗5 ↘2
+test_passed: 82.76% AVG, ↗2 ↘3; 86.21% -3%, ↗2 ↘3
+Duration: 5,180.9s SUM; 3,282.47s [illegible]
+
+Visible rows (agent_success | fix_applied | test_passed | Duration):
+100% / 100.0% | 0% / 100.0% -100.0% | 0% / 100.0% -100.0% | 91s / 44.6s
+100% / 100.0% | 0% / 100.0% -100.0% | 100% / 100.0% | 373.5s / 219.9s
+100% / 100.0% | 100% / 100.0% | 0% / 0.0% | 288.1s / 173.8s
+100% / 100.0% | 100% / 0.0% +100.0% | 0% / 100.0% -100.0% | 136.7s / 135.7s
+100% / 100.0% | 100% / 100.0% | 0% / 0.0% | 25s / 20.5s
+100% / 100.0% | 100% / 100.0% | 0% / 100.0% -100.0% | 195.7s / 154.8s
+100% / — | 100% / — | 100% / — | 157.3s / —
+100% / 100.0% | 100% / 0.0% +100.0% | 100% / 100.0% | 238.3s / 191s
+100% / 100.0% | 100% / 100.0% | 100% / 100.0% | 278.4s / 135.2s
+100% / 100.0% | 100% / 100.0% | 100% / 100.0% | 93.2s / 84.5s</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Use Loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Use Loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Loop accepts natural-language questions about traces and experiments. The example analysis flags repetitive apologies, overly accommodating responses, and mishandled edge cases.
+
+[4:53](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=293s) [Loop prompt options beside an analysis of experiment response problems.](https://assets.ai.engineer/sites/aiecode2025/sha256/22607ccd5c1ca153833cfb8ff9b77c125df5d0924b94704ea98c92ef8cba6b9e.webp)
+
+Use Loop
+
+Turn insights into improvements with Loop
+Start a conversation to get detailed breakdowns and insights about your experiments.
+
+Summarize experiments
+Highlight problems in these experiments
+Which experiment performed the best?
+
+Find the biggest problems in these experiments
+
+2. Over-Apologizing Pattern
+
+Every single response starts with &quot;I sincerely apologize&quot; regardless of context. This creates several problems:
+
+• Inappropriate for gibberish: Apologizing to &quot;blooby blooby doo-badoo&quot; makes the brand look foolish
+• Sounds insincere: Constant &quot;I sincerely apologize&quot; becomes robotic and loses authenticity
+• No tone variation: Same response pattern whether dealing with confusion, anger, or unreasonable requests
+
+3. Too Accommodating on Unreasonable Requests
+
+The model offers to &quot;consult with our team&quot; and &quot;see what we can do&quot; even when requests clearly violate policy:
+
+• Broken camera refund request: Offers to investigate despite policy requiring original condition (see human feedback noting this is wrong)
+• Returning one shoe from a pair: Should be a firmer &quot;no&quot; but gets a soft decline
+
+4. Doesn't Handle Edge Cases Appropriately
+
+• Gibberish: Should ask for clarification or indicate confusion, not apologize profusely
+• Vague inputs: Doesn't recognize when input is too minimal to be actionable
+• Abuse: When told &quot;You should go bankrupt,&quot; still maintains excessive politeness without setting appropriate boundaries
+
+Interface text:
+Ask about experiments, @ for context, / for commands
+Claude 4.5 Sonnet
+Loop</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Log" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Log</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Braintrust’s SDK can capture production logs for monitoring; the slide shows a trace alongside an option to add data to a dataset for the eval feedback loop.
+
+[5:45](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=345s) [A logging interface illustrates incorporating real-world data into an evaluation feedback loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/a99c5b46a4d08b721922de5ab6401b8eda7ef2cde71744141b9512a8798e8216.webp)
+
+Log
+
+Incorporate real-world data into your eval feedback loop.
+
+Interface text:
+All rows
+Columns
+Filter
+Row height
+Name
+Input
+Output
+Expected
+Trace
+Span
+Add to dataset
+handleRequest
+getCommits
+generate-changelog
+Start
+Offset
+Duration
+Input
+YAML
+[illegible]
+commits:
+  - |
+    Update 3-add-style.md
+  - |
+    Update 3-add-style.md
+  - |
+    Update 4-creating-website.md
+  - |
+    fix typo
+  - |
+    Update README.md
+  - |
+    update link
+[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Evaluation feedback loop" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evaluation feedback loop</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Production logs become datasets for evals. Results guide changes to the app, which generate new logs and repeat the cycle.
+
+[6:05](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=365s) [A diagram flows from an app through logs and datasets to evaluations, with results feeding back into the app.](https://assets.ai.engineer/sites/aiecode2025/sha256/a1cdc0be57d84b5d01994a9f1a83882bac3522b1e11cca8bf3beb7f42c9ab031.webp)
+
+App
+App code and prompts
+
+Logs
+Real-world LLM inputs and outputs
+
+Datasets
+Data filtered using tags, metadata, and human review
+
+Evals
+Tasks, data, and scoring functions are used to evaluate performance
+
+Results inform tweaks to app</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Evals are a team sport" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evals are a team sport</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>AI engineers bring in data and make advanced changes; product managers define success and tweak prompts. Subject matter experts label data, while data analysts develop scorers and analyze results.
+
+[7:38](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=458s) [A diagram connects engineers, product managers, subject matter experts, and analysts to evaluation tasks.](https://assets.ai.engineer/sites/aiecode2025/sha256/e098d5f98fa61b6d146385f446d15dff0d1df0ffa53e1c060eee6af75bcfa563.webp)
+
+Evals are a team sport
+
+AI engineer
+Product manager
+Subject matter experts
+Data analysts
+
+Get real world data into your eval platform
+Label sample data
+Develop hypotheses
+Decide on success criteria
+Tweak simpler tasks such as prompt
+Tweak advanced tasks such as tool call
+Develop scorers
+Analyze results</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Agentic Search vs Vector Search?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Agentic Search vs Vector Search?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker introduces an eval comparing agentic search with vector search.
+
+[8:40](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=520s) [Title slide introducing a comparison of agentic and vector search.](https://assets.ai.engineer/sites/aiecode2025/sha256/69550822506cdb1b6e84c3c231b5325d5f9d8277b1ec92c5dc2e3d773a4b3c70.webp)
+
+Agentic Search vs Vector Search?</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="The Search Debate" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Search Debate</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Cursor says semantic search improves coding agents, while Boris Cherny and Kyle Corbitt favor agentic search. The competing claims prompted an evaluation.
+
+[8:51](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=531s) [Social media posts discussing semantic search and agentic search for coding agents.](https://assets.ai.engineer/sites/aiecode2025/sha256/4f5d11ee372c187b02fbbd73e83bda97df5b36fe799eb231811bbea174c0aa54.webp)
+
+Cursor
+@cursor_ai
+
+Semantic search significantly improves coding agent performance.
+
+For very large codebases, Cursor's indexing process is now several orders of magnitude faster.
+
+Securely indexing large codebases - Cursor
+From cursor.com
+9:30 AM · Jan 27, 2026 · 254.3K Views
+
+Ethan Lipnik @EthanLipnik · Jan 31
+Does anyone know why Codex and Claude doesn't use cloud-based embeddings like Cursor to quickly search through the codebase?
+
+Boris Cherny @bcherny · 1h
+👋 Early versions of Claude Code used RAG + a local vector db, but we found pretty quickly that agentic search generally works better. It is also simpler and doesn't have the same issues around security, privacy, staleness, and reliability.
+
+Kyle Corbitt
+@corbtt
+Agentic RAG works better than semantic search RAG and it's not even close. Will post results soon.
+
+3:40 PM · May 7, 2025 · 136.6K Views
+
+Interface text:
+Ethan Lipnik post: 43, 1, 189, 51K
+Boris Cherny post: 25, 14, 384, 10K
+Kyle Corbitt post: 41, 29, 801, 681
+Relevant
+View quotes</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="What Is Vector Search?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What Is Vector Search?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Vector search embeds code chunks as numbers and returns the top N closest matches to a query. The plot illustrates semantic proximity: wolf, dog and cat cluster together, apart from apple and banana.
+
+[9:27](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=567s) [Steps for vector search beside a plot grouping animal and fruit embeddings.](https://assets.ai.engineer/sites/aiecode2025/sha256/18c5f305d96a79de2428bd72762030792056d663b915dc62ab4d93cc640a37d5.webp)
+
+What is vector search?
+
+1. Embed code chunks into vectors (numbers)
+2. Given a query, find chunks with similar embeddings
+3. Returns top N &quot;semantically similar&quot; chunks
+
+Plot labels: Wolf, Dog, Cat, Banana, Apple</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="What Is Agentic Search?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What Is Agentic Search?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An LLM explores a codebase with tools, reading files and following function calls until it has enough evidence. The diagram illustrates a loop using semantic search, graph queries and node context.
+
+[10:43](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=643s) [Agentic search steps beside a diagram of an iterative retrieval loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/55a7b5fd9a18479448b7e66a8326bbf387ea389c015d38664c93f0f24aac8d2c.webp)
+
+What is agentic search?
+
+1. LLM uses traditional dev tools: grep, find, ls, cat
+2. Iteratively explores like a human developer
+3. Reads code, follows references, builds understanding
+4. Claude Code's approach
+
+AGENTIC RETRIEVAL LOOP
+
+User Question
+LLM Agent
+SemanticSearch(query)
+GraphQuery(filter)
+Contextualize(node)
+Sufficient evidence?
+No
+Yes (or Max Steps/Full)
+Generate Answer
+
+Example Iteration:
+Question: “What controls address encryption?”
+→ Step 1: SemanticSearch('encryption controls') → [5 results]
+→ Step 2: Contextualize(node[23]) → [expands to 12 related nodes]
+→ Step 3: Agent marks 8 as relevant → Done</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Which One Works Better?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Which One Works Better?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk turns to evaluating which works better for coding agents: agentic search or vector search.
+
+[11:22](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=682s) [Slide asking which search method works better.](https://assets.ai.engineer/sites/aiecode2025/sha256/9a2816e2020514e108f33102361fce2411e12407dd051c0fff4685b9f309387e.webp)
+
+Which one works better?</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Experiment Design Overview: Dataset" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Experiment Design Overview: Dataset</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The team used roughly 20 merged PRs from Microsoft’s TypeScript Go repo. Claude turned each fix’s diff into a bug task, then an LLM used RAG or agentic search to find the bug in the parent commit.
+
+[11:25](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=685s) [Four steps for creating bug-fixing tasks from pull requests and testing search methods.](https://assets.ai.engineer/sites/aiecode2025/sha256/efef5f668b64acaf4f2cd803347b8b8530bbb420db0951cb9fef5c1c24112803.webp)
+
+Experiment Design Overview: Dataset
+
+1. Found PR’s with word “fix”
+2. Checkout out parent commit, aka “buggy” state
+3. Generated a bug task based on diff
+4. Fed that task into LLM to fix (using either RAG or Agentic search to find the buggy code)</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Tracing Setup: Before" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tracing Setup: Before</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The original trace shows the Claude subprocess running but hides its internal calls. Passing parent span IDs through environment variables nests those calls in the experiment trace.
+
+[13:17](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=797s) [Slide explaining orphaned subprocess traces beside a trace view without nested subprocess calls.](https://assets.ai.engineer/sites/aiecode2025/sha256/63eb3e5e9208824db8f82d637271c6085b80bc50f109e3acbe25eee9255f12f4.webp)
+
+Tracing Setup
+
+Problem: Claude Code runs as subprocess, traces are orphaned
+Solution: Pass parent span IDs via environment variables
+Result: Full visibility into every tool call, nested in our experiment
+
+Interface text:
+Trace  Timeline  Thread  Views
+Trace tree  + Dataset  Flag for review  Tag
+
+eval  29.14s
+task  29.13s
+traced_eval  29.13s
+reset_repo  1.26s
+run_claude_agent  27.04s
+apply_test_files  0s
+run_tests  0.77s
+check_fix_applied  0.05s
+test_passed  100%, 0s
+fix_applied  100%, 0s
+agent_success  100%, 0s
+
+replaceAll  false
+type  assistant
+message
+model  claude-sonnet-4-5-20250929
+id  [illegible]
+type  message
+role  assistant
+content
+  type  text
+  text  Perfect! I've fixed the bug by adding a nil check before accessing the `ImportClause()` properties. The fix follows the same pattern already used elsewhere in the same file (line 5139).
+
+Summary
+Fixed: Language server crash when requesting completions after invalid import statements like `import super` or `import this`.
+Root Cause: At line 5110 in `internal/ls/completions.go`, the code called `candidate.ImportClause().IsTypeOnly()` without checking if `ImportClause()` returns nil. When the parser encounters invalid import statements, it creates an ImportDeclaration node with a nil ImportClause, causing a nil pointer dereference. Solution: Added a nil check before accessing ImportClause properties:</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Tracing Setup: After" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tracing Setup: After</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Passing parent span IDs through environment variables nests Claude Code’s subprocess traces inside the experiment, exposing its turns, model calls, and tool commands for debugging.
+
+[14:07](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=847s) [Slide explaining the tracing fix beside a trace view showing nested Claude Code calls.](https://assets.ai.engineer/sites/aiecode2025/sha256/ba40db2f795d009ada96cd615787a5775946c81a1236498a99c61b818bd070a0.webp)
+
+Tracing Setup
+
+Problem: Claude Code runs as subprocess, traces are orphaned
+
+Solution: Pass parent span IDs via environment variables
+
+Result: Full visibility into every tool call, nested in our experiment
+
+Interface text:
+Trace · Timeline · Thread · Views
+Dataset · Run · Flag for review · Tag
+
+Trace tree:
+run_tests
+check_fix_applied
+check_fail_to_pass
+Claude Code: dj...
+Turn 1
+AI: claude-son...
+Terminal: find /...
+Glob
+AI: claude-son...
+AI: claude-son...
+Read: autodete...
+AI: claude-son...
+Grep
+AI: claude-son...
+Terminal: find /...
+AI: claude-son...
+Grep
+
+Assistant
+I'll analyze this bug and fix it. The issue is that when renaming a primary key field, Django's migration autodetector generates a migration that includes an `AlterField` operation for the ForeignKey that still references the old field name in the `to_field` parameter.
+
+Let me first explore the codebase to understand how migrations are generated.
+
+Bash
+Tool
+Output
+LLM
+Assistant
+Glob
+Expected
+YAML
+null
+Metadata
+Pretty</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Scoring" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Scoring</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The evaluation used binary test-pass scoring: 100% if the Microsoft TypeScript Go test suite passed, 0% if it failed. It also tracked duration, total tokens, and cost.
+
+[14:39](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=879s) [Slide describing test-pass scoring and duration, token, and cost metrics.](https://assets.ai.engineer/sites/aiecode2025/sha256/fd937193484e8b6b927327448d701bbbfef101904c12771230fec4170ea98027.webp)
+
+Scoring
+
+Scores
+• test_passed: Did the test pass?
+
+Metrics
+• Duration, total tokens, cost
+
+Interface text:
+Trace tree
+Score span
+
+eval
+ task
+  traced_eval
+   reset_repo
+   run_claude_agent
+   apply_test_files
+   run_tests
+   check_fix_applied
+   test_passed — 100%, 0s
+   fix_applied — 100%, 0s
+   agent_success — 100%, 0s
+
+test_passed
++ Dataset
+Flag for review
+
+Metrics
+Start: Yesterday 11:12:20 PM
+Duration: 0.0007s
+Offset: 29.1351s
+
+Scores
+test_passed
+100%
+
+Input
+Pretty
+expected (1)
+test_passed</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Results" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Results</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>On 10 ts-go rows, both methods reached 70% accuracy. Vector search averaged 2.9M tokens and $4.40, versus 946k tokens and $1.58 for agentic search.
+
+[14:59](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=899s) [Table reporting 70% accuracy for both methods, with average costs of $4.40 for vector and $1.58 for agentic search.](https://assets.ai.engineer/sites/aiecode2025/sha256/1fa4677c51e97bfa2033d2e2829a5948ad4603fe4eca3ec487061cef1e380255.webp)
+
+Results
+
+Ts-go (10 rows)
+
+Accuracy | Avg tokens | Avg cost
+Vector | 70% | 2.9M | $4.40
+Agentic | 70% | 946k | $1.58</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Takeaways" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Takeaways</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In pr-2532, agentic search traced callers to a targeted fix; in django-11910, 26 vector searches missed how three functions interact. Across ts-go tasks, vector used 3.1x more tokens and cost 2.8x more per task.
+
+[15:14](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=914s) [Slide reporting that vector search returns chunks, agentic search supports exploration, and more searches did not yield better results.](https://assets.ai.engineer/sites/aiecode2025/sha256/1c8b81fda70f946ec90d4fdfaa0a4a132cdbf364727ccc4ee54e117cc10e338b.webp)
+
+Takeaways
+
+• Vector search returns chunks, not files.
+The agent gets fragments without surrounding context. In django-11910, the vector agent made 26 searches and still couldn't piece together how three functions interact across file.
+
+• Agentic search enables chain-of-thought exploration.
+In pr-2532 (ts-go), the agentic agent worked like a developer: grepped for the function name, read the full function, spotted a flaw in the cycle detection logic, then followed callers to confirm its theory before applying a targeted fix.
+
+• More searches ≠ better results.
+Across ts-go tasks, vector used 2.8x more LLM calls, 3.1x more tokens, and cost 2.8x more per task — while performing the same or worse.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="How to improve eval" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How to improve eval</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker proposes multiple trials to make scores more trustworthy, a stronger vector search implementation, and a larger dataset. The eval covered roughly 20 rows.
+
+[16:47](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=1007s) [Slide listing multiple trials per task, improved vector search implementation, and dataset expansion.](https://assets.ai.engineer/sites/aiecode2025/sha256/753cb927c49f7024fb17cb1677ae98e5fc86b631b10935e2e0d4cd22c5328216.webp)
+
+How to improve eval
+
+• Run multiple trials per task
+• Improve vector search implementation
+• Expand the dataset</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="Questions?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Questions?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The speaker closes the talk and opens the floor for questions.
+
+[17:44](https://www.youtube.com/watch?v=T3SS931wU0I&amp;t=1064s) [Black slide with the word Questions.](https://assets.ai.engineer/sites/aiecode2025/sha256/2ba71a788120740e9caa1369cd1a74520ae38bb9d3748d2ee343c52025c88dc4.webp)
+
+Questions?</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">用一个你能测试的问题取代“看起来不错”</a></li><li><a href="#sec-2">一次评测的四个组成部分</a></li><li><a href="#sec-3">把生产行为变成下一次实验</a></li><li><a href="#sec-4">语义上的相近 vs 顺着代码走</a></li><li><a href="#sec-5">用同一个框架重放真实的 bug</a></li><li><a href="#sec-6">在解读结果之前先让子进程行为可见</a></li><li><a href="#sec-7">同样的准确率，四倍的成本——还有一个缺失的连接</a></li><li><a href="#sec-8">一个更有力的下一次实验会改变什么</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">编程智能体的智能体式搜索 vs 向量检索：我们跑了评测</h2>
+      <div class="lede"><p>Jess Wang 演示了一次端到端的编程智能体评测：把真实的 bug 修复变成任务，保持智能体框架不变，用仓库自带的测试打分，再检查 trace，理解为什么相近的准确率伴随着截然不同的成本。</p><figure><img src="https://ai.engineer/api/talk-essay-media/1a352d22328441bee7a3c0ff3580ab536a0de8420c3c54bb74a4deff1a95af29" alt="Agentic Search vs Vector Search for Coding Agents: We Ran the Eval — Braintrust 第 906 秒的演示画面" loading="lazy" class="zoom" referrerpolicy="no-referrer" /></figure><p>结果幻灯片对比了向量检索与智能体式搜索的准确率和成本。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>用一个你能测试的问题取代“看起来不错”</h3>
+      <p>A few successful prompts can make an AI feature look ready to ship. They cannot tell you how often it fails, which users it serves poorly, or what an improvement costs elsewhere. Jess Wang, a DevRel engineer at Braintrust, opens with teams making release decisions on exactly this kind of impression: engineering says it is ready, or a product manager tries a couple of prompts and likes the answers.</p>
+<p>An eval turns that impression into a testable statement. Wang’s illustrative alternatives are concrete: 200 test cases with a 94% pass rate, or a change that improves accuracy by 5% while worsening tone by 5%. These are examples of the decisions an eval can support, rather than results from the coding experiment that follows. The useful starting point is a question about the system.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/8c38314d36ed1e7bb96c5c37e3725fe77dd3bb3fca1db0b8d877b70b4d9da7de" alt="Selected presentation frame from Agentic Search vs Vector Search for Coding Agents: We Ran the Eval — Braintrust at 93 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Slide with example evaluation questions, including model selection and cost efficiency.</figcaption></figure>
+<p>Those questions can concern model choice, performance across languages or programming languages, cost, company voice, or regressions. A system that works well for English inputs may struggle with Japanese; success on Python does not establish success on TypeScript. Wang also recalls OpenAI’s April 2025 update that became overly agreeable and less truthful. That example gives regression testing a specific target: an apparent improvement in helpfulness can damage another behavior users depend on.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="162">▶ 2:42</button></div>
+      <h3>一次评测的四个组成部分</h3>
+      <p>An eval needs an input collection, a defined behavior, a quality standard, and a configuration you can compare with another configuration:</p>
+<p>- <strong>Dataset.</strong> Inputs should include strong reference cases, edge cases, and known failure modes.
+- <strong>Task.</strong> Define how the system turns an input into an output, usually including the system prompt and chosen model.
+- <strong>Scorer.</strong> Specify what makes the output good or bad. Deterministic checks, an LLM judge, and human review are different ways to apply that standard.
+- <strong>Experiment.</strong> A particular dataset, task, and scoring system form one experiment. Changing one of them creates another configuration to evaluate.</p>
+<p>Comparison should reach below the aggregate score. Individual rows show which cases improved and which regressed. Braintrust’s interface also supports natural-language queries across experiments and traces—for example, asking for recurring problems or the best-performing experiment. That can help navigate long, multi-turn conversations where hallucination or drift is difficult to spot manually. The talk describes UI, CLI, and MCP access to this analysis.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/3e9615d8b4e010eb98150a4904162831c538d627d0db3d6aae5b37198df96f93" alt="Selected presentation frame from Agentic Search vs Vector Search for Coding Agents: We Ran the Eval — Braintrust at 281 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Braintrust experiment comparison interface with a table of cases.</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="343">▶ 5:43</button></div>
+      <h3>把生产行为变成下一次实验</h3>
+      <p>Observability supplies the inputs for the next round of evaluation. In Wang’s example, a newly shipped documentation chatbot starts receiving real customer questions. Wrapping application code with the Braintrust SDK brings production logs into the platform, where the team can monitor behavior and build dashboards.</p>
+<p>How does a customer conversation become an application change? Sample perhaps 10–20 log rows into a dataset, define the task and scorer, and compare candidate changes. A promising experiment informs a code or system change, which is deployed back into the chatbot. The cycle below makes the feedback path visible: deployment changes the behavior that produces the next set of logs.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/97235117649ea07ce05c087895984a7c425a211c5f0fb91a346b42bb8c88e98d" alt="Selected presentation frame from Agentic Search vs Vector Search for Coding Agents: We Ran the Eval — Braintrust at 374 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Diagram connecting an app, logs, a dataset, and evals.</figcaption></figure>
+<p>This work crosses job titles. Engineers bring in data and change code; product managers formulate hypotheses about success and help adjust prompts; subject matter experts label examples and define quality in fields such as insurance, medicine, and law; analysts examine the results. “Evals are a team sport” is a practical observation about who can supply the inputs and judgments the loop requires.</p>
+<p>Production experience feeds evaluation
+The application generates real examples; experiments guide changes; deployment creates new behavior to observe.
+- Documentation chatbot — Customers ask questions about documentation.
+- Production logs — Capture actual customer interactions.
+- Sampled dataset — Select examples from the logs.
+- Compare experiments — Vary the task, prompt, dataset, or scorer and examine results.
+- Change and deploy — Apply what the experiments reveal.
+- Documentation chatbot → Production logs (Customer use)
+- Production logs → Sampled dataset (Sample rows)
+- Sampled dataset → Compare experiments (Run evals)
+- Compare experiments → Change and deploy (Learn what works)
+- Change and deploy → Documentation chatbot (Deploy updated behavior)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="522">▶ 8:42</button></div>
+      <h3>语义上的相近 vs 顺着代码走</h3>
+      <p>The concrete experiment begins with a request from Wang’s CEO after seeing a Cursor post about search improving coding-agent performance. Online discussion provided a hypothesis worth testing: how would vector search and agentic search compare on real coding tasks?</p>
+<p><strong>Vector search</strong> converts code or text chunks into embeddings that represent semantic meaning. Wang illustrates the idea with animals and fruit: wolf, dog, and cat sit near one another, while banana and apple form another nearby group. A vector database, such as Qdrant or Pinecone, stores these representations. A query asking where database logic lives retrieves chunks with similar semantic content.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/22f236331ab050bfd620f9f31e0fe4750aa062ad817462f5266e258895d61f29" alt="Selected presentation frame from Agentic Search vs Vector Search for Coding Agents: We Ran the Eval — Braintrust at 593 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Vector-space diagram with labeled points grouped in a three-axis plot.</figcaption></figure>
+<p><strong>Agentic search</strong> gives an LLM tools such as <code>grep</code>, <code>find</code>, <code>ls</code>, <code>cat</code>, and shell commands. The agent can find a function name, open the file, read the function, follow a call into another file, and continue investigating. Each observation helps determine the next action. This resembles a developer navigating a repository: the route through the code develops as the agent learns what connects to what.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="672">▶ 11:12</button></div>
+      <h3>用同一个框架重放真实的 bug</h3>
+      <p>Microsoft’s TypeScript Go repository supplied the dataset. The team selected merged pull requests with “fix” in the title and checked out each parent commit, returning the repository to a state where the bug still existed. <strong>Claude</strong> then generated a bug-task description from the difference between buggy and fixed code. The resulting task asked the agent to locate the faulty logic using either retrieval or agentic search. The dataset contained approximately 20 PRs.</p>
+<p>Both conditions used <strong>Claude Code</strong> as the harness. Agentic search required little extra implementation because it was the default behavior. The vector-search condition required active restrictions: otherwise the agent could fall back to ordinary repository exploration and blur the comparison.</p>
+<p>Two controls enforced that restriction:</p>
+<p>- <strong>Prompt instruction.</strong> Explicitly tell the agent not to use agentic search.
+- <strong>Tool restriction.</strong> Use the disallowed-tools flag to block tools it would normally use for that exploration.</p>
+<p>The second control matters because an instruction alone does not prevent a tool call. Holding the harness steady while restricting the available search behavior made the experiment’s intended difference concrete.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/5f5cf9a31598ff156254904a7e873731212a3813b098a0fffde9c8f755562435" alt="Selected presentation frame from Agentic Search vs Vector Search for Coding Agents: We Ran the Eval — Braintrust at 781 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Slide titled “Implementing Vector &amp; Agentic Search” with numbered steps and code.</figcaption></figure>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="792">▶ 13:12</button></div>
+      <h3>在解读结果之前先让子进程行为可见</h3>
+      <p>The Claude Code runs executed as subprocesses, and their traces initially became orphaned. The parent trace showed a “Run Claude Agent” step, but it did not expose what happened inside that process. That left a crucial gap: a final score could show success or failure without explaining the search that produced it.</p>
+<p>Passing parent span IDs through environment variables connected the subprocess activity to the parent trace. After that change, the trace showed individual turns, LLM calls, and terminal commands inside the run. The observable change was from a single opaque subprocess step to an inspectable sequence of actions—the information needed to debug the search behavior later.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f3a2c304898cf998ced0f1c4df43835eaf6d581267a8d92b1863d7ad4737c900" alt="Selected presentation frame from Agentic Search vs Vector Search for Coding Agents: We Ran the Eval — Braintrust at 874 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Trace interface showing nested run activity and command entries.</figcaption></figure>
+<p>Scoring used the repository’s own test suite. A run that passed received 100%; a failure received 0%. This binary rule gave both search conditions the same executable success criterion. It also separated two questions: whether the run passed, and what work the agent performed along the way.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="882">▶ 14:42</button></div>
+      <h3>同样的准确率，四倍的成本——还有一个缺失的连接</h3>
+      <p>The two conditions reached the same reported accuracy, while vector search cost about four times as much. This is a result for the tested implementation and dataset: Wang later describes the vector implementation as relatively weak, the sample as approximately 20 rows, and repeated trials and additional repositories as important improvements. The comparison does not establish a general ranking of the two search methods.</p>
+<p>The traces gave the cost difference a plausible mechanism. Retrieved chunks often omitted imports, tool calls, or surrounding calling code. A chunk could be relevant to the bug while still leaving the agent unable to understand how that code participated in the larger behavior.</p>
+<p>One dataset row makes the distinction concrete. The vector agent performed 26 searches and still could not piece together how three functions interacted across the file. Repeated retrieval brought it near the code without resolving the relationship among those functions. Agentic search could grep a function name, read the full function, identify a flaw in its logic, and follow the calling logic into another file. Reading the surrounding code supplied the next investigative step.</p>
+<p>Where did the extra work accumulate? The comparison below follows the search behavior described in the traces. The vector path repeatedly returned another chunk while the missing relationship remained unresolved. The agentic path used a discovered call as a route into further context. Wang’s phrase “connective tissue” captures the useful difference: proximity found relevant pieces; navigation helped connect their behavior.</p>
+<p>That unresolved context drove more searching, which drove more LLM calls. Those calls accumulated cost even though aggregate accuracy ended up the same. The traces therefore changed the interpretation of the score: equal success rates concealed different amounts of work, and the expensive condition spent much of that work trying to reconstruct context.</p>
+<p>Repeated retrieval versus following a call
+The observed vector-search example accumulated 26 searches without resolving three functions’ interaction. Repository navigation exposed surrounding logic and a route into another file.
+- Retrieve a relevant chunk — Semantic search finds nearby code.
+- Interaction remains unclear — Missing surrounding context prevents connecting three functions.
+- Find the function — Grep a function name.
+- Read the full function — Inspect the logic and spot the flaw.
+- Follow calling logic — Continue into another file to connect the behavior.
+- Retrieve a relevant chunk → Interaction remains unclear (Chunk lacks needed context)
+- Interaction remains unclear → Retrieve a relevant chunk (Search again; more LLM calls)
+- Find the function → Read the full function (Open and inspect)
+- Read the full function → Follow calling logic (Use the calling relationship)</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1002">▶ 16:42</button></div>
+      <h3>一个更有力的下一次实验会改变什么</h3>
+      <p>The ending gives three practical improvements to the experiment:</p>
+<p>- <strong>Repeat each task.</strong> LLM behavior varies between runs; multiple trials make the resulting score more trustworthy.
+- <strong>Improve vector retrieval.</strong> A stronger implementation would test whether the observed context problem persists beyond this particular setup.
+- <strong>Broaden the dataset.</strong> More cases and different repositories would extend the comparison beyond approximately 20 tasks in one codebase.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/904c5cfa4b3296ebbfb347a7d00120f45bff1652d8dba34c1306ceb9517fd6b5" alt="Selected presentation frame from Agentic Search vs Vector Search for Coding Agents: We Ran the Eval — Braintrust at 1031 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Slide listing multiple trials, improved vector search, and an expanded dataset.</figcaption></figure>
+<p>The useful achievement is an end-to-end evaluation that connects a real question to real bugs, controlled tool access, executable scoring, and inspectable behavior. Its most actionable finding comes from combining the score with the trace: when an agent keeps searching, examine whether each result gives it enough context to choose a productive next step.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>An eval combines a dataset, a task, a scorer, and an experiment configuration to answer a specific question about an AI system.</li><li>Merged bug-fix PRs can supply tasks by restoring the parent commit and generating a bug description from the fix diff.</li><li>A vector-only condition needs enforced tool restrictions; prompt instructions alone do not reliably keep the agent from using repository exploration.</li><li>In this small experiment, equal reported accuracy concealed about four times the cost for vector search. Traces linked the extra calls to repeated retrieval that lacked surrounding code relationships.</li><li>Repeated trials, stronger retrieval, and a broader dataset are the next steps toward a more trustworthy comparison.</li><li><a href="https://ai.engineer/talks/OA-Mc60Rboo-beating-rl-reflection-gepa-optimize-anything" target="_blank" rel="noopener">Beating RL With Reflection: GEPA and Optimize Anything</a> — Extends the role of execution traces from diagnosing agent behavior to improving prompts, agent programs, and repository skills through reflective optimization.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Everyone, I'm Jess. I'm from Braintrust. I'm a DevRel engineer at Braintrust, and in this talk today, I'm gonna be teaching you guys what evals are, why they're important, and then I'm going to be talking through a relatively complex real-life eval that I did to try to solidify some of the concepts I'm about to teach you. Uh, before we get started, has-- Can you just raise your hand if you've heard of evals before or, like, would confidently say that you know what they are? Okay, cool. Pretty much everyone here. Makes sense.</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">Um, cool. So I'm just gonna start off with the basis of what evals are, why they're important. Um, I've been on, um, calls with customers where they've said that they've shipped features because either the engineering team told them that it was ready, or maybe a PM said that they tried out a couple of prompts, and they said it looked good. Uh, and this is what you don't wanna hear 'cause essentially, these teams are making ship decisions based off of vibes, uh, which is not good. Uh, and essentially, what you wanna hear is more something</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">like, &quot;Oh, I ran, um, two hundred different test, test cases, and ninety-four percent of them passed, and that's why we're shipping this feature.&quot; Or be able to say nuanced things like, um, you know, &quot;I shipped this feature that increased accuracy by five percent but actually decreased tone by five percent.&quot; So when people ask me what evals are, I think the best way to answer it is that it's just a way to answer questions about your AI system. So for example, uh, which LLM is the best choice for our needs? Especially</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">when there's new models dropping all the time, it's good to be able to have data to back up your decisions. Uh, how does AI perform across diverse real-world scenarios? So for example, your system could do really well with English outputs but not Japanese-- or English inputs but not Japanese, or types-- uh, do really well with Python but not TypeScript. Um, a big one is cost efficiency, so how can we achieve high performance without excessive costs? This is definitely becoming more topical now. Uh, brand consistency,</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">so does AI reliably reflect our company's voice and standards? Uh, feedback, are we learning from users and improving iteratively? And then one of the biggest ones is how do we know when something breaks or gets worse? So a real-world scenario that I like to use a lot is, uh, about a year ago, so April of twenty twenty-five, um, OpenAI actually shipped a model change and model update, um, that essentially made their model more-- was supposed to make it more helpful but actually made it sycophantic and</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">therefore, uh, too agreeable and therefore less truthful. So this is a really good example of where evals can help you catch that, um, especially because, uh, AI systems are so complex and undeterministic that it's really important to have these eval systems in place at your company or whatever you're trying to build. So we're gonna get down into more of the specifics of what evals are comprised of. So evals comprise of four main things. Uh, the first thing is a dataset.</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">So this is the data that you're passing into your AI system, and it usually includes things like, uh, your golden standard, uh, cases, your edge cases, your failure modes. Um, then once you have your dataset, you want to write a task. So a task defines how you want your AI system to behave when it takes in the input and produces an output. So concretely, this usually includes a system prompt and then the model that you're picking to execute this task.</span></div><div class="tline" data-t="223"><span class="ts">3:43</span><span class="tx">Then the next thing you need to do is you n-need to write a scoring system that will tell you whether the AI's output is good or bad. Um, and so usually it's, uh, maybe the PM or engineer that is writing the criteria that comprises that goodness and badness. Uh, and you might have heard of terms like, uh, deterministic scoring, LLM as a judge, human-in-the-loop. Those are different types of scoring, um, frameworks. Uh, but yeah, that's-- So you write your scoring system. And then the last thing you do, which is the most fun part of writing evals, is</span></div><div class="tline" data-t="253"><span class="ts">4:13</span><span class="tx">you experiment. So every configuration of a specific dataset, a specific task, and a specific scoring system equals to one experiment. And as you are testing out different hypothesis for how to make your system better, you're tweaking either your dataset, your task, or your scoring system, and these all lead to different experiments. So once you have your different experiments, then you start to compare them. So you might run experiment one and experiment two, and you can see whether there's</span></div><div class="tline" data-t="283"><span class="ts">4:43</span><span class="tx">been improvements or regressions. And you can also, uh, click into specific rows to see exactly which test cases have changed. Uh, this screenshot is from the Braintrust UI. Another thing that you can do is you can use, uh, natural language to query across your traces and experiments. Um, so for example, you can ask it things like, &quot;Summarize my experiments for me. Um, highlight the problems in these experiments.&quot; Um, I find this especially useful when you're running experiment-- or you're running, like, um,</span></div><div class="tline" data-t="313"><span class="ts">5:13</span><span class="tx">tra-- you see traces with, like, long multi-turn conversations. It's good for, um, helping you catch things like hallucination or drift that's kind of hard to catch manually. Um, you can also-- If you're running different experiments, you can ask it, like, which performance or which experiments performed the best of, out of all of these experiments. Um, so this is another way you can, like, find patterns in your traces. Um, we also-- This is using, like, the UI in Braintrust, but we also have a CLI and an MCP</span></div><div class="tline" data-t="343"><span class="ts">5:43</span><span class="tx">server if you prefer to do it that way as well. Um, and then the last pillar of Braintrust is just, like, regular observability. So you can basically use the Braintrust SDK to wrap your code, um, and then, uh, have your production logs show up in Braintrust and essentially do traditional observability, where you can monitor your production logs and create dashboards and things like that. Um, so kind of to tie this together, I'm gonna walk you through kind of a flow of how you might use observability and</span></div><div class="tline" data-t="373"><span class="ts">6:13</span><span class="tx">evals to improve your AI system. So we're gonna start on the top left corner where it says app. So imagine you have some sort of AI application. Uh, in this scenario, I'll say you have a, a new docs page that you just shipped with like an AI chatbot built in so that users can ask questions to your AI chat-chatbot about your documentation. So let's say you shipped that yesterday, and then you have customers start to use your AI chatbot. So when they start to hit your AI chatbot, you're gonna start to</span></div><div class="tline" data-t="403"><span class="ts">6:43</span><span class="tx">get real production logs coming into your system. Once you get those production logs, you can, uh, sample a subset of them, maybe like ten to twenty rows or something, and create a kind of dataset. Uh, once you get that dataset, then we can run evals on that, right? So you can... You have your dataset, you can write your task, you can write your scoring system, and you can run, uh, evals on them. And you can start to tweak your dataset, you can start to tweak your prompt or s- tweak your score and run multiple different evals on that. Once you have your</span></div><div class="tline" data-t="433"><span class="ts">7:13</span><span class="tx">evals, like run a couple different evals, um, and start to see which eval does the best, you might learn something about your system, and then you're gonna go ahead and make your code change or make a change to whatever AI system that you're using, uh, and then deploy that back into your application. And then the whole flow repeats again because, uh, those changes will show up in your production logs and the whole system happens again. So that's kind of how the flow works as a whole. Um, the last slide I'll show before I get into a</span></div><div class="tline" data-t="462"><span class="ts">7:42</span><span class="tx">concrete example is... I love this slide because, uh, conceptually, I, I wanna hammer into people that evals are a team sport. Uh, there's so much that goes into creating evals, uh, from getting real world data into your platform, labeling it, developing hypothesis, things like that. So the AI engineer kind of works on obviously making the code changes, but also getting the data into the platform. Uh, the product manager is very important. I think they're, they usually spearhead evals at a company, but they're the ones that develop the</span></div><div class="tline" data-t="492"><span class="ts">8:12</span><span class="tx">hypothesis of what success looks like, um, and help, uh, tweak, tweak the prompts and things like that. Uh, subject matter experts are really important, especially in like more niche, uh, areas like, um, insurance, medicine, law, and things like that. Um, they can help, uh, label the data or provide a ground truth for what, what excellence looks like. Uh, and then data analysts obviously to analyze the data. So I always think that this slide is, is really useful to look at. Okay. So let's</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">go into a like interesting real world example of how you might use an eval. Um, in this one, I'm comparing agentic search to vector search. And the story behind this specific eval is, um, is that my CEO, Ankur, sometimes goes on Twitter and sends me articles of things he wants me to eval. Uh, so he sent me this, uh, tweet from Cursor, where Cursor talks about how they used semantic search, also known as agentic search, um, to significantly improve their coding</span></div><div class="tline" data-t="552"><span class="ts">9:12</span><span class="tx">agent ex-- uh, performance. And he was like, &quot;Jess, can you eval this for me?&quot; And I was like, &quot;Okay. I'm busy, but okay.&quot; Um,  and so I kinda went on Twitter and I saw that there was a lot of, uh, discourse or discussion around this topic, so I thought it might be interesting to eval. So, uh, we're gonna eval a vector search and agentic search, so I just wanna give a quick, uh, summary of what each one is just so everyone's on the same page. So vector search essentially is the process of taking, uh, data like, uh, code or</span></div><div class="tline" data-t="582"><span class="ts">9:42</span><span class="tx">text and turning them into embeddings, where embeddings basically represent the semantic meaning of that chunk of text or code. So, uh, if you look at the graph here, it's a very good visual example where, um, the embeddings, uh, wolf, dog, and cat are very close to each other 'cause semantically they all are animals. And then, uh, the embeddings banana and apple are also close to each other 'cause they're fruit, but then, uh, they're far apart from each other because fruit and animals are different things. Um, and so what happens</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">is in, you know, um, in a real vector search implementation, you would take these embeddings, uh, and store them in a vector database, so something like Qdrant or Pinecone or something like that. And if you come up with a query like, uh, for example, where does the database logic in my code base live? Uh, what would happen is the vector database would return back the chunks of, um, embeddings that most closely semantically match the words in your query. So the, the chunks that are closest to things</span></div><div class="tline" data-t="642"><span class="ts">10:42</span><span class="tx">like database or logic. So that's how vector search works. Agentic search is slightly different. Agentic search works more like a human would. So essentially with agentic search, uh, you give an LLM tools like, uh, grep, find, ls, cat, um, bash commands, and it basically explores, explores your code base like a human would. So it would, uh, look up a function name, open a file, read the file, follow that function call to another file, and then open that file and read that file, and then continue</span></div><div class="tline" data-t="672"><span class="ts">11:12</span><span class="tx">until it's found what it's ne- what it needs to. So this is, uh, much more similar to how a human would kind of go through a code base and, and look up-- look for certain pieces of logic. Okay. So then how did we eval this? So the first part of creating eval is creating your dataset, right? So to do this, we basically used, uh, Microsoft's TypeScript Go repo, uh, which is open source. And what we did is we basically found all the PRs, um, the merged PRs with the title fix in</span></div><div class="tline" data-t="702"><span class="ts">11:42</span><span class="tx">them. And, uh, we basically checked out the parent commit. So essentially we checked out the commit to the point where it still has the bug in it. And then we used Claude to generate a, like a bug task or like a linear task based on the diff, so based on the diff between the buggy code and the fixed code. And then we fed that into an LLM, uh, and had that LLM either use RAG search or agentic search to find the buggy code, to locate where the logic, the buggy logic lives.</span></div><div class="tline" data-t="732"><span class="ts">12:12</span><span class="tx">So that's how we created our dataset. We had like maybe We, we found like 20 different PRs, um, and, and ran the eval on that. Uh, in terms of our task, uh, we actually had to implement vector search and agentic search obviously. Uh, implementing agentic search was really easy because Claude Code uses agentic search by default, so we just set Claude Code on these tasks. Um, implementing vector search was slightly more complicated because we still wanted to use the Claude Code</span></div><div class="tline" data-t="762"><span class="ts">12:42</span><span class="tx">harness, um, to execute the vector search just to keep the experiment consistent, but we had to basically prevent, uh, Claude Code from defaulting to agentic search. So we did two things. Uh, the first thing is that we explicitly said in the prompt instructions not to use agentic search. Um, but if you've ever done this before, you know that prompting is never enough. So what we also had to do is use the, uh, disallowed tools flag to prevent, uh, Claude Code from calling certain things, uh, that it would normally use in agentic search.</span></div><div class="tline" data-t="792"><span class="ts">13:12</span><span class="tx">So that's how we implemented, uh, vector search and agentic search, both using the Claude Code harness. Um, another kind of interesting thing that we ran into is, um, when we were trace, uh, running the traces, we ran the Claude Code, uh, runs as subprocesses, but it essentially mean, meant that the traces were orphaned. Um, and, uh, our solution was basically passing the parent span IDs as environment variables. So if that doesn't make sense, that's fine because I'll show</span></div><div class="tline" data-t="822"><span class="ts">13:42</span><span class="tx">you via pictures. So this picture that you see here is what the trace looks like when it's running as a orphaned subprocess. So you can see in the highlighted on like the left panel where it says, &quot;Run Claude Agent,&quot; um, that's basically in the trace saying, &quot;Okay, it's running the Claude subprocess,&quot; but you can't... You don't actually get any visibility into what happens when it's running that Claude process. With the fix that we did, uh, this is what you see now in the trace. So you can see that it's, uh,</span></div><div class="tline" data-t="852"><span class="ts">14:12</span><span class="tx">calling the Claude Code subprocess, but you can also see everything that's being run in that subprocess. So you can see all the turns, all the LLM calls, uh, every single terminal command that's being called, like grep, bash, ls, find, things like that. Uh, and it gives you visibility into what's happening in this actual run. Uh, and implementing this fix was really important because being able to have transparency into what's happening, um, is, is important for debugging, uh, later on. And scoring was really simple. Uh,</span></div><div class="tline" data-t="882"><span class="ts">14:42</span><span class="tx">for our scoring, we basically said, uh, because we're using Microsoft- Microsoft's TypeScript Go repo, we basically said if the test, uh, passed the, uh, t- uh, Microsoft TypeScript Go test suite, then it gets 100%, and if it fails, it gets a 0%. So it was very binary scoring here. Uh, okay, so in terms of our results, uh, the summary is basically vector search and agen- agentic search both got the same level of accuracy, but essentially vector search cost, uh, four</span></div><div class="tline" data-t="912"><span class="ts">15:12</span><span class="tx">times more than agentic search. So when we looked at the actual traces and, uh, kind of manually like went through to try to understand what happened, we had a couple of learnings. So the first thing is that vector search, uh, returns back chunks of code, but these chunks of code often miss things like, um, imports or tool calls or the calling code above it. Um, and so as a result, it's not enough. It doesn't give enough context for how the agent should actually solve the bug. Uh, so one example is in</span></div><div class="tline" data-t="942"><span class="ts">15:42</span><span class="tx">one of the rows, we saw that the vector agent made 26 searches and still couldn't piece together how three functions interacted across the file. In contrast, agentic search was actually able to like, as I said, work more like a human would. So grep the function name, read the full function, uh, spot the flaw in the logic, and then follow the calling, um, calling logic, uh, into another file. Um, and the way that I kind of like to think about it when I was just going through the traces is it felt like,</span></div><div class="tline" data-t="972"><span class="ts">16:12</span><span class="tx">um, vector search gave a lot of proximity to the correct code, but agentic search had more of the connective tissue to connect the actual logic of those chunks of code. Uh, and then tying that into the third learning I had is, um, the reason why vector search was so much more expensive than agentic search is because it made more, um, searches. 'Cause it was o- um, c- constantly searching, like returning a chunk of code and then searching again, returning a chunk of code, searching again. And as a result, um, all</span></div><div class="tline" data-t="1002"><span class="ts">16:42</span><span class="tx">of those LLM calls, uh, piled up and made it a lot more expensive, uh, to execute. Um, and this is the last slide, but essentially, uh, you might be sitting here thinking, &quot;Oh, there's so many holes in this eval,&quot; which is very fair. Like, there's lots of things I could've done. Uh, I, uh, you know, there's lots of best practices when it comes to running evals, like running multiple trials per task. Uh, especially because LLMs are so non-deterministic, it's good to run multiple trials to be able to trust the score that you're getting back a lot</span></div><div class="tline" data-t="1032"><span class="ts">17:12</span><span class="tx">better. Um, my vector search implementation was relatively weak. Uh, I could've done a better implementation. Um, also expanding the data set. Um, I think we only ran this on like 20 different rows, so it would've been better to expand this, uh, to even different, um, different repos or things like that. Um, but the, the point of this talk is not to create the best, uh, off- like the best eval ever, but it's more to illustrate to you the concept of h- the kinda how to create a eval end to end.</span></div><div class="tline" data-t="1062"><span class="ts">17:42</span><span class="tx">So hopefully I've done that, um, and that is the end of my talk. Um, so hopefully you learned a little bit of what evals are, why they're important, and how you might do one in real life. Um, and yeah, I think that's it. So thank you for listening.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

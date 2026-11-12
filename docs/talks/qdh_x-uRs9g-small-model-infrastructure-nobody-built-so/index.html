@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>没人做的小模型基础设施（于是我们做了） —— Filip Makraduli，Superlinked | AI 工程师中文版</title>
+<meta name="description" content="小模型可以让智能体的上下文更有用，但要高效地服务它们，需要感知架构的执行方式、共享的 GPU 容量，以及一个能同时配合两者的生产集群。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>没人做的小模型基础设施（于是我们做了） —— Filip Makraduli，Superlinked</h1>
+    <div class="orig-title">The Small Model Infrastructure Nobody Built (So We Did) — Filip Makraduli, Superlinked</div>
+    <div class="meta"><span class="speaker">Filip Makraduli</span> · AI Engineer World's Fair 2025 · 18:30</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=rag-and-knowledge">检索增强生成</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=ai-cost-and-performance-engineering">AI 成本与性能</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=transformers-and-attention">Transformer 与注意力</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/qdh_x-uRs9g-small-model-infrastructure-nobody-built-so" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="qdh_x-uRs9g"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=qdh_x-uRs9g" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">是什么让一个模型在生产中跑得快？</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="16"><span class="ts">0:16</span><span>是什么让一个模型在生产中跑得快？</span></li><li data-t="222"><span class="ts">3:42</span><span>智能体之前和内部的小模型</span></li><li data-t="423"><span class="ts">7:03</span><span>更多 GPU 解决不了闲置容量</span></li><li data-t="564"><span class="ts">9:24</span><span>阴：值得提供服务的模型</span></li><li data-t="670"><span class="ts">11:10</span><span>共享的 API 仍然需要不同的前向计算</span></li><li data-t="828"><span class="ts">13:48</span><span>别再把注意力计算花在填充上</span></li><li data-t="863"><span class="ts">14:23</span><span>阳：一个能运营这些模型的集群</span></li><li data-t="1007"><span class="ts">16:47</span><span>幻灯片背后的模式</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 21 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="AI Engineer Europe" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer Europe</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The recording opens with the AI Engineer Europe logo.
+
+[0:00](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=0s) [AI Engineer Europe logo in white on black.](https://assets.ai.engineer/sites/aiecode2025/sha256/099222ed3a40508baa117281b8765de70d74bc7dbd514791aa20e7c7d38d1c4f.webp)
+
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Presenting sponsor" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Presenting sponsor</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Google DeepMind is the presenting sponsor.
+
+[0:05](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=5s) [Presenting sponsor Google DeepMind on a black background.](https://assets.ai.engineer/sites/aiecode2025/sha256/94b8a83e75af54cd32eb742cc8be01b92271ca2d2903fa413c8fdc796bc24862.webp)
+
+PRESENTING SPONSOR
+
+Google DeepMind</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/04946fdb4b4052b0a41167b1d4ca474e205397256d6e70ecf209da364042601e.webp" alt="Braintrust, WorkOS and OpenAI logos under the heading Platinum Sponsors." loading="lazy" data-lb="2" data-cap="Platinum sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Platinum sponsors</h3>
+        <p>Braintrust, WorkOS and OpenAI logos under the heading Platinum Sponsors.</p>
+        <details><summary>幻灯片原文</summary><pre>PLATINUM SPONSORS
+
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        <button class="ts" data-t="10">▶ 0:10</button>
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="What Actually Makes Embedding Model Inference Fast?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What Actually Makes Embedding Model Inference Fast?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After writing about FlashAttention and compute- and memory-bound processes, Makraduli learned he had overlooked inference as a key part of real-world model speed.
+
+[0:52](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=52s) [An article titled What Actually Makes Embedding Model Inference Fast? beside the words Not quite; the speaker appears below the slide.](https://assets.ai.engineer/sites/aiecode2025/sha256/4b7abf1e7739a6e4159077321e147a1f31274be5c7fe9faaf12477e11c7941d3.webp)
+
+A WRITER'S DIARY ON AI
+
+What Actually Makes Embedding Model Inference Fast?
+
+From Flash Attention to Quantization, where is the inference bottleneck? Is it the architecture, the maths, or will writing everything in Rust solve all my problems? (Hint: It's Not Rust)
+
+FILIP MAKRADULI
+JAN 22, 2026
+
+Not quite.
+
+AIE
+Google DeepMind
+AI Engineer EUROPE 2026
+
+[1:22](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=82s) [An article about embedding model inference appears beside the words “Not quite.”](https://assets.ai.engineer/sites/aiecode2025/sha256/e75436b8dc454f91eb1609fb53bc3325da081ee2a42bae18538c387999e51215.webp)
+
+A WRITER'S DIARY ON AI
+
+What Actually Makes Embedding Model Inference Fast?
+
+From Flash Attention to Quantization, where is the inference bottleneck? Is it the architecture, the maths, or will writing everything in Rust solve all my problems? (Hint: It's Not Rust)
+
+FILIP MAKRADULI
+JAN 22, 2026
+
+Not quite.
+
+AIE
+Braintrust
+WorkOS
+OpenAI
+AI Engineer EUROPE 2026</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="The Overlooked Aspect: Inference" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Overlooked Aspect: Inference</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Makraduli says others pointed out that he had overlooked inference as a key part of what makes models fast in the real world.
+
+[1:37](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=97s) [The slide says the overlooked aspect was inference.](https://assets.ai.engineer/sites/aiecode2025/sha256/830b905f91c538b0ce31f963465114c4a1cbfb06d4217f94e2db6229662a69a1.webp)
+
+The aspect I overlooked was...
+
+Inference
+
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="I Had to Learn" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>I Had to Learn</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After overlooking inference's role in making models fast in the real world, Makraduli realized he needed to learn it. A cat reading a newspaper illustrates the moment.
+
+[1:40](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=100s) [The words “I realised ... I had to learn” appear above a cat reading a newspaper.](https://assets.ai.engineer/sites/aiecode2025/sha256/51db506767a19b20664d93452ab251239b6fb8ed4335e573cb88d481d1ff00f3.webp)
+
+I realised ... I had to learn
+
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Learning From First Principles" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Learning From First Principles</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Makraduli knew model training and evaluation, but production inference—including GPU scheduling and routing—was a blind spot. He chose to learn by joining a team building it.
+
+[2:00](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=120s) [A comparison contrasts experience with models against overlooked production infrastructure, followed by a suggestion to join the team building it.](https://assets.ai.engineer/sites/aiecode2025/sha256/2420ab17776980bb4d03fc02c65c797b8dfcf9e93cf5609d345c60ce7dd7d479.webp)
+
+LEARNING FROM FIRST PRINCIPLES
+
+I knew models well
+Training &amp; fine-tuning
+Evaluation &amp; benchmarking
+Applied AI research
+vLLM, Flash Attention
+
+years of experience
+
+I had overlooked infrastructure
+How models run in production
+GPU utilization &amp; scheduling
+Routing &amp; autoscaling
+Deployment &amp; operations
+
+blind spot
+
+Best way to learn?
+Join the team building it.
+
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Joining Superlinked" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Joining Superlinked</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>To learn production infrastructure, Filip joined Superlinked and helped build the open-source Superlinked Inference Engine, introduced here in a soft launch.
+
+[2:41](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=161s) [The speaker introduces Superlinked and its inference engine, with a screenshot of tool integrations.](https://assets.ai.engineer/sites/aiecode2025/sha256/9b5c7a6e444cd2008d7cc017e191fab10a8f7953a4f3722bcbc071fd69a6cb4c.webp)
+
+So I joined the world class infrastructure team at:
+
+Superlinked
+
+GitHub: github.com/superlinked/sie
+
+VC - backed AI infrastructure company building the model stack for AI search and document processing
+
+Works with your favorite tools
+BROWSE INTEGRATIONS →
+
+Chroma — DOCS →
+“Chroma makes context engineering simple. SIE adds instruction-following rerankers and relationship extractors for even more precise retrieval.”
+Jeff Huber
+CEO &amp; Founder
+
+LanceDB — DOCS →
+“LanceDB centralizes multi-modal training datasets and with SIE you can self-host inference for all the required data transformations.”
+Chang She
+CEO &amp; Co-founder
+
+Qdrant — DOCS →
+“Modern search systems compose the best indexing, scoring, filtering and ranking models. With SIE you can self-host them all in one cluster.”
+Andre Zayarni
+CEO &amp; Co-founder
+
+Weaviate — DOCS →
+“Weaviate's Query Agent unlocks natural language search and with SIE you can pre-process your query and data for better latency.”
+Bob Van Luijt
+CEO &amp; Co-founder
+
+AIE
+AI Engineer EUROPE
+2026</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Key points" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Key points</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk connects inference for AI search and document processing to agent workflows, then examines misconceptions and the yin and yang of model inference.
+
+[3:41](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=221s) [Three key points: relevance to agents, misconceptions about small-model inference, and the yin and yang of model inference.](https://assets.ai.engineer/sites/aiecode2025/sha256/41809825f8b6fe082ce967ae42fe2d78e50f78e1dff0e1da0887c42a1cfcc42d.webp)
+
+KEY POINTS
+
+1. Why this matters for your agents, even if you're not doing AI search
+2. What small-model inference is not about
+3. The yin and yang of model inference
+
+AIE
+Engineering the future of AI
+AI Engineer EUROPE 2026</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Why this matters for agents and workflow" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Why this matters for agents and workflow</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Makraduli introduces context rot as a reason this matters for agentic workflows.
+
+[4:33](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=273s) [Section slide asks why this matters for agents and workflow.](https://assets.ai.engineer/sites/aiecode2025/sha256/f73c9e7845d19f1c52f2250891077eac00eabb6ff86279565b32714f225202eb.webp)
+
+THE ANTITHESIS
+
+Why this matters for your
+Agents and workflow ?
+
+AIE
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Context rot is real" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Context rot is real</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Chroma’s repeated-words chart shows scores falling as input length grows across four models. Makraduli suggests using small models to preprocess data and manage what enters an agent’s context.
+
+[4:38](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=278s) [A chart shows performance declining as input length increases, alongside points about context management and tool calling.](https://assets.ai.engineer/sites/aiecode2025/sha256/49ece8b190ba6dec47ea77c1d81dd2d35b32d777945d3e31f4cd0f98f38047da.webp)
+
+WHY IT MATTERS FOR YOUR AGENTS
+
+Context rot is real
+
+Performance degrades as context fills up.
+More tokens, worse answers.
+
+Repeated Words - Performance by Input Length (Tokens)
+Y-axis: Average Normalized Levenshtein Score
+Y-axis ticks: 0.5, 0.6, 0.7, 0.8, 0.9, 1.0
+X-axis: Input Length (Tokens)
+X-axis ticks: 10², 10³, 10⁴
+Legend: Claude Sonnet 4; GPT-4.1; Qwen3-32B; Gemini 2.5 Flash
+
+Source: Chroma Research
+
+Context management
+Manages what goes INTO context,
+
+Tool calling
+Embeddings, reranking, extraction
+
+“Why not just Opus 4.6?”
+Works until context rot kills quality
+
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Context management requires preprocessing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Context management requires preprocessing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide shows accuracy dipping when relevant information sits in the middle of context, and points to knowledge bases and Chroma’s self-editing search agent as ways to manage it.
+
+[5:42](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=342s) [A bar chart shows lower accuracy when relevant information is in the middle of context, beside examples of knowledge-base and context-management work.](https://assets.ai.engineer/sites/aiecode2025/sha256/e0da56eeac32fb9929ee120c5bac83f258d440e43e7bdf1856055254b8ff08cd.webp)
+
+WHY IT MATTERS FOR YOUR AGENTS
+
+Context management requires a level of pre-processing
+
+Accuracy drop when relevant info lands in the middle of context,
+
+Y-axis: Accuracy
+Position in context: Start, Middle, End
+High; Low; High
+
+Liu et al. 2023 · 18 models tested by Chroma · 194K LLM calls
+
+Andrej Karpathy
+@karpathy
+LLM Knowledge Bases
+
+Something I'm finding very useful recently: using LLMs to build personal knowledge bases for various topics of research interest. In this way, a large fraction of my recent token throughput is going less into
+
+Chroma Context-1: Training a Self-Editing Search Agent
+
+r/ClaudeCode
+u/captainkink07 · 18h · github.com
+71.5x token reduction by compiling your raw folder into a knowledge graph instead of reading files. Built from Karpathy's workflow
+Showcase
+shamsi/graphify
+
+Interface text:
+Join
+AIE
+AI Engineer EUROPE 2026
+Engineering the future of AI
+
+[5:50](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=350s) [A chart shows lower accuracy for information in the middle of context, alongside examples of knowledge-base and context-management work.](https://assets.ai.engineer/sites/aiecode2025/sha256/2d7aec7a27c6c9a3930d4e175768dd391fabcfdf3db89f57a959dea2f00fb52a.webp)
+
+WHY IT MATTERS FOR YOUR AGENTS
+
+Context management requires a level of pre-processing
+
+Accuracy drop when relevant info lands in the middle of context,
+
+Y-axis: Accuracy
+Position in context: Start, Middle, End
+High; Low; High
+
+Liu et al. 2023 · 18 models tested by Chroma · 194K LLM calls
+
+Andrej Karpathy
+@karpathy
+LLM Knowledge Bases
+
+Something I'm finding very useful recently: using LLMs to build personal knowledge bases for various topics of research interest. In this way, a large fraction of my recent token throughput is going less into
+
+Chroma Context-1: Training a Self-Editing Search Agent
+
+r/ClaudeCode
+u/captainkink07 · 18h · github.com
+71.5x token reduction by compiling your raw folder into a knowledge graph instead of reading files. Built from Karpathy's workflow
+Showcase
+shamsi/graphify
+
+Interface text:
+Join
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="A production story for tool calling" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A production story for tool calling</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A production example classifies a Shopify product catalogue across 10K categories using extraction, text-and-image embeddings and reranking. Switching model type takes one parameter.
+
+[6:30](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=390s) [A product classification diagram uses extraction, encoding, and scoring to assign a taxonomy category.](https://assets.ai.engineer/sites/aiecode2025/sha256/3b24bb54c401ff12e87a511b74438885bd3af5d6d6776088d4a7af13aec8f8c3.webp)
+
+WHY IT MATTERS FOR YOUR AGENTS
+
+A production story for tool calling
+
+Taxonomy classification
+10K categories Shopify product catalogue text + images
+
+Product
+title + image
+
+sie.extract()
+NLI classification
+
+sie.encode()
+embed text + images
+
+sie.score()
+rerank candidates
+
+Electronics
+› Computers
+› Laptops
+
+Switching model type = changing one parameter, not rebuilding infra
+
+Context management
+Manages what goes INTO context,
+
+Tool calling
+Embeddings, reranking, extraction
+
+“Why not just Opus 4.6?”
+Works until context rot kills quality
+
+Event branding:
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="What inference doesn't look like" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What inference doesn't look like</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Makraduli introduces a common view of inference: adding GPUs and compute solves the problem.
+
+[7:02](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=422s) [Section slide titled What Inference Doesn't Look Like.](https://assets.ai.engineer/sites/aiecode2025/sha256/3c84f14afdd67333ed03a404a2c8c5fd9984fa803c05b065f8dcbe36e223eea0.webp)
+
+THE ANTITHESIS
+
+What Inference
+Doesn't Look Like
+
+Event branding:
+AIE
+Engineering the future of AI
+AI Engineer
+EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Multi-model GPU sharing" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Multi-model GPU sharing</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The example leaves 18–22GB idle on each of five 24GB GPUs. It shows five models sharing one GPU at 80%+ utilization, with LRU eviction swapping out the coldest model when memory is tight.
+
+[7:10](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=430s) [A diagram compares five mostly idle dedicated GPUs with models sharing one GPU through hot-swapping and least-recently-used eviction.](https://assets.ai.engineer/sites/aiecode2025/sha256/b083139f77befb77103b9dfb9239573219ffe55a3fd529cc0688a63780da5fad.webp)
+
+IT'S NOT ABOUT FASTER MODELS OR BIGGER GPUS
+
+One model per GPU — most capacity wasted
+
+GPU 1 · 24GB
+stella
+20GB idle
+
+GPU 2 · 24GB
+bge-m3
+18GB idle
+
+GPU 3 · 24GB
+reranker
+21GB idle
+
+GPU 4 · 24GB
+gliner
+22GB idle
+
+GPU 5 · 24GB
+clip
+21GB idle
+
+Multi-model GPU sharing — hot-swap with LRU eviction
+
+1 GPU · 24GB · 80%+ utilized
+stella
+bge-m3
+reranker
+gliner
+clip
+
+LRU eviction: coldest model swaps out when memory is tight
+
+AIE
+Engineering the future of AI
+AI Engineer Europe</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="It’s Not About the Server" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>It’s Not About the Server</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A model server handles one model in one container, while production also needs routing, autoscaling, monitoring and deployment. Makraduli says teams often have to build that layer themselves.
+
+[8:21](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=501s) [Diagram contrasting a solved model server with production needs including routing, autoscaling, monitoring, and deployment.](https://assets.ai.engineer/sites/aiecode2025/sha256/a7a655f608ed0219fa9981105e0ac969f1ffccfd62d8e4f82b54f967ca466c44.webp)
+
+IT'S NOT ABOUT THE SERVER
+
+Model Server
+Solved
+TEI · vLLM · FastAPI wrapper
+one model, one container
+
+?
+MIND THE GAP
+
+Production
+Routing — per-model, pool isolation
+Autoscaling — KEDA + spot instances
+Scale-to-zero — $0 when idle
+Monitoring — Prometheus + Grafana
+Terraform · Helm — AWS · GCP
+
+Every team builds this layer alone. It barely exists in open source.
+
+Interface text:
+AIE
+AI Engineer EUROPE
+Braintrust
+WorkOS
+OpenAI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="What Is Inference About?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What Is Inference About?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Makraduli shifts from what inference isn't to a holistic approach that combines two key elements.
+
+[9:22](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=562s) [Slide asks, “So what is inference about?”](https://assets.ai.engineer/sites/aiecode2025/sha256/2a1607f20056a32320ab079e15f1276dec581db1fc6d7e5585987647cbd2b9d6.webp)
+
+THE ANTITHESIS
+
+So what is inference about?
+
+AIE
+AI Engineer
+EUROPE
+2026</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="The Yin and Yang of Inference" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The Yin and Yang of Inference</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Makraduli frames inference as a holistic approach combining two key things. The first is model support: offering users the right models and enough options.
+
+[9:35](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=575s) [A yin-yang symbol above the title, “The Yin and Yang of Inference.”](https://assets.ai.engineer/sites/aiecode2025/sha256/22978748d739cbd83ebd6d99784c793b970684bbed70d5b7271794c72687dd25.webp)
+
+The Yin and Yang of Inference
+
+Event branding:
+AIE
+AI Engineer EUROPE
+AI Engineer EUROPE 2026</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Model Support and Open Source Growth" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Model Support and Open Source Growth</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Hugging Face Hub’s model count climbs to 2.7M by March 2026. Makraduli argues that inference needs broad model support as open-source models proliferate and improve.
+
+[9:48](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=588s) [Line chart of Hugging Face Hub model counts rising from 2022 to 2.7 million by March 2026, with model milestones labeled.](https://assets.ai.engineer/sites/aiecode2025/sha256/8dd1777f9fd3873afef1e48ffc64e49546ff9692dd12aa3600285fc7415c51e8.webp)
+
+YIN — MODEL SUPPORT IS KEY, OPEN SOURCE IS NOT STOPPING
+
+2.7M
+Y-axis ticks: 0, 500K, 1M, 1.5M, 2.5M+
+Timeline: 2022, 2023, 2024, 2025, Mar 26
+Model labels: BLOOM, LLaMA 2, Qwen2, Flux 1.0, DeepSeek-R1
+
+Source: Hugging Face Hub statistics
+
+AIE
+Engineering the future of AI
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Model Performance vs. Size" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Model Performance vs. Size</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The chart places two Gemma 4 models above several much larger models on Elo score, illustrating why infrastructure needs to keep up with smaller open-source models.
+
+[10:42](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=642s) [Scatter plot comparing model Elo scores and parameter counts, highlighting two Gemma 4 models.](https://assets.ai.engineer/sites/aiecode2025/sha256/4bccae2a13ab8e4c1cf711e67270e5a12ade0206fe4262f7b7f486034e2f9719.webp)
+
+YIN — MODEL SUPPORT IS KEY, OPEN SOURCE IS NOT STOPPING
+
+Model Performance VS Size
+
+Y-axis: Elo Score
+Y-axis ticks: 1350, 1360, 1370, 1380, 1390, 1400, 1410, 1420, 1430, 1440, 1450, 1460
+X-axis: Total Model Size (Billion Parameters)
+X-axis ticks: 10, 20, 30, 40, 50, 100, 200, 400, 500, 600, 1000
+
+Model labels:
+gemma-4-31B-thinking
+gemma-4-26B-A4B-thinking
+qwen3.5-27b
+qwen3.5-122b-a10b
+qwen3.5-397b-a17b
+deepseek-v3.2-exp-thinking
+mistral-large-3
+glm-5
+kimi-k2.5-thinking
+gpt-oss-120b
+
+Gemma 4 model performance — your infra needs to keep up
+
+Interface text:
+AIE
+AI Engineer EUROPE
+Engineering the future of AI
+
+[10:48](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=648s) [Scatter plot comparing model Elo scores and parameter counts, highlighting two Gemma 4 models.](https://assets.ai.engineer/sites/aiecode2025/sha256/a0c0b41ecd7580bb95fa8ca01b768fa5548376a7849ac76cd73e29ce1c4616c2.webp)
+
+YIN — MODEL SUPPORT IS KEY, OPEN SOURCE IS NOT STOPPING
+
+Model Performance VS Size
+
+Y-axis: Elo Score
+Y-axis ticks: 1350, 1360, 1370, 1380, 1390, 1400, 1410, 1420, 1430, 1440, 1450, 1460
+X-axis: Total Model Size (Billion Parameters)
+X-axis ticks: 10, 20, 30, 40, 50, 100, 200, 400, 500, 600, 1000
+
+Model labels:
+gemma-4-31B-thinking
+gemma-4-26B-A4B-thinking
+qwen3.5-27b
+qwen3.5-122b-a10b
+qwen3.5-397b-a17b
+deepseek-v3.2-exp-thinking
+mistral-large-3
+glm-5
+kimi-k2.5-thinking
+gpt-oss-120b
+
+Gemma 4 model performance — your infra needs to keep up
+
+Interface text:
+AIE
+AI Engineer EUROPE</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Same five steps, different implementation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Same five steps, different implementation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>BERT and Qwen2 differ in normalization, position and attention; ColBERT outputs a vector per token. Packed variable-length attention avoids padding waste across sequences of different lengths.
+
+[12:38](https://www.youtube.com/watch?v=qdh_x-uRs9g&amp;t=758s) [Table comparing normalization, Q/K/V, position, attention and output for BERT, Qwen2 and ColBERT.](https://assets.ai.engineer/sites/aiecode2025/sha256/e145d7252a299a97aaea71cda595bbaa4ad103769675a1cfe70539aba9af2e0f.webp)
+
+SAME 5 STEPS, DIFFERENT IMPLEMENTATION
+
+BERT | Qwen2 | ColBERT
+1. Norm: Post-norm (after) | Pre-norm RMSNorm | From base arch
+2. Q/K/V: 3 → we fuse into 1 | Separate (GQA) | From base arch
+3. Position: Absolute lookup | RoPE rotation | From base arch
+4. Attention: MHA, all same | GQA (fewer KV) | Bidirectional
+5. Output: 1 pooled vector | 1 pooled vector | N vectors (per-token)
+
+Different from BERT — different forward pass
+Different output type entirely
+
+All on packed sequences with flash_attn_varlen = zero padding waste
+
+AIE
+AI Engineer EUROPE 2025
+Engineering the future of AI</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">是什么让一个模型在生产中跑得快？</a></li><li><a href="#sec-2">智能体之前和内部的小模型</a></li><li><a href="#sec-3">更多 GPU 解决不了闲置容量</a></li><li><a href="#sec-4">阴：值得提供服务的模型</a></li><li><a href="#sec-5">共享的 API 仍然需要不同的前向计算</a></li><li><a href="#sec-6">别再把注意力计算花在填充上</a></li><li><a href="#sec-7">阳：一个能运营这些模型的集群</a></li><li><a href="#sec-8">幻灯片背后的模式</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">没人做的小模型基础设施（于是我们做了）</h2>
+      <div class="lede"><p>小模型可以让智能体的上下文更有用，但要高效地服务它们，需要感知架构的执行方式、共享的 GPU 容量，以及一个能同时配合两者的生产集群。</p><p>熟悉嵌入向量、Transformer 注意力和基本的 GPU 推理服务，有助于理解运行时和基础设施细节。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="16">▶ 0:16</button></div>
+      <h3>是什么让一个模型在生产中跑得快？</h3>
+      <p>What is missing between understanding how a model computes and making it run efficiently in production? That is the problem behind Filip Makraduli’s work on small-model inference. He introduces it with a second, visual question: the patterned background of his slides represents something from machine learning. He offers a reward for identifying it, leaving the answer until the end.</p>
+<p>The infrastructure question began with a Substack article. Makraduli had explained FlashAttention, model execution, and the difference between memory-bound and compute-bound work. Feedback exposed something the explanation had overlooked: inference as an operational system. His experience with vLLM, training, fine-tuning, applied ML, and academic research had not covered the whole path to production. <strong>GPU scheduling, routing, and automation are separate engineering problems from understanding the model.</strong></p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/e1cf6852042e7590492208398ec88d1e3f93981ef074b46e2f36ffe4280e5951" alt="Two boxes contrast training, evaluation and AI research with production inference, GPU scheduling, routing and deployment. Below: “Join the team building it.”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Model expertise versus the infrastructure blind spot.</figcaption></figure>
+<p>To learn that part, he joined Superlinked’s infrastructure team and helped build the open-source <a href="https://github.com/superlinked/sie" target="_blank" rel="noopener">Superlinked Inference Engine</a>, or SIE. The soft launch presented here targets small models for AI search and document processing. Makraduli reports testing with Chroma, Qdrant, Weaviate, and LanceDB. The project connects model execution to the machinery needed to operate it.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="222">▶ 3:42</button></div>
+      <h3>智能体之前和内部的小模型</h3>
+      <p>The first question is why search and document-processing inference matters to agents. The next is what serving a model leaves unfinished. Those lead to the two halves of SIE’s design: model support and infrastructure, which Makraduli calls the yin and yang of inference.</p>
+<p>The agent problem starts with context. Chroma’s <a href="https://www.trychroma.com/research/context-rot" target="_blank" rel="noopener">Context Rot</a> research shows that longer inputs can degrade performance under tested conditions; the effect varies across models and tasks. Small models provide a way to manage what reaches the agent: preprocess documents, select useful information, or expose a focused operation as a tool call. This also answers the objection that Claude Code and <code>grep</code> can already search files. Preprocessing can improve the files and information those tools search.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b60404ebd4d22a97d6970ac87d95d288dea58a2c3d2891d62c7640e1c08b3a97" alt="Slide titled “Why it matters for your agents” shows declining performance curves alongside boxes for context management, tool calling and “Why not just Opus 4.6?”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Context rot motivates context management and small-model tool calling.</figcaption></figure>
+<p>Several approaches fit this pattern:</p>
+<p>- <strong>Structured knowledge:</strong> Makraduli points to Andrej Karpathy’s graph-based knowledge-base work. Named entity recognition can supply entities for ontology and knowledge-graph construction, or help organize a filesystem.
+- <strong>Input filtering:</strong> He cites a Chroma model that preprocesses and filters input to manage context, alongside community tools that reduce token volume.
+- <strong>Model-backed tools:</strong> In a production e-commerce use case, Makraduli reports using SIE for taxonomy classification. Small models become tools that retrieve and process data during the workflow, rather than only preparing it beforehand.</p>
+<p>The common mechanism is to give the agent a more focused representation of the data it needs.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="423">▶ 7:03</button></div>
+      <h3>更多 GPU 解决不了闲置容量</h3>
+      <p>Adding compute is an incomplete answer when each model uses only a small part of a GPU. Makraduli describes <strong>Stella</strong> embedding models, rerankers, and the <strong>GLiNER</strong> named entity recognition model as occupying only a few gigabytes each, without specifying variants, precision, or workload memory. Giving every model its own GPU can leave both memory capacity and compute underused.</p>
+<p>SIE instead supports swapping models on a shared GPU. A workflow can switch from one model-backed tool to another without reserving a separate GPU for each. Its <strong>least recently used eviction policy</strong> chooses which resident model to remove when capacity is needed: a model that has gone unused longer is evicted before a more recently used one. Makraduli reports higher utilization, lower costs, and quick switching, but supplies no measured utilization, cost, or switching-latency comparison.</p>
+<p>Sharing a GPU still leaves the operational work around the server. TEI, vLLM, or an API wrapper can provide a starting point for inference, while the surrounding system needs routing, autoscaling, queues, GPU provisioning, and monitoring through Prometheus metrics and Grafana. Makraduli describes a gap in the open-source options available for connecting these pieces at the intended scale. SIE’s response is to supply the production infrastructure together with model serving.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="564">▶ 9:24</button></div>
+      <h3>阴：值得提供服务的模型</h3>
+      <p>Infrastructure is useful only if it supports the models a workload needs. Makraduli therefore starts the first half of the design with model breadth. He cites millions of models on Hugging Face in a March snapshot and estimates that the count could be approaching three million by the talk. That is an ecosystem-size argument: the available choices keep expanding, and users want access to them.</p>
+<p>Makraduli cites MTEB and other benchmarks as evidence that open models can outperform managed services on narrow tasks. He also points to small <strong>Gemma</strong> models achieving higher Elo scores than much larger models. The presentation does not identify the tasks, model versions, baselines, or scores for these comparisons. Their role here is to motivate support for specialized models: choosing a smaller open model can be about suitability and quality as well as deployment control.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="670">▶ 11:10</button></div>
+      <h3>共享的 API 仍然需要不同的前向计算</h3>
+      <p>Supporting hundreds of models is not simply a matter of loading different weights. <strong>BERT</strong>, <strong>Qwen</strong>, and <strong>ModernBERT</strong> differ in their architectures, attention implementations, and positional representations. SIE’s approach is to reimplement forward passes with the adaptations each architecture needs: attention handling, padding, variable-length execution, and query/key/value projection fusion where appropriate.</p>
+<p>The output contract also changes what the runtime must preserve. <strong>ColBERT</strong> is a late-interaction model that produces multiple vectors, retaining token-level representations for subsequent matching. Cross-encoders and rerankers instead return scores rather than embedding vectors. A common serving layer therefore has to accommodate different result structures, not just different tensor sizes.</p>
+<p>| Implementation concern | Difference the runtime must handle |
+| --- | --- |
+| Normalization | Model-specific normalization behavior |
+| Q/K/V projections | Fusion choices and attention-head layout |
+| Position | BERT absolute lookup; Qwen rotary embeddings |
+| Attention | Architecture-specific execution and masking |
+| Output | Embedding vectors, per-token vectors, or scores |</p>
+<p>Makraduli’s comparison works through these differences across BERT, Qwen, and ColBERT. One qualification matters: he attributes a Qwen projection-fusion limitation to grouped-query attention, but grouped-query attention does not inherently prevent combined QKV projections. The <a href="https://github.com/vllm-project/vllm/blob/v0.8.5/vllm/model_executor/models/qwen2.py" target="_blank" rel="noopener">Qwen2 implementation in vLLM v0.8.5</a> uses <code>QKVParallelLinear</code>. The relevant engineering task is adapting fusion to the model’s head layout and runtime, rather than assuming one fusion strategy works unchanged everywhere.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/e18ce0208f7122b3e8578149edbbc633597dd291500a317eaefca652cd85fedb" alt="Comparison table covers normalization, Q/K/V, position, attention and output for BERT, Qwen2 and ColBERT, highlighting architectural differences and ColBERT’s per-token vectors." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>BERT, Qwen2 and ColBERT differ across five implementation steps.</figcaption></figure>
+<p>These differences require a consistent implementation process. SIE uses both agents and humans to implement the adapted forward passes, turning architectural knowledge into efficient model execution. <strong>Broad model support depends on preserving each model’s semantics while changing how its computation runs.</strong></p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="828">▶ 13:48</button></div>
+      <h3>别再把注意力计算花在填充上</h3>
+      <p>Variable-length FlashAttention addresses a concrete batching problem. Put a short request and a long request into a rectangular batch, and the short one may be padded to match the long one. Computation then includes empty positions introduced for the batch layout. Token-based batching needs an execution path that respects the actual sequence lengths, so padding does not consume unnecessary attention work.</p>
+<p>For a small illustrative batch, take request A with token IDs <code>[11, 12]</code> and request B with <code>[21, 22, 23, 24]</code>. A rectangular representation gives A two padding slots. A packed representation retains <code>[11, 12, 21, 22, 23, 24]</code> and sequence boundaries <code>[0, 2, 6]</code>. Those boundaries are essential: removing padding must not allow one request’s tokens to attend to another request. The token contents stay the same; their storage and execution layout change.</p>
+<p>Preserve request tokens while removing padding
+Packing removes padding while preserving each request’s tokens and separate sequence boundaries.
+Constructed example: Request names, token IDs, lengths, PAD notation, and boundary offsets are teaching values. Packed storage and boundaries illustrate the variable-length mechanism; they are not a captured SIE execution.
+Two requests — unchanged: A = [11, 12]; B = [21, 22, 23, 24]
+Operation: Replace the padded rectangular representation with packed tokens and sequence boundaries.
+- Request A tokens
+  - Before: Padded batch: [11, 12]
+  - After: Packed variable-length batch: [11, 12]
+- Request B tokens
+  - Before: Padded batch: [21, 22, 23, 24]
+  - After: Packed variable-length batch: [21, 22, 23, 24]
+- Token storage
+  - Before: Padded batch: [[11, 12, PAD, PAD], [21, 22, 23, 24]]
+  - After: Packed variable-length batch: [11, 12, 21, 22, 23, 24]
+- Padding positions
+  - Before: Padded batch: Request A: slots 2 and 3
+  - After: Packed variable-length batch: Not present
+- Packed sequence boundaries
+  - Before: Padded batch: Not present
+  - After: Packed variable-length batch: [0, 2, 6]
+Packing removes padding while preserving each request’s tokens and separate sequence boundaries.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="863">▶ 14:23</button></div>
+      <h3>阳：一个能运营这些模型的集群</h3>
+      <p>The second half of the system is the cluster. Makraduli introduces a detailed architecture diagram but concentrates on the path through it rather than explaining every component. At this soft launch, the API is organized around three primitives: <code>encode</code>, <code>score</code>, and <code>extract</code>. Current SIE documentation includes additional generation capabilities; the three-operation interface is the one presented in the recording.</p>
+<p>Requests pass through a router and a load-dependent queuing mechanism, which distribute work across pools of GPUs and other resources. Those pools can include spot instances and larger GPUs. <strong>KEDA autoscaling</strong>, driven by <strong>Prometheus metrics</strong>, connects observed demand to capacity changes. Hardware provisioning and model switching work together to keep available resources useful rather than leaving GPUs idle.</p>
+<p>The integration is the product: users receive model support and cluster infrastructure together, instead of having to connect an inference engine to a separately assembled production stack. In the deployment workflow Makraduli describes, the operator selects models through configuration and applies the infrastructure:</p>
+<p>``<code>bash
+terraform apply
+</code>``</p>
+<p>Published Helm charts and Docker images provide additional deployment artifacts. The command is the final application step for the configured infrastructure, not a replacement for selecting and configuring the deployment.</p>
+<p>The release includes both sides of SIE: the adapted model execution code, including attention and forward-pass work, and the cluster machinery for provisioning and operating GPUs. This closes the gap that started with the FlashAttention article. Understanding how computation becomes fast inside a model now connects to controlling where that computation runs and how requests reach it.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="1007">▶ 16:47</button></div>
+      <h3>幻灯片背后的模式</h3>
+      <p>With the infrastructure explanation complete, Makraduli returns to the background puzzle. His hints point toward embeddings, attention, and transformer foundations. An audience member tentatively recalls a visualization in which embeddings clustered in part of the space because of positional encoding. Makraduli accepts the positional-encoding connection as the answer.</p>
+<p>The reveal identifies the background as a vector visualization of <strong>sinusoidal positional encodings</strong>. The final slide pairs a green-and-blue heatmap with the orange striped pattern seen in the background. Makraduli connects the pattern to the way transformers represent token positions during training. In the original <a href="https://arxiv.org/html/1706.03762v7" target="_blank" rel="noopener">Transformer formulation</a>, these sinusoidal encodings are fixed functions used during training, distinct from learned positional embeddings. The visual puzzle ends on the same architectural detail that mattered in model serving: how a model represents position is part of what its implementation must preserve.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/470d1481f1eee98729153a52db7814e17d05ec09a5bd911517718c118eb40ad0" alt="Projected slide shows a green-and-blue sinusoidal positional encoding heatmap above an orange striped pattern, with a QR code at right and the speaker at the lectern." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The closing reveal pairs a sinusoidal positional encoding heatmap with the patterned background.</figcaption></figure>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://github.com/superlinked/sie" target="_blank" rel="noopener">Superlinked Inference Engine</a> — Source code and current setup instructions for shared-model inference and its production cluster.</li><li><a href="https://filipmakraduli.substack.com/p/what-actually-makes-embedding-model" target="_blank" rel="noopener">What Actually Makes Embedding Model Inference Fast?</a> — Makraduli's explanation of memory traffic, FlashAttention, and embedding inference bottlenecks.</li><li><a href="https://filipmakraduli.substack.com/p/beyond-flash-attention-the-inference" target="_blank" rel="noopener">Beyond Flash Attention</a> — A companion discussion of forward-pass costs, variable-length attention, and padding, scoped to dense embedding models on H100-class GPUs.</li><li><a href="https://www.trychroma.com/research/context-rot" target="_blank" rel="noopener">Context Rot</a> — Chroma's experiments on how input length, semantic ambiguity, and distractors affect model performance.</li><li><a href="https://storage.googleapis.com/deepmind-media/gemma/Gemma3Report.pdf" target="_blank" rel="noopener">Gemma 3 Technical Report</a> — Architecture and evaluations for Gemma 3, including a dated preliminary Chatbot Arena comparison with larger models.</li><li><a href="https://github.com/vllm-project/vllm/blob/v0.8.5/vllm/model_executor/models/qwen2.py" target="_blank" rel="noopener">Qwen2 attention implementation in vLLM</a> — A version-pinned implementation showing combined QKV projections in Qwen2 attention.</li><li><a href="https://arxiv.org/html/1706.03762v7" target="_blank" rel="noopener">Attention Is All You Need</a> — The original Transformer architecture, including its sinusoidal positional encoding formulation.</li><li><a href="https://huggingface.co/blog/huggingface/state-of-os-hf-spring-2026" target="_blank" rel="noopener">State of Open Source on Hugging Face: Spring 2026</a> — A historical account of public model repositories, derivative models, and adoption across Hugging Face.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[on-hold electronic music] Hello, everyone.</span></div><div class="tline" data-t="16"><span class="ts">0:16</span><span class="tx">Um, welcome to this talk. I'll be speaking about small model inference and a gap that we've recognized in the market, and what we did about it, and why we kind of made this approach.</span></div><div class="tline" data-t="33"><span class="ts">0:33</span><span class="tx">And as you can see, this background slide here, um, this is no accident. So if you can guess what this is, I'll prompt you at the end of the slides.</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">You win a little reward, so you can catch me at the break afterwards. So think about this, but also listen to me, so don't think too hard.</span></div><div class="tline" data-t="53"><span class="ts">0:53</span><span class="tx">So the story starts with me posting an article a few months ago on Substack that got a bit of traction, got a few people interested, and I explained FlashAttention, I explained how models worked, how processes can be memory-bound, compute-bound.</span></div><div class="tline" data-t="71"><span class="ts">1:11</span><span class="tx">And I felt really good 'cause I kind of went deep into this, and as a person who's been in AI for a few years, I felt very confident. And that was true.</span></div><div class="tline" data-t="83"><span class="ts">1:23</span><span class="tx">But then some people pointed out that actually I had overlooked one key aspect around what, uh, makes these models fast in the real world.</span></div><div class="tline" data-t="96"><span class="ts">1:36</span><span class="tx">And that aspect that I overlooked was inference. So as someone who kind of wants to understand things in first principles and work to understand the problems and the solutions deep, I realized, okay, I need to figure this out.</span></div><div class="tline" data-t="113"><span class="ts">1:53</span><span class="tx">I need to know kind of where I've made my mistake, and as a AI researcher and engineer, I need to find more about inference. So I've done a lot of work with vLLM, training models, fine-tuning, kind of doing applied, uh, ML and AI.</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">Did a bit of also research in academia as well. But this part around kind of how models run in production, scheduling GPUs, routing, and automation, I guess, was a bit of a b-blind spot for me.</span></div><div class="tline" data-t="146"><span class="ts">2:26</span><span class="tx">So I realized, okay, this is the time I have to now figure this out, learn and make it work. And what better way to do this than to actually build stuff?</span></div><div class="tline" data-t="158"><span class="ts">2:38</span><span class="tx">So I decided to join a team, um, a team at Superlinked, uh, comprised of very good, uh, infrastructure engineers and actually work with them and build something around inference.</span></div><div class="tline" data-t="174"><span class="ts">2:54</span><span class="tx">And that something is, um, this, uh, repo, the Superlinked Inference Engine that we have open-sourced, and this is kind of like the soft launch that I'm doing today, so you can have a look at that later.</span></div><div class="tline" data-t="186"><span class="ts">3:06</span><span class="tx">So basically, it's inference for small models around AI search and document processing. And we've tested this out, as you can see, with some of our partners. So we've tested it out with Chroma, Qdrant, Weaviate, so a lot of the vector DBs, uh, as well as LanceDB.</span></div><div class="tline" data-t="203"><span class="ts">3:23</span><span class="tx">And as you can see, they've tried it out a bit. Sounds fun, sounds interesting, so this is working. And, uh, it was the right step for me to kind of figure this out and learn where inference, um, kind of truly is and how that combines with my ML experience.</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">So the three key points I want you to, uh, go away with from this talk are these. So first, I want to tell you why this matters, so why doing inference for AI search and document processing actually matters when you're building agents or when you're building workflows that involve, uh, agents.</span></div><div class="tline" data-t="244"><span class="ts">4:04</span><span class="tx">So this is very important, the why. Then I want to talk to you about the second thing, which is what inference is not about. So there are some misconceptions or ideas of how inference looks like, but it's not all about those things.</span></div><div class="tline" data-t="260"><span class="ts">4:20</span><span class="tx">And the third thing is how we see inference, and I call this as like the yin and yang of model inference, and it's a way of combining a few things around model support and infrastructure.</span></div><div class="tline" data-t="275"><span class="ts">4:35</span><span class="tx">So why this matters for your agentic workflow. Well, what you have encountered for sure is context rot. And as we probably all know, this research paper from Chroma from some time ago, um, showcases this effect that no matter what you do, there is this effect of context rot.</span></div><div class="tline" data-t="295"><span class="ts">4:55</span><span class="tx">So quality degrades as context increases. So being able to manage this context and do some context management is very important and a useful way to solve this. So using small models that can pre-process your data so that then you can actually use your agents and build your workflows is a very powerful technique.</span></div><div class="tline" data-t="318"><span class="ts">5:18</span><span class="tx">You can also use the small models for tool calling to, again, do similar things and tackle this, uh, problem of context management. And you might say, &quot;Okay, why would I not use like Claude Code and grepping?&quot;</span></div><div class="tline" data-t="331"><span class="ts">5:31</span><span class="tx">And that's a valid point. However, you can still do that, and having your data being pre-processed is actually making the grepping and file systems that you build even better.</span></div><div class="tline" data-t="344"><span class="ts">5:44</span><span class="tx">And it's not just me saying this, so this is how the community has responded to this problem. So Andrej Karpathy is building knowledge bases, graph-based. So for example, you can use named entity recognition models, um, to generate ontologies and then build knowledge graphs.</span></div><div class="tline" data-t="360"><span class="ts">6:00</span><span class="tx">Or- You generate your file systems in that way. Chroma have also, uh, shipped their own model that actually does this. It kind of pre-processes and filters the input, manages the context in order to tackle and achieve the same problem.</span></div><div class="tline" data-t="377"><span class="ts">6:17</span><span class="tx">And there's also people in the community building a lot of solutions that, um, lower this, um, context and kind of reduce the token amount so that the agents can be even more effective.</span></div><div class="tline" data-t="392"><span class="ts">6:32</span><span class="tx">And we've done this in production as well. We have a use case where this repo that I showcased, the, um, Superlinked Inference Engine, um, we've used it as a tool calling basically, uh, solution where it was around taxonomy classification for like an e-commerce store.</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">So going directly, uh, with tool calling, where the small models are tools that can retrieve and go through your data is also a powerful way to approach this.</span></div><div class="tline" data-t="423"><span class="ts">7:03</span><span class="tx">So now I'll go about inference and what inference doesn't look like. So the traditional maybe perspective is, okay, I will just chuck in more GPUs, get more compute, all good, I've solved inference.</span></div><div class="tline" data-t="439"><span class="ts">7:19</span><span class="tx">However, um, with small models, where actually each model, um, takes up only a small space in memory. So you can see, for example, Stella, which is an embedding model, then other rerankers, um, the named entity recognition GLiNER model, they only occupy like a few gigabytes of memory, and if you provision a GPU for each model, you're wasting</span></div><div class="tline" data-t="463"><span class="ts">7:43</span><span class="tx">a lot of, um, idle space. Your GPU stays idle, and it's not used. So in this case of small model inference, it's very important to be able to hot-swap models.</span></div><div class="tline" data-t="474"><span class="ts">7:54</span><span class="tx">So what we've done is we've built the ability for you to swap all of these models in one GPU so that per GPU, you get much higher utilization. So this lowers your costs, but also enables you to hot-swap and switch around between models quickly.</span></div><div class="tline" data-t="490"><span class="ts">8:10</span><span class="tx">If you want to have one tool that's one reranker or another tool that's another model, you can switch them around quickly, and we have this least recently used eviction policy that we've built in.</span></div><div class="tline" data-t="503"><span class="ts">8:23</span><span class="tx">And also, what inference is not about is, um, only the server or only kind of the production situation. So we have solutions for both the server and the production, but building something, so for example, like using TEI or vLLM or having even, uh, some API wrapper, in order to get that in production where you actually do routing,</span></div><div class="tline" data-t="528"><span class="ts">8:48</span><span class="tx">autoscaling, um, you do kind of monitoring with Prometheus metrics and Grafana, you have to write that code yourself. And on the market currently, there is no open source solution that leads you from creating the model inference to actually productionizing this at a scale, um, of this size.</span></div><div class="tline" data-t="549"><span class="ts">9:09</span><span class="tx">So that's why we've kind of wanted to fill this gap as well. So, um, we've included a lot of stuff around ri- uh, routing, autoscaling, queuing mechanisms, and provisioning GPUs.</span></div><div class="tline" data-t="564"><span class="ts">9:24</span><span class="tx">So I've talked about what inference isn't, why this is important, and let me tell you now about, um, what actually inference is about. And I call this the yin and yang of inference because I feel like this is a holistic approach that has to combine two key things.</span></div><div class="tline" data-t="585"><span class="ts">9:45</span><span class="tx">So first, the yin is model support. So your inference is worthless if you're not supporting the right models or you're not offering enough breadth of, um, options for your users.</span></div><div class="tline" data-t="601"><span class="ts">10:01</span><span class="tx">And open source models, so on Hugging Face currently there are millions of models. Um, this is from March. Now there might be even more like close to three million models.</span></div><div class="tline" data-t="612"><span class="ts">10:12</span><span class="tx">And open source is moving very quickly, both in size but also in accuracy. So you need to support these models because people want to use them, people want to work with open source, and the performance is also getting better and better.</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">So it's not even a sacrifice anymore. It's actually you're being able for specific tasks. So if you look at MTEB or different benchmarks, you can see that for very narrow tasks, um, open source models are beating managed services.</span></div><div class="tline" data-t="643"><span class="ts">10:43</span><span class="tx">And we see this even with more general purpose models like, uh, what Gemma have done. So they've released very low parameter models that have Elo scores that are higher than, um, much, much bigger models.</span></div><div class="tline" data-t="658"><span class="ts">10:58</span><span class="tx">So open source small models are very relevant, and you need an infra, um, to support, to support them.</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">And we decided to do exactly this. Okay, let's do it. We'll build and support hundreds of models. However, uh, that's not as straightforward as it might sound because all of these models have different runtimes.</span></div><div class="tline" data-t="687"><span class="ts">11:27</span><span class="tx">So for example, with if you use BERT and Qwen as, um, models, they have different implementation of FlashAttention, they have different positional embeddings, and you need to adjust this in order to make, um, make this kind of applicable to your case and, uh, make it more general.</span></div><div class="tline" data-t="707"><span class="ts">11:47</span><span class="tx">So there is no universal engine that can handle BERT, Qwen, and ModernBERT as well because the architectures are different. So what, what we've done is we've set up, um, a way of re-reimplementing this forward pass in order to adapt attention, in order to do padding where needed, so have variable length attention as well.</span></div><div class="tline" data-t="729"><span class="ts">12:09</span><span class="tx">Uh, work with kind of fuse- fusion of the, uh, query key and value, um, and this is kind of an underrated component, especially if, um, you look at supporting models like ColBERT that has multiple vectors as output, so late interaction models.</span></div><div class="tline" data-t="747"><span class="ts">12:27</span><span class="tx">Also, cross encoders and re-rankers that do not output a vector at all, but they output kind of scores. So it's very important to, um, figure this out, and one example of this is, for example, this, which is, um, a comparison of a few models that are totally different in this five aspects.</span></div><div class="tline" data-t="769"><span class="ts">12:49</span><span class="tx">So normalization is done differently in BERT and Qwen, so that needs to be accounted for. In ColBERT, um, it's also totally different. Uh, the q- uh, the query key and values are also can be fused somewhere.</span></div><div class="tline" data-t="786"><span class="ts">13:06</span><span class="tx">In others, um, for example, in Qwen, it cannot be because there is, um, grouped query attention, so that's another problem. The positioning- positional embeddings are also different. You can do in BERT absolute lookup where at w- with Qwen, there is, uh, rotary positional embeddings.</span></div><div class="tline" data-t="804"><span class="ts">13:24</span><span class="tx">So these are problems that maybe, uh, people don't think about straight away, but if you want to support a lot of models, there needs to be a consistent way of doing this.</span></div><div class="tline" data-t="814"><span class="ts">13:34</span><span class="tx">So we've set up this with kind of working with agents as well as with humans to be able to support this and re-implement this forward pass in order to make, um, the, the inference of this model efficient.</span></div><div class="tline" data-t="828"><span class="ts">13:48</span><span class="tx">And we've also worked, uh, to do FlashAttention, um, where it's variable-length FlashAttention so that you can do, uh, padding and that there is no waste. Because what happens is if you wanna do token-based batching, you can have tokens that are kind of, um, lower number of tokens, one request, and then another is a higher amount, and then</span></div><div class="tline" data-t="851"><span class="ts">14:11</span><span class="tx">if both are padded at the higher amount, you basically are wasting compute on empty tokens. So you need to adapt this in order to make the models, uh, work even better and quicker.</span></div><div class="tline" data-t="863"><span class="ts">14:23</span><span class="tx">Um, and that's a key differentiator in our way of approaching inference. The other part, the yang, is around</span></div><div class="tline" data-t="876"><span class="ts">14:36</span><span class="tx">infrastructure. So this is the complex plot. Um, it's kind of this is the deep dive. We have this in our website and in our repo. I won't go into each component here.</span></div><div class="tline" data-t="886"><span class="ts">14:46</span><span class="tx">But basically, what's up there is the three primitives of our A- API, so encode, score, and extract. And then the infrastructure layer happens, and this is kind of the summary of it.</span></div><div class="tline" data-t="897"><span class="ts">14:57</span><span class="tx">So basically, we have the three primitives of the API, and then we have a router and also a queuing mechanism depending on, uh, the load, so we're adjusting between, uh, these and also different pools of different GPUs and resources that, um, we use in order to kind of distribute the workload.</span></div><div class="tline" data-t="918"><span class="ts">15:18</span><span class="tx">And we, we use spot instances but also bigger GPUs. So it's about being able to provision the hardware and also have the metrics to autoscale this. So we're doing KEDA autoscaling with Prometheus metrics in order to be able to kind of switch models around, not keep GPUs idle and kind of waste resources.</span></div><div class="tline" data-t="941"><span class="ts">15:41</span><span class="tx">So the key driver here is that we want you to have the cluster as well as the model support. So not just one or the other, and then you have to merge them together and write all that code.</span></div><div class="tline" data-t="954"><span class="ts">15:54</span><span class="tx">But we want to give you the whole end-to-end thing so that you can work with these models quickly, and the models are basically just a config that you can switch around and then do terraform apply, and that's it, and we also have published Helm charts and Docker images as well.</span></div><div class="tline" data-t="971"><span class="ts">16:11</span><span class="tx">And that's how I learned my lesson. Um, uh, we've built SIE, so this is kind of our soft launch in a way. And we've open sourced both the model inference that I talked about with kind of adapting this forward pass, working with attention, re-implementing different aspects on the model, but also the cluster so that you can actually</span></div><div class="tline" data-t="991"><span class="ts">16:31</span><span class="tx">use this straight away without having to think about hardware, provisioning GPUs, and all of those problems that arise in, in the real world. Um, you can scan the QR code to look at the repo, and it's called SIE, so S-I-E.</span></div><div class="tline" data-t="1007"><span class="ts">16:47</span><span class="tx">Um, and the company is Superlinked. And also now we have the, the background as well, so a quick reminder on that. Um, does anyone have any ideas maybe from the audience?</span></div><div class="tline" data-t="1021"><span class="ts">17:01</span><span class="tx">I'll reveal it in the next slide, but yeah, I don't want to maybe do it too quickly. If anyone knows what this is, think of it machine learning a bit, kind of, uh, foundational knowl- I was talking about attention and all that, so it's a bit around embeddings, but also how transformers work.</span></div><div class="tline" data-t="1041"><span class="ts">17:21</span><span class="tx">Okay. No, no, no reward, I guess, for you, sadly. Or yeah, yeah. Sorry?</span></div><div class="tline" data-t="1048"><span class="ts">17:28</span><span class="tx">Can't remember exactly, but there was one with, like, all the embeddings were clustering on, like, one area and wasn't using most of the embedding space-</span></div><div class="tline" data-t="1056"><span class="ts">17:36</span><span class="tx">Okay</span></div><div class="tline" data-t="1056"><span class="ts">17:36</span><span class="tx">... because of the way we were doing the positional encoding. As much as I remember.</span></div><div class="tline" data-t="1063"><span class="ts">17:43</span><span class="tx">So I will take that as a correct answer. So it was around positional, uh, encodings, and yes, this is basically... Yeah. Congrats. [audience applauding] So yes, this is a- around vector visualization of positional encoding.</span></div><div class="tline" data-t="1077"><span class="ts">17:57</span><span class="tx">So this is done when transformers are trained. This is how positions are encoded, and it's sinusoidal. That's why you get this pattern because it- they're embeddings. And yeah. Thank you very much. [audience applauding] [upbeat music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

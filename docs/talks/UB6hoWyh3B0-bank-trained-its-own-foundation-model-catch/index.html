@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>一家银行训练了自己的基础模型来抓欺诈 —— Freddy Lecue，富国银行 | AI 工程师中文版</title>
+<meta name="description" content="Freddy Lecue 讲解了富国银行如何把交易表变成 Transformer 的词表，从零开始预训练一个共享主干，并利用交易历史，在欺诈分类上超越了其生产环境中的 XGBoost 基线。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>一家银行训练了自己的基础模型来抓欺诈 —— Freddy Lecue，富国银行</h1>
+    <div class="orig-title">A Bank Trained Its Own Foundation Model to Catch Fraud — Freddy Lecue, Wells Fargo</div>
+    <div class="meta"><span class="speaker">Freddy Lecue</span> · 17:40</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=ai-in-finance">金融 AI</a><a class="tag" href="../../index.html#topic=pretraining-and-midtraining">预训练与中期训练</a><a class="tag" href="../../index.html#topic=transformers-and-attention">Transformer 与注意力</a><a class="tag" href="../../index.html#topic=embeddings-and-representation-learning">嵌入与表示学习</a><a class="tag" href="../../index.html#topic=fine-tuning">微调</a><a class="tag" href="../../index.html#topic=ai-cost-and-performance-engineering">AI 成本与性能</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/UB6hoWyh3B0-bank-trained-its-own-foundation-model-catch" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="UB6hoWyh3B0"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=UB6hoWyh3B0" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">一个骨干模型服务数十亿笔交易</div></div>
+      <div class="label row">章节跳转 <span>共 8 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>一个骨干模型服务数十亿笔交易</span></li><li data-t="192"><span class="ts">3:12</span><span>预测下一笔交易以学习可复用的表示</span></li><li data-t="341"><span class="ts">5:41</span><span>找回工程化特征底下的原始信息</span></li><li data-t="491"><span class="ts">8:11</span><span>分词承载着最困难的设计决策</span></li><li data-t="607"><span class="ts">10:07</span><span>一个 11 亿参数的模型，数据比最初预想的更多</span></li><li data-t="817"><span class="ts">13:37</span><span>对照历史判断一笔新的借记卡交易</span></li><li data-t="937"><span class="ts">15:37</span><span>抓到更多欺诈，同时拒掉更少的正常支付</span></li><li data-t="997"><span class="ts">16:37</span><span>欺诈是已验证的用例，其他团队复用这个基础</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 18 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/4226aa8265a881dce9fa2b6c20f140a0da38942082621198964599899d5c5d1a.webp" alt="Black slide displaying platinum sponsor logos for Oracle AI Database, Sonar, WorkOS, and exa." loading="lazy" data-lb="0" data-cap="Platinum Sponsors" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Platinum Sponsors</h3>
+        <p>Black slide displaying platinum sponsor logos for Oracle AI Database, Sonar, WorkOS, and exa.</p>
+        <details><summary>幻灯片原文</summary><pre>PLATINUM SPONSORS
+
+ORACLE
+AI Database
+
+Sonar
+Makers of SonarQube
+
+WorkOS
+
+exa</pre></details>
+        <button class="ts" data-t="8">▶ 0:08</button>
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Wells Fargo Foundation Model: Application to Fraud Detection at Scale" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Wells Fargo Foundation Model: Application to Fraud Detection at Scale</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Billions of banking transactions feed a general-purpose backbone, then specialized models for fraud, Anti-Money Laundering and decisioning. The workflow targets lower fraud loss and less analyst toil.
+
+[0:12](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=12s) [Title slide showing a workflow from raw banking transactions through a foundation model and specialized models to business impact.](https://assets.ai.engineer/sites/aiecode2025/sha256/8539bf35b62b343c8753c135ce8bcfe87deb0f516a2f602200f5bb0afac43d30.webp)
+
+Wells Fargo Foundation Model:
+Application to Fraud Detection at Scale
+
+AI ENGINEER NYC • OCTOBER 13, 2026
+
+Lessons from building a large-scale transaction foundation model on billions of banking transactions.
+
+01
+RAW DATA
+billions of bank transactions
+
+02
+FOUNDATION MODEL
+one general-purpose transaction backbone
+
+03
+SPECIALIZED MODELS
+fine-tuned for fraud, Anti-Money Laundering, decisioning, ...
+
+04
+BUSINESS IMPACT
+lower fraud loss,
+less analyst toil
+
+Freddy Lecue
+Head of Frontier AI Model, Managing Director
+Wells Fargo</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Foundation Models and Their Applications in Finance" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Foundation Models and Their Applications in Finance</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Pre-training one large model lets teams adapt a shared backbone to many tasks with little task-specific data. In finance, transaction histories can feed that backbone for fraud detection, credit scoring and other downstream tasks.
+
+[0:25](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=25s) [Foundation model definition, pre-training and adaptation workflow, shared-backbone diagram, and five financial services application areas.](https://assets.ai.engineer/sites/aiecode2025/sha256/74a07c7cedde367a4f5f09d33868b78fdf6110e6b2c2b3a85cee1efecc2ef8e9.webp)
+
+FOUNDATION MODELS
+What they are? Why they matter? What they unlock in finance?
+
+WHAT IS A FOUNDATION MODEL?
+A single, very large model pre-trained on huge amounts of unlabelled data, that can then be adapted to many downstream tasks with relatively little task-specific data.
+
+PRE-TRAIN
+self-supervised on raw data
+
+ADAPT
+fine-tune or prompt per task
+
+DEPLOY
+many products, one backbone
+
+THE PARADIGM SHIFT
+BEFORE — one task, one model
+NOW — one backbone, many tasks
+Foundation Model
+
+WHERE FOUNDATION MODELS LAND IN FINANCIAL SERVICES — any task framed as a sequence-of-events, document, or natural-language exchange
+
+Fraud &amp; AML
+score every authorization from raw transaction history
+
+Credit &amp; decisioning
+richer risk signals from full account behaviour
+
+Customer service
+agents that read accounts, policies and complaints
+
+Markets &amp; research
+summarise filings, analyse earnings transcripts
+
+Operations
+reconciliation, KYC review
+
+ONE BACKBONE, MANY DOWNSTREAM TASKS — in finance, the most data-rich signal is the transaction stream.
+
+Interface text:
+Setup › What It Takes to Build Production-Grade Foundation Models in Finance
+2 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Foundation Models Meet a Regulated, High-Stakes Domain" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Foundation Models Meet a Regulated, High-Stakes Domain</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Banks make billions of transaction decisions each month. The three cards connect that scale and varied data to the need for auditable decisions, repeatable pipelines and rigorous evaluation when bringing foundation models into production.
+
+[2:48](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=168s) [Banking transaction decisions framed by three challenges: scale and heterogeneity, regulation and risk, and innovation and inertia.](https://assets.ai.engineer/sites/aiecode2025/sha256/7fbee9c8a2c530ba9eae44781aab0865803b41d1f5e059eab8301bf61893486d.webp)
+
+WHY THIS TALK
+Foundation models meet a regulated, high-stakes domain
+
+Banks process billions of transactions every month. Each one is a decision.
+
+Authorize or decline. Fraud or not. Investigate or move on. Foundation models are starting to change how those decisions are made.
+
+Scale × Heterogeneity
+Trillions of structured records, thousands of feature types, long account histories — with no natural “sentence” boundary.
+
+Regulation × Risk
+Every decision must be auditable, validated and monitored. “Try it and see” is not an operating model.
+
+Innovation × Inertia
+Foundation models change what's possible, but production demands repeatable pipelines, evaluation rigor and time to value.
+
+Interface text:
+Setup
+[illegible] Build Production-Grade Foundation Models in Finance
+3 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="From raw transactions to production decisions" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From raw transactions to production decisions</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The four-part agenda follows transactions through tokenization, model architecture and training, then fraud-detection fine-tuning and evaluation against the production baseline. It closes with lessons and next steps.
+
+[3:12](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=192s) [Four-part agenda covering data representation, architecture and training, production fine-tuning, and lessons learned.](https://assets.ai.engineer/sites/aiecode2025/sha256/7f8dab57a30ec8f6b3624766e73684025bd3ab8aeb4a24782a6a40319c8eb299.webp)
+
+AGENDA
+From raw transactions to production decisions
+
+01 Data &amp; Representation
+Transactions as 'sentences'. Tokenization strategies for heterogeneous, sparse, sequential records.
+
+02 Architecture &amp; Training at Scale
+A 1B-parameter decoder-only transformer, dual-objective pre-training, and the optimization stack that made it tractable.
+
+03 From Foundation to Production
+Adaptive fine-tuning for fraud detection — design choices, evaluation, and what it took to beat the production baseline.
+
+04 Lessons &amp; What's Next
+What we'd do again, what we'd do differently, and where transaction foundation models are heading.
+
+Interface text:
+Setup
+What It Takes to Build Production-Grade Foundation Models in Finance
+4 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="A transaction is a sentence. An account history is a document." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A transaction is a sentence. An account history is a document.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The paired diagrams apply next-token learning to transaction histories: predicting a transaction or field teaches spending patterns. Those representations can then be fine-tuned for downstream tasks such as fraud detection.
+
+[3:22](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=202s) [Side-by-side comparison of language and transaction foundation models, their prediction objectives, learned patterns, and applications.](https://assets.ai.engineer/sites/aiecode2025/sha256/e237acfdf0857ad1f5111c44eb02fb9be86dc60fd55f339dc071aea2f606c6d5.webp)
+
+THE MENTAL MODEL
+A transaction is a sentence. An account history is a document.
+
+Language Foundation Model
+“Four score and seven years ago
+  our fathers brought forth…”
+
+Predict the next word
+
+PREDICTS
+the next word (or sentence) in a stream of text.
+
+LEARNS
+complex patterns in language (grammar, semantics, world facts).
+
+POWERS
+summarization, classification, complaint triage, chat.
+
+Transaction Foundation Model
+[BOS] [Wknd] [Δt_10h] [AMT_1] [Purch] … [EOS]
+[BOS] [Δt_3d] [AMT_2] [Purch] … [EOS]
+
+Predict the next transaction (or field)
+
+PREDICTS
+the next transaction — or the next field inside a transaction.
+
+LEARNS
+complex patterns in spending behaviour (timing, amount, merchant).
+
+POWERS
+fraud detection, decisioning, behavioural segmentation, anomaly detection.
+
+SAME RECIPE — vocabulary, sequence model, self-supervised objective — just a different alphabet.
+
+Interface text:
+Act 1 • Data &amp; Representation • What It Takes to Build Production-Grade Foundation Models in Finance
+6 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Heterogeneous, sparse, sequential — and very, very large" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Heterogeneous, sparse, sequential — and very, very large</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Across many months, one transaction type spans roughly 10 billion records. Each record has about 100 raw fields grouped into who, what, how, when and where; the transformer learns relationships among those fields.
+
+[5:39](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=339s) [Transaction scale estimates above five field categories—who, what, how, when, and where—and an explicitly illustrative transaction.](https://assets.ai.engineer/sites/aiecode2025/sha256/f29a9c1b5a4b11fa6afc7bcbe1a4bcd73f92e913c2085ea8cac9eb9aed264b2e.webp)
+
+WHAT IS A ‘TRANSACTION’?
+Heterogeneous, sparse, sequential — and very, very large
+
+≈ 10¹⁰ transactions
+many months · one transaction type
+
+≈ 10⁹ per month
+average inflow
+
+≈ 10⁷ unique accounts
+tens of millions
+
+≈ 10² txns / account
+hundreds, with a long-tailed distribution
+
+Note — order-of-magnitude figures for a SINGLE transaction type: one subset of the bank's full transaction universe.
+
+ONE TRANSACTION — ~100 RAW FIELDS
+five questions, dozens of answers
+
+WHO account id · merchant id · account segment
+WHAT amount · type · category · cash-back
+HOW channel · method · auth code · network
+WHEN date_time · Δt · day-of-week · hour-of-day
+WHERE account ZIP / country · merchant ZIP / country · IP block
+
+EXAMPLE TRANSACTION (illustrative)
+shape only — values shown are illustrative
+
+account_id          ACCT_XXXXX
+merchant_id         MERCH_XXXXX
+MCC (Merch. Category Code)   grocery
+amount              $ small
+type                M — merchandise
+channel             card-not-present
+date_time           weekday morning
+acct location       ZIP region A
+merch location      ZIP region A
+…                   …
+
+Interface text:
+Act 1 · Data &amp; Representation · What It Takes to Build Production-Grade Foundation Models in Finance
+7 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="A five-step pipeline turns tabular records into model input" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A five-step pipeline turns tabular records into model input</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Transactions are ordered by account, converted to tokens and vocabulary IDs, then mapped to 2,048-dimensional embeddings. The key design choice is how each feature becomes a token without making the vocabulary too large.
+
+[7:59](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=479s) [Pipeline from tabular records through account sequencing, value tokenization, token IDs, and embedding lookup, with a worked example.](https://assets.ai.engineer/sites/aiecode2025/sha256/ea4b744c9254690c0b1bc0e4711c3c8156ab3eca6da1f50b6c048ee156b7880e.webp)
+
+FROM ROWS TO TOKENS
+A five-step pipeline turns tabular records into model input
+
+01
+Tabular records
+raw transaction
+rows (hundreds fields)
+
+02
+Sequence by account
+ordered history per
+account_id
+
+03
+Value → token
+human-readable
+token strings
+
+04
+Token → id
+integer index
+into vocab
+
+05
+Embedding lookup
+dense vector
+(dim 2048)
+
+WORKED EXAMPLE
+
+Tabular row
+(2024/03/01 07:20, MCC=5411 [grocery], type=M, channel=SIG_CNP, amount=114.99)
+
+Tokens
+… &lt;GAP&gt; Δt_BIN_03 MERCHANT_CATEGORY_118 TRANSACTION_TYPE_M CHANNEL_SIG_CNP … TRANSACTION_RANGE_5 &lt;GAP&gt;
+
+Vocab ids
+… 4 9 2350 4158 4111 … 2202 4 …
+
+Embedding
+tensor of shape (sequence_length, 2048)
+
+Note — the design choice that matters most lives in step 03: how each FEATURE TYPE gets turned into tokens.
+
+Act 1 • Data &amp; Representation • What It Takes to Build Production-Grade Foundation Models in Finance
+8 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="From tabular records to embeddings" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>From tabular records to embeddings</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Transaction rows become ordered account histories, then tokens, vocabulary IDs and 2,048-dimensional embeddings. The key design choice is how each feature type becomes tokens, which shapes the vocabulary the model must learn.
+
+[8:19](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=499s) [Five stages convert transaction records into account sequences, token strings, vocabulary IDs and embeddings, with a worked example.](https://assets.ai.engineer/sites/aiecode2025/sha256/c59e872c76e5ac76d50f9256b41fc9140749f4ebaf80c80c39c18024c8943968.webp)
+
+FROM ROWS TO TOKENS
+A five-step pipeline turns tabular records into model input
+
+01
+Tabular records
+raw transaction rows (hundreds fields)
+
+02
+Sequence by account
+ordered history per account_id
+
+03
+Value → token
+human-readable token strings
+
+04
+Token → id
+integer index into vocab
+
+05
+Embedding lookup
+dense vector (dim 2048)
+
+WORKED EXAMPLE
+Tabular row
+(2024/03/01 07:20, MCC=5411 [grocery], type=M, channel=SIG_CNP, amount=114.99)
+
+Tokens
+… &lt;GAP&gt; Δt_BIN_03 MERCHANT_CATEGORY_118 TRANSACTION_TYPE_M CHANNEL_SIG_CNP … TRANSACTION_RANGE_5 &lt;GAP&gt;
+
+Vocab ids
+… 4 9 2350 4158 4111 … 2202 4 …
+
+Embedding
+tensor of shape (sequence_length, 2048)
+
+Note — the design choice that matters most lives in step 03: how each FEATURE TYPE gets turned into tokens.
+
+Act 1 • Data &amp; Representation • What It Takes to Build Production-Grade Foundation Models in Finance
+8 / 21
+
+Interface text:
+Wells Fargo Foundation Model: Application to Fraud Detection at Scale
+Freddy Lecue / Head of Frontier AI Models, Managing Director
+WELLS FARGO</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Transformer architecture and sizing estimates" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Transformer architecture and sizing estimates</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The decoder scores the next transaction from account history. Chinchilla sizing set an initial target of 20 tokens per parameter; Lecue says experiments ultimately required about ten times that token budget.
+
+[10:05](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=605s) [Architecture table for a billion-parameter decoder-only transaction model, alongside Chinchilla sizing estimates and reasons for choosing a decoder.](https://assets.ai.engineer/sites/aiecode2025/sha256/a9bbb9bcf635d9846ddca0b0606f37d56dc1600b8e5db5058b0cdfda997811ba.webp)
+
+THE BACKBONE
+1B-parameter decoder-only transformer, sized by Chinchilla
+
+ARCHITECTURE — 1B-PARAMETER TRANSACTION FOUNDATION MODEL
+Input sequence: 1,024 / 2,048 tokens (account history)
+Embedding dimension: 2,048
+Transformer stack: 16 decoder blocks
+Attention: 32 heads · head dim 64 · masked MHA (Multi-Head Attention)
+Per block: MLP (Multi-Layer Perceptron) dim 8,192 · residual · layer-norm
+Position: RoPE (Rotary Position Embedding)
+Objective: Next-token prediction (Causal + Masked Language Modelling auxiliary)
+
+SIZING MATH (CHINCHILLA-OPTIMAL)
+Optimal tokens ≈ 20 × parameters
+DATA TARGET: ≥ 20B tokens
+TRAIN COMPUTE: 6 × 1B × 20B ≈ 1.3 × 10²⁰ FLOPs
+WALL CLOCK:
+8 × NVIDIA H200 ≈ 3.5 days
+≈ 576 GPU-h
+(2.6B transactions · 220B tokens)
+
+WHY DECODER-ONLY (vs. ENCODER) ?
+▸ Strong fine-tuning surface — last-token pooling works very well.
+▸ Causal masking matches reality — we always score the next transaction given history.
+▸ Standard infra path — reuses the Large Language Model pre-train tooling.
+
+Act 2 • Architecture &amp; Training • What It Takes to Build Production-Grade Foundation Models in Finance
+11 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Causal and masked language modeling objectives" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Causal and masked language modeling objectives</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>CLM predicts the next token from left context and supplies the primary loss. MLM reconstructs masked tokens using both sides of the sequence; its weighted auxiliary loss regularises the embedding space.
+
+[11:57](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=717s) [Side-by-side diagrams show next-token prediction using left context and masked-token reconstruction using context from both sides.](https://assets.ai.engineer/sites/aiecode2025/sha256/184b1c18c472fe8e98f0a657c2468d576668682c50dfa3ab2268754a749a4841.webp)
+
+PRE-TRAINING RECIPE
+Two complementary objectives on the same sequence
+
+CLM
+Causal Language Modelling
+
+Standard auto-regressive loss — every token predicts the next, given only what came before. Mirrors how the model will be USED at inference.
+
+BOS   Δt_30m   AMT_10   MCC_60   ATM   EOS
+left context
+
+target →
+ATM   ✓
+
+predict the next token from LEFT context only
+
+MLM
+Masked Language Modelling
+
+Mask 15% of tokens and reconstruct them from both sides. Forces the model to use bidirectional context during pre-training.
+
+BOS   Δt_30m   AMT_10   [MASK]   ATM   EOS
+left + right context
+
+target →
+MCC_60   ✓
+
+reconstruct hidden tokens from BOTH sides
+
+RECIPE — CLM is the primary loss; MLM is a weighted auxiliary that regularises the embedding space.
+
+Act 2 • Architecture &amp; Training • What It Takes to Build Production-Grade Foundation Models in Finance
+12 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Transaction foundation model training pipeline" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Transaction foundation model training pipeline</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>An offline pipeline de-identifies transactions, tokenizes and packs them, then feeds pre-training. Training produces registered checkpoints and evaluation dashboards; the vocabulary ships with every checkpoint.
+
+[12:06](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=726s) [Offline pipeline connects transaction sources, de-identification, tokenization, vocabulary storage and training to model registration and evaluation.](https://assets.ai.engineer/sites/aiecode2025/sha256/b01ddaae4e41f63c3238edf6c8e710710c45af32e29d92ace7786ffa555572f4.webp)
+
+SYSTEM ARCHITECTURE
+How the Transaction Foundation Model is trained
+
+Core banking transactions
+Card authorizations
+Account &amp; merchant reference data
+≈ 10¹⁰ transactions
+
+1
+De-identify &amp; snapshot
+PII controls · dedup · point-in-time
+
+2
+Tokenize &amp; pack
+sequences of 1,024 / 2,048
+≈ 330B tokens
+
+3
+Vocabulary store
+97 features → 5,164 tokens · 8 feature types
+
+4
+Pre-training cluster
+8 × H200 · FSDP
+Causal + Masked Language Modelling
+≈ 576 GPU-h / run
+
+5
+OFFLINE · BATCH PIPELINE
+Model registry
+checkpoints · lineage · audit
+
+Evaluation
+perplexity · accuracy dashboards
+
+6
+vocabulary ships with every checkpoint
+
+7
+Tokenized shards
+memory-mapped · streamed loader
+
+PII is de-identified before it enters the pipeline
+
+Interface text:
+Act 2 · Architecture &amp; Training · What It Takes to Build Production-Grade Foundation Models in Finance
+13 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Three levers for scaling training" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Three levers for scaling training</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The training stack combines higher token throughput, fewer steps to converge, and lower memory use. The slide treats these as independent levers whose gains compound, with techniques assigned to each goal.
+
+[12:50](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=770s) [Three columns describe techniques for faster training, faster convergence and memory efficiency.](https://assets.ai.engineer/sites/aiecode2025/sha256/ea27bb7cfb92f5d5b71acb1a15334134f1c7f96346c9770f907c86d688058095.webp)
+
+SCALING PLAYBOOK
+Three knobs every training stack has to push at once
+
+FASTER TRAINING
+maximize tokens / second
+
+Mixed precision
+BF16 (Brain Float 16) / FP16 (Floating-Point 16).
+GPU throughput ↑ with negligible quality loss.
+
+DDP — Distributed Data Parallel
+Replicate the full model on every GPU; scale data in parallel.
+
+Maximize microbatch size
+Use the largest batch that fits before gradient accumulation.
+
+FASTER CONVERGENCE
+fewer steps · fewer tokens
+
+Muon vs AdamW
+Muon (orthogonalised matrix updates) replaces AdamW (Adam + weight decay) — ~10% lower final loss.
+
+RoPE — Rotary Position Embedding
+Easier optimisation landscape, faster convergence.
+
+Effective batch stability
+Gradient accumulation for smooth loss curves.
+
+MEMORY EFFICIENCY
+fit a bigger model / context / batch
+
+Flash Attention
+O(N²) → O(N) memory; 2–4× faster attention kernel.
+
+Activation checkpointing
+Recompute on backward; 40–50% memory cut.
+
+FSDP — Fully Sharded Data Parallel
+Shard parameters, gradients and optimiser state across GPUs.
+
+THREE INDEPENDENT LEVERS — optimiser, kernels, memory — the gains compound.
+
+Interface text:
+Act 2 • Architecture &amp; Training • What It Takes to Build Production-Grade Foundation Models in Finance
+14 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Pre-training progression across five runs" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Pre-training progression across five runs</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Across five runs with the same backbone, perplexity falls as accuracy rises. The final reordered-token run improves accuracy from 93.10% to 95.25% and perplexity from 1.245 to 1.147, with both six-month runs using 576 GPU-hours.
+
+[13:23](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=803s) [A table compares tokens, transactions and GPU-hours across five runs; charts show reported perplexity decreasing and accuracy increasing.](https://assets.ai.engineer/sites/aiecode2025/sha256/5f3ed338595407d26fe99993fa9786713a0d6b1e76e8a4e2cb6d0a24737bc9f7.webp)
+
+PRE-TRAINING PROGRESSION
+Scale + better tokenization compound. Perplexity ↓, accuracy ↑
+
+FIVE PRE-TRAINING RUNS, SAME BACKBONE
+
+Run | Tokens | Transactions | GPU-hours
+Initial
+Limited data
+5B | 65M | 10
+
+Better hyper-parameters
++ more data
+11B | 125M | 8.5
+
+1 month of data
+even more data
+101B | 1.2B | 240
+
+6 months of data
++ improved tokenization
+220B | 2.6B | 576
+
+6 months of data
++ reordered token sequence
+330B | 3.9B | 576
+BEST
+
+PERPLEXITY ↓ ACCURACY ↑
+
+Perplexity
+Y-axis ticks: 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0
+X-axis: Model Progression
+(Sept): 4.39
+(Best Params): 1.39
+(1 Month): 1.26
+(6 Months Improved Tok): 1.245
+(6 Months Reordered Tok): 1.147
+
+Overall Accuracy (%)
+Y-axis ticks: 0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
+X-axis: Model Progression
+(Sept): 72.80
+(Best Params): 92.40
+(1 Month): 92.60
+(6 Months Improved Tok): 93.10
+(6 Months Reordered Tok): 95.25
+
+WHAT MOVED THE NEEDLE — better data and smarter tokenization beat raw scale — on a fixed training budget.
+
+Interface text:
+Act 2 • Architecture &amp; Training • What It Takes to Build Production-Grade Foundation Models in Finance
+16 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Fine-tuning a transaction model for fraud classification" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Fine-tuning a transaction model for fraud classification</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Fine-tuning pairs a transaction with its history and a fraud label. Last-token pooling and a shallow classification head adapt the pretrained model; the best history length tested is H=12.
+
+[13:29](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=809s) [Pre-training, supervised fine-tuning and deployment stages, with example token sequences, fraud labels and classifier design choices.](https://assets.ai.engineer/sites/aiecode2025/sha256/6cc7aa8588416260eaca9f910fe6582f3cb69bb6aa9d0ae5fb11e92fedc0de41.webp)
+
+ADAPTIVE FINE-TUNING
+From a general transaction model to a fraud classifier
+
+01 PRE-TRAIN
+Transaction Foundation Model
+Causal LM on ≈ 10B transactions, no labels
+
+02 FINE-TUNE
+Classification head + last-token pooling
+Supervised fine-tuning on ≈ 100M sequences
+
+03 DEPLOY
+Real-time fraud scoring
+Decision in milliseconds per transaction
+
+FINE-TUNING DATASET
+0, 5, 28, …, 4, 5, 10, 41, 43, 55, 4
+↑ history context (variable H)
++
+113, 154, 174, 188, 231, 1
+↑ transaction of interest
+
+→ label:
+fraud_tag = 0 (non-fraud)
+fraud_tag = 1 (fraud)
+
+Training ≈ 100M sequences · keep all fraud, down-sample non-fraud to 1%
+Holdout Testing ≈ 10M samples
+
+FFT DESIGN CHOICES
+Pooling strategy
+last-token pooling &gt; first or mean
+
+Classifier head
+shallow linear projection is enough
+
+History length
+longer history = better (best at H=12)
+
+Learning rate
+low Learning Rate (1e-5–2e-5); 8e-2 collapsed
+
+Checkpoint selection
+by validation metric, never by step count
+
+Act 3 • From Foundation to Production • What It Takes to Build Production-Grade Foundation Models in Finance
+18 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Real-time fraud scoring architecture" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Real-time fraud scoring architecture</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Live transactions join profiles and a 12-transaction history cache before tokenization and GPU scoring. Scores feed decisions and analyst alerts; rules handle timeouts, while confirmed fraud labels feed periodic re-fine-tuning.
+
+[14:59](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=899s) [Live inputs and account history feed context assembly, tokenization and model scoring, followed by decisions, alerts and a fraud-label feedback loop.](https://assets.ai.engineer/sites/aiecode2025/sha256/f19dd4d1dff2760e5a309fd294c101a3d9b932b8330c20d246c89015c68d29d9.webp)
+
+SYSTEM ARCHITECTURE
+Real-time fraud scoring around the fine-tuned model
+
+Card authorization request (live)
+Event stream (real-time)
+Customer &amp; merchant profiles
+
+1
+Assemble context
+history + profile + transaction
+
+2
+Account history cache
+last 12 transactions · ms reads ·
+refreshed on every event
+
+3
+Tokenize
+same vocab as pre-training
+
+4
+Fine-Tuned Transaction Foundation Model
+GPU scoring service
+score in milliseconds
+
+dynamic batching
+autoscaled GPU replicas
+
+champion / challenger deploy
+Model registry
+
+5
+ONLINE · REAL-TIME
+Decision engine
+approve · decline · step-up
+
+timeout fallback — rules-only decision
+
+Analyst queue &amp; alerts
+case management · customer notify
+
+6
+confirmed fraud labels → periodic re-fine-tuning
+
+every authorization is
+scored live, inside the
+network's ms budget
+
+Act 3 · From Foundation to Production · What It Takes to Build Production-Grade Foundation Models in Finance
+19 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="FT-TFM beats the engineered-feature XGBoost baseline" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>FT-TFM beats the engineered-feature XGBoost baseline</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In holdout testing, FT-TFM with 12 historical transactions improves unit-discovery rate 33% and reduces false-positive ratio 29% (non-fraud/fraud at 0.6% outsort) versus XGBoost, with no engineered features.
+
+[15:25](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=925s) [Holdout results report a 33% relative increase in unit-discovery rate and a 29% reduction in false-positive ratio for the model using 12 historical transactions.](https://assets.ai.engineer/sites/aiecode2025/sha256/d9922e2fc7c5ad752df4986996d9cc5d9e24cce5cba7cc63dea0f04b3857df33.webp)
+
+PRODUCTION RESULTS
+FT-TFM beats the engineered-feature XGBoost baseline
+
+HEADLINE — HOLDOUT TESTING
+Fine-Tuned Transaction Foundation Model (FT-TFM) beats XGBoost baseline on both Unit-Discovery Rate and False-Positive Ratio. No engineered features.
+
+RELATIVE IMPROVEMENT VS XGBOOST BASELINE
+Model | UDR ↑ | FPR ↓
+XGBoost — Baseline (≈ 100 engineered features) | baseline | baseline
+FT-TFM · history = 5 · last pooling | +28% | −26%
+FT-TFM · history = 12 · last pooling | +33% | −29%
+
+UDR = Unit-Discovery Rate (fraud accounts caught)
+FPR = False-Positive Ratio (non-fraud / fraud at 0.6% outsort)
+XGBoost = eXtreme Gradient Boosting (gradient-boosted trees)
+
+↑ UDR
+vs XGBoost baseline
+More fraud accounts caught per alert.
++33%
+
+↓ FPR
+fewer false positives
+Less analyst toil, happier customers.
+−29%
+
+ENGINEERED FEATURES
+tokens → score
+One model replaces years of feature work.
+0
+
+Act 3 • From Foundation to Production • What It Takes to Build Production-Grade Foundation Models in Finance
+20 / 21
+
+Wells Fargo Foundation Model: Application to Fraud Detection at Scale
+Freddy Lecue / Head of Frontier AI Models, Managing Director
+WELLS FARGO
+
+[15:29](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=929s) [Results table reports 33% higher unit-discovery rate and 29% lower false-positive ratio for a 12-transaction history, with no engineered features.](https://assets.ai.engineer/sites/aiecode2025/sha256/c9be2cb68f4d163f3e43cc851347f81cb3d5b8b3bc5fbe26d5bbf34490b06732.webp)
+
+PRODUCTION RESULTS
+FT-TFM beats the engineered-feature XGBoost baseline
+
+HEADLINE — HOLDOUT TESTING
+Fine-Tuned Transaction Foundation Model (FT-TFM) beats XGBoost baseline on both Unit-Discovery Rate and False-Positive Ratio. No engineered features.
+
+RELATIVE IMPROVEMENT VS XGBOOST BASELINE
+Model | UDR ↑ | FPR ↓
+XGBoost — Baseline (≈ 100 engineered features) | baseline | baseline
+FT-TFM · history = 5 · last pooling | +28% | −26%
+FT-TFM · history = 12 · last pooling | +33% | −29%
+
+UDR = Unit-Discovery Rate (fraud accounts caught)
+FPR = False-Positive Ratio (non-fraud / fraud at 0.6% outsort)
+XGBoost = eXtreme Gradient Boosting (gradient-boosted trees)
+
+↑ UDR
+vs XGBoost baseline
+More fraud accounts caught per alert.
++33%
+
+↓ FPR
+fewer false positives
+Less analyst toil, happier customers.
+−29%
+
+ENGINEERED FEATURES
+tokens → score
+One model replaces years of feature work.
+0
+
+Act 3 • From Foundation to Production • What It Takes to Build Production-Grade Foundation Models in Finance
+20 / 21</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Lessons and future directions" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Lessons and future directions</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Moving from 5 to 12 transactions improved Value-Discovery Rate more than any other tuned hyperparameter. Next: share one backbone across tasks, enrich histories and use adapters to target retraining in weeks, not months.
+
+[16:32](https://www.youtube.com/watch?v=UB6hoWyh3B0&amp;t=992s) [Six lessons cover data representation, pooling, engineering, longer histories, training duration and validation-based selection. Future directions include multitask fine-tuning, richer histories and adapter tuning.](https://assets.ai.engineer/sites/aiecode2025/sha256/f22f2d81b39875e6ff5cbe88d108675b725376f9cb071c81337d24068a1d1ee4.webp)
+
+LESSONS &amp; WHAT'S NEXT
+Five things we'd do again · three places we're heading
+
+01 Data shape matters more than data size
+Log-scale binning, geo-hash on postal codes, /16 IP grouping. These choices moved perplexity more than a 10× token budget.
+
+02 Decoder + last-token pooling wins
+Encoder variants kept losing on the same backbone. Last-token pooling beat first and mean across every run.
+
+03 Engineering = modelling
+DDP → FSDP → Flash Attention → torch.compile is a 2.2× throughput win. Without it, half our experiments don't run.
+
+04 Long history is the single biggest driver
+Going from a 5-transaction history to 12 moved Value-Discovery Rate more than any other hyperparameter we tuned.
+
+05 Short runs lie
+Focal loss looked great at 1k steps; tied or lost at 10k. Always confirm with a long run before you ship a recipe.
+
+06 Select by validation, never by step count
+Checkpoints peak mid-training and degrade. Pin model selection to a validation metric, not 'final step'.
+
+WHAT'S NEXT
+One backbone, many decisions
+
+Multi-task fine-tuning
+fraud · decisioning · AML (Anti-Money Laundering) · marketing - from one shared backbone.
+
+Longer &amp; richer histories
+Joint more banking transaction types sequences, longer windows.
+
+Continual + adapter tuning
+LoRA-style (Low-Rank Adaptation) adapters so we re-train in weeks, not months.
+
+THANK YOU
+Questions?
+[redacted]
+
+Act 4 · Lessons &amp; What's Next · What It Takes to Build Production-Grade Foundation Models in Finance
+21 / 21</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">一个骨干模型服务数十亿笔交易</a></li><li><a href="#sec-2">预测下一笔交易以学习可复用的表示</a></li><li><a href="#sec-3">找回工程化特征底下的原始信息</a></li><li><a href="#sec-4">分词承载着最困难的设计决策</a></li><li><a href="#sec-5">一个 11 亿参数的模型，数据比最初预想的更多</a></li><li><a href="#sec-6">对照历史判断一笔新的借记卡交易</a></li><li><a href="#sec-7">抓到更多欺诈，同时拒掉更少的正常支付</a></li><li><a href="#sec-8">欺诈是已验证的用例，其他团队复用这个基础</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">一家银行训练了自己的基础模型来抓欺诈</h2>
+      <div class="lede"><p>Freddy Lecue 讲解了富国银行如何把交易表变成 Transformer 的词表，从零开始预训练一个共享主干，并利用交易历史，在欺诈分类上超越了其生产环境中的 XGBoost 基线。</p><figure><img src="https://ai.engineer/api/talk-essay-media/a18f2fa74e63a86540e13ba0a78de50abb0f921b4e5e0ae68c5f4efc5f22737d" alt="富国银行关于交易基础模型的演示，把原始银行交易、共享主干和专门应用联系在一起。" loading="lazy" class="zoom" referrerpolicy="no-referrer" /></figure><p>富国银行关于交易基础模型的演示，把原始银行交易、共享主干和专门应用联系在一起。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>一个骨干模型服务数十亿笔交易</h3>
+      <p>Wells Fargo already had tabular data and an XGBoost fraud model in production. The opportunity Freddy Lecue introduces is to learn more from the bank’s transaction history—and make that learning reusable. Debit cards, credit cards, digital payments and checks generate different records across different channels. Separate teams can build separate models around those records, but each then has to solve its own representation problem.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/eb1ad3f57ebc297dafd25af590a4d50c5a4e5261441badebfd4889e04a3c639e" alt="A shared foundation model can be adapted to fraud detection, credit decisions and other financial-services tasks." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A shared foundation model can be adapted to fraud detection, credit decisions and other financial-services tasks.</figcaption></figure>
+<p>A <strong>transaction foundation model</strong> would learn a common representation of customer transactions at scale. Teams could then fine-tune the same backbone for credit decisions, fraud detection, anti-money laundering or marketing. Foundation models need not begin with language: here, the raw material is structured financial activity, with billions of transactions arriving each month.</p>
+<p>The obvious objection is practical: why replace XGBoost, an established choice for tabular data? Lecue’s answer begins with the existing production system: “We did that.” The transformer approach had to earn its place against that baseline. He previews higher fraud detection, fewer false positives and a latency advantage, then works backward through the data representation and training decisions that made the comparison possible.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="192">▶ 3:12</button></div>
+      <h3>预测下一笔交易以学习可复用的表示</h3>
+      <p>The training pattern resembles a language model’s, with a different unit of meaning. A language model learns from language tokens by predicting what comes next. The transaction model instead predicts the next transaction, or the next token within a transaction, using activity from the available channels. That prediction task gives the model a way to learn patterns before it is adapted to a specific business decision.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/e46331ec9077233275f0b5d806392bb73373e3a4cc5f27d5921dffc5d39af32f" alt="The slide compares predicting words in language with predicting transactions or transaction fields." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide compares predicting words in language with predicting transactions or transaction fields.</figcaption></figure>
+<p>Next-transaction prediction is an intermediate objective. The useful output is a representation that captures relationships between transactions over time and, as Lecue describes the intent, across customers. Post-training then adapts that representation to questions such as whether to increase a credit line, flag a fraudulent transaction or identify potentially suspicious activity. Predicting a customer’s next action and deciding whether an action is fraudulent are different tasks; the first supplies a foundation for the second.</p>
+<p>“From scratch” matters here. Wells Fargo reused transformer architecture rather than an existing model’s learned weights, then pre-trained on its own transaction data using its GPU cluster. The bank was therefore learning the financial representation itself, rather than continuing the training of a language model that already had a different vocabulary and training history.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="341">▶ 5:41</button></div>
+      <h3>找回工程化特征底下的原始信息</h3>
+      <p>The input design starts with five questions about a transaction. Together, they describe the event before any particular downstream classifier decides what to do with it:</p>
+<p>- <strong>Who:</strong> The customer or merchant involved in requesting, processing or providing the service.
+- <strong>What:</strong> What is being bought or transacted.
+- <strong>How:</strong> The channel, such as credit, debit or digital.
+- <strong>When:</strong> When the transaction happens.
+- <strong>Where:</strong> Where it happens.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/5a883581be08331d8c6a08e0924983d0b16a52a5b75ba0cf1136f0e9b17d0693" alt="A transaction is described through who, what, how, when and where, with an explicitly illustrative record." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A transaction is described through who, what, how, when and where, with an explicitly illustrative record.</figcaption></figure>
+<p>Those dimensions expand into hundreds of features. Existing production models also carried substantial handcrafted feature engineering, which took considerable time to build. The team stepped back from that inventory to identify roughly a hundred core raw features among thousands of available features. The aim was to let transformer blocks learn relationships among the underlying inputs, rather than begin with an extensive set of features already shaped around individual downstream tasks.</p>
+<p>This still leaves a representation problem. Even after combining digital, checking, savings and other transaction types, the input has a relatively limited set of characteristics—but their meanings are specific to financial services. Lecue gives that specialized vocabulary as a reason for training the model’s weights from scratch. The next challenge is to express those characteristics in a vocabulary a transformer can process.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="491">▶ 8:11</button></div>
+      <h3>分词承载着最困难的设计决策</h3>
+      <p>A transaction table mixes numerical and categorical values. A transaction amount, an elapsed time and a ZIP code cannot all be treated as interchangeable pieces of text. Each needs a decision about what information a token should preserve. Giving every distinct ZIP code its own token is one possibility, but a vocabulary that grows too large makes training harder. Vocabulary design therefore balances the distinctions the model needs against the size of the representation it must learn.</p>
+<p>Once that vocabulary exists, an incoming transaction follows a concrete mapping: its characteristics are matched to tokens, those tokens have IDs, and an embedding lookup supplies their model representations. The difficult work precedes the lookup. The lookup applies decisions already made about which values should receive distinct representations and which should share one.</p>
+<p>How much vocabulary does each field need? The examples show why the answer varies:</p>
+<p>- <strong>Small categories:</strong> Some categorical fields have only eight types; binary characteristics need fewer distinctions still.
+- <strong>Numerical and temporal values:</strong> Transaction amount and the time difference between transactions carry different kinds of information that need encoding.
+- <strong>Location and network information:</strong> Two postal-code fields account for 2,858 tokens. One IP-address field maps to 23 tokens. Lecue gives grouping ZIP codes by their distributions as an example, without specifying the grouping algorithm.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/3ce8eb3641d0210aea551966fdd2428c345d85e63b03dae5e05dd62cf9291598" alt="The vocabulary-design slide maps 97 raw features to 5,164 tokens across eight feature types." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The vocabulary-design slide maps 97 raw features to 5,164 tokens across eight feature types.</figcaption></figure>
+<p>These examples make tokenization part of the model design itself. Grouping location values changes which geographic distinctions remain available to learn; representing time differences makes spacing between events available alongside their other characteristics. Lecue later calls tokenization and post-training the “secret sauce.” The transformer machinery can be familiar while the financial vocabulary requires substantial domain work.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="607">▶ 10:07</button></div>
+      <h3>一个 11 亿参数的模型，数据比最初预想的更多</h3>
+      <p>What architecture was sufficient for the transaction task? The team used Chinchilla scaling mathematics as a starting point, then adapted through experimentation in the tabular setting. The selected model had <strong>1.1 billion parameters</strong>: Lecue describes it as the smallest model that delivered the highest boost in their experiments. It used a decoder-only architecture for next-token or next-transaction prediction. An 11-billion-parameter version was work in progress at the time of the talk.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/74c6bfa58c12cfe6c2d801ee7f22e2b8cb36e4fb5b030f8454c75473450c019a" alt="The backbone slide describes a decoder-only transaction model and its scaling and training configuration." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The backbone slide describes a decoder-only transaction model and its scaling and training configuration.</figcaption></figure>
+<p>The initial data budget used twenty training tokens per parameter. Experiments required substantially more—described as roughly ten times that initial allowance. The useful correction is that a sizing rule borrowed from language-model training did not settle the transaction model’s data needs. The team had to test how much transaction data its chosen model required.</p>
+<p>History length was another training decision: how many transactions should fit into the model’s context? That choice determines how much past activity is available when learning a sequence. Evaluation included perplexity-based checks of predictive learning and accuracy dashboards for downstream tasks, keeping the pre-training objective and the eventual business task in view.</p>
+<p>The training setup otherwise drew on established large-model techniques. Lecue lists mixed precision, distributed data parallelism and maximizing microbatch size, alongside RoPE, FlashAttention and activation checkpointing. These supported training and memory efficiency; he presents no new training infrastructure algorithm. The distinctive work remained the transaction vocabulary, adapting pre-training to the data and deciding how to post-train for useful tasks.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="817">▶ 13:37</button></div>
+      <h3>对照历史判断一笔新的借记卡交易</h3>
+      <p>Fraud classification supplies the concrete downstream test. The production XGBoost model learned from transactions labeled fraudulent or non-fraudulent. The transaction foundation model brought a sequence representation to the same decision: someone has just used a debit card; given the preceding transactions, should this new transaction be classified as fraud?</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f255555e76fe2f97aa64887d9f5c214986d7c9cccde5cd5663a05099d08e89a1" alt="Pre-training a transaction representation is followed by fine-tuning a fraud-classification head." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Pre-training a transaction representation is followed by fine-tuning a fraud-classification head.</figcaption></figure>
+<p>The proposed advantage is access to relationships between the current transaction and earlier ones. In Lecue’s account, the XGBoost system needed those relationships to be encoded into features explicitly, a difficult engineering task. Transformer attention lets the current transaction draw on past transactions in the supplied sequence. Lecue identifies this as the team’s explanation for the higher detection rate, rather than presenting an experiment that isolates attention as its cause. The comparison concerns their production baseline; it does not mean tree models cannot use historical features.</p>
+<p>At inference time, the input is therefore the transaction sequence, including the new event and its historical context. This makes the history-length decision operationally relevant: the classifier can use the history supplied to it. The model must also fit a card-decision processing window of less than <strong>250 milliseconds</strong>. Lecue presents the engineering outcome as satisfactory and earlier claims a latency advantage over XGBoost, but the closing latency wording is internally inconsistent, so it does not establish a reliable measured inference time.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="937">▶ 15:37</button></div>
+      <h3>抓到更多欺诈，同时拒掉更少的正常支付</h3>
+      <p>Wells Fargo compared its production XGBoost model, which used about 100 engineered features, with a fine-tuned transaction model that used none. On a holdout set of about 10 million samples, the discovery rate measured the share of fraud accounts caught. The false-positive ratio measured non-fraud alerts per fraud alert at a 0.5% cutoff. With last-token pooling and a five-transaction history, the model raised the discovery rate by 28% and lowered the false-positive ratio by 26% relative to XGBoost. With the same pooling and a 12-transaction history, the discovery rate was 33% higher and the false-positive ratio was 29% lower than XGBoost’s. The slide gives no absolute rates or holdout dates.</p>
+<p>How do those two metrics turn into business value? More detected fraud addresses fraudulent activity directly. Fewer false positives avoid another chain of costs: a legitimate customer’s payment is declined, the transaction is lost, and the customer may call the bank, creating operational work. Lecue attributes millions of dollars in savings to the improvement. That is a reported business outcome, without a savings calculation developed in the talk.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/89f7e7e27614952522e26f00ea221c8fd5861a3046e0a96182516f66b9cc9ff6" alt="Wells Fargo reports higher fraud discovery and fewer false positives against its engineered-feature XGBoost baseline." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Wells Fargo reports higher fraud discovery and fewer false positives against its engineered-feature XGBoost baseline.</figcaption></figure>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="997">▶ 16:37</button></div>
+      <h3>欺诈是已验证的用例，其他团队复用这个基础</h3>
+      <p>The closing distinction is between building the foundation and adapting it. Wells Fargo pre-trained on billions of its customers’ transactions, using an existing architecture without importing existing learned weights. Lecue describes initial pre-training runs taking a couple of weeks and later runs taking a couple of days. Once the model had learned to predict transaction patterns, that foundation became available for downstream training.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/44ee6264c89019b9fa157e27346598ce941cb21d8ce39a95d218c206ce07bc47" alt="The closing slide summarizes transaction-model lessons and proposed extensions beyond fraud detection." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The closing slide summarizes transaction-model lessons and proposed extensions beyond fraud detection.</figcaption></figure>
+<p>Fraud detection was the completed application presented here. Credit-line increases, anti-money laundering and marketing were under investigation. The same foundation was being used across organizations within Wells Fargo, fulfilling the original goal of sharing learned representations. The fraud result gives that approach a concrete first use; the other applications still need their own task-specific evidence.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>A transaction foundation model can learn from structured financial activity through next-token or next-transaction prediction, then be fine-tuned for separate business tasks.</li><li>Tokenization is a central design problem: numerical values, small categories and location information need different representations, and vocabulary size constrains the choices.</li><li>The selected model had 1.1 billion parameters. Experiments required substantially more training tokens per parameter than the team’s initial twenty-to-one allowance.</li><li>For fraud classification, the model receives a transaction sequence so the new event can be evaluated in historical context. The team credits these relationships with helping detection.</li><li>Lecue reports that, on holdout testing, the model with a 12-transaction history caught a 33% higher share of fraud accounts and produced 29% fewer non-fraud alerts per fraud alert than the production XGBoost baseline. Credit-line increases, anti-money laundering and marketing remained under investigation.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">I'm going to show you the work we've been doing lastly on building, uh, our first foundation model, uh, a Wells Fargo foundation model. So I explain why we did that, how we did it, and what we accomplished in doing so. So, so first found-foundational model, it doesn't necessarily need to be language-based. I mean, we're all playing with, uh, Claude and, uh, ChatGPT and others. Uh, they're all language-based foundational models. In financial services, uh, we also have language, of</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">course, uh, from a, uh, structure-- unstructured representation data. But we have also have a lot of structured representation. A lot of this data is tabular data. We have a lot of information from our customers. Uh, we have information in investment banking, consumer banking, and, uh, all of this data is data that we have in, in Wells Fargo and all fun-big financial organizations have too. And, uh, we want to take benefit of all of this huge amount of data that we have. And it's not like you</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">just take it and put it in a, in a language model and get the best of it. Of course, you can get a lot of benefit out of it, but it's not necessarily the best way to do it. So, so what we decided to do is to look at the data we have, all the transactions, all the customer transactions that they're doing with their debit card, credit card, digital, check, all of those coming from many different channels, and see if we can build a foundation model that we can use and fine-tune for</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">downstream tasks like credit scoring, or that you can use it for fraud detection, anti-money laundering, do marketing. So how we can build one backbone that you can use and streamline across downstream task. So now you're moving from many models very siloed across different organizations into really one backbone that every organization can just reuse because you learn the representations of customers' transactions at, at scale. So that's the intent. And just to</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">follow on it, you may say, &quot;Hey, that's tabular data. Why do you just don't use XGBoost and the usual suspect?&quot; We did that. This is the model we had in production and-- But the model I'm going to show you is something that get-- that beats XGBoost, uh, even from a latency perspective, but also from a, uh, from a fraud detections. We get much better false, uh, um, reduction of false positive and better detection rate. So it was a very good lesson learned in term of, uh,</span></div><div class="tline" data-t="161"><span class="ts">2:41</span><span class="tx">having better model, uh, using foundational model. And to foundational model, I mean transformer blocks, uh, and that, that's, that's what we built. So, uh, so we have, as I mentioned, billion of transactions, uh, on a monthly basis, um, our customers interacting with their debit, credit card, and they do check, and they do different sort of transactions. And the, the question is really how we can use this informations at, at scale and not for one and every single downstream task. So I'm going to cover</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">a bit of the data, the representations, the architecture that we use, uh, how-- that what the result we get, and the lesson we learned in building this. All right. So, I mean, left-hand side, language foundation model. They're processing language tokens, and then the, the goal is to learn a representation that going to predict the next token. And then you have, uh, you have supervised fine-tuning, and then you do uh, LHF, LRV, uh, and all of the great, uh,</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">post-training process to get, uh, better at the task that you want to, right? And that's for languages. That's great. Uh, but what if your data is, uh, very much more specialized in term of representation? So that's where we build this transaction foundation model. So instead of having languages as the base, the base is now transactions, transaction from our customers. And, uh, you still try to predict the next thing, and here the next thing is the next transaction or it's the next</span></div><div class="tline" data-t="252"><span class="ts">4:12</span><span class="tx">token in the transaction, uh, using all of the channel that you have. Uh, but that's not the end goal. I mean, similarly to language model where you try to predict the next token, that's not the end of the story, right? You learn a representation, and then you use that representation, and then you, you, you fine-tune it, and you post-train it for any other task, right? So it could be classification task for languages, but in our context for transaction foundation model, it could be used for, uh, credit line increase, could be used for doing fraud detections and</span></div><div class="tline" data-t="281"><span class="ts">4:41</span><span class="tx">flagging bad actors from an anti-money laundering perspective. And the goal is to learn this, uh, relationship between transactions over time and transactions across customers. That's really the intent. So the intent number one is you do pre-train from scratch. I'm saying it again because people sometimes confuse. We pre-train transformer blocks, uh, at scale from scratch using our, uh, transaction data. So the weight, the zero weight that we use from open</span></div><div class="tline" data-t="311"><span class="ts">5:11</span><span class="tx">weights, we just use the architecture and then we, we pre-train it from scratch using our GPU cluster. And then we train it for couple of days and, and weeks. And then, then you do the, the downstream task of, uh, of post-training. But the goal here... And you pre-train it for predicting the next token or the next transactions. And you, you try to, to do this, right? You try to predict the next, the next pa-pattern of the customer. But that's not the intent. The intent is to do the downstream task later on. And in terms</span></div><div class="tline" data-t="341"><span class="ts">5:41</span><span class="tx">of scale, uh, uh, I mean, we, we operate at a large scale, so we have, uh, billions of transactions, a million of accounts, uh, hundreds of transactions per clients on a monthly basis interacting with their debit card, credit card, or doing check. And, uh, the five main dimensions we look at is really who is doing-- I mean, who is processing and who is asking and who is providing the service. So really the customer or the merchant.</span></div><div class="tline" data-t="371"><span class="ts">6:11</span><span class="tx">Uh, the, the what, so, I mean, what, what do we, what do we buy? What do we transact? And how, so which channel? Is it credit? Is it debit? Is it digital? When is it happening, and where is it happening? And all of those, they're basically breaking down in hundreds of features. And, uh, if you look at the existing model we have in production, there's a lot of, um, and then people that build, build those model in similar organizations may, uh, may understand that they build a lot of very</span></div><div class="tline" data-t="401"><span class="ts">6:41</span><span class="tx">handcrafted, handcrafted engineering, uh, feature engineering effort on that. And that's required a lot and a lot of time. So we step back and look at really the raw features we need, not the one that's been probably pre-built and post-built for doing the downstream tasks, but try to understand which raw features. And we end up with, uh, basically hundred features. Even with, at the end of the day, we had thousands of them, but we tried to find which ones are really the, the raw information you need. And then we</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">let the architecture or the transformer blocks to figure out the relationship between those core features. And, uh, as you can see, uh, we do have a, a, yeah, a bunch of features on f- those five dimensions. And the vocabulary is very unique to the financial services setup. So, and that's the reason why, I mean, we didn't really use, uh, existing pre-trained model, uh, because those-- the vocabulary that we use is very, very specific to</span></div><div class="tline" data-t="461"><span class="ts">7:41</span><span class="tx">the work that you want to do. And even if you merge, uh, well, all digital and checking and, uh, saving and, um, all of those sort of transactions, even if you merge all of those, you still end up with a very limited number of features and characteristics. So at that scale, then the question is, well, how, how you work with that? So, so we started, everything is tabular data. I mean, there's no secret, it's tabular data. And then the goal is to understand how you're going to</span></div><div class="tline" data-t="491"><span class="ts">8:11</span><span class="tx">capture the vocabulary, because you do have numerical values, you have categorical values, you have, uh, cat-- I mean, you have information like ZIP code. Do you encode each and every ZIP code in a token? Does it make sense? So there's a lot of efforts you need to push in understanding the vocabulary that you need and the vocabulary that you want also to scale. Because at the training, if you have a too huge vocabulary, it would be kind of messy, uh, to train such, such a model with a vocabulary which is far, far too big. So,</span></div><div class="tline" data-t="521"><span class="ts">8:41</span><span class="tx">so there's a lot of effort in understanding this, uh, value to token. So which information do you encode in a token? And then you have the token trading, the tokenizations, and then the embedding lookup. So then when we have a transaction coming up, you do have the vocabulary. So it's a-- basically, it's a lookup and aligning, uh, transactions and all the characteristics of that transactions to, to a token and an ID and then an embedding.</span></div><div class="tline" data-t="548"><span class="ts">9:08</span><span class="tx">So just to give you a number-- well, some numbers. So we have, yeah, quantitative, qualitative, categorical, uh, of different kind, right? So categories with only eight types, some with much bigger types. Uh, you have transaction amount, which is a big deal. You have the delta time between transaction. So you have anything related to IP address, postal code. So just to give you example of, uh, uh, variety and heterogeneity of each and every, uh, characteristic could be encoded in a</span></div><div class="tline" data-t="577"><span class="ts">9:37</span><span class="tx">binary token or could be enco-encoded in a much larger number of tokens. And even if you look at the b-- the, the ZIP code, I mean, you have a much larger number of ZIP code in the, in, in the US than those, uh, twenty-eight hundred. But you, you have fancier-- well, you have much better way to structure how you're going to, uh, regroup ZIP code based on distributions, for instance. So, uh, architecture. So, so here just, um, what we-- So we use the, the Chinchilla,</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">um, well, mathematics behind, uh, to define how we build it, right? I mean, initially, 'cause we, we had no clue how it's going to work in a tabular space, even though there are existing, uh, well, well, open weights and open solutions for doing, um, tabular data foundation models. Uh, so we, we, we started from what they learn and adapted to what we needed to do. And that gives you an example of embedding dimensions, number of decoder blocks we used, and, um, all of the,</span></div><div class="tline" data-t="638"><span class="ts">10:38</span><span class="tx">the recipe from a, from an architecture perspective. Um, so we have-- And a-as you can see, we're not trying to build a trillion parameters model. We don't try to compete with any of the, uh, the, the leaders in the language models because we're working with the-- and focusing on transactions, right? Transactions foundation models at billion level. And 1.1 billion is because that-- the model that give us, uh, that was the, well, kind of the smallest and give us the</span></div><div class="tline" data-t="667"><span class="ts">11:07</span><span class="tx">highest boost. And now we're working on a, on the next versions at eleven billion. But that's good enough to, to give a lot of, uh, ROI, uh, from a false positive predictions for, uh, downstream tasks like fraud detections and, uh, detection, u-unique detection rate. So, and, uh, and the, the type of architecture, so the decoder-only architecture, uh, that's basically for predicting the next, the next token or the next transactions. And that's really the, the pre-training. So, uh, so</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">here we initially used twenty times the number of parameters to define the number of tokens we might need. We ended up actually ten times factor, factor than that. So by doing a, a few experimentations, we needed much more, uh, much more tokens per parameters. I mean, this is-- this kind of the initial experimentation we did. Um, uh- So I'll pass on this because this is the, the usual suspect from a, a objective function. So causal language, uh, modeling and math language modeling type of, uh,</span></div><div class="tline" data-t="727"><span class="ts">12:07</span><span class="tx">um, uh, optimization work. And, and, yeah, from an architecture perspective, nothing really, I mean, fancy here. The, the, the-- again, the most complex part was really the tokenization, and then, and then adapted and doing the pre-training, and then how you do the fine-tuning. So if... I would say the, the recipe or the secret sauce is really how you do the tokenization and then how you're going to do the post, the post-training. But anything from a training perspective, it's, uh, it, it, it-- the question is just how many,</span></div><div class="tline" data-t="757"><span class="ts">12:37</span><span class="tx">how many transaction you're going to put in your, in your context or in your history for, for doing the training. Uh, and evaluation perplexity-based accuracy, accuracy dashboard on downstream task. That's, that's the usual suspect. And, uh, so yeah. So use mixed precision, distributed data parallel, um, maximize microbatch size, uh, get faster convergence, um, uh, yeah, using Muon, uh, RoPE, uh,</span></div><div class="tline" data-t="787"><span class="ts">13:07</span><span class="tx">usual and memory efficiency, FlashAttention, activation checkpointing. I mean, here there's nothing really new. It just, uh, we use the, the, the, the, the advices from the, from the best and from the, the one that built even much bigger models. So, uh, I'll pass on this one. Time is short. But, uh, I wanted to spend some time, uh, yeah, on the results. So, um, yeah, so the... W-when you build this foundation, that foundation is</span></div><div class="tline" data-t="817"><span class="ts">13:37</span><span class="tx">really is, is of, is really, is, is on your backbone. It's something you can use for downstream task. And, uh, the downstream task was to do fraud classification. So you have a transactions, and then you try to predict if that transaction is going to be fraudulent. So in the model we have in production, it's an XGBoost model, and it's trained on large amount of transactions, which is, uh, fraudulent or non-fraudulent. And the missing pieces, that was the, uh, relationship</span></div><div class="tline" data-t="847"><span class="ts">14:07</span><span class="tx">between whatever transaction you try to predict, try to classify, and the relationship with this transaction with all of the past transactions. And that information is kind of gone when you use an XGBoost model, uh, unless you encode it in a very weird way, which is, which is not so easy. But if you use transformer architectures, you do have these nice, uh, attentions from a, from transactions to past transactions. And that's basically what help, uh, I mean, this is what we think. This is what really help,</span></div><div class="tline" data-t="877"><span class="ts">14:37</span><span class="tx">uh, pushing the fraud detection rate much higher. But at the end of the day, the, the downstream task was to say, &quot;Here's the sequence of transactions. I have someone just using the debit card. Uh, is that transaction, uh, fraudulent with respect of all historical information?&quot; And, uh, and that's, that's exactly what you put in, in, uh, at inference time when you try to do the prediction. So, uh, so that's the, yeah, architecture. So nothing really fancier. You just need to have the good, uh,</span></div><div class="tline" data-t="907"><span class="ts">15:07</span><span class="tx">engineering in place to do, um, less than two hundred fifty milliseconds for doing the processes bec- the processing, because the, the, the decline need to happen within that timeframe. But it's, it's, it's... We were, uh, well, ten times slower than that from a latency perspective, so it was all good. And, uh, and just in term of, uh, final result we get. So the main metrics, and those metrics relate right away to, uh, to dollar, to cost, well, to, to savings for</span></div><div class="tline" data-t="937"><span class="ts">15:37</span><span class="tx">the firm. So it's detection rate and false positive rate. Of course, you can detect much higher, but, uh, in ma-many cases, sometimes you can get much more false positive. And in this case, we managed to get m-- we flag more fraudulent act- activities, and we even reduce the false positive. So that, that was a big win. That was a big win because at the end of the day, if you decline a, a, a transaction which is not fraudulent, uh, then that person is going to call. There is then operation cost associated to it. You lose</span></div><div class="tline" data-t="967"><span class="ts">16:07</span><span class="tx">the transaction related to the, that non-fraudulent action. So it's a, it's a very, it's a very... Well, something not-- you, you don't really want to happen. So, so again, that's the, that's compared to the state-of-the-art of GV-- XGBoost model, uh, using fraud detection. So it's, it's basically huge. Uh, it's millions of, uh, dollar savings. Uh, so it's a, it's a very big boost. So just to finish up, uh, on that slide. So,</span></div><div class="tline" data-t="997"><span class="ts">16:37</span><span class="tx">um, so that foundation model has been built on billions of transactions from, uh, Wells Fargo customers. Uh, that's number one. It's, uh, it's pre-trained from scratch, so we don't pre-train from any open-weight existing model. We use existing architecture, but the weight is zero-weight. We pre-training on couple of days. I mean, we did it on a couple of weeks initially, but then that's pre-trained. And then you f- And then when it's pre-trained, it's pretty good in</span></div><div class="tline" data-t="1027"><span class="ts">17:07</span><span class="tx">predicting the next transaction. Then when you're done with that, then you can use it for any downstream task. We did it for fraud detection. Now we investigating for credit line increase, investigating for anti-money laundering, investigating for marketing. So now the same foundation is used across different organizations, uh, w-within Wells Fargo. And, um, yeah. Thank you for having me, and thank</span></div><div class="tline" data-t="1050"><span class="ts">17:30</span><span class="tx">you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

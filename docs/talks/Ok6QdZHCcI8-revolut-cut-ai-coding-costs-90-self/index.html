@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Revolut 如何用自托管的开源模型把 AI 编程成本削减 90% —— David Abitbol，Revolut | AI 工程师中文版</title>
+<meta name="description" content="David Abitbol 讲解了 Revolut 如何把自托管的 GLM 设为 2000 名工程师的默认选择：可预测的 token 开销、在固定 GPU 机群上调优延迟、为图像单独路由，以及为一家受监管的银行配置沙箱控制。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>Revolut 如何用自托管的开源模型把 AI 编程成本削减 90% —— David Abitbol，Revolut</h1>
+    <div class="orig-title">How Revolut Cut AI Coding Costs 90% With Self-Hosted Open Models - David Abitbol, Revolut</div>
+    <div class="meta"><span class="speaker">David Abitbol</span> · 11:47</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=ai-cost-and-performance-engineering">AI 成本与性能</a><a class="tag" href="../../index.html#topic=open-weights">开放权重模型</a><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=coding-agents">编程智能体</a><a class="tag" href="../../index.html#topic=developer-productivity-measurement">开发者生产力</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=quantization">量化</a><a class="tag" href="../../index.html#topic=kv-caching-and-prefix-reuse">KV 缓存与前缀复用</a><a class="tag" href="../../index.html#topic=model-routing-and-llm-gateways">模型路由与网关</a><a class="tag" href="../../index.html#topic=sandboxes-and-execution-isolation">沙箱与执行隔离</a><a class="tag" href="../../index.html#topic=safety-and-governance">安全与治理</a><a class="tag" href="../../index.html#topic=privacy-and-data-governance">隐私与数据治理</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/Ok6QdZHCcI8-revolut-cut-ai-coding-costs-90-self" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="Ok6QdZHCcI8"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=Ok6QdZHCcI8" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">衡量功能的完整旅程，而不只是编码</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>衡量功能的完整旅程，而不只是编码</span></li><li data-t="188"><span class="ts">3:08</span><span>廉价的 token 延伸到编辑器之外的工作</span></li><li data-t="265"><span class="ts">4:25</span><span>让首 token 保持快速，别盲目追求吞吐量</span></li><li data-t="346"><span class="ts">5:46</span><span>同一个机群可能表现得像另一种服务</span></li><li data-t="434"><span class="ts">7:14</span><span>一起调优上下文、精度和缓存容量</span></li><li data-t="494"><span class="ts">8:14</span><span>把图像单独路由，保留编程框架</span></li><li data-t="564"><span class="ts">9:24</span><span>让人工监督可强制执行，然后保留日志</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 7 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Shipping like a startup, regulated like a bank" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Shipping like a startup, regulated like a bank</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>David Abitbol introduces Revolut’s internal coding tools: startup-speed shipping under bank regulation. The technical focus is high-performance engineering and self-hosting open-source models on dedicated GPUs.
+
+[0:17](https://www.youtube.com/watch?v=Ok6QdZHCcI8&amp;t=17s) [Title slide reading 'Shipping like a startup, regulated like a bank' and 'Inside Revolut’s internal coding tools,' attributed to David Abitbol, Revolut, beside abstract blue and purple artwork.](https://assets.ai.engineer/sites/aiecode2025/sha256/afecd8ef486fe31c0f33cb811d188bc097892cad21b8ea1b550db02bdcb8638a.webp)
+
+Shipping like a startup,
+regulated like a bank
+
+Inside Revolut’s internal coding tools
+DAVID ABITBOL, REVOLUT
+
+together.ai</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Revolut: Results that speak for themselves" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Revolut: Results that speak for themselves</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Revolut frames its engineering push against banking scale: 80M+ customers, 45+ live markets and $6BN+ in 2025 revenues, up 46% YoY. Abitbol connects that scale to an engineering culture focused on shipping products.
+
+[0:36](https://www.youtube.com/watch?v=Ok6QdZHCcI8&amp;t=36s) [Revolut overview slide with customer, market, valuation and revenue metrics arranged among promotional photographs and an app mockup; a presenter inset and conference branding surround the slide.](https://assets.ai.engineer/sites/aiecode2025/sha256/0727bd6930e301237157984df5b358841c7b1dd1068c631230cb4daaffd2ee29.webp)
+
+Revolut
+Results that speak for themselves
+
+80M+
+Customers
+Globally
+
+45+
+Live markets
+
+Most downloaded
+financial app
+in Europe
+
+115BN+
+We are the highest
+valued private firm
+in Europe
+
+$6BN+
+Revenues in 2025 with
+a 46% growth YoY
+
+© 2025 Revolut. All rights reserved.
+Revolut
+
+Interface text:
+Card photograph: Revolut; VISA
+Phone mockup:
+9:41
+Search
+[illegible]
+£1,000
+Accounts
+Add money
+Exchange
+Details
+More
+To Savings [illegible]
+To Marina [illegible]
+
+Conference overlay:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+Shipping like a startup, regulated like a bank
+David Abitbol / Ops &amp; Infrastructure Leader
+Revolut</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Metrics that matter for happy engineers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Metrics that matter for happy engineers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Revolut serves 2,000 engineers with GLM 5.3 on 56 B200s. It targets &lt;3s to first token because complaints rise after 5s, with &gt;200 TPS throughput and $0.30 per million input/output tokens—one-tenth its prior cost.
+
+[4:27](https://www.youtube.com/watch?v=Ok6QdZHCcI8&amp;t=267s) [Metrics slide reporting 2,000 engineers served with GLM 5.3 on 56 B200 GPUs, a time-to-first-token target below three seconds, throughput above 200 tokens per second, and $0.30 per million input/output tokens with free caching.](https://assets.ai.engineer/sites/aiecode2025/sha256/eb0799f0fca2e8ad065cbe83c1f06a9aa40f64e948f7dd8cbc5364b069058b33.webp)
+
+Metrics that matter
+for happy
+engineers
+
+2,000
+Engineers served with GLM
+5.3 on 56 x B200s with
+Together; token guilt free,
+
+&lt;3s
+TTFT; after 5s Slack messages
+begin to increase
+
+&gt;200
+TPS target
+
+$0.30
+Per M token in/out
+(cache is free)
+1/10th of the cost</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Resist scaling, tune first" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Resist scaling, tune first</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>On the same 56 B200 GPUs, tuning from migration to stable TP8 raised requests per second 76% and cut time to first token 88%, from 14.26s to 1.68s. Lower load alone did not fix migration latency.
+
+[5:43](https://www.youtube.com/watch?v=Ok6QdZHCcI8&amp;t=343s) [Slide attributing most performance gains to tuning rather than more GPUs. It reports 76% higher requests per second and 88% lower time to first token on the same 56 B200 GPUs, alongside a load-versus-latency chart and a list of tuning techniques.](https://assets.ai.engineer/sites/aiecode2025/sha256/b97d3c5f0490a8fca58ac569906ed506f0d87ff454f5a92964ef633e5187e51c.webp)
+
+Resist scaling, tune first
+
+80% of the gain came from adjusting hyperparameters, not more GPUs
+
+76%
+Higher RPS
+Migration to stable, same 56x B200 GPUs throughout
+
+88%
+Lower TTFT
+From 14.26s mid-migration to 1.68s stable
+
+TTFT versus load over time
+Lower demand did not protect TTFT during the migration. The final setup handled higher demand with much lower TTFT.
+
+Legend: TTFT, left axis; RPS, right axis
+Light lines show daily values. Dark lines show 5-business-day trends.
+Left Y-axis: TTFT (seconds)
+Left Y-axis ticks: 0, 5, 10, 15, 20, 25, 30
+Right Y-axis: Requests per second
+Right Y-axis ticks: 0, 1, 2, 3, 4, 5, 6, 7
+Timeline: 29 Jun, 6 Jul, 13 Jul, 20 Jul, 27 Jul, 3 Aug, 10 Aug, 17 Aug, 24 Aug
+
+56 B200 FLEET
+TP8 MIGRATION
+PLACEMENT + CONTEXT FIX
+STABLE SETUP
+
+TP4 BASELINE
+Starting point
+4.21 RPS | 6.99s TTFT
+
+TP8 MIGRATION
+Lower load, worse TTFT
+3.38 RPS | 14.26s TTFT
+
+TP8 STABLE
+Higher load, much lower TTFT
+5.95 RPS [illegible] | 1.68s TTFT [illegible]
+
+Phase labels: TP4 BASELINE; TP8 MIGRATION; TP8 STABLE
+
+From migration to stable TP8: 76% higher RPS and 88% lower TTFT on the same 56 B200 GPUs.
+
+Source: Together AI GET /v1/analytics/metrics, pulled 28 Aug 2026 without an endpoint filter.
+Daily values cover complete weekdays from 08:00 to 18:00 UTC. Period TTFT is request-weighted.
+
+Also tuned:
+• Long context (256k-1M): costs KV cache, little gain
+• FP4 quantization
+• Tensor parallelism
+• Cache hits
+• Sticky sessions
+• New: prefill/decode (PD) disaggregation
+On Together AI’s Dedicated Model Inference</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Production Setup" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Production Setup</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Text models turn descriptions into code; vision models turn mockups into interfaces. Abitbol favors a smarter text model with separate image routing, then a CLI or app harness for the workflow.
+
+[8:12](https://www.youtube.com/watch?v=Ok6QdZHCcI8&amp;t=492s) [Three-column production-setup slide: text models turn written descriptions into working code, vision models turn mockups into working interfaces, and the harness or application choice contrasts CLI with app.](https://assets.ai.engineer/sites/aiecode2025/sha256/8e82ee34dd6b17db09d2bc9cdb384a0ce31e62bceb591a58078f19df7968db4c.webp)
+
+Production Setup
+
+Text models
+Written description in
+working code out
+
+Vision Models
+Mockup in
+working interface out.
+
+Harness / App
+CLI vs App
+
+[8:23](https://www.youtube.com/watch?v=Ok6QdZHCcI8&amp;t=503s) [Three columns contrast text descriptions producing code, visual mockups producing interfaces, and CLI versus app harnesses.](https://assets.ai.engineer/sites/aiecode2025/sha256/802d16ee1657d2d2b4c18454e5417a4117a54603cfb662fbb0a3a4724e8b45ec.webp)
+
+Production Setup
+
+Text models
+Written description in
+working code out
+
+Vision Models
+Mockup in
+working interface out.
+
+Harness / App
+CLI vs App
+
+Shipping like a startup, regulated like a bank
+David Abitbol / Ops &amp; Infrastructure Leader Revolut</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="For the CIO in the Room" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>For the CIO in the Room</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Abitbol frames coding agents as human-supervised tools: sandbox approval rules constrain actions, data controls address retention and processing location, and logs support incident investigations and audits.
+
+[9:20](https://www.youtube.com/watch?v=Ok6QdZHCcI8&amp;t=560s) [The speaker presents coding-agent compliance considerations: human-in-the-loop sandboxing, misuse and prompt-injection protections, data privacy, and analytics and logs for investigations and audits.](https://assets.ai.engineer/sites/aiecode2025/sha256/a1050d612245232dcdd529f5ebe123b51b853df48a456d7aa3573ac2e734e00d.webp)
+
+For the CIO in the room
+
+When your codebase is subject to audit (and as a regulated bank) AI is scrutinized. Coding agents are considered “productivity use cases with humans in the loop,” and don’t need the same level of regulatory audit. For compliance, you need:
+
+A sandbox that:
+• Guarantees humans in the loop
+• Prevents rogue use
+• Protects from prompt injection
+
+Data privacy
+• Zero data retention
+• Data processing in U.S., EU, UK, ISL (data equivalency framework)
+
+Analytics &amp; logs
+• For investigations &amp; audits</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Thank You" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Thank You</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk ends with a brief thank-you and Together AI branding.
+
+[11:34](https://www.youtube.com/watch?v=Ok6QdZHCcI8&amp;t=694s) [Pale blue closing slide with Together AI branding at the upper left and large Thank you text at the lower left.](https://assets.ai.engineer/sites/aiecode2025/sha256/cb0f7479ff0a78a481c8b7abd189c1e19e0a2a708fde356d5e5d765b2fb920a3.webp)
+
+Thank you!
+
+together.ai</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">衡量功能的完整旅程，而不只是编码</a></li><li><a href="#sec-2">廉价的 token 延伸到编辑器之外的工作</a></li><li><a href="#sec-3">让首 token 保持快速，别盲目追求吞吐量</a></li><li><a href="#sec-4">同一个机群可能表现得像另一种服务</a></li><li><a href="#sec-5">一起调优上下文、精度和缓存容量</a></li><li><a href="#sec-6">把图像单独路由，保留编程框架</a></li><li><a href="#sec-7">让人工监督可强制执行，然后保留日志</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">Revolut 如何用自托管的开源模型把 AI 编程账单削减 90%</h2>
+      <div class="lede"><p>David Abitbol 讲解了 Revolut 如何把自托管的 GLM 设为 2000 名工程师的默认选择：可预测的 token 开销、在固定 GPU 机群上调优延迟、为图像单独路由，以及为一家受监管的银行配置沙箱控制。</p><figure><img src="https://ai.engineer/api/talk-essay-media/a2be21fa4f24b37694ccc6c06f0c27c237f1e02c8d36e5835554fe9171f0e0ac" alt="幻灯片列出：2000 名工程师、首 token 延迟低于三秒、目标速度超过每秒 200 token，以及每百万 token 0.30 美元。" loading="lazy" class="zoom" referrerpolicy="no-referrer" /></figure><p>Revolut 的运营目标及其公布的 token 价格。Abitbol 称账单只有之前开销的十分之一。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>衡量功能的完整旅程，而不只是编码</h3>
+      <p>Revolut’s early coding-agent rollout had an awkward combination: some engineers were spending a thousand or even ten thousand a month, while the delivery gains were hard to justify. David Abitbol, who leads AI operations at the European digital bank, develops the alternative through an engineering-performance chart and the infrastructure needed to make AI use less constrained by individual budgets.</p>
+<p>Abitbol describes a sample of roughly <strong>2,000 engineers</strong>. The chart’s date labels run from January 2025 through July 2026. The blue line measures coding time in hours on its own axis. The green line measures lead time in days, from picking up a feature until it is merged and ready to deploy. Coding can get faster while work elsewhere in the delivery process still takes days.</p>
+<p>What changed when engineers first received AI access? The initial <strong>Gemini</strong> rollout in January 2025 let them use private company data with AI. Abitbol reports a 20% improvement in coding time and a 10% improvement in lead time, attributing the gains to less searching through Stack Overflow and documentation. The two chart lines make that distinction worth inspecting: the improvement in the coding portion was larger than the improvement across the feature’s full journey.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/7bd3255f89e8536906d539ae60cf2ae2af344b377586af5df4e72c76b8e5741a" alt="Two lines show coding time in hours and feature lead time in days. The chart labels January 2025 through July 2026 and marks AI rollouts." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The chart uses separate axes for coding hours and lead-time days. The slide reports a 60% lead-time improvement, without specifying the comparison windows.</figcaption></figure>
+<p>Experiments with Claude Code followed, then a wider rollout with strict budget limits. Its early impact was less convincing relative to the spending. That produced a concrete infrastructure question: could Revolut give engineers effectively unlimited tokens, so they could use AI “guilt-free,” at a fraction of the metered cost?</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="188">▶ 3:08</button></div>
+      <h3>廉价的 token 延伸到编辑器之外的工作</h3>
+      <p>Revolut began self-hosting open models around April and favored <strong>GLM</strong> for coding. Abitbol reports a 60% improvement in coding time and 70% in lead time. The slide labels lead time as a 60% improvement. It shows how both measures changed during the rollout, but gives too little detail about the comparison periods and aggregation to reconcile the two lead-time figures. The trends are observational. They do not isolate GLM’s effect from other changes at Revolut.</p>
+<p>Abitbol connects the lead-time improvement to work outside the editor. Searching an inbox or working through Jira and Confluence takes time between picking up a feature and merging it. Engineers who save scarce tokens for coding still do that work by hand. With a larger allowance, they can use the same tools for both.</p>
+<p>The resulting policy makes open models the priority and frontier models the exception. Revolut still uses Codex, Claude Code and Gemini; self-hosting does not require declaring those tools obsolete. The attraction is a flat infrastructure bill without monthly usage surprises, while retaining access to other models when their capabilities justify it.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="265">▶ 4:25</button></div>
+      <h3>让首 token 保持快速，别盲目追求吞吐量</h3>
+      <p>Serving those 2,000 engineers takes roughly <strong>56 GPUs</strong> in Abitbol’s account, hosting a GLM model he describes as having 800 billion parameters. That establishes the scale of the deployment, rather than a universal sizing rule: the rest of the talk shows how strongly the same fleet’s performance depends on workload and serving configuration.</p>
+<p>The first service target is <strong>time to first token</strong>: how long a request waits before output begins. Revolut aims for less than three seconds. Beyond five seconds, Abitbol’s Slack inbox starts filling with complaints. This is an empirical usability threshold from his engineers, not a benchmark score chosen independently of their work.</p>
+<p>Output speed after that first token matters less in the workflow he describes. Around 200 tokens per second is sufficient because engineers increasingly launch tasks in parallel and check back when they finish, rather than watching the stream of thinking tokens. Lower contention can still produce a spectacular number: after 5 p.m., he says, an engineer can see 800 tokens per second. But that off-peak experience is not the service target for a busy shared fleet.</p>
+<p>The cost slide quotes <strong>$0.30 per million tokens</strong> for input and output, with cached tokens free. Abitbol says the invoice was one-tenth of what Revolut had spent with Anthropic and OpenAI. The 90% figure compares bills. The slide gives neither matched usage and billing periods nor the engineering cost of running the service.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="346">▶ 5:46</button></div>
+      <h3>同一个机群可能表现得像另一种服务</h3>
+      <p>Abitbol warns that simply loading model weights onto GPUs can produce poor performance; serving settings need to match the workload. To show the difference, he introduces another chart: blue now means demand in requests per second, while red means time to first token. The question is whether the service can begin answering promptly as more requests arrive, without increasing the GPU count.</p>
+<p>The serving chart follows the same <strong>56 B200 GPUs</strong> through the migration. Time to first token falls from <strong>14.26 seconds</strong> mid-migration to <strong>1.68 seconds</strong> once the service is stable. That is an 88% reduction in the wait before the first output appears, enough to bring it below the team’s three-second target.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/55c60eb70dc0497ab14698324e3be2a987f18a200905b1660c513a013bfe3ede" alt="Serving chart for 56 B200 GPUs. Slide callouts report 76% higher request throughput and 88% lower time to first token." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Serving chart for 56 B200 GPUs. Slide callouts report 76% higher request throughput and 88% lower time to first token.</figcaption></figure>
+<p>On the same 56 B200 GPUs, Revolut reports 76% higher demand in requests per second from migration to stable operation. Time to first token fell from 14.26 seconds mid-migration to 1.68 seconds in stable operation.</p>
+<p>On the same slide, Revolut reports <strong>76% higher requests per second</strong>. Abitbol describes the plotted demand as roughly three requests per second in April and more than seven in August. Those approximate readings do not establish the baseline for the slide’s 76% figure. The fleet served more requests while the wait for the first token fell.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="434">▶ 7:14</button></div>
+      <h3>一起调优上下文、精度和缓存容量</h3>
+      <p>Abitbol recommends testing how much context the team actually needs. His slide contrasts <strong>256k and 1M tokens</strong>: longer context consumes more KV-cache capacity for little gain in this workload. That trade-off matters when the same GPUs must keep many engineers’ requests moving.</p>
+<p>- <strong>Quantization:</strong> Abitbol favors <code>FP4</code> for the GPU generation he discusses and reports roughly 40% lower GPU footprint without a precision loss. However, the spoken comparison names a move from <code>FP4</code> to <code>FP8</code> while recommending <code>FP4</code>, leaving the direction inconsistent. The supported recommendation is to investigate low-precision serving; the 40% figure is not a reproducible conversion rule as stated.
+- <strong>Tensor parallelism:</strong> Fitting the model is only the first capacity test. GLM can fit at <code>TP4</code>, yet leave insufficient room for the key-value cache used during inference. Abitbol suggests that <code>TP8</code> may work better, depending on workload size. The decision therefore includes space for serving active requests, not only space for model weights.
+- <strong>Cache hits:</strong> For coding workloads, he sets a target above 90% cache hits. This makes cache reuse a first-class serving metric alongside request rate and latency, rather than an incidental optimization.</p>
+<p>He also points to optimized speculative decoding and prefill-related optimizations, without developing their implementations. Those are further tuning directions, not individually measured explanations for the fleet-wide gain. The detailed example he does supply is the <code>TP4</code> versus <code>TP8</code> decision: a model that fits can still be configured poorly for the amount of work engineers ask it to handle.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="494">▶ 8:14</button></div>
+      <h3>把图像单独路由，保留编程框架</h3>
+      <p>The production discussion introduces a capability tradeoff. The GLM deployment described here is text-only. Abitbol would choose the stronger model for the main coding task and solve image recognition separately, rather than make vision support the deciding criterion for every request. A local router can send image-recognition work to a model such as Gemini while keeping GLM on the main task.</p>
+<p>Which work goes to which model? The routing proposal below shows a branch by capability, not a sequence in which every request must pass through two models. The main task stays with GLM; image recognition takes the vision-capable route. Abitbol also reports that UI designers have made useful progress with a vision-capable model, although he gives no measured turnaround comparison for that work.</p>
+<p>The agent harness is a separate choice from the model endpoint. Abitbol describes OpenAI-compatible endpoints with Responses API support, used through OpenCode, Claude Code and Codex, including the Codex app. In this setup, moving inference to self-hosted weights need not require abandoning the coding interface engineers already use.</p>
+<p>Route by capability rather than forcing one model to do everything
+In Abitbol’s proposed local routing setup, the main coding task remains with GLM while image recognition goes to a vision-capable model. The branches show work assignment, not a mandatory two-model pipeline.
+- Local router — Routes work according to the capability it needs.
+- GLM — Handles the main task with the text-only coding model.
+- Vision-capable model — Handles image recognition; Gemini is one named option.
+- Local router → GLM (Main task)
+- Local router → Vision-capable model (Image-recognition work)</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="564">▶ 9:24</button></div>
+      <h3>让人工监督可强制执行，然后保留日志</h3>
+      <p>The closing infrastructure questions are for the CIO. Abitbol separates the origin of model weights from the destination of inference traffic: downloading a Chinese open model and running it on a US-based service does not require sending inference requests to a China-hosted endpoint. Hosting location is therefore a decision Revolut can make independently of where the model was developed.</p>
+<p>For an EU-regulated bank, the next issue is what the coding agent can actually do. Abitbol describes Revolut’s coding tasks as human-in-the-loop work rather than autonomous agents. A sandbox makes that distinction operational by defining which operations may proceed and which are not allowed. His concrete example is allowing <code>grep</code> but not Gradle: the policy distinguishes individual tools instead of granting unrestricted execution and relying on a general promise of supervision.</p>
+<p>The sandbox serves several purposes in parallel:</p>
+<p>- <strong>Human oversight:</strong> Operation rules and approval features support the supervised workflow Abitbol wants regulators to see.
+- <strong>Internal misuse:</strong> Restrictions also provide a shield against rogue use by people inside the company.
+- <strong>Prompt injection:</strong> Abitbol remains concerned about injection, even while expressing confidence in more capable models. The need for restrictions does not disappear with that confidence.</p>
+<p>Data location and retention are another pair of deployment requirements. Abitbol lists the US, EU, UK and Israel as locations acceptable under the data-equivalence arrangements he invokes, and says inference or GPU providers offer zero retention by default. These statements describe his compliance framing, not a blanket guarantee for every provider or regulated workload. The consequential deployment questions remain where inference data goes and what the selected service retains.</p>
+<p>Finally, the service needs strong telemetry. If an incident occurs, the team must be able to go deep into the logs and reconstruct what happened; the same instrumentation also supports usage analytics. That is where the talk ends: inexpensive tokens still need controlled execution and an inspectable production system around them.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Abitbol reports improvements in both coding time and lead time. He attributes part of the lead-time gain to using AI for inbox, Jira and Confluence work alongside coding.</li><li>Abitbol reports that the self-hosting invoice was one-tenth of Revolut’s previous Anthropic and OpenAI bills. The cost slide quotes $0.30 per million tokens and free cache hits.</li><li>Optimize for the workload engineers notice. Revolut targets under three seconds to first token, finds about 200 tokens per second sufficient, and reports reducing startup latency to around 1.6 seconds on the same GPU fleet as demand increased.</li><li>A model fitting in memory does not prove the serving configuration is adequate. The TP4 versus TP8 example turns on available key-value cache capacity, while coding cache hits have a stated target above 90%.</li><li>Self-hosting can preserve familiar coding harnesses while routing vision work separately. Production control also requires operation-level sandbox rules, deliberate data-location and retention choices, and logs useful for incident investigation.</li><li><a href="https://ai.engineer/talks/9JFGohx4E7U-glm-5-2-open-weights-near-frontier" target="_blank" rel="noopener">GLM-5.2: Open Weights, Near-Frontier Intelligence — Zixuan Li, Z.ai</a> — Adds the model developer’s perspective on GLM, open-weight deployment, enterprise control and coding harnesses.</li><li><a href="https://ai.engineer/talks/wcUJWP6WpGM-swe-rebench-lessons-from-evaluating-coding-agents" target="_blank" rel="noopener">SWE-rebench: Lessons from Evaluating Coding Agents on Real Software Engineering Tasks — Ibragim Badertdinov, Nebius</a> — Complements Revolut’s rollout metrics with task-level evaluation, including the effects of harness choice, caching, token costs and configuration drift.</li><li><a href="https://ai.engineer/talks/fnuNVFgLjHA-building-self-learning-loops-your-agent-fuad" target="_blank" rel="noopener">Building Self-Learning Loops for Your Agent — Fuad Ali, Arize AI</a> — Develops the closing telemetry requirement into a concrete workflow for investigating failures with traces and code, proposing repairs, and comparing quality, latency and cost before release.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">My name is David. I lead AI operations at a company called Revolut. We have, uh, fifty minutes today together. We'll talk about high-performance engineering and self-hosting open source model on dedicated GPU. How does that sound?</span></div><div class="tline" data-t="31"><span class="ts">0:31</span><span class="tx">Cool. So it's gonna be a technical one, so bear with me. Um, so maybe to start off, because I know this is the US and you may not know Revolut, uh, quick words about our company. We're a digital bank in Europe. We have eighty million customers. We're live in forty-five markets. We're the most downloaded financial app, uh, in Europe for the last year. And as of July, we're, uh, Europe's largest private company. Um,</span></div><div class="tline" data-t="62"><span class="ts">1:02</span><span class="tx">so we're doing okay.</span></div><div class="tline" data-t="67"><span class="ts">1:07</span><span class="tx">The, the emphasis of Revolut is, you know, shipping a lot of product, and so there's a high focus on engineering culture and, uh, excellence on that demand. And so we'll talk about that. So let's talk about some AI.</span></div><div class="tline" data-t="82"><span class="ts">1:22</span><span class="tx">We have a chart here. Uh, you're gonna see two lines. This is a sample of two thousand engineers' performance over the last year. So the green line is gonna be lead time, so it's gonna be when an engineer picks up a feature until a feature is merged and ready to be deployed. The blue line is gonna be coding time. So the green line is in days, the blue line is in hours.</span></div><div class="tline" data-t="108"><span class="ts">1:48</span><span class="tx">Just to reset the timeline in case people forget because AI moves really fast. Claude Code came out around February 2025, right? And that's the Claude Code Sonnet 3.7, the one that would delete your product database, right? Not the safe Claude and Codex that we have today. So bear in mind when we talk about adoption.</span></div><div class="tline" data-t="129"><span class="ts">2:09</span><span class="tx">So what you see on this chart is, um, January '25, first introduced AI in the company, right? Um, Gemini. First time people were able to use private data within AI. Around February, we started playing around with Claude Code, and then January is when we first launched Claude Code at scale. What you see is, um, Gemini had ten percent improvements in lead time, twenty percent improvement in coding time, so that people no longer needed to look to Stack Overflow and, uh, reading</span></div><div class="tline" data-t="158"><span class="ts">2:38</span><span class="tx">documentation. But then Claude Code, not so much impact at the time. So when we launched it, we were highly skeptical about the cost of AI. We were seeing engineers spend a thousand a month, ten thousand a month with not so much ROI. And so when we launched it, we launched it with, um, strict budget limits. And so we're looking at the next thing, right? So how can we provide unlimited tokens to our engineers so they can use AI guilt-free for a fraction of the cost? And so we</span></div><div class="tline" data-t="188"><span class="ts">3:08</span><span class="tx">looked into open source. So around April 26 is when we started self-hosting open source model. We're a big fan of GLM for coding. So around that time, what you see, uh, April 26, GLM-5.1,</span></div><div class="tline" data-t="204"><span class="ts">3:24</span><span class="tx">we see sixty percent improvement in, uh, coding time, seventy percent improvement in lead time. So dramatic impact. What do we learn from this? Well, there's more impact on the lead time than on the coding time. So what we find is the bottleneck for engineering is not necessarily coding. You can save a lot of time not having to dig through your inbox or messing with Jira and Confluence. And so when you have unlimited token, you're free to do that. You no longer have to save your tokens for</span></div><div class="tline" data-t="234"><span class="ts">3:54</span><span class="tx">the end of the quarter or, uh, the most difficult task.</span></div><div class="tline" data-t="239"><span class="ts">3:59</span><span class="tx">So where do we stand? Well, open source is now a priority at Revolut, and yet economics are favorable. The billing is flat. We don't have any bill shock any of the month. And the frontier is the exception. So obviously, we keep using Codex, Claude Code. The latest model are fantastic. Uh, Gemini are going very well as-- very good as well. But, um, we keep them as exception.</span></div><div class="tline" data-t="265"><span class="ts">4:25</span><span class="tx">So how do we get there?</span></div><div class="tline" data-t="268"><span class="ts">4:28</span><span class="tx">Some metrics that matter when you're self-hosting model. So to serve two thousand engineers, we roughly need fifty-six V200, and that's to, uh, host GLM-5.3. GLM is a, a big model, right? Eight hundred billion parameters.</span></div><div class="tline" data-t="284"><span class="ts">4:44</span><span class="tx">What you want to aim for is sub three-second time to first token. This is empirical evidence. As soon as you exceed five second, my Slack inbox starts to blow up, and so we know that's the limit.</span></div><div class="tline" data-t="299"><span class="ts">4:59</span><span class="tx">In terms of throughput, doesn't really matter as much, right? So we serve in terms of interactivity, two hundred token per second. People are fine. You don't need to go higher. Um, the way people work has changed. We no longer look at the stream of thinking tokens. People run task in parallel and check in when the task is done. But if you wanna have high throughputs and you're an engineer at Revolut, you just connect after five PM when no one is on GPU, and you can get eight hundred TPS, and then, you know, it's a dream.</span></div><div class="tline" data-t="328"><span class="ts">5:28</span><span class="tx">In terms of cost, in terms of impact, uh, self-hosting GLM, our blended cost of token is thirty cents per million. And so our invoice is one-tenth of what we were spending on Anthropic and, um, OpenAI.</span></div><div class="tline" data-t="346"><span class="ts">5:46</span><span class="tx">So there's a lot of tuning that goes into running open source models. If you just get GPUs and upload weights on a GPU and you start doing some inference, you're gonna get terrible performance. It's because your workload is gonna be very dependent Um, on the parameters that you set. So if you look all the way to the left of that chart, the blue line is gonna be demand, so that's requests per second. That's gonna be what's gonna be the bottleneck for your latency for your GPUs.</span></div><div class="tline" data-t="377"><span class="ts">6:17</span><span class="tx">And the red line is what we're optimizing for. That's the time to first token. So when we started back in April, you could see requests per second around three, which is high but not so high, and time to first token over ten seconds, which is very slow. But the data that you see is the same number of GPU. We didn't increase GPU count with L56. And by the end, you see in August, requests per second were about over seven and time to first token</span></div><div class="tline" data-t="407"><span class="ts">6:47</span><span class="tx">were around one point six. So we've had eighty-eight percent improvement in performance for seventy-six percent increased demand. So the learning from this is there's a lot of parameters that you can improve on, and you really need to resist scaling if you're looking to self-host a model. So let's talk parameters. There's no secret recipe, but the things you could consider are the following.</span></div><div class="tline" data-t="434"><span class="ts">7:14</span><span class="tx">First one, long context is a scam. You really need to be mindful that even though you can serve one million token, two fifty-six, two fifty-six is really what you need.</span></div><div class="tline" data-t="446"><span class="ts">7:26</span><span class="tx">Quantization, if you're running Blackwall generation GPU, you don't want to run anything higher than FP4. And the FP4 is best. Roughly going from FP4 to FP8 is a forty percent saving in GPU footprint for zero loss in, uh, precision.</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">Other parameters to consider, tensor parallelism. Even though GLM fits on, uh, TP4, you don't have enough key-value cache  and so maybe a TP8 works better depending on how large your workload is. And then on the more esoteric, um, check your cache hit. Coding task needs to be above ninety percent, uh, cache hit. And you can look into optimized spec decoding, uh, sequential prefill, PDD zag, all of these.</span></div><div class="tline" data-t="494"><span class="ts">8:14</span><span class="tx">Cool. So now let's talk about, um, production setup. GLM obviously is a text-only model, which is a limitation for some people. The trade-off, I would say, uh, we would make every time is get the smarter model and figure out how to do image recognition another way. You can easily have a local router. OpenCodex is one where you would route any image recognition to Gemini or, uh, Luna and keep GLM for the main task.</span></div><div class="tline" data-t="522"><span class="ts">8:42</span><span class="tx">If you really need some, uh, vision model, GLM5G Flash, uh, works really well. We have, uh, our UI designer, uh, making great use of it. Um, turnaround for, uh, UI product has gone a really, really long way.</span></div><div class="tline" data-t="540"><span class="ts">9:00</span><span class="tx">And then the last one is gonna be about, uh, the harness. So all of these endpoints are gonna be OpenAI-compatible API with Responses API, and so you can use them inside OpenCode, uh, Claude, Codex. Codex app as well works really well. And so that's what we, uh, we recommend.</span></div><div class="tline" data-t="564"><span class="ts">9:24</span><span class="tx">And then, um, last message, and this one is for the CIO in the room. There's been a lot of stigma in using Chinese, uh, open source model. So the thing to consider is you're not using the inference dedicated endpoint that goes to China. You're just getting the weights and putting them on a US-based service. So for data sharing side, uh, this is totally fine.</span></div><div class="tline" data-t="591"><span class="ts">9:51</span><span class="tx">Revolut in particular, because we're a EU-regulated bank, we fall under the most, uh, strict regime in terms of compliance. And so what we find that works is all of these coding tasks are not considered autonomous agent. They're always with a human in the loop. And so how do you give, uh, reassurance that you have a human in the loop? You start by creating a sandbox that guarantees that. And the sandbox means now if you've used Codex Claude Code, it has a lot of</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">these features of approve for me. You just have to set the rules for the operations that you don't want to allow. So you can allow grep but not Gradle, for instance. And that's gonna give confidence, uh, to your regulator that it's not an autonomous agent that needs different, uh, supervision.</span></div><div class="tline" data-t="639"><span class="ts">10:39</span><span class="tx">The sandbox also protects you from, uh, rogue use, right? You may have bad actor inside your company, and you want a shield, uh, for that. You'd be surprised what you find in, in a large company. And then the last one is prompt injection. Not, not so much a thing, um, now given how smart models are, but always a thing. In terms of data privacy, we spoke about it. So as long as the data sits in one of the countries that are in the Data Equivalence Framework, so US, EU, UK, Israel, you're</span></div><div class="tline" data-t="669"><span class="ts">11:09</span><span class="tx">fine. You can get your GPUs there. All of your inference provider or GPU provider are gonna have zero data retention by default.</span></div><div class="tline" data-t="679"><span class="ts">11:19</span><span class="tx">And then the last thing you need is a very strong, uh, open telemetry so that if you ever have an incident, um, you need to be able to go deep, uh, and look at the logs. Also gives you some, uh, yeah, analytics.</span></div><div class="tline" data-t="697"><span class="ts">11:37</span><span class="tx">All right. Thanks, everyone. That was all for my talk.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

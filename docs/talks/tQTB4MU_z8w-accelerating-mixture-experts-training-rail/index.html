@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>在 Crusoe Cloud 上用轨道优化的 InfiniBand 网络加速混合专家模型训练 | AI 工程师中文版</title>
+<meta name="description" content="GPU 网络影响着付费的算力中有多少能变成有用的训练工作。Crusoe 的双节点示例展示了 NCCL PXN 如何改变通信路径，随后是一次 Mixtral 微调的对比。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>在 Crusoe Cloud 上用轨道优化的 InfiniBand 网络加速混合专家模型训练</h1>
+    <div class="orig-title">Accelerating Mixture of Experts Training With Rail-Optimized InfiniBand Networking in Crusoe Cloud</div>
+    <div class="meta"><span class="speaker">Ievgen Vakulenko</span> · AI Engineer World's Fair 2024 · 17:45</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=model-context-protocol">MCP</a><a class="tag" href="../../index.html#topic=autoresearch">自动化研究</a><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a><a class="tag" href="../../index.html#topic=pretraining-and-midtraining">预训练与中期训练</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/tQTB4MU_z8w-accelerating-mixture-experts-training-rail" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="tQTB4MU_z8w"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=tQTB4MU_z8w" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">要让新一代 GPU 保持高效需要什么？</div></div>
+      <div class="label row">章节跳转 <span>共 9 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="29"><span class="ts">0:29</span><span>要让新一代 GPU 保持高效需要什么？</span></li><li data-t="75"><span class="ts">1:15</span><span>性能、易用性与能源供应</span></li><li data-t="325"><span class="ts">5:25</span><span>组装一个训练集群</span></li><li data-t="515"><span class="ts">8:35</span><span>支撑其他 AI 产品的基础设施</span></li><li data-t="586"><span class="ts">9:46</span><span>付了钱的 GPU 在等网络</span></li><li data-t="712"><span class="ts">11:52</span><span>传统网络架构在哪里造成摩擦</span></li><li data-t="792"><span class="ts">13:12</span><span>用本地交换机到达正确的轨道</span></li><li data-t="888"><span class="ts">14:48</span><span>网络测试结果只是第一项检验</span></li><li data-t="935"><span class="ts">15:35</span><span>在 240 块 H100 GPU 上微调 Mixtral</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 15 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Crusoe Cloud Regions" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Crusoe Cloud Regions</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Three current US regions span the north central, south central and eastern US. An Iceland region is marked for Q3 2024; its geothermal-powered data center was under construction.
+
+[4:19](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=259s) [Map showing three current US regions and an Iceland region marked Q3 2024.](https://assets.ai.engineer/sites/aiecode2025/sha256/2c260ca9677971d9bcb41461ebc8cd4d0adaab7dbf2007defd6d814a79359dc9.webp)
+
+Crusoe Cloud Regions
+
+Current Regions
+Q3 2024
+
+us-northcentral1
+us-east1
+us-southcentral1
+is-west1
+
+CRUSOE CLOUD
+13</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Platform Overview" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Platform Overview</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Crusoe Cloud combines GPU and CPU compute, storage, and VPC and rail-optimized InfiniBand networking. GPU VMs can be connected into a training cluster; managed file systems are listed as coming soon.
+
+[5:26](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=326s) [Overview of Crusoe Cloud compute, storage, networking, and user experience offerings.](https://assets.ai.engineer/sites/aiecode2025/sha256/75148228c6cc20f48a8e6d454a027c29cda1368555c2cf9aacc312c1747e2cc8.webp)
+
+CRUSOE CLOUD
+4
+
+Platform Overview
+
+Compute
+NVIDIA GPU instances for AI training, Inference, HPC and Graphics
+
+CPU instances for general purpose compute
+
+Storage
+Ephemeral and Persistent disks for fast data access
+
+Managed File Systems (coming soon)
+
+Network
+VPC Networking
+
+Rail-Optimized Infiniband Cluster Networking
+
+User Experience
+Command Line Interface, REST APIs, and management console
+
+Terraform Provider and published solutions for K8s and SLURM
+
+Crusoe</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Crusoe Cloud Customers" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Crusoe Cloud Customers</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Crusoe lists AI companies and MIT among its cloud customers. The speaker says Together AI uses its infrastructure for ML training, fine-tuning and sometimes inference.
+
+[8:37](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=517s) [Customer logos for Codeium, Together AI, MIT, Boson AI, Jua, c/ai, Pixelcut, and Playground.](https://assets.ai.engineer/sites/aiecode2025/sha256/31000eb3b57468b9f2e536cdb022954b12623bad6887a17db833bb1633f92973.webp)
+
+Crusoe Cloud Customers
+
+codeium
+Together.ai
+MIT — Massachusetts Institute of Technology
+BosonAI
+Jua
+c/ai
+PIXELCUT
+PLAYGROUND
+
+CRUSOE CLOUD
+4</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Crusoe Cloud Customers: Together AI" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Crusoe Cloud Customers: Together AI</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Together AI uses Crusoe Cloud for its open source ML training, tuning, and inference platform. The slide places it alongside other Crusoe customers, including Codeium, MIT, and Boson AI.
+
+[9:05](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=545s) [Customer logos with a callout describing Together AI’s machine learning training, tuning, and inference platform.](https://assets.ai.engineer/sites/aiecode2025/sha256/50802e1750eb5856698775d3c94cd0512444516abf4cbbdc1587bea9a95c0b32.webp)
+
+Crusoe Cloud Customers
+
+codeium
+
+together.ai
+Using Crusoe Cloud to offer an open source ML training, tuning, and inference platform empowering their customers to focus on infusing their products with AI.
+
+MIT
+Massachusetts Institute of Technology
+
+BosonAI
+Jua
+c/ai
+PLAYGROUND
+PIXELCUT
+
+CRUSOE CLOUD
+4</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Crusoe Cloud Customers: c/ai" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Crusoe Cloud Customers: c/ai</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>c/ai uses Crusoe Cloud to build foundational models with subquadratic architectures.
+
+[9:24](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=564s) [Customer logos with a callout describing c/ai’s foundational models using subquadratic architectures.](https://assets.ai.engineer/sites/aiecode2025/sha256/3d9275f48b27ca9a222602100d6452e07bd6178e904d0bfe4449bbbe81f155f2.webp)
+
+Crusoe Cloud Customers
+
+codeium
+together.ai
+MIT Massachusetts Institute of Technology
+BosonAI
+Jua
+c/ai
+Using Crusoe Cloud to build a new generation of foundational models using subquadratic architectures.
+PIXELCUT
+PLAYGROUND
+
+CRUSOE CLOUD
+4</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Customers Distributed Training Challenge" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Customers Distributed Training Challenge</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Overlapping data exchange with computation reduces networking overhead, but the speaker says customers still spent about 25% of training time on networking. The slide depicts GPUs idle during the remaining overhead.
+
+[9:45](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=585s) [Training-step chart showing forward and backward passes, networking time, computation and communication overlap, and remaining GPU idle time.](https://assets.ai.engineer/sites/aiecode2025/sha256/d0aee1786e5cb48c69ab858a0bb075be66205bfa645bee4d424ff97fe6e219fe.webp)
+
+Customers Distributed Training Challenge
+
+Time Spent per Training Step
+
+Forward Pass
+Backward Pass
+Networking / Comms Time
+Other
+
+Computation and Communication overlap
+
+X-axis ticks: 0%, 25%, 50%, 75%, 100%
+
+GPUs Idle due to networking overhead that can’t be addressed with overlap
+
+CRUSOE CLOUD
+4</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Building Highly Efficient Cluster Networking" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Building Highly Efficient Cluster Networking</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The standard fat tree connects each server group through one leaf, creating a choke point and fault domain. The rail-optimized diagram spreads connections across eight leaves.
+
+[11:51](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=711s) [Diagrams compare a standard fat-tree network with a rail-optimized network connecting H100 servers through InfiniBand switches.](https://assets.ai.engineer/sites/aiecode2025/sha256/9bd87fd4affcda89f41c05dafa70dc3e0c4e49f82ca438949d74852dbe1f60e3.webp)
+
+Building Highly Efficient Cluster Networking
+
+Standard Fat Tree
+InfiniBand Spine (2)
+InfiniBand Leaf (4)
+HCA1 HCA2 HCA3 HCA4 HCA5 HCA6 HCA7 HCA8
+GPU0 GPU1 GPU2 GPU3 GPU4 GPU5 GPU6 GPU7
+NVSWITCH
+4 x H100 HGX Servers (4 groups)
+
+Rail Optimized
+InfiniBand Spine (4)
+InfiniBand Leaf (8)
+HCA1 HCA2 HCA3 HCA4 HCA5 HCA6 HCA7 HCA8
+GPU0 GPU1 GPU2 GPU3 GPU4 GPU5 GPU6 GPU7
+NVSWITCH
+16 x H100 HGX Servers
+
+CRUSOE CLOUD
+4
+Crusoe</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Network Data Paths - NVSwitch" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Network Data Paths - NVSwitch</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Within one server, GPU0 communicates with GPU7 through NVSwitch without traversing the external network fabric.
+
+[13:21](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=801s) [A two-server network diagram highlights a path between GPUs within one server through NVSwitch.](https://assets.ai.engineer/sites/aiecode2025/sha256/73ff89295aa64ce2882c63a859a7417afed6ee642da99358106cc5c8132949fd.webp)
+
+Network Data Paths - NVSwitch
+
+Infiniband Spine | Infiniband Spine | Infiniband Spine | Infiniband Spine
+Infiniband Leaf | Infiniband Leaf | Infiniband Leaf | Infiniband Leaf | Infiniband Leaf | Infiniband Leaf | Infiniband Leaf | Infiniband Leaf
+
+HCA0 | HCA1 | HCA2 | HCA3 | HCA4 | HCA5 | HCA6 | HCA7
+GPU0 | GPU1 | GPU2 | GPU3 | GPU4 | GPU5 | GPU6 | GPU7
+NVSWITCH - 900GB/s
+
+HCA0 | HCA1 | HCA2 | HCA3 | HCA4 | HCA5 | HCA6 | HCA7
+GPU0 | GPU1 | GPU2 | GPU3 | GPU4 | GPU5 | GPU6 | GPU7
+NVSWITCH - 900GB/s
+
+CRUSOE CLOUD
+4
+Crusoe</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Network Data Paths - Same HCA Cross Node" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Network Data Paths - Same HCA Cross Node</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>GPU0 sends data across nodes through HCA0 and a single InfiniBand leaf, reaching the other node without traversing a spine.
+
+[13:32](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=812s) [Diagram traces a cross-node GPU path through the same HCA and one InfiniBand leaf.](https://assets.ai.engineer/sites/aiecode2025/sha256/b0194a5f315243e9333b5922830399c783ad1c60c7213815d18acc3e13b4a079.webp)
+
+CRUSOE CLOUD
+
+Network Data Paths - Same HCA Cross Node
+
+Infiniband Spine   Infiniband Spine   Infiniband Spine   Infiniband Spine
+
+Infiniband Leaf   Infiniband Leaf   Infiniband Leaf   Infiniband Leaf   Infiniband Leaf   Infiniband Leaf   Infiniband Leaf   Infiniband Leaf
+
+HCA0   HCA1   HCA2   HCA3   HCA4   HCA5   HCA6   HCA7
+GPU0   GPU1   GPU2   GPU3   GPU4   GPU5   GPU6   GPU7
+NVSWITCH - 900GB/s
+
+HCA0   HCA1   HCA2   HCA3   HCA4   HCA5   HCA6   HCA7
+GPU0   GPU1   GPU2   GPU3   GPU4   GPU5   GPU6   GPU7
+NVSWITCH - 900GB/s
+
+Crusoe
+
+Interface text:
+4</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Network Data Paths - Differing HCAs Cross Node" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Network Data Paths - Differing HCAs Cross Node</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Cross-rail traffic travels from GPU0 through HCA0, a leaf and a spine, then another leaf and HCA7 to GPU7. The speaker says the extra hop may add latency to all-reduce operations.
+
+[13:55](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=835s) [Diagram traces a cross-node GPU path through different HCAs, two InfiniBand leaves and a spine.](https://assets.ai.engineer/sites/aiecode2025/sha256/e1bc24b0677a09f702142d27ec6d80e95a995e41d812d3c54fa4dacec6ea529c.webp)
+
+Network Data Paths - Differing HCAs Cross Node
+
+Infiniband Spine
+Infiniband Spine
+Infiniband Spine
+Infiniband Spine
+
+Infiniband Leaf
+Infiniband Leaf
+Infiniband Leaf
+Infiniband Leaf
+Infiniband Leaf
+Infiniband Leaf
+Infiniband Leaf
+Infiniband Leaf
+
+HCA0 HCA1 HCA2 HCA3 HCA4 HCA5 HCA6 HCA7
+GPU0 GPU1 GPU2 GPU3 GPU4 GPU5 GPU6 GPU7
+NVSWITCH - 900GB/s
+
+HCA0 HCA1 HCA2 HCA3 HCA4 HCA5 HCA6 HCA7
+GPU0 GPU1 GPU2 GPU3 GPU4 GPU5 GPU6 GPU7
+NVSWITCH - 900GB/s
+
+CRUSOE CLOUD
+4
+Crusoe
+
+Interface text:
+may continue to defer these updates until tomorrow at 11:12 AM.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Network Data Paths - PXN Optimized on Crusoe Cloud" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Network Data Paths - PXN Optimized on Crusoe Cloud</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>PXN routes traffic from GPU0 across the source node’s NVSwitch to GPU7 and HCA7, then through a shared InfiniBand leaf to the destination GPU, avoiding a spine hop.
+
+[14:22](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=862s) [Diagram traces a path through the source node's NVSwitch and HCA7 to a shared InfiniBand leaf and the destination GPU.](https://assets.ai.engineer/sites/aiecode2025/sha256/fab54cfb0ed7033fc2fc0114049c90294525816a95902cab62a777f423cdf4e0.webp)
+
+CRUSOE CLOUD
+4
+
+Network Data Paths - PXN Optimized on Crusoe Cloud
+
+InfiniBand Spine
+InfiniBand Spine
+InfiniBand Spine
+InfiniBand Spine
+
+InfiniBand Leaf
+InfiniBand Leaf
+InfiniBand Leaf
+InfiniBand Leaf
+InfiniBand Leaf
+InfiniBand Leaf
+InfiniBand Leaf
+InfiniBand Leaf
+
+HCA0 HCA1 HCA2 HCA3 HCA4 HCA5 HCA6 HCA7
+GPU0 GPU1 GPU2 GPU3 GPU4 GPU5 GPU6 GPU7
+NVSWITCH - 900GB/s
+
+HCA0 HCA1 HCA2 HCA3 HCA4 HCA5 HCA6 HCA7
+GPU0 GPU1 GPU2 GPU3 GPU4 GPU5 GPU6 GPU7
+NVSWITCH - 900GB/s
+
+Crusoe</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="NCCL Test Results - PXN on Crusoe Cloud" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>NCCL Test Results - PXN on Crusoe Cloud</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Synthetic NCCL tests report a 50% reduction in small-message all-to-all latency and a 50% increase in large-message bus bandwidth with PXN enabled. These measure network workload, not model training time.
+
+[15:08](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=908s) [Charts compare PXN enabled and disabled, reporting 50% lower all-to-all latency for small messages and 50% higher bus bandwidth for large messages.](https://assets.ai.engineer/sites/aiecode2025/sha256/2e92a831e269511ac30916db89f537a578914bd25844aa7de51920aefc1e04dd.webp)
+
+NCCL Test Results - PXN on Crusoe Cloud
+
+NCCL All to All Latency - Small Messages
+Legend: PXN Enabled; PXN Disabled
+Y-axis: Communication Time (us)
+Y-axis ticks: 0, 200, 400, 600
+X-axis: Message Size
+X-axis ticks: 512 KB, 1 MB, 2 MB, 4 MB
+
+NCCL All to All Bus Bandwidth - Large Messages
+Legend: PXN Disabled; PXN Enabled
+Y-axis: Bus Bandwidth (GB/s)
+Y-axis ticks: 0, 10, 20, 30, 40, 50
+X-axis: Message Size
+X-axis ticks: 64 MB, 128 MB, 256 MB, 512 MB
+
+50% reduction in all-to-all latency on small messages
+50% increase in all-to-all bus bandwidth for large messages
+
+CRUSOE CLOUD
+4
+Crusoe</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Testing the Network - Sparse Mixture of Experts" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Testing the Network - Sparse Mixture of Experts</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>For each token, a routing network selects experts and combines their outputs at each layer. On a large GPU cluster, routing creates substantial network traffic as GPUs exchange information.
+
+[15:34](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=934s) [Text and a diagram explain how a routing network selects experts for tokens and combines their outputs across layers.](https://assets.ai.engineer/sites/aiecode2025/sha256/520fa6d57f400316ce2f3ea77f7659c95a1e12f75468a7fd71f70c2e6f193fa9.webp)
+
+Testing the Network - Sparse Mixture of Experts
+
+Each Model Layer composed of N feed forward blocks (“experts”)
+
+For every input token in each layer, a routing network selects experts to process token
+
+Outputs are combined at each layer to generate final output
+
+Process is parallelized across many input tokens and GPUs
+
+Diagram:
+MoE layer
+MoE layer
+MoE layer
+G(x)₂
+G(x)ₙ₋₁
+Expert 1
+Expert 2
+Expert 3
+Expert n-1
+Expert n
+Gating Network
+x
++
+Core Architecture of Mixture of Expert Layer
+
+Reference - Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer (2017)
+Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le, Geoffrey Hinton, Jeff Dean
+
+CRUSOE CLOUD
+4
+Crusoe</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Mixture of Experts Training Results" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Mixture of Experts Training Results</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Fine-tuning Mixtral 8x7B on 240 H100 GPUs reached 47.735 samples/sec with rail-optimized PXN, up from 41.798 without PXN—a 14.2% throughput improvement.
+
+[16:17](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=977s) [Mixtral 8x7B fine-tuning on 240 H100 GPUs achieved 41.798 samples per second without PXN and 47.735 with rail-optimized PXN, a 14.2% improvement.](https://assets.ai.engineer/sites/aiecode2025/sha256/73fd88740c56e9ee0c06daf4673837c1dbb474a371604b55af626c8ed33360b7.webp)
+
+Mixture of Experts Training Results
+
+Mixtral - 8x7B
+
+Sparse Mixture of Experts model
+
+Each layer composed of 8 feed forward blocks at 7B parameters
+
+Fine tuning on 240 H100 GPUs in Crusoe Cloud
+
+MISTRAL AI_
+
+Throughput
+PXN Disabled: 41.798 samples / sec
+Crusoe Cloud Rail Optimized with PXN: 47.735 samples / sec
+
+14.2% improvement!
+
+CRUSOE CLOUD
+4
+Crusoe</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Thank you" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Thank you</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Crusoe invites viewers to scan the QR code to start training with rail-optimized networking. The speaker closes by offering to answer questions.
+
+[17:09](https://www.youtube.com/watch?v=tQTB4MU_z8w&amp;t=1029s) [Closing slide invites viewers to start training with rail-optimized networking on Crusoe Cloud and scan a QR code.](https://assets.ai.engineer/sites/aiecode2025/sha256/6008a0870e2404c1b5a34949545e449377e5904b5930013a612c7b74aca9a558.webp)
+
+Thank you!
+
+Get started training with rail-optimized networking today on Crusoe Cloud
+
+Scan the QR code below
+
+CRUSOE CLOUD
+2
+Crusoe</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">要让新一代 GPU 保持高效需要什么？</a></li><li><a href="#sec-2">性能、易用性与能源供应</a></li><li><a href="#sec-3">组装一个训练集群</a></li><li><a href="#sec-4">支撑其他 AI 产品的基础设施</a></li><li><a href="#sec-5">付了钱的 GPU 在等网络</a></li><li><a href="#sec-6">传统网络架构在哪里造成摩擦</a></li><li><a href="#sec-7">用本地交换机到达正确的轨道</a></li><li><a href="#sec-8">网络测试结果只是第一项检验</a></li><li><a href="#sec-9">在 240 块 H100 GPU 上微调 Mixtral</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">用轨道优化的 InfiniBand 加速混合专家模型训练</h2>
+      <div class="lede"><p>GPU 网络影响着付费的算力中有多少能变成有用的训练工作。Crusoe 的双节点示例展示了 NCCL PXN 如何改变通信路径，随后是一次 Mixtral 微调的对比。</p><p>熟悉 GPU 训练以及交换机、带宽等基本网络概念会有帮助；文中会讲解“轨道”（rail）和 PXN。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="29">▶ 0:29</button></div>
+      <h3>要让新一代 GPU 保持高效需要什么？</h3>
+      <p>New GPUs and machine-learning models create an infrastructure problem: how do you make the systems underneath them run smoothly and fast? For Ievgen Vakulenko, a Crusoe product manager responsible for infrastructure and especially GPU networking, improving the network is part of making the compute customers buy useful.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="75">▶ 1:15</button></div>
+      <h3>性能、易用性与能源供应</h3>
+      <p>Crusoe frames its cloud around the relationship between computing and energy. Growing demand for power-hungry GPUs puts pressure on data centers, grids, and energy supplies. Its proposed response is to locate computing near stranded or otherwise wasted energy and renewable sources.</p>
+<p>That energy strategy sits alongside two requirements for a usable AI cloud:</p>
+<p>- <strong>High performance:</strong> Infrastructure must be optimized for training. Delays, glitches, outages, and poor performance extend training runs and increase customer costs.
+- <strong>Ease of use:</strong> AI engineers should be able to provision compute, deploy models, train, and run inference without managing the underlying infrastructure complexity.
+- <strong>Climate alignment:</strong> Vakulenko describes a company aim to power all its data centers with renewable, wasted, or stranded energy and achieve no net new carbon emissions. This is an ambition, rather than a demonstrated emissions outcome.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/87a73930b06266064f06bde94d11c1c58da517492ee6789e7dbc31e26d1feacc" alt="Green Crusoe Cloud slide with three columns labeled High-performance, Easy to Use, and Climate-Aligned, each above an illustrative image." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Crusoe Cloud’s three pillars: high performance, ease of use, and climate alignment.</figcaption></figure>
+<p>Energy availability also shapes the regional footprint. At the time of the talk, Vakulenko describes three continental-US locations—in Texas, the north-central US, and the eastern US—and an Iceland deployment under construction that would use geothermal energy. The <a href="https://www.crusoe.ai/resources/newsroom/crusoe-announces-data-center-expansion-with-atnorth-in-iceland" target="_blank" rel="noopener">Iceland expansion announcement</a> identifies colocation at atNorth’s ICE02 and both geothermal and hydro power. Iceland also offers a connectivity and latency advantage for serving customers in Europe and the wider EMEA region.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="325">▶ 5:25</button></div>
+      <h3>组装一个训练集群</h3>
+      <p>The compute interface is a VM with attached GPUs. Multiple VMs can be connected into one training cluster, while CPU instances handle preprocessing, data preparation, offload, and other general-purpose work. Storage includes ephemeral and persistent disks backed by NVMe on the local server, plus persistent block storage. Managed network file systems were still in development in the platform described here.</p>
+<p>The network has two distinct jobs, served by separate fabrics:</p>
+<p>| Network | Traffic | Design priority |
+| --- | --- | --- |
+| Front-end VPC | Internet and customer-environment traffic to VMs | General connectivity and access controls |
+| InfiniBand cluster fabric | GPU-to-GPU communication | High bandwidth, low latency, optimized topology |</p>
+<p>The front-end network includes firewalls; load balancers were forthcoming. The separate <strong>rail-optimized InfiniBand</strong> network carries the communication between GPUs, keeping that specialized traffic on a fabric designed for it.</p>
+<p>CLI, API, and GUI access expose these resources to AI developers and machine-learning engineers. The intention is to make provisioning and configuration automatable while leaving the infrastructure details with the provider.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="515">▶ 8:35</button></div>
+      <h3>支撑其他 AI 产品的基础设施</h3>
+      <p>Vakulenko names Together AI and Boson AI as customers and partners using Crusoe infrastructure. Together AI’s workloads include model training, fine-tuning, and sometimes inference.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f9eff017fc4e355a2bc7ec352af12e9e29cbe0849629ef5917199228d21bb2b6" alt="Crusoe Cloud Customers slide with customer logos and a green Together AI callout describing its open source ML training, tuning, and inference platform." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Together AI’s highlighted use of Crusoe Cloud for training, tuning, and inference.</figcaption></figure>
+<p>He also describes C.ai as using the compute infrastructure to train new foundation models. A developer using services such as Together AI or Codeium may therefore encounter Crusoe indirectly, through the infrastructure supporting those products.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="586">▶ 9:46</button></div>
+      <h3>付了钱的 GPU 在等网络</h3>
+      <p>Distributed training alternates between local computation and communication among GPUs. Forward and backward computation produce data that must be exchanged at synchronization points, using collective operations such as <strong>all-reduce</strong>. Vakulenko estimates that, without optimization, networking takes about 25–30% of training time. During the waiting periods he describes, GPUs cannot proceed with useful computation, but customers still pay for the infrastructure and wait longer for the model.</p>
+<p><strong>Computation–communication overlap</strong> starts exchanging data while computation is still running. It can hide some communication behind useful work, but it does not necessarily eliminate the remaining wait. In customer work, Vakulenko reports about a 10% reduction with overlap, while roughly 25% of training time still remained on the network. He does not specify whether that reduction is relative or measured in percentage points, so these figures do not define a precise before-and-after calculation. The remaining communication time motivates a closer look at the fabric itself.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="712">▶ 11:52</button></div>
+      <h3>传统网络架构在哪里造成摩擦</h3>
+      <p>A traditional <strong>fat-tree</strong> can provide a scalable, potentially non-blocking fabric. But the way servers attach to it matters. Connecting a group of servers to one leaf switch creates both a possible bandwidth choke point and a shared fault domain: losing that leaf disconnects the GPUs attached to it.</p>
+<p>That raises a second topology question beyond simply buying more network bandwidth: can another switching path carry the backend traffic? The next example turns to switching already available inside a GPU server.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="792">▶ 13:12</button></div>
+      <h3>用本地交换机到达正确的轨道</h3>
+      <p>Consider two GPU nodes. GPUs within one server can communicate through <strong>NVLink and NVSwitch</strong>, without entering the external network. Across servers, GPUs connected through the same leaf occupy a common rail: their traffic needs only that leaf to reach the destination. Communication between different rails ordinarily goes up through the spine and back down through another leaf, adding switching stages, potential bandwidth contention, and latency that matters to collective operations.</p>
+<p><a href="https://developer.nvidia.com/blog/doubling-all2all-performance-with-nvidia-collective-communication-library-2-12/" target="_blank" rel="noopener">NVIDIA’s NCCL PXN mechanism</a> uses an intermediate GPU over NVLink to reach a suitable network interface. Introduced in NCCL 2.12, PXN lets communication use the host’s internal switching to reach another rail instead of requiring the external spine route. NVIDIA also describes message aggregation as part of the mechanism; shortening the external route is not its only optimization.</p>
+<p>In Vakulenko’s example, GPU 0 wants to communicate with GPU 8 on another host. The optimized route proceeds as follows:</p>
+<p>1. GPU 0 transfers the data internally through the host’s NVLink/NVSwitch fabric to an intermediate GPU with access to the appropriate network interface.
+2. That interface sends the data onto the destination’s rail.
+3. The traffic crosses one external leaf switch to reach the other host.</p>
+<p>The source and destination remain the same; <strong>the local GPU hop changes which external path the message takes</strong>.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/6f83ba22e277ee67fff905db0b51d123cf66bf7fe29fe7e7416b3841ba2babfe" alt="PXN Optimized on Crusoe Cloud topology diagram showing two GPU nodes, leaf and spine switches, and black arrows traversing the local NVSwitch and one leaf to reach the other node." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>PXN routes communication through the local NVSwitch and a leaf switch.</figcaption></figure>
+<p>| Communication case | Route |
+| --- | --- |
+| Within one server | Local NVLink/NVSwitch |
+| Across nodes on one rail | One external leaf |
+| Across rails through the spine | Leaf → spine → leaf |
+| Across rails with the illustrated PXN route | Local GPU hop → one external leaf |</p>
+<p>The optimized route retains one external leaf traversal even when the original GPUs are on different rails.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="888">▶ 14:48</button></div>
+      <h3>网络测试结果只是第一项检验</h3>
+      <p>Vakulenko reports a 50% improvement for small messages and a 50% improvement for large messages in NCCL tests. He interprets small-message performance primarily in terms of latency and large-message performance primarily in terms of bandwidth, because latency stays roughly constant as messages grow. The talk does not provide message sizes, precise metric definitions, or a full test configuration for these figures.</p>
+<p>Those synthetic results describe how the network handles a test workload. They do not directly answer the customer’s question: how much sooner will a particular model finish training? That requires a model-level comparison.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="935">▶ 15:35</button></div>
+      <h3>在 240 块 H100 GPU 上微调 Mixtral</h3>
+      <p>Sparse mixture-of-experts models make a useful application test because routing work among experts creates substantial GPU-to-GPU traffic when those experts are distributed across a cluster. Tokens must reach the GPUs holding the selected experts, and their outputs must return. The network is therefore involved in the model’s execution, beyond a single synchronization at the end of a training step.</p>
+<p>Crusoe used <strong><a href="https://arxiv.org/html/2401.04088v1" target="_blank" rel="noopener">Mixtral 8x7B</a></strong> for the fine-tuning comparison. The architecture has eight feed-forward experts per layer and selects two for each token; the name does not mean eight independent 7B models. The original paper describes approximately 47B total parameters and 13B active parameters during inference. Crusoe’s benchmark ran on 240 H100 GPUs.</p>
+<p>The results slide gives the comparison in samples per second:</p>
+<p>| Configuration | Fine-tuning throughput |
+| --- | ---: |
+| PXN disabled | 41.798 samples/sec |
+| Crusoe Cloud rail optimized with PXN | 47.735 samples/sec |</p>
+<p>The slide reports a 14.2% throughput improvement for Mixtral 8x7B fine-tuning on 240 H100 GPUs with PXN versus PXN disabled.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/80a329ab0dbb7a1aded4dd5590f92f4be25fc5c01c941a0c46580f27c32ccda2" alt="Mixture of Experts Training Results slide for Mixtral 8x7B on 240 H100 GPUs, comparing 41.798 samples/sec with PXN disabled against 47.735 samples/sec with Crusoe Cloud Rail Optimized with PXN." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Mixtral fine-tuning results show a 14.2% throughput improvement with PXN.</figcaption></figure>
+<p>Vakulenko rounds the result to 14% and connects the gain to training time and cost. Higher throughput means a fixed amount of training work can finish sooner if the rest of the run remains unchanged; a throughput percentage is not the same percentage reduction in elapsed time. The talk does not supply the dataset, precision, parallelism configuration, software versions, or repeated-run measurements needed to reproduce the result. Its substantive endpoint is nevertheless concrete: the topology change improved the measured model workload, bringing the network optimization back to the customer’s paid training run.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://developer.nvidia.com/blog/doubling-all2all-performance-with-nvidia-collective-communication-library-2-12/" target="_blank" rel="noopener">How NCCL PXN optimizes rail-local communication</a> — NVIDIA explains PXN routing, intermediate GPUs, message aggregation and all2all communication with topology diagrams.</li><li><a href="https://arxiv.org/html/2401.04088v1" target="_blank" rel="noopener">Mixtral of Experts</a> — The original Mixtral 8x7B paper explains expert routing, parameter counts and distribution across GPUs.</li><li><a href="https://github.com/NVIDIA/nccl/blob/master/docs/userguide/source/env.rst" target="_blank" rel="noopener">NCCL configuration reference</a> — Current NCCL environment-variable documentation, including PXN disabling and send/receive controls.</li><li><a href="https://github.com/NVIDIA/nccl-tests" target="_blank" rel="noopener">NVIDIA NCCL Tests</a> — Build and run GPU collective communication tests to measure correctness and performance.</li><li><a href="https://www.crusoe.ai/resources/newsroom/crusoe-announces-data-center-expansion-with-atnorth-in-iceland" target="_blank" rel="noopener">Crusoe's Iceland expansion with atNorth</a> — The 2023 announcement describes GPU colocation at ICE02 and its geothermal and hydro energy supply.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Thank you for coming over to our session today.</span></div><div class="tline" data-t="16"><span class="ts">0:16</span><span class="tx">Lots of really interesting stuff is happening on the AI world these days, right? Uh, with all the recent model developments and the GPU developments, it is really cool to see all the use cases.</span></div><div class="tline" data-t="29"><span class="ts">0:29</span><span class="tx">Um, however, here I wanna talk now a little bit about the infrastructure and the way how we can support the, the newest models of the GPUs and the newest, um, the newest models, the machine learning models, and how we can help that everything is working smoothly and fast and, and productive.</span></div><div class="tline" data-t="51"><span class="ts">0:51</span><span class="tx">So my name's Ievgen Vakulenko. I'm a product manager at Crusoe. Uh, my main responsibility is, is the infrastructure, and specifically GPU networking infrastructure, and we are always looking for a way how we can increase the performance of that network because, as we will see later in the presentation, it is really important to do that.</span></div><div class="tline" data-t="75"><span class="ts">1:15</span><span class="tx">Now, a little bit about the Crusoe. Crusoe is an AI cloud platform which has one, I think, very important mission for all of us. It's to align the future of computing with the future of climate.</span></div><div class="tline" data-t="87"><span class="ts">1:27</span><span class="tx">There is a really strong demand right now for the computing power. The GPUs are really energy-hungry. There is a lot of investments being done in the data center area, and of course, that puts an additional pressure on the grid and on the energy sources.</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">What we are trying to do here at Crusoe, we are trying to utilize the stranded energy sources, wasted energy sources, and renewables to power our data centers. We want really to be able to make sure that every time when you train your model, every time when you're using GPU for inference, you're not causing any negative impact on</span></div><div class="tline" data-t="124"><span class="ts">2:04</span><span class="tx">the climate. Now, uh, whenever we are building the cloud, right, the AI cloud, we are building it based on three important pillars. First of all, there is a high-performance pillar.</span></div><div class="tline" data-t="138"><span class="ts">2:18</span><span class="tx">Uh, as the customers are buying our services and procuring, you know, the GPU times and training their models, we have to ensure that all the infrastructure is optimized for this training.</span></div><div class="tline" data-t="150"><span class="ts">2:30</span><span class="tx">Every time when it's not optimized, every time when there is a delay or a glitch or any sort of outage or simply not that great performance, it causes the direct impact on the customer's bottom line, it causes a direct impact on the time to train, and kinda raises the cost to train the model.</span></div><div class="tline" data-t="169"><span class="ts">2:49</span><span class="tx">Now, the second one, which I think is very important for everybody around here, is the easy to use. Uh, we want really to separate ourselves from the general purpose clouds.</span></div><div class="tline" data-t="180"><span class="ts">3:00</span><span class="tx">Uh, we do know all of them. The hyperscalers are building the great infrastructure and are trying to support each and every use case the customers might have for the cloud computing.</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">However, in our case, we really want to focus on the experience of the AI engineer, so we want to make sure that we are providing a simpler user interface that allows developers to spin up the compute resources, to deploy the models, to train them, to use them to inf-- for inference, and, and so on.</span></div><div class="tline" data-t="211"><span class="ts">3:31</span><span class="tx">Uh, all the underlying complexity of the infrastructure is being hidden by us, and I believe that's our job to make sure that that is-- that stays the case. And now, as I mentioned, we are-- as I mentioned before, we are climate-aligned, which means, uh, we as a company really aiming to power one hundred percent of our data</span></div><div class="tline" data-t="233"><span class="ts">3:53</span><span class="tx">centers with the renewable wasted energy sources, with some, some, some form of stranded energy sources to ensure that we are, uh, we are being net zero emission, net new zero emissions from the carbon perspective.</span></div><div class="tline" data-t="250"><span class="ts">4:10</span><span class="tx">We have a big story around that. Feel free to check it on our website or come over to our booth on the, on the show floor, and the team will happy to talk about that.</span></div><div class="tline" data-t="260"><span class="ts">4:20</span><span class="tx">Now, where are we present right now? We have a number of the data centers located across the US. Uh, as you see, three of them in the continental United States, and they are generally located close to the energy sources I was mentioning before.</span></div><div class="tline" data-t="279"><span class="ts">4:39</span><span class="tx">So we have the one in Texas, we have, uh, the one in the northern central part of the country, and on the east. We are also building right now one big data center in Iceland that will be powered by the geothermal energy.</span></div><div class="tline" data-t="294"><span class="ts">4:54</span><span class="tx">I mean, again, a way-- amazing way to use the stranded energy sources or the renewables to power the data center. We are trying to follow that model, hence we are placing our data centers strategically.</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">The placement of the data center in Iceland, though, will be also very important for our EMEA customers, given the latency and the, and the con- general connectivity to the Europe.</span></div><div class="tline" data-t="318"><span class="ts">5:18</span><span class="tx">That is something I think, uh, might be helpful for them as well.</span></div><div class="tline" data-t="325"><span class="ts">5:25</span><span class="tx">Now, what is our platform, right? I say Crusoe Cloud, but generally, whenever we are talking about any cloud, we are talking about three general types of the products. First and foremost, we have the compute.</span></div><div class="tline" data-t="339"><span class="ts">5:39</span><span class="tx">We are offering the VMs with, uh, with GPUs attached to them. So every time when customer wants to spin up-- w-when customer wants to get access to the GPUs, they're able to get it through the VM.</span></div><div class="tline" data-t="351"><span class="ts">5:51</span><span class="tx">They can get a bunch of VM connected together and use them as a one single training cluster. We also offer CPU instances for any potential data preprocessing or any general purpose compute tasks you might have for the data preparation, for the offload.</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">W-whatever you have. Uh, from the storage perspective, we are offering ephemeral and persistent disks on the node, so those are delivered from the NVMe on the local server where your VMs are being placed.</span></div><div class="tline" data-t="384"><span class="ts">6:24</span><span class="tx">We also have the persistent block storage solution available for our customers, and we are working on providing and delivering the managed file system, the network file systems for the customers.</span></div><div class="tline" data-t="397"><span class="ts">6:37</span><span class="tx">On the networking side, of course, more traditional, more typical VPC networking. That's the network, sometimes we call it front-end network, that is used to deliver the customer traffic from the internet or from the customer environment, wherever the customer might have the data sources, to deliver that towards the VM.</span></div><div class="tline" data-t="418"><span class="ts">6:58</span><span class="tx">So that's your kinda main connectivity, uh, path to the outside world. Now, uh, we do offer a number of the additional services on that. That's not simply connectivity. We also have the firewalls.</span></div><div class="tline" data-t="431"><span class="ts">7:11</span><span class="tx">We will be offering the load balancers soon. But generally, we are trying to follow more traditional paths for the VPC networking and, and the requirements the customers usually have there.</span></div><div class="tline" data-t="442"><span class="ts">7:22</span><span class="tx">Now, what is more interesting and what we will be talking a little bit later today in greater details is our rail-optimized InfiniBand cluster networking. So for those of you who don't know, typically cust-- Typically providers, the GPU providers are separating their network.</span></div><div class="tline" data-t="460"><span class="ts">7:40</span><span class="tx">They have the front-end network, which is used for general purpose traffic, but then all the communication between the GPUs is happening on the standalone separate network that is, uh, really high performance, low latency, and high bandwidth, and the whole topology is optimized for the GPU-to-GPU communication.</span></div><div class="tline" data-t="480"><span class="ts">8:00</span><span class="tx">Uh, now last but not least, the user experience, as I mentioned before, we are-- Our main customers, our main persona, the people who are using Cru-Cru-Crusoe Cloud are the AI developers and machine learning engineers, so we wanna make sure they have what they need in order, you know, to be successful and not to think too much about</span></div><div class="tline" data-t="502"><span class="ts">8:22</span><span class="tx">infrastructure. We also offer CLI, we have APIs, we have GUI, so everything can be automated. Everything can be, can be consumed and configured in the way you like it more.</span></div><div class="tline" data-t="515"><span class="ts">8:35</span><span class="tx">Uh, we do have a, a lot of customers already, and it was very fun for me to see on the floor that some of them are there and some of them are talking about their solutions.</span></div><div class="tline" data-t="526"><span class="ts">8:46</span><span class="tx">Probably this is the first time in my life whenever I'm attending a conference and standing at the booth, I don't have to compete with all the people around us.</span></div><div class="tline" data-t="537"><span class="ts">8:57</span><span class="tx">So we do see all the companies that are presenting their solutions right now as our partner, partners. We do partner with a bunch of them already. We have the Together AI here.</span></div><div class="tline" data-t="548"><span class="ts">9:08</span><span class="tx">We have the, uh, Boson AI, and all of them are using our infrastructure for different purposes. So Together AI, for example, they're really into using Crusoe infrastructure for the ML training, for the fine-tuning their models, and some-sometimes for inference.</span></div><div class="tline" data-t="565"><span class="ts">9:25</span><span class="tx">The C.ai is, uh, they're trai-- They're using our compute infrastructure to train the new foundational models. This is really great. I mean, if you're the customer of Together AI, for example, or Codeium or whatnot, it is likely that you have been somehow exposed to the Crusoe infrastructure.</span></div><div class="tline" data-t="586"><span class="ts">9:46</span><span class="tx">Now, the distributed training has a very specific set of problems or issues, right? There is a compute part of it when the computation is being done on the GPUs.</span></div><div class="tline" data-t="600"><span class="ts">10:00</span><span class="tx">But since we're talking about a distributed training, which means there are a lot of GPUs, at certain stages, whenever there is a, uh, whenever there is a, a training step being completed, all the GPUs have to exchange the information, have to exchange the data that they calculated on their own.</span></div><div class="tline" data-t="619"><span class="ts">10:19</span><span class="tx">This is typically done through the all-reduce or, or all, all, all get, uh, um, through the all-reduce process and, and the protocols, and it contains the forward path, the backward path, but then the networking part takes, without any optimization, about twenty-five, thirty percent of the netwo- of the time, of the training time.</span></div><div class="tline" data-t="642"><span class="ts">10:42</span><span class="tx">Now, this is the time where- when your GPUs are staying idle. They're not being able to compute anything because they have to wait for all the information to be gathered, uh, together.</span></div><div class="tline" data-t="656"><span class="ts">10:56</span><span class="tx">This is kinda a bad thing for everybody, right? This is bad thing for the customers because they still pay for that infrastructure. They still have to wait. It delays the, the mode-model training, but it also bad for us because we have the infrastructure that is not being performant enough.</span></div><div class="tline" data-t="673"><span class="ts">11:13</span><span class="tx">There are a couple of tricks we can do. First of all, the computation and communication overlap allows you to start the network exchange or the data, data exchange when the computation is still ongoing.</span></div><div class="tline" data-t="686"><span class="ts">11:26</span><span class="tx">But even with that, when we were working with the customers, we saw just the reduction, uh, of about ten percent, so about twenty-five percent of the training time was still spent on the network.</span></div><div class="tline" data-t="700"><span class="ts">11:40</span><span class="tx">Me as a product manager on the infrastructure side are constantly being asked like, &quot;How can we reduce that? How can we use the network as much as possible and re-reduce that gap?&quot;</span></div><div class="tline" data-t="712"><span class="ts">11:52</span><span class="tx">So we, we have been looking into that, and we were trying to figure out what would be the right cluster networking topology. How can we make sure that our data fabric that is used for connecting the GPUs is being fully optimized and is being, uh, is able to provide the bandwidth needed and the latency needed?</span></div><div class="tline" data-t="732"><span class="ts">12:12</span><span class="tx">The standard fat tree, those of you who have been working in the data center infrastructure before, that is something that we were traditionally doing for years. That's a great way to build</span></div><div class="tline" data-t="744"><span class="ts">12:24</span><span class="tx">A scalable, maybe non-blocking fabric, right? But there are a bunch of issues with that. First of all, if we will be connecting our servers that are shown below to a single leaf, that introduces the single choke point as well as the single fault domain, right?</span></div><div class="tline" data-t="761"><span class="ts">12:41</span><span class="tx">If we are losing the leaf, we are losing all the GPUs that are connected to that leaf. Now, what else we were thinking about is like, look, we have that switch.</span></div><div class="tline" data-t="774"><span class="ts">12:54</span><span class="tx">We, we have that switch. Sorry, what is it? The time? Yes. Okay. So we have that switch that can be used for the backend traffic propagation, and why don't we use that switch for, from the bandwidth perspective and kinda, you know, have an additional path?</span></div><div class="tline" data-t="792"><span class="ts">13:12</span><span class="tx">Let me just use the simple two-node, uh, example to explain the topology and to explain how we are using it. So first of all, whenever we have the GPUs that want to communicate within one server, they can use their embedded NVLink, NVSwitch, and that provides a good communication.</span></div><div class="tline" data-t="810"><span class="ts">13:30</span><span class="tx">They don't have to go to the outside fabric anywhere and, and whatnot. Now, whenever we have the data communication between the GPUs on the different nodes, if they collect, if they are connected to the single leaf, that's something we call one single rail.</span></div><div class="tline" data-t="827"><span class="ts">13:47</span><span class="tx">That means that the traffic communication will be passing through the, uh, through the one single leaf. Just one hop away, and you will get the, to the destination. Now, what is interesting here is when we want to talk to the different rails, right?</span></div><div class="tline" data-t="841"><span class="ts">14:01</span><span class="tx">We have to go all the way to the spine, and that introduces the additional hop. Besides the bandwidth saturation problems, that may lead to the additional latency, which will be really important for all, for your, uh, all-reduce,</span></div><div class="tline" data-t="858"><span class="ts">14:18</span><span class="tx">all-reduce operations. But luckily for us, Nvidia with the recent version of NCCL introduced the feature called PXN, which allows you to use the internal NVSwitch inside the host to communicate across the rail.</span></div><div class="tline" data-t="874"><span class="ts">14:34</span><span class="tx">So whenever we want to have the GPU zero to communicate with the GPU eight on the another host, we can use an, an internal switch to do the traffic hop between the GPUs and then send it to the leaf where it is connected to.</span></div><div class="tline" data-t="888"><span class="ts">14:48</span><span class="tx">So it still allow us to use one single hop and have access across the different rails of the GPUs. Now, we did some NCCL test results, uh, and we saw quite a significant improvement, 50% for the small messages and 50% of the large messages.</span></div><div class="tline" data-t="908"><span class="ts">15:08</span><span class="tx">Now, those numbers here are, of course, for the smaller, uh, for the smaller messages are about latency. For larger ones, we care more about bandwidth because latency tends to stand, to stay roughly the same.</span></div><div class="tline" data-t="921"><span class="ts">15:21</span><span class="tx">Uh, those numbers are great, right? Everyone, everybody would love them, but not the customers, and it does make sense because those numbers are synthetic and more are showing you the workload that is applied to your network.</span></div><div class="tline" data-t="935"><span class="ts">15:35</span><span class="tx">What customers care about is the time to train the particular model. So we use the Sparse Mixture of Experts as an example and, uh, I mean, I'm not going to dive into the details how, how it works, but essentially, the sparse network, uh, the, the Sparse Mixture of Experts shows you, gives you a different layers of the</span></div><div class="tline" data-t="957"><span class="ts">15:57</span><span class="tx">experts and routes the traffic between them. Whenever you are deploying that on the re- really large GPU cluster, that makes, uh, that creates a ton of traffic. Like, all the GPUs have to send the traffic to each other.</span></div><div class="tline" data-t="972"><span class="ts">16:12</span><span class="tx">They have to exchange the information. The workload on the network is pretty significant. So we use the Mixtral model, the open source, uh, Sparse Mixture of Experts, uh, which is contained of eight feed forward blocks, eight, seven billions of parameters, and we use the fine-tuning to use this model to fine-tune it on 240 H100</span></div><div class="tline" data-t="997"><span class="ts">16:37</span><span class="tx">GPUs. And we did a quite significant, we saw a quite significant improvement when we had the PXN enabled and without it. The 14% of improvement is something that can be directly connected to the time to train the model, that can be con- directly connected to cost of train the model, and that is something that everybody really, uh,</span></div><div class="tline" data-t="1019"><span class="ts">16:59</span><span class="tx">really got excited. I definitely got excited and, and our customers as well because that shows them some real value numbers they can get with the model. Now, that was it from my side.</span></div><div class="tline" data-t="1030"><span class="ts">17:10</span><span class="tx">Sorry for, uh, going through that. It's so fast. It's a very, you know, large topic. It's, it's hard to talk about that, but I'm happy to answer all the additional questions, anything you guys might have. [upbeat music]</span></div><div class="tline" data-t="1061"><span class="ts">17:41</span><span class="tx">Thank you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

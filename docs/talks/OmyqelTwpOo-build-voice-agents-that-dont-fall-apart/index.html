@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>如何构建被打断时也不会崩溃的语音智能体 —— Jesse Hall，LiveKit | AI 工程师中文版</title>
+<meta name="description" content="LiveKit 的 Jesse Hall 讲解了可感知的延迟、异步工具、感知音频的话轮检测和全对话基准如何协同工作——并跟随一位酒店前台，看一个脆弱的智能体会如何搞砸一次打断。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>如何构建被打断时也不会崩溃的语音智能体 —— Jesse Hall，LiveKit</h1>
+    <div class="orig-title">How to Build Voice Agents That Don't Fall Apart When You Interrupt - Jesse Hall, LiveKit</div>
+    <div class="meta"><span class="speaker">Jesse Hall</span> · 20:55</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=voice-ai">语音 AI</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=ai-cost-and-performance-engineering">AI 成本与性能</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=benchmarks">基准测试</a><a class="tag" href="../../index.html#topic=ai-in-finance">金融 AI</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/OmyqelTwpOo-build-voice-agents-that-dont-fall-apart" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="OmyqelTwpOo"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=OmyqelTwpOo" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">一次打断可能改变整笔交易</div></div>
+      <div class="label row">章节跳转 <span>共 9 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>一次打断可能改变整笔交易</span></li><li data-t="252"><span class="ts">4:12</span><span>排行榜听不到整段对话</span></li><li data-t="402"><span class="ts">6:42</span><span>衡量来电者何时听到答案</span></li><li data-t="521"><span class="ts">8:41</span><span>在工具运行时把话轮交还给对话</span></li><li data-t="620"><span class="ts">10:20</span><span>酒店前台让预订流程持续推进</span></li><li data-t="750"><span class="ts">12:30</span><span>金额中间的停顿不是话轮的结束</span></li><li data-t="842"><span class="ts">14:02</span><span>把行为塞进可感知的延迟预算之内</span></li><li data-t="932"><span class="ts">15:32</span><span>对能用的智能体做基准测试，再更换技术栈</span></li><li data-t="1145"><span class="ts">19:05</span><span>上线检查应该覆盖到后端</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 18 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Building Humanlike Voice Agents for Financial Services" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Building Humanlike Voice Agents for Financial Services</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Jesse Hall of LiveKit uses a hypothetical payment call to frame humanlike voice agents: a caller changes the amount or date midway through, and the agent must keep up. Low latency is only part of the challenge.
+
+[1:48](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=108s) [Title slide for Building Humanlike Voice Agents for Financial Services, identifying Jesse Hall of LiveKit beside a circular portrait.](https://assets.ai.engineer/sites/aiecode2025/sha256/f315db36da8cc5642157861fec0dada86e0ef8edcafb1ba05cab571531e263cd.webp)
+
+Building Humanlike Voice Agents
+for Financial Services
+
+Jesse Hall
+@codeSTACKr
+LiveKit
+
+AI Engineer
+NEW YORK
+
+PRESENTED BY
+arize
+
+Engineering the future of AI</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Perspectives on Voice AI" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Perspectives on Voice AI</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Six social posts present voice as a natural AI interface gaining adoption. Aaron Levie says talking to agents can be far more efficient than GUIs. Hall uses that enthusiasm to ask how voice agents can feel humanlike.
+
+[2:14](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=134s) [Six social-post cards attributed to Sam Altman, Olivia Moore, LiveKit, Catheryn Li, Aaron Levie, and swyx discuss voice AI adoption and natural interaction.](https://assets.ai.engineer/sites/aiecode2025/sha256/6b57c2a49892f98ca135f0676b61506375997642aa52e266a88ae6d13869b0d5.webp)
+
+Sam Altman
+@sama · CEO, OpenAI
+pretty excited for voice models to get great
+its interesting to watch how people are already starting to change the way they interface with AI
+♥ 6,198
+May 5, 2026
+
+Olivia Moore
+@omooretweets · Partner, a16z
+AI voice agents are on 🔥 We’re moving from the innovator → early adopter part of the curve, with new startups sprouting up weekly to serve different verticals.
+♥ 1,225
+Oct 1, 2024
+
+LiveKit
+@livekit · Realtime infra for agents
+We learn to speak before we learn to read. Voice is the most natural interface we have.
+♥ 743
+Jan 22, 2026
+
+Catheryn Li
+@catheryn_li · Co-founder, Simple AI
+We fundamentally believe that voice AI is the future of all B2C calls.
+♥ 356
+Feb 10, 2026
+
+Aaron Levie
+@levie · CEO, Box
+Voice AI will be fairly game changing for interacting with AI Agents... talking to agents can be far more efficient than GUIs.
+♥ 234
+Dec 3, 2024
+
+swyx
+@swyx · AI Engineer / Latent Space
+I do think voice is the “OG modality” for communication between intelligent species... absent BCI, the correct modality for aligning agi to our intents is Very Good Voice AI Engineering.
+♥ 73
+Jul 31, 2025
+
+Interface text:
+X   X   X
+X   X   X
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Who here?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Who here?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Jesse Hall asks who has built and deployed a voice agent to production. He notes a few raised hands, then asks who has used ChatGPT’s Advanced Voice Mode.
+
+[3:05](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=185s) [Black slide displaying the audience prompt “Who here?” beside conference branding and a presenter inset.](https://assets.ai.engineer/sites/aiecode2025/sha256/9c4bbf9ee4923de3e05b7b383cf80812f997a8e581fa8541c24e4ba4a0d717fc.webp)
+
+Who here?
+
+AI Engineer
+NEW YORK
+
+PRESENTED BY
+arize
+
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Realtime infrastructure for humanlike agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Realtime infrastructure for humanlike agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>LiveKit provides open source infrastructure for agents that hear, see and speak. The HEAR tile highlights voice as a use case: OpenAI chose LiveKit to power ChatGPT’s advanced voice mode.
+
+[3:33](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=213s) [Slide introducing realtime infrastructure for humanlike agents, with a HEAR tile and text stating that OpenAI chose LiveKit to power ChatGPT’s advanced voice mode.](https://assets.ai.engineer/sites/aiecode2025/sha256/1d93d40e42bc525e3d49483e1a5dd0c1b1860b3e633c2bd7d3de4398c3a13964.webp)
+
+WHO WE ARE
+
+Realtime infrastructure
+for humanlike agents.
+
+OpenAI chose LiveKit to power ChatGPT’s advanced voice mode.
+
+HEAR
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Three slots. Hundreds of choices." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Three slots. Hundreds of choices.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Speech-to-text, an LLM, and text-to-speech must work together in a cascaded voice agent. Three pedestals amid floating provider logos show the selection problem: hundreds of models, with the list changing as you pick.
+
+[4:19](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=259s) [Slide titled “Three slots. Hundreds of choices.” with floating provider-logo tiles and the note “The list changes while you’re picking.”](https://assets.ai.engineer/sites/aiecode2025/sha256/840ba33dbe5c25a8114d7de1e5b3850e6ec6db1765743ea0607f1977d09ace3d.webp)
+
+THE SELECTION PROBLEM
+Three slots.
+Hundreds of choices.
+
+The list changes while you’re picking.
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Errors flow downhill" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Errors flow downhill</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In a hypothetical payment call, speech recognition mishears the 3rd as the 30th. The LLM plans for the wrong date and speech synthesis repeats it; neither knows the input was wrong. Component leaderboards miss this cascade.
+
+[5:27](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=327s) [A caller says “Pay on the 3rd,” while STT hears the 30th, the LLM plans the 30th, and TTS says the 30th. A caption explains that downstream models never know the input was wrong.](https://assets.ai.engineer/sites/aiecode2025/sha256/b8d770ede06629a7cf2566e73f8a5dc56e57bcbd017d00d1e398f961805c9a93.webp)
+
+WHY COMPONENT LEADERBOARDS FAIL
+Errors flow downhill.
+
+“PAY ON THE 3RD.”
+STT HEARS 30TH
+LLM PLANS 30TH
+TTS SAYS 30TH
+
+The downstream models never know the input was wrong.
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="The leaderboard is a trap" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The leaderboard is a trap</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A dimmed model question sits beside a highlighted stack question. Leaderboard scores measure individual models; choosing what to ship means evaluating the whole voice agent on conversations from its intended use case.
+
+[6:32](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=392s) [A crossed-out “Which model is best?” contrasts with a highlighted “Which stack should I ship?” Below, a caption says the score measures the model, but you are shipping a conversation.](https://assets.ai.engineer/sites/aiecode2025/sha256/b60013f57ebab9cd241dca2f1bb67431c32eb4d2068f35a09b3c06c99e953a7a.webp)
+
+The leaderboard is a trap.
+
+WHICH MODEL IS BEST?
+WHICH STACK SHOULD I SHIP?
+
+The score measures the model. You’re shipping a conversation.
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Tokens aren’t sentences. Words aren’t equal." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tokens aren’t sentences. Words aren’t equal.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The box separates first token from first sentence. Hall recommends measuring time to first sentence: the speech system he describes waits for a full sentence, and the fastest token model may not complete it first.
+
+[7:50](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=470s) [Slide headed “Tokens aren’t sentences. Words aren’t equal.” A central outlined card states that first token is not equal to first sentence.](https://assets.ai.engineer/sites/aiecode2025/sha256/fb0c1b2c575b43933a19f03fcc5de2b73ddaa42f29542078733b00d0793c5ad2.webp)
+
+THE METRIC CORRECTIONS
+
+Tokens aren’t sentences.
+Words aren’t equal.
+
+FIRST TOKEN
+≠
+FIRST SENTENCE
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room
+
+[8:26](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=506s) [Slide stating that tokens are not sentences and words are not equal, with a box emphasizing that first token does not equal first sentence.](https://assets.ai.engineer/sites/aiecode2025/sha256/ab97b9e6e1d0a0ba68e93328be7a908c1fd6bc79eed287bcbdf3c3901b969368.webp)
+
+THE METRIC CORRECTIONS
+
+Tokens aren’t sentences.
+Words aren’t equal.
+
+FIRST TOKEN
+≠
+FIRST SENTENCE
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+AI Engineer</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Tools take time." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Tools take time.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The bars compare illustrative waits: 2s to find a transaction, 10s to check payment status and 40s to submit a dispute. Agents should keep listening and give updates or ask another question while tools run.
+
+[8:55](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=535s) [Illustrative tool timings of 2, 10, and 40 seconds, followed by the statement that humanlike agents keep listening while the work runs.](https://assets.ai.engineer/sites/aiecode2025/sha256/ca8b20c9216d002986152e43892245d1951fb6c32d6640928cf957a36da2b92b.webp)
+
+Tools take time.
+REAL AGENTS DO THINGS / ILLUSTRATIVE TIMINGS
+
+FIND TRANSACTION  2s
+CHECK PAYMENT STATUS  10s
+SUBMIT DISPUTE  40s
+
+Humanlike agents keep listening while the work runs.
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="One line changes the conversation." referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One line changes the conversation.</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The highlighted await ctx.update call announces “Checking transactions.” Hall explains that it hands the mic back to the agent so conversation can continue while the backend search runs.
+
+[9:32](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=572s) [Async tool code highlights an awaited context update announcing a transaction check before awaiting the search and returning its results.](https://assets.ai.engineer/sites/aiecode2025/sha256/17d451e010e9003b4c281352e2860f6e5e6b871883a20d80dc0cab9be453291c.webp)
+
+THE ASYNC TOOL
+One line changes the conversation.
+
+async def find_transactions(ctx, query):
+    await ctx.update(&quot;Checking transactions.&quot;)
+
+results = await transactions.search(query)
+    return results
+
+AI Engineer
+NEW YORK
+
+PRESENTED BY
+arize
+
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="Hotel receptionist demo opening" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Hotel receptionist demo opening</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>LiveKit’s hotel receptionist opens the demo by thanking the caller for contacting The Gilded Rose Hotel. The chat shows the greeting in progress above microphone and end-call controls.
+
+[10:17](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=617s) [LiveKit hotel receptionist interface displaying the beginning of a greeting, microphone controls and an end-call button, with presenter camera insets.](https://assets.ai.engineer/sites/aiecode2025/sha256/1b613521ef6eb7136f9605a11075b57c0d8a540135bd1ce74f38dcc5046a4eb7.webp)
+
+Hotel Receptionist
+GEMMA 4
+
+Thank you for calling The Gilded Rose Hotel, how can
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room
+
+Interface text:
+Introducing Gemma 4 on LiveKit Inference
+LiveKit
+Products
+Resources
+Company
+Pricing
+livekit / agents ★ 11.5K
+Contact sales
+Start building
+Clone agent
+END CALL</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Hotel booking conversation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Hotel booking conversation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In the hotel demo, the agent gathers stay dates. Hall interrupts its room list to choose a king, and the agent moves on to ask about a city or ocean view.
+
+[10:22](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=622s) [Hotel receptionist chat showing a room request, a question about dates and a Wednesday-through-Friday stay request during an active call.](https://assets.ai.engineer/sites/aiecode2025/sha256/ac4205397069005b483ef4d7fc439bbd398c8bac0dfba3a154ce7c0616e2a547.webp)
+
+Hotel Receptionist
+GEMMA 4
+
+Thank you for calling The Gilded Rose Hotel, how can I help you?
+
+Yeah, I'd like to book a room.
+
+What dates are you looking at?
+
+Next week, Wednesday through Friday.
+
+Next Wednesday, July 30, to
+
+Interface text:
+Introducing Gemma 4 on LiveKit Inference
+LiveKit
+Products
+Resources
+Company
+Pricing
+livekit / agents ★ 11.5K
+Contact sales
+Start building
+Clone agent
+END CALL
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Email prompt and name tool calls" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Email prompt and name tool calls</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The hotel receptionist asks for an email while name tool calls stay visible. Hall explains that the demo keeps the conversation moving without waiting for the backend to confirm each save.
+
+[12:10](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=730s) [Hotel receptionist interface showing name-confirmation and name-dialog tool-call labels, an email question, a short partial reply and a Provide email button.](https://assets.ai.engineer/sites/aiecode2025/sha256/285e22a09e576fb7aeff5663877cbefc5a5e3eba9d17402a6284315a5b059698.webp)
+
+Hotel Receptionist
+GEMMA 4
+
+CONFIRM_NAME
+OPEN_NAME_DIALOG
+
+What's your email?
+Me at
+Provide email
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+
+Engineering the future of AI
+
+Interface text:
+Introducing Gemma 4 on LiveKit Inference
+LiveKit
+Products
+Resources
+Company
+Pricing
+livekit / agents
+★ 11.5K
+Contact sales
+Start building
+Clone agent
+END CALL</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="The gap where agents live or die" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The gap where agents live or die</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Turn detection and response generation share the budget from the caller’s last syllable to the agent’s first audio. Hall says roughly 1.5 seconds keeps the call going but feels off; around 600 ms starts to feel human.
+
+[14:00](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=840s) [Timeline from last syllable through turn detection and TTS to first audio, with annotations of approximately 1.5 seconds for conversation holds and 600 milliseconds for feeling human. Latency is a budget; humanlike is the goal.](https://assets.ai.engineer/sites/aiecode2025/sha256/b96f6367f59cd126919d21b9894d8b8828fcf0464c8eeaa29f366eaa12f77503.webp)
+
+THE REALTIME WINDOW
+
+The gap where agents live or die.
+
+~1.5S CONVERSATION HOLDS
+~600MS FEELS HUMAN
+
+LAST SYLLABLE → TURN DETECTED → TTS STARTS → FIRST AUDIO
+
+Latency is a budget.
+Humanlike is the goal.
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Add it up" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Add it up</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Misheard dates change actions, silence leaves callers unsure, slow tools delay confirmation, and false cutoffs lose corrections. Hall uses these failures to explain why model leaderboards cannot settle model choice.
+
+[15:23](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=923s) [Four issues: misheard dates change the action, silence leaves callers uncertain, slow tools delay confirmation, and false cutoffs lose corrections.](https://assets.ai.engineer/sites/aiecode2025/sha256/f82e0a60da6dbfe68bccc8d0f4c35228993afd8616a8c4c5cf4f61a03b301e84.webp)
+
+Add it up
+
+01 Misheard dates change the action.
+02 Silence leaves callers uncertain.
+03 Slow tools delay confirmation.
+04 False cutoffs lose corrections.
+
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Test the conversation, not the component" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Test the conversation, not the component</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Simulated callers test a complete working agent. The benchmark scores outcomes and the steps taken, then swaps models while keeping the agent and scenarios fixed to compare performance for that use case.
+
+[15:55](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=955s) [Benchmark diagram showing a complete working agent alongside three boxes labeled simulated callers, outcome scoring, and same scenarios.](https://assets.ai.engineer/sites/aiecode2025/sha256/f3d86572a09dce6a48dcf6faafff2408a833eca7ab67184235887f2d9ad84923.webp)
+
+THE BENCHMARK
+Test the conversation,
+not the component.
+
+COMPLETE WORKING AGENT
+
+SIMULATED CALLERS
+OUTCOME SCORING
+SAME SCENARIOS
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="The winner got to the point" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The winner got to the point</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The cyan line shifts attention from model intelligence to reaching an answer quickly. Hall argues for benchmarking your own agent, since the best model for that use case may not lead a leaderboard.
+
+[18:03](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=1083s) [Slide states that the winner was not the smartest model, but the one that got to the point.](https://assets.ai.engineer/sites/aiecode2025/sha256/467d09442342c6033bd027b8db0b2c440281aed858ed39825c8a5359bec2d829.webp)
+
+THE SURPRISE
+The winner wasn’t the smartest model.
+It was the one that got to the point.
+
+Interface text:
+AI Engineer
+NEW YORK
+PRESENTED BY
+arize
+OCTOBER 13, 2026
+EXPO SESSION
+Shannon Room</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="A voice agent isn’t a chatbot with a speaker attached" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>A voice agent isn’t a chatbot with a speaker attached</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Hall argues that voice agents need to be built and evaluated as real-time systems that respond like people. The challenge goes beyond adding speech output to a chatbot.
+
+[19:10](https://www.youtube.com/watch?v=OmyqelTwpOo&amp;t=1150s) [White text over concentric circles reads: A voice agent isn’t a chatbot with a speaker attached.](https://assets.ai.engineer/sites/aiecode2025/sha256/ac7ab073f9d19d0e1de26589aa7a0edda0f87bc1d8f3ab797b538b0633e80645.webp)
+
+A voice agent isn’t a chatbot with a speaker attached.
+
+AI Engineer
+NEW YORK
+
+PRESENTED BY
+arize
+
+Engineering the future of AI</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">一次打断可能改变整笔交易</a></li><li><a href="#sec-2">排行榜听不到整段对话</a></li><li><a href="#sec-3">衡量来电者何时听到答案</a></li><li><a href="#sec-4">在工具运行时把话轮交还给对话</a></li><li><a href="#sec-5">酒店前台让预订流程持续推进</a></li><li><a href="#sec-6">金额中间的停顿不是话轮的结束</a></li><li><a href="#sec-7">把行为塞进可感知的延迟预算之内</a></li><li><a href="#sec-8">对能用的智能体做基准测试，再更换技术栈</a></li><li><a href="#sec-9">上线检查应该覆盖到后端</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">如何构建被打断时也不会崩溃的语音智能体</h2>
+      <div class="lede"><p>LiveKit 的 Jesse Hall 讲解了可感知的延迟、异步工具、感知音频的话轮检测和全对话基准如何协同工作——并跟随一位酒店前台，看一个脆弱的智能体会如何搞砸一次打断。</p><figure><img src="https://ai.engineer/api/talk-essay-media/d18d75083baca5f8681143dd672d1e65bae469afc5bfd2e2781a1b000919e45b" alt="语音智能体是一个实时系统，而不只是一个接上扬声器的聊天机器人。" loading="lazy" class="zoom" referrerpolicy="no-referrer" /></figure><p>语音智能体是一个实时系统，而不只是一个接上扬声器的聊天机器人。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>一次打断可能改变整笔交易</h3>
+      <p>A caller starts scheduling a payment, then changes the amount or the date halfway through. If the voice agent keeps working from the earlier request, the problem is more serious than an awkward conversation: the system may act on an instruction the caller has already revised. Jesse Hall of LiveKit opens with this distinction between background agents, whose extra processing time can often go unnoticed, and real-time agents, whose mistakes unfold while a person is still talking.</p>
+<p>The familiar failure ends with the caller asking for an operator. Speaking over an agent is ordinary human behavior, yet it can derail a system that expects clean, alternating turns. Financial services make the stakes especially clear: keeping up with a correction is part of executing the right transaction, not merely making the voice sound pleasant.</p>
+<p>LiveKit supplies an open-source real-time framework and infrastructure for agents that can hear, see and speak. This discussion focuses on voice, where the goal is humanlike behavior within a finite latency budget. Faster responses help, but speed alone cannot decide when to listen, preserve a changed instruction or keep a caller informed while a backend operation runs.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="252">▶ 4:12</button></div>
+      <h3>排行榜听不到整段对话</h3>
+      <p>A traditional voice agent uses a <strong>cascaded pipeline</strong>: speech-to-text turns the caller’s audio into text, an LLM prepares the response or action, and text-to-speech turns the reply into audio. Speech-to-speech models offer an alternative that replaces this three-model pipeline. At the time of the recording, Hall treats that alternative as improving but not yet suitable for every use case. Either architecture leaves builders choosing among many models and providers.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/6de6ac20abea90757762e0051275df574669b16015c61e660854d2011ab6a4dc" alt="A payment date misheard as the 30th propagates from speech recognition through planning and speech output." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A payment date misheard as the 30th propagates from speech recognition through planning and speech output.</figcaption></figure>
+<p>The payment-date example shows why selecting each component from a leaderboard is insufficient. The caller says they want to pay on the 3rd. Speech recognition produces the 30th. The LLM then plans for the 30th, and that date enters the system. The downstream model can behave consistently with its input and still produce the wrong result, because the input has already lost the caller’s meaning.</p>
+<p>That is the force of Hall’s distinction: leaderboards score components, but the product ships a conversation. A component score does not tell you how a transcription mistake propagates into a backend action. Nor does clean benchmark audio reproduce a caller on speakerphone in traffic with children in the backseat. The useful selection question becomes: which complete stack works for this agent, with these callers and these tasks?</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="402">▶ 6:42</button></div>
+      <h3>衡量来电者何时听到答案</h3>
+      <p>A text-to-speech dashboard can report a response before the caller hears anything. Hall gives an example of 210 milliseconds to the first byte. In tests of popular providers, he also found up to three-quarters of a second of silence after the first byte.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/2e97733392feb5305934a91395b77abd78c092a644bdfdc06705e70ea7bb3928" alt="First-token speed and first-sentence speed measure different points in a voice pipeline." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>First-token speed and first-sentence speed measure different points in a voice pipeline.</figcaption></figure>
+<p>Two measurements bring the pipeline closer to the caller’s experience:</p>
+<p>- <strong>Time to first audio:</strong> Measure when audible speech begins, rather than when the provider first sends bytes. Leading silence still counts as waiting to the person on the call.
+- <strong>Time to first sentence:</strong> In the sentence-buffered TTS pipeline Hall describes, the synthesizer needs a complete sentence before it starts speaking. The relevant LLM milestone is therefore the first usable sentence, rather than the first generated token.</p>
+<p>This changes how models should be compared. The model that emits its first token fastest need not finish its first sentence fastest. Likewise, a fast first byte can precede a long audible gap. After a caller asks whether a payment went through, two seconds of silence is two seconds without reassurance, regardless of what the component dashboards report.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="521">▶ 8:41</button></div>
+      <h3>在工具运行时把话轮交还给对话</h3>
+      <p>Voice agents also need to do work: look up transactions, check payment status and submit disputes. A backend operation lasting 40 seconds or more cannot fit inside a natural conversational pause. A human handling that delay would explain what is happening or ask another useful question while waiting. The agent should be able to do the same.</p>
+<p>What code change lets those activities overlap? Inside <code>find_transactions</code>, the tool first runs <code>await ctx.update(&quot;Checking transactions.&quot;)</code>, then waits for <code>transactions.search(query)</code> to return. Hall describes that progress update as handing the mic back to the agent so the conversation can continue while the lookup runs.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/b9c1626dbb87eca502f08d46836e70967937bfb30fba0ac7c79c767f3eb286bc" alt="An asynchronous transaction lookup sends a progress update while backend search runs." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>An asynchronous transaction lookup sends a progress update while backend search runs.</figcaption></figure>
+<p>The result is a different use of waiting time. The backend can keep working while the agent gives a progress update or gathers the next piece of information. The operation has not become faster. The caller simply no longer has to spend its entire duration in unexplained silence.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="620">▶ 10:20</button></div>
+      <h3>酒店前台让预订流程持续推进</h3>
+      <p>The Gilded Rose Hotel demonstration makes this concrete. A caller asks to book a room for next Wednesday through Friday. The receptionist agent translates that relative request into July 30 through August 1 and asks for confirmation; the caller agrees. It then establishes that two guests will stay. The useful behavior is the explicit date readback before the conversation moves on.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/547270da2337246ce0d6c8c74e043b08d4d50550e29053fa97fc2fed8cc10d8b" alt="LiveKit’s hotel-receptionist demonstration provides the conversation used in the talk." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>LiveKit’s hotel-receptionist demonstration provides the conversation used in the talk.</figcaption></figure>
+<p>The interruption arrives during the room-type list. While the agent is listing options, the caller selects a king. The agent’s list trails off, and it moves to the next relevant question: city or ocean view? The caller chooses ocean. Rather than requiring the caller to wait through the full list or repeat the selection afterward, the exchange advances with the preference they have already supplied.</p>
+<p>The agent then collects and confirms the caller’s name and contact details. The demonstration stops when it asks for a credit card to hold the room, so this exchange does not demonstrate a completed reservation or charge. It demonstrates the conversational path through gathering booking information, including an interruption that does not derail the next question.</p>
+<p>The backend behavior explains why the agent can keep moving. Hall describes tool calls saving the information along the way, without making every next question wait for a save acknowledgment. The conversation does not repeatedly stop for the backend to say that one field is saved before collecting another.</p>
+<p>Continuing before a save finishes also requires handling a late failure. Hall describes the intended recovery: if a tool returns an error, the agent can return to the affected information and verify it; persistent trouble can trigger a handoff to a human. Those are described recovery paths, not failures exercised in the demonstration.</p>
+<p>Collect the next detail without waiting for every save
+Conversation progress and backend saving can overlap. A late tool error creates a recovery branch rather than forcing every question to wait for a save acknowledgment.
+- Booking detail received — The caller supplies information during the booking conversation.
+- Save through a backend tool — The tool works on saving the supplied information.
+- Ask the next question — The conversation proceeds without waiting for the save acknowledgment.
+- Revisit affected information — If the tool returns an error, the agent asks for verification or correction.
+- Hand off to a human — The fallback for continuing trouble.
+- Booking detail received → Save through a backend tool (Information sent for saving)
+- Booking detail received → Ask the next question (Conversation continues without waiting for save)
+- Save through a backend tool → Revisit affected information (If the tool returns an error)
+- Revisit affected information → Hand off to a human (If trouble remains unresolved)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="750">▶ 12:30</button></div>
+      <h3>金额中间的停顿不是话轮的结束</h3>
+      <p>Asynchronous tools address waiting on the backend. Turn detection addresses a different decision: whether the caller has finished speaking at all. LiveKit’s detector uses audio cues—including rhythm, pitch and intonation—alongside the transcript. The purpose is to distinguish a completed turn from a pause inside an unfinished thought.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/18cf33c01f23929d8981c7ba9a86e48f9e11f1428e324235fcaa61de6205e189" alt="The speaker’s comparison reports premature cutoffs of 9.9% and 4.5% for the evaluated use cases, not universal rates." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The speaker’s comparison reports premature cutoffs of 9.9% and 4.5% for the evaluated use cases, not universal rates.</figcaption></figure>
+<p>Consider a caller saying they want to pay $555.23, with a two-second pause after “five hundred.” A detector relying on the partial transcript and silence could take $500 as the completed amount and start responding. In Hall’s example, the caller’s inflection signals that more is coming, so the audio-aware detector keeps listening through the rest of the amount. Waiting longer at that moment preserves the instruction instead of making the agent merely slower.</p>
+<p>At the same latency budget, Hall reports premature user-cutoff rates of 9.9% for a leading alternative and 4.5% for LiveKit’s detector in their evaluated use cases, including the hotel agent. These are results for those use cases, not universal interruption rates. He describes the evaluations as open source and recommends running them against the data and conversations the deployed agent will actually encounter.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="842">▶ 14:02</button></div>
+      <h3>把行为塞进可感知的延迟预算之内</h3>
+      <p>The end-to-end latency budget runs from the caller’s last syllable to the agent’s first audible response. Within that interval, turn detection decides whether the caller is done, the language model prepares a response using a provisional transcript, and TTS begins generating speech as soon as it can. Model work, functions and handoffs all consume time in the caller’s experience.</p>
+<p>Where does the time go between those two audible events? The latency illustration is useful for locating detection, response preparation and speech generation within the same window, rather than treating each provider’s timing as the whole answer. Hall’s practical guide is roughly 1.5 seconds for a conversation that still holds together, though it is beginning to feel off; a gap of 500–600 milliseconds feels much more humanlike.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/155803050e33fe5de7c5f1a999d7701ecdb34239a1416adc7d1ab23d44af9f76" alt="The latency window runs from the caller’s last syllable through turn detection and speech generation to first audio." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The latency window runs from the caller’s last syllable through turn detection and speech generation to first audio.</figcaption></figure>
+<p>Those targets change the engineering question from “How fast can this model go?” to “How humanlike an agent can fit inside this window?” A short response gap is valuable, but so are waiting for the rest of a payment amount, understanding the request and managing tool work without abandoning the caller. The budget constrains the combination of behaviors the stack can deliver.</p>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="932">▶ 15:32</button></div>
+      <h3>对能用的智能体做基准测试，再更换技术栈</h3>
+      <p>Selecting the stack now becomes an experiment on a complete agent. The hotel receptionist has a real backend, and simulated callers can pursue booking goals while changing their minds, interrupting, mumbling or speaking over background noise. These behaviors exercise the interaction that isolated model tests leave out.</p>
+<p>The two simulation modes answer different questions:</p>
+<p>- <strong>Text-based simulations:</strong> Exercise business logic through the conversation, without testing speech recognition or the audio path.
+- <strong>Audio-based simulations:</strong> Exercise speech recognition, turn-taking and the complete voice pipeline, including conditions such as noise and unclear speech.</p>
+<p>Each scenario needs a caller goal, the actions the agent should take and an expected outcome. The outcome check reaches beyond the agent’s words: did the correct reservation enter the database? For a financial workflow, was the correct authorized amount charged? A convincing spoken confirmation is not a substitute for checking the state the agent actually changed.</p>
+<p>Completion alone is also too weak a score. The benchmark should inspect how the agent reached the result: whether it took ten steps where two would have sufficed, or hallucinated a function call. Those checks distinguish an effective workflow from one that merely satisfies a completion label while wasting turns or taking invalid actions.</p>
+<p>With the agent and scenarios held fixed, swap the models and run the comparisons again. Hall describes giving each candidate identical input, byte for byte. Repeated comparisons build a benchmark for this particular agent rather than a universal model ranking. The winner can differ from a public leaderboard because it is being judged on the conversation and backend work the product needs to deliver.</p>
+<p>How much can the provider change the wait for the first sentence? In the hotel benchmark, Gemma 4 31B reached that milestone in 381 milliseconds on LiveKit Inference, the fastest of the five configurations shown. The same model took 844 milliseconds on OpenRouter. Hall attributes the difference to LiveKit’s voice-oriented inference serving.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/a442ff638ab3341c25594716c173e5651428d2faf4f6d9382915009b91e46530" alt="The original benchmark compares time to first sentence across model and serving-provider configurations." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The original benchmark compares time to first sentence across model and serving-provider configurations.</figcaption></figure>
+<p>Hall describes the agent, simulations and benchmarking methodology as open source, and LiveKit as model agnostic. The practical invitation is to repeat the experiment on the intended workflow, changing the candidate stack while keeping the task comparable. The hotel result supplies a reason to test provider choices, not a reason to assume its winning configuration will win every conversation.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="1145">▶ 19:05</button></div>
+      <h3>上线检查应该覆盖到后端</h3>
+      <p>A voice agent is a real-time system, not simply a chatbot with a speaker attached. Hall closes by translating that distinction into checks that cover both the conversation and its consequences:</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/5811b1d92a5da217065e3bc67384a4689233ada49b521152ba9140feb418ed1b" alt="Launch checks cover audible delays, critical amounts and dates, authorization, asynchronous tools and end-to-end outcomes." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Launch checks cover audible delays, critical amounts and dates, authorization, asynchronous tools and end-to-end outcomes.</figcaption></figure>
+<p>- <strong>Audible responsiveness:</strong> Set a latency budget around what the caller hears, and measure time to first audio and time to first sentence.
+- <strong>Critical information and access:</strong> Confirm important dates and financial amounts. Verify the caller’s identity and authorization before accessing an account.
+- <strong>Work during delays:</strong> Keep listening and keep the conversation moving while slow tools run. Confirm the result when it arrives.
+- <strong>Whole-conversation correctness:</strong> Repeatedly test final backend state, privacy safeguards, unnecessary tool calls and turn-taking.</p>
+<p>Start with one workflow or failure that matters. Run it, listen to the exchange and inspect what happened on the backend. When it fails, preserve that failure as a regression scenario so later model or workflow changes have to face it again. This makes a misheard amount, an interruption or an unnecessary tool call a concrete test case rather than a vague request to make the agent better.</p>
+<p>The desired experience is ordinary: a caller talks over the agent, changes direction or confuses it, and the conversation keeps going. Building that experience requires checking both sides of the call—the exchange the person hears and the actions the system takes.</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>Select a complete voice stack for the workflow. A speech-recognition error such as the 3rd becoming the 30th can propagate into a wrong backend action even when the downstream model follows its input.</li><li>Measure time to first audible speech and, for the sentence-buffered pipeline described here, time to first sentence. First-byte and first-token metrics can hide the silence a caller experiences.</li><li>Let tool work and conversation progress overlap, with a path to verify affected information or hand off when a late tool result fails.</li><li>Turn detection must distinguish silence from completion. A pause after “five hundred” must not truncate an intended payment of $555.23.</li><li>Hall frames roughly 1.5 seconds as an outer conversational guide and 500–600 milliseconds as a more humanlike response gap. The objective is to fit useful behavior inside that audible budget.</li><li>Benchmark simulated conversations against actual backend outcomes and the steps taken, then turn discovered failures into regression scenarios. Compare models and providers under the same agent and task conditions.</li><li><a href="https://ai.engineer/talks/1v9zBiZKlIY-why-chatgpt-keeps-interrupting-you" target="_blank" rel="noopener">Why ChatGPT Keeps Interrupting You</a> — Develops the turn-taking problem in more detail, distinguishing silence-based voice activity detection from conversational completion and examining semantic context and full-duplex approaches.</li><li><a href="https://ai.engineer/talks/PwCSYy-oGsM-containment-is-lying-you-measuring-ai-agents" target="_blank" rel="noopener">Containment Is Lying to You: Measuring AI Agents Like Employees — Druid AI</a> — Extends the evaluation discussion to banking outcomes and human handoffs, showing why a high containment score can reward the wrong behavior.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Um, all right, we're gonna talk about voice agents, and most of the agents that we deal with on a day-to-day basis, um, they, they do things in the background, right? They, they write code for us, they do research. We give them something to do, a task, and we walk away, we come back, and we don't really care if they take an extra 10 seconds, an extra 10 minutes, maybe sometimes 10 hours, right? Um, and we expect that. But at some point in the last year</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">or so, you have probably interacted with another kind of agent, a real-time agent. Maybe when you called your pharmacy. Maybe, uh, when you called the airline. I talked to one just the other day when I called a car dealership. And at some point in that conversation, you did the, the most human-like thing possible. You spoke over it. You interrupted it. You confused it, and the entire conversation fell apart. It just didn't feel natural. And then you did what I do every single time. &quot;Operator.</span></div><div class="tline" data-t="73"><span class="ts">1:13</span><span class="tx">Hit zero.&quot; Like, &quot;Get me to a human,&quot; right? So how do we fix that? How do we make these agents as human-like as possible? Um, and so, like, in, in a, um, a finance space, what if your caller was calling to schedule a payment, and they change the, the payment amount midway through, they change the date, um, and, and the agent didn't keep up with it, right? That is where we start having issues, especially in the finance space. The,</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">the, the, the risk is much higher, right? So how do we fix that? So we're gonna talk about how can we build human-like voice agents for financial services. And when you think about building a good voice agent, one of the first things that comes to mind is latency. We need it to be as fast as possible, right? Well, latency is part of the equation. Latency has a finite budget, and we'll talk about what that is. Um, but the key word here is human-like. How do we make these voice agents as</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">human-like as we can? That's the goal. So there's quite a few people that are talking about voice lately. Um, some of these might look familiar. We've got this, this guy, Sam. Um, he's excited about voice models. He says, uh, that they're starting to change the way they-- that we interface with AI. Isn't that true? And then this, this, um, weird name here in the bottom right, swyx. I don't know if you've heard of him. Um, he says, o-o- uh,</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">that this is the OG modality. Um, the correct modality for aligning AGI to our intents is very good voice AI engineering. That's, that's, that's a pretty b-bold statement there. And then LiveKit here says, &quot;We learn to speak before we learn to read,&quot; right? Voice is the most natural interface that we have. So how can we make it as natural as possible and human-like as possible? Quick show of hands. Who, who here has ever built a voice agent and deployed it to production?</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">All right, I see a few hands. All right, so some of you know the challenges that you might face when doing this. Um, others here who have not built one, maybe you have, um, seen a very good example of one. Have you ever used ChatGPT's Advanced Voice Mode to have a conversation with ChatGPT? Okay, so that's, that's cool. Segue here. That OpenAI actually chose LiveKit to power that, that functionality there. So it's a very good</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">example of a good use case or a good, uh, a good example of a good voice agent. Uh, LiveKit is the open source real-time framework and infrastructure for these human-like agents. Um, agents that can hear, see, and speak to a person on the other end. And so we're not just talking about voice, actually. Um, there's, there's multiple ways to interact with, with agents. Voice, video, data streams, uh, even physical AI. We have a robotics division as</span></div><div class="tline" data-t="252"><span class="ts">4:12</span><span class="tx">well. But voice is the entry point, voice is, is the most natural modality, and voice is where there's a lot of challenges. So we're gonna focus just on voice today. So in a traditional voice, uh, voice agent, you have what's called a cascaded pipeline. This is three models that work together. You've got your speech-to-text model, your LLM, and your text-to-speech model. And these all have to work in unison. And there are also these other models, these real-time models, speech-to-speech models, right, and they replace that</span></div><div class="tline" data-t="282"><span class="ts">4:42</span><span class="tx">pipeline. But that's a newer concept. Um, it's, it's getting better, but it's not quite there for every use case yet, right? But even then, we've got the traditional pipeline with three models. We've got the speech-to-speech models. There's so many things to choose from, so much complexity. Where do we even get started? And here's what we have to choose from. Hundreds of models, dozens of providers. And quick show of hands here. Who has ever picked a model based on a leaderboard? Like, you pick the-- whatever model's at the top of the leaderboard, that's what we're gonna use,</span></div><div class="tline" data-t="312"><span class="ts">5:12</span><span class="tx">right? Well, we're gonna talk about why that does not work for real-time agents. We can't just pick models off the top of a leaderboard, um, because leaderboards, they score these models, these components. But we're shipping a conversation. We need to be able to score them together. So we're gonna talk about how we can do that. So let's go through a scenario here. Let's, let's suppose that a caller, uh, wants to pay their bill, and they say, &quot;I want to pay on the 3rd.&quot; But the speech-to-text model hears, &quot;The 30th.&quot; And then the LLM</span></div><div class="tline" data-t="342"><span class="ts">5:42</span><span class="tx">is planning now for the 30th, and that goes into the system. The LLM doesn't know any better. It doesn't know that the speech-to-text model got it wrong. And so all of those errors flow downhill from there. And so the, the, the leaderboard, it can't show us this. Like, it can't judge this because it just was looking at individual models, right? And so also, these leaderboards, they score these models based on clean audio. But your callers, they're calling on a speakerphone in traffic with kids in the</span></div><div class="tline" data-t="372"><span class="ts">6:12</span><span class="tx">backseat, right? So we need to be able to score our own agents based on real world use cases and examples. So let's, let's say that we fall into this leaderboard trap, we just pick a model. Um, then the, the first question that people ask is always, you know, which model should I pick? So they use the leaderboard, they pick a model, but that... the actual question that we should be asking is which stack should I ship from my use case? And so that is what we're going to figure out,</span></div><div class="tline" data-t="402"><span class="ts">6:42</span><span class="tx">how do we answer that question? So before we answer that question, let's say that you have picked some models, and you start measuring how are these models performing. Let's, uh, say you're, you're testing your TTS provider, and the TTS provider on the dashboard, it's, it's, uh, reporting time to first byte, and that looks really fast, 210 milliseconds time to first byte. That's super fast. Um, but we've actually tested lots of popular providers that</span></div><div class="tline" data-t="432"><span class="ts">7:12</span><span class="tx">are shipping up to three quarters of a second of silence after that first byte. So a byte does not equal audio. So what we're actually looking for is time to first audio. How much time does it take for our user to actually start hearing something? So time to first audio is what we should be measuring, not time to first byte. Um, so imagine, you know, the payment went through and, and, and you, you're asking, you know, um, you know, &quot;Did my payment</span></div><div class="tline" data-t="462"><span class="ts">7:42</span><span class="tx">go through?&quot; And then you hear two seconds of silence. That's not very reassuring, right? So we need to be able to measure this, this gap that the caller hears. Now, the same story for lang- uh, large language models. So time to first token is what we get in text. It's, it's te- a text-based measurement, but tokens do not equate to audio either, right? Your TTS can't start speaking on a token, and TTS model, text-to-speech model,</span></div><div class="tline" data-t="492"><span class="ts">8:12</span><span class="tx">actually needs an entire sentence to start speaking. Um, and so that's what we need to measure is actually time to first sentence. Um, because a, an LLM that is very fast at producing tokens is not always the same LLM that produces the first sentence the fastest. So time to first sentence is what we should be looking at. And then another thing that most leaderboards don't measure is these, these agents, they need to do things. They're not just there to chat with us. They need to be able to do things on the</span></div><div class="tline" data-t="521"><span class="ts">8:41</span><span class="tx">backend. They have to look up a transaction, uh, check for a payment status, submit a dispute, right? And so these take time, two, 10, 40 milliseconds. And, and so how do we handle that? How, how do we hide 40 seconds or more of latency? Well, we can't. That... the answer is we can't. But ask yourself, what would a human do in this situation? So i- is a human just going to go silent while the system's doing something? No. They're</span></div><div class="tline" data-t="551"><span class="ts">9:11</span><span class="tx">gonna say, &quot;You know, give, give me a second. I'm looking that up. Um, system's running a little slow. Almost there.&quot; Or they're gonna move on and they're gonna ask another question while the system's doing something in the backend. So that's, that, that's the human-like behavior, multitasking, right? We can do that. So why can't agents multitask and do that? Well, that was a trick question because they can. They should. They should be able to. And this is the shape of that. Um, this is the only code that I'm gonna show you, uh, in this, in this talk, but this is a normal tool call,</span></div><div class="tline" data-t="582"><span class="ts">9:42</span><span class="tx">and the, the one line is what makes the difference here. Um, this one line, this update, this as- async await, this awaiting this tool call is, is the whole trick here, and this is what's handing the mic back to the agent. This is, uh, allowing the conversation and the tool to stop sharing a thread. They're just... they're separate now. And so, um, this is what, again, makes the agent more human-like because it's able to keep the conversation going as something is</span></div><div class="tline" data-t="611"><span class="ts">10:11</span><span class="tx">going on in the backend. So don't, don't take my word for it. I've got a quick demo here, um, and we'll listen and see, uh, what it sounds like.</span></div><div class="tline" data-t="620"><span class="ts">10:20</span><span class="tx">Thank you for calling the Gilded Rose Hotel. How can I help you?</span></div><div class="tline" data-t="623"><span class="ts">10:23</span><span class="tx">Yeah, I'd like to book a room.</span></div><div class="tline" data-t="626"><span class="ts">10:26</span><span class="tx">What dates are you looking at?</span></div><div class="tline" data-t="628"><span class="ts">10:28</span><span class="tx">Uh, next week, uh, Wednesday through Friday.</span></div><div class="tline" data-t="632"><span class="ts">10:32</span><span class="tx">Next Wednesday, July 30th, to Friday, August 1?</span></div><div class="tline" data-t="636"><span class="ts">10:36</span><span class="tx">That's right.</span></div><div class="tline" data-t="638"><span class="ts">10:38</span><span class="tx">How many guests will be staying?</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">Two.</span></div><div class="tline" data-t="642"><span class="ts">10:42</span><span class="tx">I have queen two beds, king, double queen, a suite-</span></div><div class="tline" data-t="646"><span class="ts">10:46</span><span class="tx">A king would be great</span></div><div class="tline" data-t="647"><span class="ts">10:47</span><span class="tx">... or the pent- Would you prefer a city or ocean view?</span></div><div class="tline" data-t="651"><span class="ts">10:51</span><span class="tx">Ocean.</span></div><div class="tline" data-t="654"><span class="ts">10:54</span><span class="tx">May I have your name for the booking?</span></div><div class="tline" data-t="656"><span class="ts">10:56</span><span class="tx">Jesse Hall.</span></div><div class="tline" data-t="659"><span class="ts">10:59</span><span class="tx">Is that Jesse Hall?</span></div><div class="tline" data-t="660"><span class="ts">11:00</span><span class="tx">Yes.</span></div><div class="tline" data-t="663"><span class="ts">11:03</span><span class="tx">What's your email?</span></div><div class="tline" data-t="664"><span class="ts">11:04</span><span class="tx">[REDACTED].</span></div><div class="tline" data-t="668"><span class="ts">11:08</span><span class="tx">Is [REDACTED] correct?</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">That's right.</span></div><div class="tline" data-t="673"><span class="ts">11:13</span><span class="tx">And your phone number?</span></div><div class="tline" data-t="675"><span class="ts">11:15</span><span class="tx">555-123-4567.</span></div><div class="tline" data-t="680"><span class="ts">11:20</span><span class="tx">Is that 555-123-4567?</span></div><div class="tline" data-t="685"><span class="ts">11:25</span><span class="tx">That's right.</span></div><div class="tline" data-t="687"><span class="ts">11:27</span><span class="tx">I'll need a credit card to hold the room. What's the card number?</span></div><div class="tline" data-t="690"><span class="ts">11:30</span><span class="tx">We'll stop here. Okay, so you notice here that the conversation kept going. There were no awkward pauses. Um, I even interrupted it, and it just kept rolling with it, right? It, it didn't ever fall apart or feel unnatural, and we see here, you can see the, the tool calls that are happening along the way and the things that it's doing. It's actually communicating with a backend, and it's saving every, uh, piece of information that I'm giving it. But what it's doing is it's not waiting for the backend to say, &quot;Okay, that's</span></div><div class="tline" data-t="720"><span class="ts">12:00</span><span class="tx">saved. Now you can move on to the next one. Okay, that's saved. Move on to the next one.&quot; It's moving on to the next thing immediately. It's keeping the conversation going, and if for some reason a tool call would've come back with an error or something, it would've then corrected itself. It would've said, &quot;Let me, let me verify this or that,&quot; whatever happened, right? And worst case scenario, if it was having issues, it would- Uh, it would actually, um, ki- um, pass me over to a human in that s- in that, uh, sc- uh, scenario then, right? So this is how our</span></div><div class="tline" data-t="750"><span class="ts">12:30</span><span class="tx">agents should operate. Now there's one more, um, axis of this, and that is knowing, the agent knowing when to speak and when to s- to listen, when to keep listening. And so this is called turn detection. And so LiveKit has a, a, um, a built-in turn detector that doesn't only listen to the transcript like most turn detectors do, it also listens to the audio. It listens to the rhythm, the pitch, the intonation, and we published the numbers on this. The, the</span></div><div class="tline" data-t="780"><span class="ts">13:00</span><span class="tx">leading, um, um, alternative still interrupts and cuts users off 9.9% of the time. And ours, 4.5% in our use case. We ran it against the, our hotel agent and others, and that hap- and that is what the numbers that we got for our use cases. This is all open source. You can actually run these evals and run this against your data set and see what numbers you get, see if you get, um, a better, uh, increased numbers here. And this is just one small piece of the puzzle,</span></div><div class="tline" data-t="810"><span class="ts">13:30</span><span class="tx">again, to make these voice agents more human-like, them knowing when to stop talking or when to listen. Uh, for instance, if, if I were trying to make a payment, I said, &quot;I'd, I'd like to pay five hundred and fifty-five dollars and twenty-three cents,&quot; right? Most of the turn detectors would have stopped at five hundred because they saw five hundred on the transcript, and they saw a two-second pause, I must be done, right? But ours would have heard my inflection, knew I wasn't done talking, and it would have waited for me.</span></div><div class="tline" data-t="842"><span class="ts">14:02</span><span class="tx">So let's look now at that latency budget, that, the gap. This is the gap between the caller's last syllable and the agent's first audible response. So the turn detector decides when the caller is done. The language model begins preparing, uh, a response based on a provisional transcript, and then the TTS starts, um, generating that audio as soon as it can. And so every model that you choose, uh,</span></div><div class="tline" data-t="872"><span class="ts">14:32</span><span class="tx">every function, every handoff, all of that is right here within this window, and this window has a finite number, a fixed window, a fixed size. And so if you can stay roughly inside one and a half seconds, the call still holds, the conversation holds. It's starting to feel a little off at one and a half seconds. But if you can get down to five or six hundred milliseconds between this, the, the two turns, that's when it really starts to feel human-like. And so</span></div><div class="tline" data-t="902"><span class="ts">15:02</span><span class="tx">that question before, um, how fast can I go, we just need it to go faster and faster. That's not the answer. The answer is, how human-like of an agent can I fit within this latency window? So again, latency, that's a budget and, and we know how, how to fit into that, but how can we be as human-like as possible? That's the goal. So if we add all this up, that, that question, which model should I pick, we... That was never something that we could answer because these scores, again, these</span></div><div class="tline" data-t="932"><span class="ts">15:32</span><span class="tx">leaderboards, they can't answer that b- because they're basing it off the models, but we are shipping a conversation. So let's answer that actual question. How can we pick the models? Which models should we pick? So this is what we have to do. We test the conversation. We take a complete working agent. So that hotel receptionist that you heard just a minute ago, we took that. It has a real back end. Um, it, it's an actual... It's not just a demo, it, it actually works. Uh, and it's open source, you can check it out. So we take that agent, and we put</span></div><div class="tline" data-t="962"><span class="ts">16:02</span><span class="tx">simulated callers against it. And these callers can pursue goals. They can change their mind. They can interrupt. They can mumble. We can add background noise. We can make sure that this is a real-world scenario, and we run all of these simulated users against that agent. Um, we can run text-based simulations, which just tests our business logic. Or we can also run audio-based simulations. That tests the speech recognition capabilities. It tests turn-taking. The entire,</span></div><div class="tline" data-t="992"><span class="ts">16:32</span><span class="tx">um, the entire voice pipeline is what's tested there. And so we take the scenarios, and the scenario should describe what the caller wants and what actions the agent should take, what the outcome should be. And then we score that. We score those outcomes. And so in the hotel benchmark, you know, did the correct reservation hit the database? In a financial benchmark, you know, did the correct authorized amount get charged, right? And so we, we check these agents. We make sure that every, all the outcomes are met,</span></div><div class="tline" data-t="1023"><span class="ts">17:03</span><span class="tx">and then we don't score it based on just the completion alone, right? Because we know that agents can game completions, right? We have to make sure that they took the right steps. Did they take 10 steps when they only should have taken two steps, right? Did they hallucinate a function call? These are the things that we have to test, the entire conversation there. And then we swap the stack out. We, we have the same agent, the same scenarios, but we change the models. And then we run that loop again.</span></div><div class="tline" data-t="1053"><span class="ts">17:33</span><span class="tx">The identical input, uh, every model sees identical input, byte for byte. We swap the models, we run the loop. We swap the models again, we run the loop continuously over and over, and we are building, at that point, a benchmark, a personalized benchmark for our use case, for our agent. So there are as many benchmarks now as there are agents. You run this against yours, and you find out which models work best for your situation. And that is the only way to find out which model is best for you.</span></div><div class="tline" data-t="1085"><span class="ts">18:05</span><span class="tx">Now, this is how you catch surprises. Um, uh, a model that, that gets the answer for you the quickest is the right model for you, right? And surprisingly, that model may not be the model that, that's at the top of a leaderboard, right? But it's best for your use case. And again, these benchmarks, the simulations, all this, uh, this methodology, it's all open source, so you can, uh, you can check it out for yourselves. You can run it against your agent and see how yours performs.</span></div><div class="tline" data-t="1115"><span class="ts">18:35</span><span class="tx">And so here's the results of that benchmark on our hotel agent. This is the LLM that ranked the highest for our hotel receptionist, uh, agent, and that's Gemma 431B on LiveKit Inference. You notice on the second line, the same model, Gemma 431B on another provider, was slower. So LiveKit optimizes its inference serving for voice workloads. And LiveKit is model agnostic, so you can use any model that you want. So again, you'd plug those models in, and you figure out which one</span></div><div class="tline" data-t="1145"><span class="ts">19:05</span><span class="tx">is work- will work best for your use case. Now, if you remember one thing from this, this entire, uh, talk, remember this, that a voice agent isn't just a chatbot with a speaker attached. It's... There's so much more complexity there. It's a real-time system and, uh, that needs to respond like a person. We need to make it as human-like as possible. And, um, and, and when we evaluate it from that viewpoint, we will be able to, to build that. And</span></div><div class="tline" data-t="1175"><span class="ts">19:35</span><span class="tx">so here's a checklist. You can take a, take a photo here. We need to set our latency budget that the caller hears, measure time to first audio, time to first sentence, confirm critical dates, m- anything that's financial, money, we need to make sure that we have those, those checks in place, verify identity before an account is accessed, keep listening while slow tools run, keep the conversation going, and then run the complete conversation repeatedly through simulations. Test the final state,</span></div><div class="tline" data-t="1205"><span class="ts">20:05</span><span class="tx">privacy safeguards, unnecessary tool calls, turn-taking, all these things. Then when you find these failures, you turn those into regression scenarios, and you keep testing over and over again. So start with one, one of those, uh, workflows or failures that you care about. Keep, keep iterating then. Run it, listen to the conversation, um, check what happened on the back end. At some point in the very near future, I hope that we all call one of these voice agents, and we talk over it, we</span></div><div class="tline" data-t="1235"><span class="ts">20:35</span><span class="tx">confuse it, and it just rolls with it, and it, and it's a very human-like experience. Um, that's, that's our goal, but here's what I need from each and every one of you. I need you to go build that. Thank you.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

@@ -1,0 +1,1088 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GPU 利用率从 15% 到 90%：要修的是数据管道，而不是模型 | AI 工程师中文版</title>
+<meta name="description" content="Tarun Sunkaraneni 讲解了一条多模态训练流水线，它的瓶颈从串行的图像加载，转移到批次时序、张量拷贝，最后落到单个节点的网卡上。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>GPU 利用率从 15% 到 90%：要修的是数据管道，而不是模型</h1>
+    <div class="orig-title">From 15% to 90% GPU Utilization: Fix the Data Pipeline, Not the Model</div>
+    <div class="meta"><span class="speaker">Tarun Sunkaraneni</span> · AI Engineer World's Fair 2026 · 17:01</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=infrastructure-and-deployment">基础设施与部署</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=fine-tuning">微调</a><a class="tag" href="../../index.html#topic=multimodal-models-and-applications">多模态 AI</a><a class="tag" href="../../index.html#topic=distributed-training-and-inference">分布式训练与推理</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/tNAV259UhCM-from-15-90-gpu-utilization-fix-data" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="tNAV259UhCM"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=tNAV259UhCM" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">在 GPU 做任何计算之前</div></div>
+      <div class="label row">章节跳转 <span>共 7 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="13"><span class="ts">0:13</span><span>在 GPU 做任何计算之前</span></li><li data-t="248"><span class="ts">4:08</span><span>一个 256 的批次在一张接一张地等图片</span></li><li data-t="367"><span class="ts">6:07</span><span>让并发度匹配工作量</span></li><li data-t="546"><span class="ts">9:06</span><span>在当前批次训练时准备下一个批次</span></li><li data-t="637"><span class="ts">10:37</span><span>别再通过协调器传递图像数组</span></li><li data-t="771"><span class="ts">12:51</span><span>在生产规模下，局部性会压垮一块网卡</span></li><li data-t="914"><span class="ts">15:14</span><span>每次修复都会改变下一步需要分析的东西</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 23 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Ray Actors, Vision Tokens, and the GIL" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Ray Actors, Vision Tokens, and the GIL</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Tarun Sunkaraneni introduces a multimodal fine-tuning data pipeline and asks whether the training loop is really blocked on the GPUs or waiting for data.
+
+[0:19](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=19s) [Title slide introducing a multimodal fine-tuning data pipeline, with a portrait of speaker Tarun Sunkaraneni.](https://assets.ai.engineer/sites/aiecode2025/sha256/501c934dd6e42f9c64c0ac963cd3b8a4c50d9b111dfac5c88bbf6d450abe6c01.webp)
+
+Ray Actors, Vision Tokens,
+and the GIL
+
+Engineering a Multimodal Supervised Fine Tuning data pipeline that keeps GPUs busy
+
+Is your training loop really blocked on your GPUs?
+
+Tarun Sunkaraneni
+Member of Technical Staff - ML Systems
+Amazon AGI Labs
+
+July 2026
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Overview: Four Topics" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Overview: Four Topics</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Starting from a baseline multimodal training pipeline, the talk addresses bottlenecks with concurrency, pre-fetching, an object store to minimize data copies, and framework optimizations.
+
+[1:08](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=68s) [Overview slide with the subtitle “What’s this talk about anyways?”](https://assets.ai.engineer/sites/aiecode2025/sha256/791bc077d6ead55e62b140fe439eb6debb60e6901892215e6433dcdfb3aea3eb.webp)
+
+Overview
+
+What’s this talk about anyways?
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.
+
+[1:40](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=100s) [Four overview topics: concurrency, pre-fetching, object store, and framework optimizations.](https://assets.ai.engineer/sites/aiecode2025/sha256/39a4c3123cabca3fc78b6310eb8a10dae73d902bde84fd5f61c1dd8bd3c92396.webp)
+
+Overview
+What’s this talk about anyways?
+
+1
+Concurrency
+How fast can we process one image
+
+2
+Pre-fetching
+How can we have data on demand
+
+3
+Object Store
+How can we minimize data copies
+
+4
+Framework Optimizations
+Bells and whistles
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Where Does Your Data Live?" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Where Does Your Data Live?</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The wait time ratio divides data preparation and transfer time by the full step time. The baseline spends ~85% of each step blocked on the data pipeline; after pipeline changes, it falls below 10%.
+
+[3:19](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=199s) [Multimodal processing and wait-time ratio, with a chart comparing roughly 85% baseline wait time to under 10% after pipeline improvements.](https://assets.ai.engineer/sites/aiecode2025/sha256/4f0c1a15dee86a6317aa2f6829d26d8330471ca8cb6535989806a24463ece4d7.webp)
+
+Where does your data live?
+The symptom: the expensive thing in the room is waiting for bytes.
+
+• GPUs are the most expensive thing in the room
+• Multimodal processing is heavy CPU work – none of it on the GPU:
+  • Image: loading/resizing/normalization – PIL
+  • Audio: loading/cropping – NumPy
+  • Video: combination of image and audio
+• Clusters have far more CPUs than GPUs – yet the GPU still starves
+
+Wait Time Ratio:
+(data prep time + data transfer time) / (data prep time + data transfer time + train step time)
+
+~85%
+of every step blocked on data pipeline in the baseline
+
+&lt;10%
+after addressing data pipeline
+
+Ratio of Train time spent waiting
+Legend: optimized; baseline (serial)
+Y-axis: Wait Time Ratio
+Y-axis ticks: 0, 0.2, 0.4, 0.6, 0.8, 1
+X-axis: Training Steps
+X-axis ticks: 200, 300, 400, 500
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Background" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Background</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The setup trains Qwen3-VL-32B-Base on Chat VQA and multi-turn VLM conversations. It uses S3-hosted JSONL with relative image paths, 16 data parallel ranks and 512,000 examples per run.
+
+[3:33](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=213s) [Six cards summarize the training stack, data format, scale, model, infrastructure, and dataset domains.](https://assets.ai.engineer/sites/aiecode2025/sha256/ce06597e9858bc7dc73689ac93db4ccbf0ca7a114bd0a1a29be701573703c379.webp)
+
+Background
+A reproducible, public-stack stand-in for multimodal SFT.
+
+Training stack
+Nvidia Megatron-LM
+model / optimizer parallelism
+
+Data format
+S3 hosted JSONL chat messages
+Relative image paths
+
+Scale
+16 Data parallel Ranks
+512,000 Examples / Run
+
+Model
+Qwen3-VL-32B-Base
+dense VLM
+
+Infrastructure
+KubeRay
+Ray Cluster
+
+Dataset domains
+Chat VQA
+Multi-turn VLM conversations
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="What the data actually looks like" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>What the data actually looks like</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>JSONL chat rows reference images by relative path alongside the S3 shards. A row can reference many images, requiring many S3 GETs for one training sample.
+
+[4:07](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=247s) [An example JSONL chat row references an image alongside a schematic S3 dataset layout.](https://assets.ai.engineer/sites/aiecode2025/sha256/883d8096fe3b4cc9f803b5cf3c85d35a22714cff8e43ad798130e3c235f772c0.webp)
+
+What the data actually looks like
+
+A row can reference many images, which means many S3 GETs per training sample.
+
+example JSONL row
+{
+  &quot;id&quot;: &quot;000033471&quot;,
+  &quot;messages&quot;: [
+    {
+      &quot;role&quot;: &quot;user&quot;,
+      &quot;content&quot;: [
+        {
+          &quot;type&quot;: &quot;image_url&quot;,
+          &quot;image_url&quot;: {
+            &quot;url&quot;: &quot;./images/000033471.jpg&quot;
+          }
+        },
+        {
+          &quot;type&quot;: &quot;text&quot;,
+          &quot;text&quot;: &quot;What are the colors...&quot;
+        }
+      ]
+    },
+    {
+      &quot;role&quot;: &quot;assistant&quot;,
+      &quot;content&quot;: [
+        {
+          &quot;type&quot;: &quot;text&quot;,
+          &quot;text&quot;: &quot;The bus is white and red.&quot;
+        }
+      ]
+    }
+  ]
+}
+
+S3 layout
+s3://&lt;bucket&gt;/&lt;dataset&gt;/
+├── train-shard-0000.jsonl
+├── train-shard-0001.jsonl
+├── train-shard-0002.jsonl
+└── images/
+    ├── 000033471.jpg
+    ├── 000033472.jpg
+    └── ...
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="System layout" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>System layout</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The data generator loads and processes S3 data, then fans out partitions to Megatron data-parallel ranks. Workers resolve the handles, copy tensors to GPUs, and run forward and backward passes.
+
+[4:34](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=274s) [A data generator reads from S3 and distributes partitions to Megatron workers; lists describe each side's responsibilities.](https://assets.ai.engineer/sites/aiecode2025/sha256/d28fe57cc2c0bd88baa6cd759b6d952839f12d603b22ce331afac3a912b187a2.webp)
+
+System layout
+The split: heavy data work on the left; heavy math on the right.
+
+Object store: JSONL shards + images
+S3 → GET → Data generator (Coordinator)
+data loading + processing
+Fan-out → DP0, DP1, DP2, DP3
+Megatron
+
+Data generator
+• Weighted data-mix sampling + streaming shuffle
+• Resolve image refs → S3 GET → decode
+• Image transforms, tokenization, loss masks
+• Hands each DP rank its partition
+
+Megatron workers
+• Receive partitions as handles
+• Resolve references to pull tensors
+• Host → GPU copy on consuming rank
+• Collate, then forward / backward
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Baseline: The naïve path" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Baseline: The naïve path</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The trainer fetches images one at a time and passes tensors through the driver. With no overlap between fetching and training, data work sits on the GPU’s critical path.
+
+[5:13](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=313s) [The serial baseline fetches images one at a time, has no overlap, and carries tensors through the driver on the GPU's critical path.](https://assets.ai.engineer/sites/aiecode2025/sha256/4f69f6c9befdee21726d1e32e8d534f4117a59f401a9d4ce4dc986b994146132.webp)
+
+Baseline: The naïve path
+One process, one thread — the training loop does everything.
+
+• Per sample, in sequence:
+  • Fetch image(s) from object storage – one at a time, blocking
+• No overlap: the trainer fetches a batch, trains on it, then asks for the next.
+• Tensors carried inline — by value, through the driver.
+• Every step of this is on the GPU's critical path.
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Baseline profiling flamegraph" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Baseline profiling flamegraph</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The flamegraph shows S3 image fetching dominating the serial baseline, with a small tail for loading images in PIL. Images are fetched one at a time while the GPU waits.
+
+[6:08](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=368s) [A flamegraph of the serial baseline shows blocking S3 image fetching dominating the critical path.](https://assets.ai.engineer/sites/aiecode2025/sha256/cc48de73d2130e3b9aa8c486f1c03d9926660e985754816c406d314af1f5b909.webp)
+
+Baseline: The naïve path
+One process, one thread — the training loop does everything.
+
+A (serial baseline) — every image is a blocking S3 GET on the critical path
+_fetch_single_image → botocore → urllib3 → ssl.recv is ~85% of this; images fetched one at a time, GPU idle
+
+read (ssl.py:1104)
+recv_into (ssl.py:1252)
+readinto (socket.py:707)
+_read_status (client.py:297)
+begin (client.py:336)
+getresponse (client.py:1448)
+getresponse (connection.py:571)
+_make_request (connectionpool.py:534)
+urlopen (connectionpool.py:788)
+send (httpsession.py:477)
+_send (endpoint.py:383)
+_do_get_response (endpoint.py:279)
+_get_response (endpoint.py:239)
+_send_request (endpoint.py:197)
+make_request (endpoint.py:119)
+_make_request (client.py:1100)
+_make_api_call (client.py:1076)
+wrapper (context.py:123)
+_api_call (client.py:606)
+_fetch_single_image (image_fetch_utils.py:141)
+_fetch_images (mm_pipeline.py:292)
+
+Smaller branches: read [illegible]; recv [illegible]; readi [illegible]; _safe [illegible]; _fp_r [illegible]; _raw [illegible]; load (ImageFile[illegible]); new_load (pil_im[illegible]); _fetch_single_im[illegible]
+
+Profiling Flamegraph of the baseline run
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Solution 1: Concurrency" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Solution 1: Concurrency</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A coordinator assigns independent samples to a worker pool, using asyncio for I/O-bound fetching and ray.Actor for CPU-bound processing, then fans out data to Megatron’s DP workers.
+
+[6:20](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=380s) [Side-by-side diagrams contrast serial data loading with a coordinator assigning work to a worker pool.](https://assets.ai.engineer/sites/aiecode2025/sha256/aa18001d9e91a49f9a4feb64a564c44aaa2f38da9a081d1cc8142cf6cd8943cc.webp)
+
+Solution 1: Concurrency
+Per-sample work is independent and CPU-heavy.
+
+RED: serial operations
+
+Left diagram:
+s3
+GET
+Data generator (Coordinator)
+data loading + processing
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+
+Right diagram:
+s3
+samples
+Data generator (Coordinator)
+worker pool
+Coordinator assigns workers to data load and process
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.
+
+[6:42](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=402s) [Concurrency choices for fetching and processing independent samples, alongside a coordinator and worker-pool diagram.](https://assets.ai.engineer/sites/aiecode2025/sha256/96e93339ebc3cd099f1db8ed6f91b3bdf733e2ba89346aa2d91697415e42ed33.webp)
+
+Solution 1: Concurrency
+
+Per-sample work is independent and CPU-heavy.
+
+• Per sample, two costs:
+  • Fetch (I/O-bound)
+    • Pull image(s) from object storage
+  • Process (CPU-bound)
+    • Decode → vision preprocess → tokenize
+• Samples are independent → parallelizable
+• Forms of concurrency:
+  • Asynchronous: I/O bound work
+  • Threads: Work that releases the GIL
+  • Processes: More intensive work
+• Match the bottleneck:
+  • Fetch → asyncio
+  • Process → ray.Actor
+
+Diagram:
+s3
+samples
+Data generator (Coordinator)
+worker pool
+Coordinator assigns workers to data load and process
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Concurrency results" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Concurrency results</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Parallel workers keep batch fetch times and the training wait ratio below the serial baseline. The speaker reports a 25% speedup.
+
+[8:32](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=512s) [Charts compare serial and parallel data fetching time and training wait ratio, beside the worker-pool architecture.](https://assets.ai.engineer/sites/aiecode2025/sha256/80b8747bb35db85550d2b3cec95523b88097db9689b40e17c2cccc14cd1133bd.webp)
+
+Solution 1: Concurrency
+Per-sample work is independent and CPU-heavy.
+
+Time Spent fetching data per batch
+Legend: baseline (serial); B — +parallelism
+Y-axis: Seconds
+Y-axis ticks: 50, 100, 150, 200
+X-axis: Steps
+X-axis ticks: 0, 10, 20, 30, 40
+
+Ratio of Train time spent waiting
+Legend: baseline (serial); B — +parallelism
+Y-axis: Wait Time Ratio
+Y-axis ticks: 0, 0.2, 0.4, 0.6, 0.8, 1
+X-axis: Training Steps
+X-axis ticks: 0, 10, 20, 30, 40
+
+Diagram:
+s3
+samples
+Data generator (Coordinator)
+worker pool
+Coordinator assigns workers to data load and process
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="How prefetching works" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>How prefetching works</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A background thread keeps a bounded queue of preprocessed batches ahead of the trainer. Prefetching needs a faster producer and can complicate checkpointing and resumption or cause a cold start.
+
+[9:00](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=540s) [A before-and-after architecture diagram shows workers preparing batches ahead of the trainer.](https://assets.ai.engineer/sites/aiecode2025/sha256/635cfa06acd2bb04385bee6ae366d352ce15e55310d961dca5a644f1fa407e32.webp)
+
+Solution 2: Prefetching
+Stop waiting on the next batch!
+
+Left diagram:
+samples
+s3
+Data generator (Coordinator)
+worker pool
+Coordinator assigns workers to data load and process
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+
+Right diagram:
+samples
+s3
+Data generator (Coordinator)
+worker pool
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+By the time a batch is needed, its already been preprocessed
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.
+
+[9:20](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=560s) [A background thread fills a bounded queue ahead of the trainer; a diagram shows batches being preprocessed.](https://assets.ai.engineer/sites/aiecode2025/sha256/8edfeea7f1f08d4066af878c5aab00d2ba6fb5e349a11426fc3d05b4fbcff74a.webp)
+
+Solution 2: Prefetching
+Stop waiting on the next batch!
+
+• Background thread fills a bounded queue ahead of the trainer
+• The generator pulls, never blocks
+• Prefetch only helps if the producer is faster than consumer
+  • Number of workers
+  • Queue size
+
+Diagram:
+samples
+s3
+Data generator (Coordinator)
+worker pool
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+By the time a batch is needed, its already been preprocessed
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Prefetching results" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Prefetching results</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Prefetching brings data fetching and processing close to zero seconds per batch. The charts also show a lower training wait ratio than parallelism alone, though waiting remains.
+
+[10:14](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=614s) [Charts compare batch fetching time and training wait ratio across serial, parallel, and prefetching runs.](https://assets.ai.engineer/sites/aiecode2025/sha256/b4f45ecee1678dc16386677e61fa98277df9d89907461421ff33c293e6c81562.webp)
+
+Solution 2: Prefetching
+Stop waiting on the next batch!
+
+Time Spent fetching data per batch
+Legend: baseline (serial); B — +parallelism; C — +prefetch
+Y-axis: Seconds
+Y-axis ticks: 50, 100, 150, 200
+X-axis: Steps
+X-axis ticks: 0, 10, 20, 30, 40
+
+Ratio of Train time spent waiting
+Legend: baseline (serial); B — +parallelism; C — +prefetch
+Y-axis: Wait Time Ratio
+Y-axis ticks: 0, 0.2, 0.4, 0.6, 0.8, 1
+X-axis: Training Steps
+X-axis ticks: 0, 10, 20, 30, 40
+
+Make sure your producer is always ahead of your consumer
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Solution 3: Object Store" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Solution 3: Object Store</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Large tensors can exhaust the data generator as samples are copied and repickled. Workers put data in Ray’s object store; the coordinator passes references so data-parallel ranks can fetch it directly.
+
+[10:31](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=631s) [Architecture diagrams contrast transferring large arrays between processes with using Ray object references.](https://assets.ai.engineer/sites/aiecode2025/sha256/99f5f5d5f47aea2d1a6b5c9d02519c1baff394ea5e6549b73dd9253338353cde.webp)
+
+Solution 3: Object Store
+Big payloads should be pointers, not pickles!
+
+Left diagram:
+s3
+samples
+Data generator (Coordinator)
+worker pool
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+By the time a batch is needed, its already been preprocessed
+transferring large arrays across processes
+
+Right diagram:
+s3
+samples
+Data generator (Coordinator)
+worker pool
+ObjectRef
+ray.put
+Ray Store
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+ray.get
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.
+
+[11:01](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=661s) [The data generator can run out of memory as large tensors are repeatedly serialized and copied. A Ray ObjectRef lets data-parallel ranks fetch samples from the object store.](https://assets.ai.engineer/sites/aiecode2025/sha256/1589ad0dab9fac96528a43bb145b7730dbfdd971b25c0c45632cd1eb6dad21bb.webp)
+
+Solution 3: Object Store
+Big payloads should be pointers, not pickles!
+
+Problem
+• Data generator OOMs
+• Root Cause: Multimodal tensors are MBs/sample
+  1) Pickled on worker
+  2) Copied back to generator
+  3) Re-pickled into the trainer
+
+Fix
+Ray Object store: a sample carries an ObjectRef (a pointer)
+
+Diagram:
+s3
+samples
+Data generator (Coordinator)
+worker pool
+ObjectRef
+ray.put
+Ray Store
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+ray.get
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Object Store: Communication Costs" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Object Store: Communication Costs</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>With the Ray object store, the coordinator’s put_object tower is marked below sampling floor. The chart ends with a lower training wait ratio than prefetch alone.
+
+[11:59](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=719s) [A profiling comparison shows the coordinator's object serialization tower disappearing with the Ray object store. A chart compares training wait ratios across optimizations.](https://assets.ai.engineer/sites/aiecode2025/sha256/e540174daa7551d965bfe0064f3550ad5563cf55c4ef082d28e5c502b1055a94.webp)
+
+Solution 3: Object Store
+Big payloads should be pointers, not pickles!
+
+Coordinator per-step handoff (generate) — same span, same scale, C vs D
+re-rooted at the same call on the same axis: C serializes every batch into the store; in D that whole ray.put tower is gone (refs, not tensors)
+
+C (prefetch, no store)
+put_object (worker.py:887)
+put (worker.py:3069)
+wrapper (client_mode_hook.py:107)
+auto_init_wrapper (auto_init_hook.py:22)
+split_train_data_by_dp (train_data_conversion.py:173)
+generate (rollout_manager.py:120)
+
+D (+ ray object store)
+ray.put / put_object tower
+GONE — below sampling floor
+generate — handoff is ~0% (refs only)
+
+Ratio of Train time spent waiting
+Legend: baseline (serial); B — +parallelism; C — +prefetch; D — +ray-store
+Y-axis: Wait Time Ratio
+Y-axis ticks: 0, 0.2, 0.4, 0.6, 0.8, 1
+X-axis: Training Steps
+X-axis ticks: 0, 10, 20, 30, 40
+
+Parallelism inevitably incurs communication costs — plan wisely!
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Recap" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Recap</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Concurrency, prefetching and the Ray store cut the reported wait time ratio from ~85% to 20%. GPU utilization shifts from sparse spikes to sustained high usage with frequent dips.
+
+[12:20](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=740s) [Concurrency, prefetching and the Ray store reduce the stated wait-time ratio from about 85% to 20%, alongside improved GPU utilization.](https://assets.ai.engineer/sites/aiecode2025/sha256/4839641aa3598c6da8e239074a2d7dc45c0bca388eb1313c744298f93d9fc8dc.webp)
+
+Recap
+
+Big payloads should be pointers, not pickles!
+
+• Serial baseline
+• + concurrency for data loading and processing
+• + prefetching to stay ahead of training requests
+• + ray store to minimize data transfer
+• Wait time ratio ~85% → 20%
+
+Ratio of Train time spent waiting
+Legend: baseline (serial); B — +parallelism; C — +prefetch; D — +ray-store
+Y-axis: Wait Time Ratio
+Y-axis ticks: 0, 0.2, 0.4, 0.6, 0.8, 1
+X-axis: Training Steps
+X-axis ticks: 0, 10, 20, 30, 40
+
+GPU Utilization (SM usage)
+Legend: A — baseline (serial)
+Y-axis ticks: 0, 20, 40, 60, 80, 100
+X-axis: Time (minutes)
+X-axis ticks: 0, 5, 10, 15, 20, 25, 30
+
+GPU Utilization (SM usage)
+Legend: optimized
+Y-axis ticks: 0, 20, 40, 60, 80, 100
+X-axis: Time (minutes)
+X-axis ticks: 0, 5, 10, 15, 20, 25, 30
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Scaling Up: A New Ceiling Appears" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Scaling Up: A New Ceiling Appears</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>At 64 data-parallel ranks and roughly 200 dataset streams, the pipeline’s wait ratio rose. Workers packed onto a few nodes funnel S3 traffic and just-in-time pulls through network interfaces that cannot keep up.
+
+[12:50](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=770s) [At larger scale, worker actors concentrated on a few nodes funnel S3 traffic and just-in-time pulls through saturated network interfaces.](https://assets.ai.engineer/sites/aiecode2025/sha256/b1050beb9a40a0831219ec1a98bcbb2056f5384f30ab13a1337578e8149379fb.webp)
+
+Scaling up: A new ceiling appears
+Do your ablations scale?
+
+Scaling up
+4x DP Ranks (64)
+~200 Dataset streams
+Batch size 4x (1024)
+
+Hot Network interface Card saturation
+Worker actors pack onto a few nodes; S3 traffic and JIT pulls funnel through hot NICs
+
+Diagram labels:
+s3
+samples
+Data generator (Coordinator)
+worker pool
+ObjectRef
+ray.put
+Ray Store
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+ray.get
+RED: Hot paths
+
+© 2026 Amazon.com, Inc. and its affiliates. All rights reserved.
+10</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Ray Scheduling Strategy" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Ray Scheduling Strategy</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Ray’s default scheduler prefers to co-locate workers, which can bottleneck a node’s network interface. The code shows the default applied implicitly or explicitly.
+
+[13:46](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=826s) [A Ray code example shows remote functions and actors using the default scheduling strategy implicitly and explicitly.](https://assets.ai.engineer/sites/aiecode2025/sha256/17e40dfd382c1df085d38496eae47b1d68ab99f5d7aa3f829dbeb6be0c9a01af.webp)
+
+Scaling up: A new ceiling appears
+Do your ablations scale?
+
+Scale-up: 4× DP ranks (64), ~200 dataset streams, batch ×4 (1024)
+
+Ray scheduling strategy
+
+@ray.remote
+def func():
+    return 1
+
+@ray.remote(num_cpus=1)
+class Actor:
+    pass
+
+# If unspecified, &quot;DEFAULT&quot; scheduling strategy is used.
+func.remote()
+actor = Actor.remote()
+# Explicitly set scheduling strategy to &quot;DEFAULT&quot;.
+func.options(scheduling_strategy=&quot;DEFAULT&quot;).remote()
+actor = Actor.options(scheduling_strategy=&quot;DEFAULT&quot;).remote()
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="17" data-cap="Solution 4: Framework Optimizations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Solution 4: Framework Optimizations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Ray’s default worker co-location can bottleneck one machine. The revised pipeline spreads workers and Ray stores across nodes; DP ranks retrieve processed objects just in time.
+
+[14:05](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=845s) [A diagram contrasts concentrated workers and object-store traffic with worker pools and Ray stores spread across nodes.](https://assets.ai.engineer/sites/aiecode2025/sha256/d7ba0a2846a3b48926f7e690429d91163b9a4afdae384c74853a488ee03ec65a.webp)
+
+Solution 4: Framework Optimizations
+Learn the bells and whistles of your frameworks!
+
+Left diagram:
+s3
+samples
+Data generator (Coordinator)
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+ObjectRef
+worker pool
+ray.put
+Ray Store
+ray.get
+RED: Hot paths
+
+Right diagram:
+s3
+samples
+Data generator (Coordinator)
+Fan-out
+DP0
+DP1
+DP2
+DP3
+Megatron
+ObjectRef
+worker pool
+Ray Store
+Ray Store
+Ray Store
+Ray Store
+zero copy to the worker’s local ray store
+Worker pools and ray stores spread across nodes
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="18" data-cap="Framework Optimizations" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Framework Optimizations</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>SPREAD distributes workers across nodes, while zero-copy maps tensors from shared memory. Neither helped in small experiments, but together they delivered 50% additional throughput at scale.
+
+[14:25](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=865s) [Zero-copy retrieval and SPREAD scheduling combine to reduce network congestion and retrieval costs at scale.](https://assets.ai.engineer/sites/aiecode2025/sha256/3ebcc039bf0405a36fb7aca70405c7b949b106b3d16d7b8401abfe289d1b4eab.webp)
+
+Solution 4: Framework Optimizations
+Learn the bells and whistles of your frameworks!
+
+Zero-copy retrieval ¹
+Consuming rank maps the tensor from shared memory instead of copying it out. The unavoidable copy is host → GPU.
+
+SPREAD scheduling ²
+One worker per node, so objects and S3 traffic live on every node store/NIC, not a few.
+
+Synergy at scale
+• SPREAD decongests NIC bandwidth
+• zero-copy keeps cross-node pulls cheap
+• both underdeliver at small scale experiments
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.
+1 https://docs.ray.io/en/latest/ray-core/scheduling/index.html
+2 https://docs.ray.io/en/latest/ray-core/objects/serialization.html</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="19" data-cap="Distributed Data Pipeline" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Distributed Data Pipeline</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A coordinator fans out to Megatron ranks, while worker pools use zero-copy access to local Ray stores spread across nodes.
+
+[15:06](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=906s) [Diagram shows a coordinator sending data to Megatron ranks, with worker pools and Ray stores spread across nodes.](https://assets.ai.engineer/sites/aiecode2025/sha256/ce703684fd9ae40c28722a88b494060c6c0192c9853f5829e22665aa98ffc9be.webp)
+
+Solution 4: Framework Optimizations
+Learn the bells and whistles of your frameworks!
+
+s3
+samples
+Data generator (Coordinator)
+worker pool
+ObjectRef
+Fan-out
+Megatron
+DP0
+DP1
+DP2
+DP3
+Ray Store
+Ray Store
+Ray Store
+Ray Store
+zero copy to the worker’s local ray store
+Worker pools and ray stores spread across nodes
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="20" data-cap="Final Tour" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Final Tour</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>SPREAD adds cross-node cost at small scale, but wins at large scale when a single node’s NIC becomes the ceiling. Two flags delivered 50% additional throughput at scale.
+
+[15:24](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=924s) [Charts compare data fetching, step time, and training wait time; the slide reports 50% additional throughput at scale.](https://assets.ai.engineer/sites/aiecode2025/sha256/3c1cf3034bcf3dd76a08b265c7fd4cfb4e4eb3b6b555772751a301155a5970d9.webp)
+
+Final tour
+The flag that didn’t help yesterday just might today!
+
+Time Spent fetching data per batch
+Legend: F – +spread; baseline (serial); E – +zero-copy; B – +parallelism; C – +prefetch; D – +ray-store
+Y-axis: Seconds
+Y-axis ticks: 20, 40, 60, 80, 100, 120
+X-axis ticks: 200, 300, 400, 500
+
++50%
+Additional throughput at scale
+• Small scale: SPREAD can lose because the extra cross-node hop is pure cost
+• Large scale: SPREAD wins because the single-node NIC is the ceiling
+• Same knob, opposite verdict — set by the bottleneck
+
+Step Time
+Legend: F – +spread; baseline (serial); E – +zero-copy; B – +parallelism; C – +prefetch; D – +ray-store
+Y-axis ticks: 6, 8, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100
+X-axis: Step
+X-axis ticks: 200, 300, 400, 500
+
+Ratio of Train time spent waiting
+Legend: F – +spread; baseline (serial); E – +zero-copy; B – +parallelism; C – +prefetch; D – +ray-store
+Y-axis: Wait Time Ratio
+Y-axis ticks: 0, 0.2, 0.4, 0.6, 0.8, 1
+X-axis: Training Steps
+X-axis ticks: 200, 300, 400, 500
+
+© 2026 Amazon.com, Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="21" data-cap="Learnings" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Learnings</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The bottleneck moved from throughput to wait time, memory, retrieval cost and NIC. Parallelism and prefetch help, but locality, copy semantics and scale also shape the result.
+
+[15:36](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=936s) [Lessons emphasize identifying bottlenecks, profiling the baseline, and considering locality, copy semantics, and scale.](https://assets.ai.engineer/sites/aiecode2025/sha256/e23f64f65618704d4a63d67630ed5213aad0e173dbeadeb3c0727949be85d1c1.webp)
+
+Learnings
+
+Premature optimization is the root of all evil!
+
+GPUs are the expensive seat, but sometimes the biggest battles happen enroute to the GPU.
+Ask first: CPU or GPU bound? Compute or IO bound?
+
+Solving one bottleneck often exposes another.
+Throughput → wait-time → memory → retrieval cost → NIC
+
+Classic moves are not the end.
+Parallelism and prefetch matter, but locality and copy semantics still matter.
+
+Scale changes the answer.
+Tuning parameters like zero-copy waste and spreading workers become first-order only at volume.
+
+Profiling your baseline helps you move the needle.
+
+© 2026 Amazon.com, Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="22" data-cap="Thank You" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Thank You</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Tarun Sunkaraneni invites questions. The slide says the presentation will be published in a blog post soon and points to labs.amazon.science.
+
+[16:35](https://www.youtube.com/watch?v=tNAV259UhCM&amp;t=995s) [Closing questions slide with the speaker's portrait, name, website, and a QR code.](https://assets.ai.engineer/sites/aiecode2025/sha256/35934ba4d65d3acf0cb5f063d95d8be88098614a18d818d93e787f7c8d08b143.webp)
+
+Thank you.
+
+Questions?
+
+Slides will be published to our blogpost soon!
+
+https://labs.amazon.science/
+
+Tarun Sunkaraneni
+
+© 2026 Amazon.com Inc. and its affiliates. All rights reserved.</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">在 GPU 做任何计算之前</a></li><li><a href="#sec-2">一个 256 的批次在一张接一张地等图片</a></li><li><a href="#sec-3">让并发度匹配工作量</a></li><li><a href="#sec-4">在当前批次训练时准备下一个批次</a></li><li><a href="#sec-5">别再通过协调器传递图像数组</a></li><li><a href="#sec-6">在生产规模下，局部性会压垮一块网卡</a></li><li><a href="#sec-7">每次修复都会改变下一步需要分析的东西</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">GPU 利用率从 15% 到 90%：要修的是数据管道，而不是模型</h2>
+      <div class="lede"><p>Tarun Sunkaraneni 讲解了一条多模态训练流水线，它的瓶颈从串行的图像加载，转移到批次时序、张量拷贝，最后落到单个节点的网卡上。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="13">▶ 0:13</button></div>
+      <h3>在 GPU 做任何计算之前</h3>
+      <p>An expensive GPU can spend most of its training run waiting for images. In Tarun Sunkaraneni’s experiment, the starting pipeline spends about 85% of its time acquiring data, leaving GPU utilization at roughly 15%. The first question is therefore practical: is the training loop actually blocked on GPU computation, or on the work needed to feed it?</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/c603a8b12b07e1fcd9630766bd57a5efe9506ab013e43435a7eee54677574478" alt="Selected presentation frame from From 15% to 90% GPU Utilization: Fix the Data Pipeline, Not the Model at 210 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide highlights roughly 85% baseline data wait and less than 10% after optimization.</figcaption></figure>
+<p>Multimodal training adds substantial work before a forward pass. Images need loading, resizing and normalization; audio needs loading and cropping; video combines these kinds of preparation. A cluster may have many more CPUs than GPUs, yet still leave its GPUs hungry if those CPUs and the input pipeline cannot deliver prepared examples fast enough.</p>
+<p>The talk uses a <strong>wait-time ratio</strong> to track that problem:</p>
+<p>Wait-time ratio = (preparation time + transfer time) / (preparation time + transfer time + training time).</p>
+<p>The numerator represents time spent preparing and transferring data; the denominator includes training as well. Once stages overlap, the useful distinction is between preparation happening in the background and preparation that still makes the trainer wait. Sunkaraneni introduces an overall improvement from 15% to 90% utilization, with data waiting below 10%; the intermediate results later in the talk describe specific stages of that progression.</p>
+<p>The workload is vision-language fine-tuning with multi-turn conversations. Its input path has three jobs before GPU computation begins: load the data, transform it, and transport it. Keeping those jobs distinct makes it possible to see which change removes which delay.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="248">▶ 4:08</button></div>
+      <h3>一个 256 的批次在一张接一张地等图片</h3>
+      <p>The dataset uses JSONL records with relative image links, with the data stored in S3. One example points to an image described as a blue bus. Follow that example through the pipeline: its image must arrive from object storage, become a decoded and normalized image array, and reach the training process alongside the text.</p>
+<p>A data generator handles loading, transformation and transport. A coordinator partitions examples among Megatron data-parallel ranks—the training processes that receive their respective portions of the data, collate them, and perform forward and backward passes. Megatron’s weight optimization is treated as a working black box. The changes in this experiment happen upstream of it.</p>
+<p>In the baseline, a request for 256 examples triggers serial image fetching and serial processing. The bus image waits its turn among the other examples before the whole batch can reach the trainer. Training takes 15–20 seconds, while fetching the data takes more than 100 seconds. The profile is dominated by S3 loads, followed by image loading through PIL. That imbalance explains why optimizing GPU kernels would leave the largest delay intact.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/4455c6920c46f09acdd58527eb8255e153e3c398b19420bf885e4a81555e2393" alt="Selected presentation frame from From 15% to 90% GPU Utilization: Fix the Data Pipeline, Not the Model at 352 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The baseline diagram depicts images fetched and processed one by one before training.</figcaption></figure>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="367">▶ 6:07</button></div>
+      <h3>让并发度匹配工作量</h3>
+      <p>Each sample has two broad costs: fetching its images, then decoding them, applying vision preprocessing and tokenizing its text. Samples are independent, so the bus image does not need another example’s result before it can be prepared. A worker pool can work on many examples concurrently instead of carrying out the entire batch one sample at a time.</p>
+<p>The choice of concurrency depends on what consumes the time:</p>
+<p>- <strong>Asynchronous I/O:</strong> Network requests spend time waiting for responses. Async programming lets other requests progress during those waits.
+- <strong>Threads:</strong> CPU-heavy operations can benefit when their implementation releases Python’s Global Interpreter Lock, or GIL. Whether a particular tokenizer, image transform or dataframe operation releases it needs investigation.
+- <strong>Processes:</strong> Separate processes can use multiple CPU cores and isolate workloads, at the cost of a heavier execution and communication setup.</p>
+<p>The chosen combination is <code>asyncio</code> for fetching images and Ray actors for processing them. Async fetching overlaps remote waits; actors supply separate worker processes and APIs for communicating with them. This avoids building the worker communication machinery from scratch while giving image preparation multiple processes in which to run.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/d067b4fe550cd8d2d51b8fe3148b389bb5acf6488cb054d6c844287cb98ffd74" alt="Selected presentation frame from From 15% to 90% GPU Utilization: Fix the Data Pipeline, Not the Model at 510 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide diagrams a worker based pipeline for concurrent data preparation.</figcaption></figure>
+<p>The reported fetch time falls to roughly 40 seconds per batch, and Sunkaraneni reports a 25% speedup. Those figures describe the experiment’s different observations; the fetch-time reduction alone should not be read as an equivalent end-to-end speedup. More importantly, the trainer still asks for a batch before the workers begin obtaining it. Concurrency shortens the wait, but leaves the request on the critical path.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="546">▶ 9:06</button></div>
+      <h3>在当前批次训练时准备下一个批次</h3>
+      <p>Prefetching changes when preparation starts. A background thread fills a queue ahead of the consumer, rather than waiting for the trainer’s next request. The producer must keep ahead of the trainer’s consumption rate. For the bus example, fetching and transformation now happen before its batch is requested; when the trainer needs it, the prepared example is already available.</p>
+<p>What delay does the queue remove? The flow below separates the producer’s early work from the trainer’s later request. The queue creates a place for completed preparation to wait, allowing data work and training to overlap. In the reported run, fetching and processing contribute close to zero seconds of waiting per batch because they have already happened—not because image preparation has become free.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/e6afc00170344e43189cdb0ee10d75fa86a5cc354e9cf3d08534bfb9d1db5b9f" alt="Selected presentation frame from From 15% to 90% GPU Utilization: Fix the Data Pipeline, Not the Model at 570 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide shows a producer preparing batches ahead of the training consumer.</figcaption></figure>
+<p>That timing change introduces two costs. The queue needs a cold-start period to fill, and checkpointing becomes more intricate because model state and the data loader’s progress must support a consistent resumption. Prefetching pays off after the producer gets ahead; it does not eliminate startup or the need to manage that extra progress.</p>
+<p>Move preparation ahead of the request
+The producer fills a queue in advance; the trainer consumes prepared examples while preparation continues.
+- Background producer — Fetch and process examples ahead of demand.
+- Prefetch queue — Hold prepared examples until the trainer requests them.
+- Trainer — Consume available data without waiting for its preparation.
+- Background producer → Prefetch queue (Fill ahead of consumption)
+- Prefetch queue → Trainer (Supply already-prepared examples)</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="637">▶ 10:37</button></div>
+      <h3>别再通过协调器传递图像数组</h3>
+      <p>Once fetching and transformation stop making the trainer wait, transport becomes conspicuous. Each prepared image array is megabytes per sample. Returning samples by value means pickling them on a worker, copying them to the coordinator, then serializing them again for the trainer. The bus image’s contents now take an expensive detour through a process that only needs to decide where the example belongs. Repeated copies can also push the data generator out of memory.</p>
+<p>Ray’s object store changes what travels through the coordinator. Each sample carries an object reference; the driver holds that reference rather than the large tensor itself. Megatron’s data-parallel ranks retrieve the data from the store as needed, so the tensor no longer round-trips through the head node. This removes an unnecessary intermediate transfer while preserving the coordinator’s partitioning role.</p>
+<p>Where do the large bytes go, and where does only a reference go? The diagram makes that distinction visible. The worker stores the prepared array; the coordinator handles its reference; the training rank retrieves the array directly. It avoids the coordinator detour, although retrieval still has a cost—a distinction that matters when the pipeline scales.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/42ae7660b585173f8b939b6036c5cf86c266b5e9ebe4484c8c40065e2c0bbff6" alt="Selected presentation frame from From 15% to 90% GPU Utilization: Fix the Data Pipeline, Not the Model at 690 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The diagram shows a worker placing data in an object store while the coordinator passes a reference and training ranks retrieve it.</figcaption></figure>
+<p>Using the store also removes an extraneous object-put operation introduced by the prefetcher. Communication costs fall, and the intermediate pipeline reaches a wait-time ratio of 20%, down from 85%. The reported utilization graph’s sawtooth pattern becomes much less pronounced: repeated periods of starvation have been reduced. Concurrency, early preparation and fewer copies each address a different part of that change.</p>
+<p>Coordinate references, retrieve tensors directly
+Large image arrays bypass the coordinator; object references carry the information needed to arrange their use.
+- Processing worker — Prepare the image array.
+- Ray object store — Keep the prepared tensor available for retrieval.
+- Coordinator — Hold object references and assign data partitions.
+- Megatron data-parallel rank — Retrieve the tensor when needed for training.
+- Processing worker → Ray object store (Prepared tensor)
+- Processing worker → Coordinator (Object reference)
+- Coordinator → Megatron data-parallel rank (Assigned sample reference)
+- Ray object store → Megatron data-parallel rank (Direct data retrieval)</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="771">▶ 12:51</button></div>
+      <h3>在生产规模下，局部性会压垮一块网卡</h3>
+      <p>The same pipeline starts waiting more when scaled to a production run. The workload now has four times the data-parallel ranks, about 200 data streams, and four times the batch size. The generator and worker pool are colocated to make transfers fast, but concentrated processing also concentrates traffic. A node’s network interface card cannot keep up with the training pipeline’s demand.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/15d3c0cb0e9f49010473b8188d9cd0958b049463ecb4d7bfac4263cc17c61089" alt="Selected presentation frame from From 15% to 90% GPU Utilization: Fix the Data Pipeline, Not the Model at 780 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide labels network interface card saturation as the scaling bottleneck.</figcaption></figure>
+<p>Investigating framework behavior reveals that Ray’s scheduling in this setup prefers colocating workers. That preference can exhaust one machine before making useful use of another. Spreading workers across nodes distributes image processing and storage; the data-parallel ranks then retrieve those prepared objects lazily, when needed. The tradeoff has changed: keeping work close together is less valuable once the shared network card becomes the limiting resource.</p>
+<p>Two settings make the difference at this scale:</p>
+<p>- <strong>Spread scheduling:</strong> Place workers across multiple nodes so image processing and storage do not funnel through one overloaded machine.
+- <strong>Zero-copy retrieval:</strong> Reduce copying when retrieving prepared data, complementing the earlier change from returning arrays by value to passing object references.</p>
+<p>Neither setting helps in the small-scale experiment, but together they produce an additional 50% throughput at large scale. Their value depends on which resource is saturated, so testing only the small workload would have led to the wrong configuration decision for production. Sunkaraneni’s advice is to ablate settings across the scaling ladder: compare their effects at multiple workload sizes, including combinations whose benefits may appear together.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="914">▶ 15:14</button></div>
+      <h3>每次修复都会改变下一步需要分析的东西</h3>
+      <p>The completed pipeline prepares independent examples concurrently, gets ahead of requests, passes references instead of repeatedly copying tensors, and distributes workers when concentrated retrieval traffic becomes a problem. Its improvement comes from changing the path to the model while leaving Megatron’s training work as the black box established at the start.</p>
+<p>The ending’s practical lesson is to keep asking what the run is waiting on: CPU work, I/O, GPU computation, memory or retrieval. Solving one bottleneck exposes another. Parallelism and prefetching are useful starting moves, but framework semantics—how results are returned, where workers are placed, how objects are retrieved—determine whether those moves keep paying off. Profile the baseline, then profile the changed system at the scale that matters.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/28ce0bd7a593921e5902460bab59205a67adfa3ed2c579243eff45b8d011a3b3" alt="Selected presentation frame from From 15% to 90% GPU Utilization: Fix the Data Pipeline, Not the Model at 960 seconds" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The slide lists questions for diagnosing whether a run is CPU, GPU, I/O or compute bound.</figcaption></figure>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>A batch that needs more than 100 seconds of fetching and only 15–20 seconds of training is primarily a data-pipeline optimization problem.</li><li>Use concurrency that fits the work: asynchronous requests for I/O, threads where operations release the GIL, and processes for separate CPU execution.</li><li>Prefetching hides preparation behind training when the producer stays ahead, while adding queue startup and checkpoint-resumption complexity.</li><li>Passing object references lets training ranks retrieve large tensors directly, avoiding repeated copies through the coordinator.</li><li>Evaluate configuration at the intended scale: spread scheduling and zero-copy retrieval gave no small-scale benefit here, but together added 50% throughput at large scale.</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="13"><span class="ts">0:13</span><span class="tx">Hello, everyone. Thank you for joining me here. Um, yeah, today I'm gonna talk about Ray Actors, Vision Tokens, and the GIL. Um, engineering a multimodal SFT data pipeline that keeps the GPUs busy. So there's a lot of talk about, you know, how to optimize training paradigms. Um, but I wanna give a different perspective on the whole ecosystem of</span></div><div class="tline" data-t="43"><span class="ts">0:43</span><span class="tx">what it takes to get a model trained. Um, and so the question I'm gonna be asking here is, does your training loop really depend on the GPUs right now? Is it blocked on the GPUs? And I think we're gonna learn that-- We're gonna see in this experiment that the hardest part of optimizing multimodal train throughput is not necessarily kernel optimization. It is making sure that the D-- GPUs are constantly fed with data. So let's go over the overview of what this topic, what this talk will be</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">about anyway. So we will establish a baseline multimodal training pipeline, um, and then we will encounter bottlenecks and then address them one at a time. So loosely, they are, one, concurrency. How fast can you process one image before feeding it to the model? Two, prefetching. How can we make sure that we have data on demand? Three, um, how can we minimize data copies across different processes? And four,</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">fr-- uh, the additional framework optimizations, um, so just tweaking your bells and whistles. Um, yeah, so let's set up our premise. We all know that GPUs incur expensive costs and are generally want to maximize their utilization while we have them at hand. Multimodal processing is different than text-only, um, because there's a lot of CPU-intensive operations that have to happen before you actually</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">feed the model, um, the data. So whether that is, um, you know, loading, resizing, or normalizing images using, like, a library like PIL. For audio, you'd do a lot of loading and cropping. You can use, like, NumPy arrays. And then videos are some sort of combination of both. Um, and then it's also true that usually your training clusters have a lot more CPUs than GPUs at hand, yet the GPU is what is starving in this pipeline.</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">So today we're gonna introduce this equation called, like, wait time ratio, which is generally, I formulate it as, like, the time it takes to prep your data and transfer it to the GPUs. Um, and then d-we divide all of that by the time it takes to do both of those and the train as well. So basically, the denominator is, like, your total pipeline. Um, and we're gonna see that during our run, we will go from a utilization of fifteen percent to utilization of ninety</span></div><div class="tline" data-t="192"><span class="ts">3:12</span><span class="tx">percent. So our baseline has, like, eighty-five percent of its-- spends eighty-five percent of its time, um, backed on data acquisition, whereas after we do these optimizations, less than ten. And so for the scope of this talk, GPUs are not the goal. It's making sure that the data is never the bottleneck is the goal. And so here's a little bit of background as to, like, what our stack will look like. Um, we kinda take, like, a</span></div><div class="tline" data-t="222"><span class="ts">3:42</span><span class="tx">Qwen3-VL base model, um, kind of try to train it on the paradigms of ChatVQA and, like, multi-turn VLM, uh, conversations. So to recap, before the GPUs do any math, um, we have to load the data, we have to transform the data, and then we have to, we have to transport it to the GPUs.</span></div><div class="tline" data-t="248"><span class="ts">4:08</span><span class="tx">Okay, this is a, this is a overview of what our data actually looks like. So we will be using JSONL files, um, and then images are linked relatively, uh, to where the example lives. And then, uh, we're gonna assume that our data is just stored in S3. Um, in this example, for example, it seems like exa-- that image three three four seven one.jpeg seems to be a picture of, like, a blue bus. Um, yeah, so this is our system</span></div><div class="tline" data-t="278"><span class="ts">4:38</span><span class="tx">layout. On the left, we have a data generator, which is responsible for the data loading, data transforming, and tra-- data transporting. Um, and the-- that's, like, labeled as, like, fan-out to the Mega-Megatron data parallel ranks. Um, so the parallel ranks receive partitions of the data as decided by the coordinator. Um, it collates it, performs forward pass and backwards pass on this data. So Megatron takes care of optimizing the model weights across the DP ranks, and we're gonna assume</span></div><div class="tline" data-t="308"><span class="ts">5:08</span><span class="tx">that it's, like, a-- it's kinda-- it is kinda working as a black box. Um, so let's start with the naive baseline path. So for each example, we fetch the images from object store. Um, we kind of, like, we tokenize it, we resize it, rewrite-- resize the images, normalize them, and then feed them to the model. Um, yeah, and then when we do that, we can see that</span></div><div class="tline" data-t="338"><span class="ts">5:38</span><span class="tx">there's serial operations in the red, which is namely getting all the images one by one and then processing them one by one. So if your, if your trainer is asking for a batch size of, like, two fifty-six, then you have to serially process all these images. And then we can see that our train time is somewhere between 15 to 20 seconds. Uh, however, the data s- uh, the time spent to actually fetch the data is more than 100 seconds. So that's why we result in only 15%</span></div><div class="tline" data-t="367"><span class="ts">6:07</span><span class="tx">utilization of our GPUs. Um, and then you can even see a profiling flame graph that we spend most of the time doing S3 loads, and then you can see a long t- a little tail at the end about, like, loading the actual image on the PIL, uh, library. So okay, solution one, let's try to add some concurrency to this. Instead of those red singular p- uh, you know, serial processes, uh, let's try to parallelize it by kinda having, like, a worker pool. So when you request 256</span></div><div class="tline" data-t="397"><span class="ts">6:37</span><span class="tx">examples, maybe let's just process all of those at once. Um, yeah, so for example... for a sample, we have two costs. One is fetching the images, two is processing, so that's, like, decoding, vision pre-processing, and then tokenizing your text. Um, samples are very... are in-independent, so this just means it's, like, embarrassingly parallelizable. Um, and so yeah, you have a design decisions here. What forms of</span></div><div class="tline" data-t="427"><span class="ts">7:07</span><span class="tx">concurrency do you want? So there's asynchronous programming, uh, which is suitable for, like, I/O work, such as making SQL queries or, like, performing network requests. There's threads, uh, which you can use for, like, CPU-intensive, uh, workloads that relinquish the Python GIL, like, the Global Interpreter Lock. Um, so this... it's not straightforward what operations actually release a lock, so you have to do a little more of your investigation. But common uses are, like, using Hugging Face</span></div><div class="tline" data-t="457"><span class="ts">7:37</span><span class="tx">Transformers Tokenizers, using the PIL Transforms API, or, like, some Pandas operations. Processes, um, are more heavyweight, but also provide total isolation between your workloads. So you can leverage multiple cores on your machine as you finish your work. Um, yeah, doing a deep dive on the right solution would warrant its own talk, but, like, there's plenty of online resources that can help you decide for your use case. What's i-important for our solution is, is that we need to match our bottleneck,</span></div><div class="tline" data-t="487"><span class="ts">8:07</span><span class="tx">not simply going with a lever that's worked for us before. Um, so we'll choose asyncio for fetching images here, and then use Ray Actors as our processors, uh, as our process- multi-processing library. Um, Ray Actors are essentially the same as, like, general processes, but they offer us APIs to communicate across workers that just make it so that we don't have to reinvent the wheel. So yeah, your process is only as slow as your slowest link. Um, and we can see that our wait time ratio has gone</span></div><div class="tline" data-t="517"><span class="ts">8:37</span><span class="tx">down, um, on the second example, which is in the pink. Uh, you can see that the time spent f-fetching data per batch has gone basically, yeah, around, like, around, like, 40, 40 seconds. Um, so this is, this gives us a 25% speed up. However, you... yeah, that's, uh... as you can see, the... there's a huge gap that starts generating, especially as we're going through man-many steps. Um, so can we somehow limit our bottleneck</span></div><div class="tline" data-t="546"><span class="ts">9:06</span><span class="tx">of waiting on the trainer to request before provisioning our worker pool to fetch the data? So can we just, like, preemptively fetch our data? Um, so we came up with solution two, which was that we have a background thread that fills up a queue ahead of time, and it's always stays ahead of the consumer, which means that you... your producer is producing examples at a multiplier of your tra- of your consumer, and so the</span></div><div class="tline" data-t="576"><span class="ts">9:36</span><span class="tx">trainer is never bottlenecked on actually requesting the data. When it requests data, it's, it is available on demand. There's a caveat to prefetching. It makes your model and data loader checkpointing and resumption, like, a little intricate of a process, and it can also suffer from a cold start period in which your queue is actually getting filled up, uh, so it can be ready for training. Um, but a- if you work around those, those details, I think prefetching is a, is a great idea.</span></div><div class="tline" data-t="607"><span class="ts">10:07</span><span class="tx">Um, yeah, so I think making sure your producer is always ahead of your consumer will be... will pay great dividends for you here. Um, unsurprisingly, we achieved close to zero seconds of data fetching and processing per batch because we've already fetched data and processed it way before the trainer even needs it. Um, and so we've effectively solved both the data load and the transform bottlenecks. So after these two mitigations, we thought we were done. Throughput up, GPUs</span></div><div class="tline" data-t="637"><span class="ts">10:37</span><span class="tx">fed. However, we observed that the data transport costs still linger. In fact, they've gone up. So every sample transfers a large amount of, like, image arrays across process boundaries multiple times. Every sample is pickled on the worker, copied to the coordinator, and then re-pickled onto the trainer. Per sample, per step, we have a memcpy that nobody really asked for. So what ha- how this manifests is that your data generator can often OOM,</span></div><div class="tline" data-t="668"><span class="ts">11:08</span><span class="tx">um, and so multimodal tensors are huge. They're megabytes per sample. Um, and so by default, every sample is returned by value, which means this, that these expensive arrays are copied over from process to process. So a fix for this, you can come up with a object store. Um, this is a nice convenience method of... that Ray provides you. Each sample carries a object reference, which is just a pointer to the data, um, and then the driver just holds the pointer. The</span></div><div class="tline" data-t="698"><span class="ts">11:38</span><span class="tx">tensor never round trips to the head node. Um, and the Megatron data parallel ranks, they can just directly call the Ray store to fetch the data as they need it.</span></div><div class="tline" data-t="710"><span class="ts">11:50</span><span class="tx">So ev-with every choice of your parallelism and concurrency solution, you always have to think about the commu- added communication cost. So plan wisely around that. Okay. Yeah, and we were able to eliminate a extraneous, like, put object, uh, kinda call that our prefetcher solution had that we did not have to deal with by using the Ray store. And we can see that our, our communication costs go down, and the ratio of the time spent waiting also</span></div><div class="tline" data-t="740"><span class="ts">12:20</span><span class="tx">goes down. So to recap, we took a serial baseline, we added concurrency for data loading and processing, we added prefetching to stay ahead of training requests, and we added the Ray store to minimize data transfer. We w-went from a baseline wait ratio of 85% to 20%. And you can see that the sawtooth, uh, pattern that you see in the top graph is alleviated, uh, to a large extent, which means that our utilization of the GPUs has gone up.</span></div><div class="tline" data-t="771"><span class="ts">12:51</span><span class="tx">So when we're scaling up, now that we have, like, a good multimodal training pipeline, let's try to scale it up to, like, a production run. While doing that, we observed our wait time ratio for the same pipeline went up when all we did was scale some numbers. So we just added four times the data parallel ranks. We added, like, 200 data streams, and then batch size is X by four. Um, so it turns out that since the data generator and the worker pool are co-located for</span></div><div class="tline" data-t="801"><span class="ts">13:21</span><span class="tx">fast data transfer,</span></div><div class="tline" data-t="805"><span class="ts">13:25</span><span class="tx">what happens is that there's a bottleneck on the network interface card of that, of that node. Uh, which means that while we're packing all of this working and processing into specific nodes, that their network throughput is not able to keep up with the demand of the training pipeline.</span></div><div class="tline" data-t="825"><span class="ts">13:45</span><span class="tx">Um, so at this point, we did a little bit of digging into the frameworks that we are using, and we saw that by default, Ray schedules workers on the s-- it prefers to schedule workers on the same nodes and co-locate workers, which means that it's easy to bottleneck one machine before you move to another machine. So what we did was consider a possibility where we disaggregate this whole process where workers are spread across</span></div><div class="tline" data-t="855"><span class="ts">14:15</span><span class="tx">multiple nodes, um, so they can do their own image processing and storing, and in a lazy, just-in-time manner, are retrieved and used by our DP ranks. So yeah, to re-- And then so these are the two parameter, two f-flags that we kinda tuned. One is the zero-copy retrieval, and second is a spread scheduling mechanism. Um, neither of these actually helped in a small-scale experiment, but together they had, um, a</span></div><div class="tline" data-t="884"><span class="ts">14:44</span><span class="tx">synergistic effect in a large-scale experiment. Um, yeah, so s-config can lose... A config can do poorly at a small scale, but can do really good at a larger scale. So you should always think about how to ablate across your, your scaling ladders. And these were the two flags that ended up making a huge difference, uh, in how, how fast our data processing pipeline was. And so now this is the final pipeline that we've accomplished. A concurrent, eager,</span></div><div class="tline" data-t="914"><span class="ts">15:14</span><span class="tx">um, and a data pro-- uh, access pattern-aware system that shares the training across loads and enables that GPU stay warm while providing smoothness and stability in training. Overall, we achieved a 50% additional throughput at scale just from these two flags. It's the same knob, opposite verdict, set by the bottleneck. So these are the learnings we get from this talk, if nothing else. Um, GPUs are expensive, but sometimes the</span></div><div class="tline" data-t="944"><span class="ts">15:44</span><span class="tx">biggest battles happen outside of the GPU. So first ask yourself, are you CPU-bound or GPU-bound? Are you IO-bound or compute-bound? And then solving one bottleneck often exposes another. So first it was throughput for us, then it became wait time, then it became memory, then it became re-retrieval cost. Um, classic moves are not the end. You know, parallelism and prefetching matter, and I think a lot of content has, like, covered this. Uh, but so do the semantics of the</span></div><div class="tline" data-t="974"><span class="ts">16:14</span><span class="tx">frameworks that you're using and the, and the constraints that you're dealing with. And scale always changes the answer. Tuning parameters like zero-copy waste, um, and spreading workers become important only at larger scales, and they may not manifest as obvious improvements at smaller levels. S-overall, profiling your baseline helps you move the needle. Um, yeah, thank you everyone for attending the talk. Uh, if you have any questions, I'm happy to answer them.</span></div><div class="tline" data-t="1004"><span class="ts">16:44</span><span class="tx">Thanks.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

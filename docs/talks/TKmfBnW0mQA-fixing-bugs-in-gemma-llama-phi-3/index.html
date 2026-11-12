@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>修复 Gemma、Llama 和 Phi-3 中的 bug | AI 工程师中文版</title>
+<meta name="description" content="从 Gemma 的激活函数到 Llama 3 的特殊 token，可靠的微调取决于在训练、转换和推理过程中保住模型原有的假设。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>修复 Gemma、Llama 和 Phi-3 中的 bug</h1>
+    <div class="orig-title">Fixing bugs in Gemma, Llama &amp; Phi-3</div>
+    <div class="meta"><span class="speaker">Daniel Han</span> · AI Engineer World's Fair 2024 · 17:42</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=machine-learning-fundamentals">机器学习基础</a><a class="tag" href="../../index.html#topic=fine-tuning">微调</a><a class="tag" href="../../index.html#topic=embeddings-and-representation-learning">嵌入与表示学习</a><a class="tag" href="../../index.html#topic=inference">推理</a><a class="tag" href="../../index.html#topic=post-training">后训练</a><a class="tag" href="../../index.html#topic=transformers-and-attention">Transformer 与注意力</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/TKmfBnW0mQA-fixing-bugs-in-gemma-llama-phi-3" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="TKmfBnW0mQA"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=TKmfBnW0mQA" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">激活函数是模型的一部分</div></div>
+      <div class="label row">章节跳转 <span>共 11 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="38"><span class="ts">0:38</span><span>激活函数是模型的一部分</span></li><li data-t="135"><span class="ts">2:15</span><span>只插入一次序列开始 token</span></li><li data-t="204"><span class="ts">3:24</span><span>聊天模板可能引用未经训练的嵌入</span></li><li data-t="331"><span class="ts">5:31</span><span>别把“停止”的指令给遮掉了</span></li><li data-t="410"><span class="ts">6:50</span><span>把训练模板带进部署</span></li><li data-t="518"><span class="ts">8:38</span><span>谨慎训练敏感参数，并异步卸载</span></li><li data-t="634"><span class="ts">10:34</span><span>根据数据选择序列长度和内存设置</span></li><li data-t="735"><span class="ts">12:15</span><span>给 LoRA 足够的容量而不耗尽内存</span></li><li data-t="824"><span class="ts">13:44</span><span>把一行 CSV 变成一段可重复的对话</span></li><li data-t="929"><span class="ts">15:29</span><span>累积梯度，再检查推理提示词</span></li><li data-t="971"><span class="ts">16:11</span><span>导出模型以及让它可用的配置</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 8 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Slides and workshop resources" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Slides and workshop resources</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The talk slides and the previous day's three-hour workshop slides are available separately.
+
+[0:31](https://www.youtube.com/watch?v=TKmfBnW0mQA&amp;t=31s) [Links to the talk slides and workshop materials.](https://assets.ai.engineer/sites/aiecode2025/sha256/f9485b837d39f329022b2463962ef904f37b3c33343af11bf67f7e3a0739f92f.webp)
+
+Slides: tinyurl.com/unsloth2
+Workshop: tinyurl.com/unsloth</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="Gemma bugs and precision fixes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Gemma bugs and precision fixes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Daniel Han compares Gemma implementations that use approximate versus exact GELU. His precision chart shows lower L2 norms after fixes, including float32 RoPE, across the plotted layers.
+
+[0:36](https://www.youtube.com/watch?v=TKmfBnW0mQA&amp;t=36s) [Two posts compare GELU implementations and list Gemma issues, alongside a chart of precision fixes by layer.](https://assets.ai.engineer/sites/aiecode2025/sha256/6f47a8b930a33116504f9d7c9b33c50639360052fc8359abefb097893a954e12.webp)
+
+Daniel Han @danielhanchen · Mar 1
+Maybe I found another Gemma bug? Can anyone from the #Gemma team confirm if Gemma uses approx gelu or exact gelu?
+Keras=approx
+Gemma_pytorch=exact
+HF=exact
+When comparing Keras to HF, torch.dist gets 4.7943, while tanh approx gets 0.0057 Maybe @suryabhupa? :)
+
+Keras
+x1 = self.gating_ffw(normalized_x)
+x2 = self.gating_ffw_2(normalized_x)
+x = keras.activations.gelu(x1, approximate=True) * x2
+x = self.ffw_linear(x)
+
+gemma_pytorch
+def forward(self, x):
+    gate = self.gate_proj(x)
+    gate = F.gelu(gate)
+    up = self.up_proj(x)
+    fuse = gate * up
+    outputs = self.down_proj(fuse)
+    return outputs
+Label beside GELU call: exact
+
+HF
+def __init__(self, use_gelu_python: bool = False):
+    super().__init__()
+    if use_gelu_python:
+        self.act = self._gelu_python
+    else:
+        self.act = nn.functional.gelu
+Label beside GELU call: exact
+
+Daniel Han @danielhanchen · Mar 6
+Found more bugs for #Gemma:
+1. Must add &lt;bos&gt;
+2. There’s a typo for &lt;end_of_turn&gt;model
+3. sqrt(3072)=55.4256 but bfloat16 is 55.5
+4. Layernorm (w+1) must be in float32
+5. Keras mixed_bfloat16 RoPE is wrong
+6. RoPE is sensitive to y*(1/x) vs y/x
+7. (Fixed) RoPE should be float32
+
+Unsloth Gemma Precision Fixes (Log Scale)
+Y-axis: Log L2 Norm
+Y-axis ticks: 10², 10³, 10⁴
+X-axis: Layer Number
+X-axis ticks: 0.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5
+Original Impl
+Unsloth
+RoPE Float32 Fix
+Unsloth + Exact Gelu
+*Each line is a fix*
+*Lower is better*
+
+Interface text:
+Show more
+Left post: 9 replies, 58 reposts, 425 likes, 144K views
+Right post: 35 replies, 198 reposts, 1.3K likes, 558K views</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="Stickers and tokenizer fixes" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Stickers and tokenizer fixes</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Alongside Unsloth’s sticker designs, Daniel Han compares tokenization across models. His example shows extra trailing markers in Mistral-1 and a different sequence with Unsloth’s tokenizer fix.
+
+[1:00](https://www.youtube.com/watch?v=TKmfBnW0mQA&amp;t=60s) [Two posts show Unsloth stickers and a comparison of tokenization across models.](https://assets.ai.engineer/sites/aiecode2025/sha256/88ded8e6f3ffef8d42bb36ae38bc3bb6824159af8caf64d2eedac18224f4fcee.webp)
+
+Unsloth AI
+@UnslothAI
+
+Tomorrow we will be handing out our new stickers for the @aiDotEngineer World's Fair! 🦥
+
+Join us at 9AM, June 25 where we will be doing workshops on LLM analysis + technicals, @Ollama support &amp; more!
+
+We'll also be presenting a speech about fixing LLM bugs at 2:20PM, June 26!
+
+Daniel Han @danielhanchen · Jun 12
+
+More tokenizer fixes! I think Mistral v1's fast tokenizer is broken
+
+Mistral probs forgot to update v1 to support HF fast tokenizers - use_fast, legacy &amp; from_slow are needed to fix it. @UnslothAI now has load_correct_tokenizer to fix any tokenizer!
+
+Colab colab.research.google.com/drive/1zNbh9fq...
+
+Tokenization Fun!
+
+Llama-2
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]🌞It's🌞4.🌞&lt;/s&gt;
+
+Mistral-1
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;🌞🌞
+
+Mistral-2
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;
+
+Mistral-3
+&lt;s&gt;[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;
+
+Mixtral
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;
+
+Unsloth version of Mistral-1
+
+Mistral-1
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;🌞🌞
+
+Mistral-1[Unsloth]
+&lt;s&gt;[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;
+
+from unsloth import load_correct_tokenizer
+
+Interface text:
+4 replies · 16 reposts · 161 likes · 15K views</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="Llama-3 bugs" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Llama-3 bugs</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>After discussing Gemma and Phi-3 the previous day, the speaker turns to bugs the team found in Llama 3.
+
+[1:17](https://www.youtube.com/watch?v=TKmfBnW0mQA&amp;t=77s) [Gemma, Phi-3, and Llama-3 bugs are listed, with Llama-3 emphasized.](https://assets.ai.engineer/sites/aiecode2025/sha256/483fd282a2aefa787417756dac02887772be17c33cbe7dcbc246125cc46438c3.webp)
+
+Gemma bugs
+Phi-3 bugs
+&gt;&gt;Llama-3 bugs&lt;&lt;</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Phi-3 Mini implementation details" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Phi-3 Mini implementation details</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The slide shows a 2047 sliding window; the speaker says it should be 2048. It also shows RoPE calculations upcast to float and two dynamic scaling variants.
+
+[1:36](https://www.youtube.com/watch?v=TKmfBnW0mQA&amp;t=96s) [Code and annotations discuss sliding-window attention, upcast rotary embeddings, and dynamic rotary embeddings in Phi-3 Mini.](https://assets.ai.engineer/sites/aiecode2025/sha256/f772a98dd18dade0b68133fd8872c5c59b059f4f995e56feaac127442c371f93.webp)
+
+Phi-3 3.8b Mini
+
+&quot;sliding_window&quot;: 2047,    &quot;max_position_embeddings&quot;: 4096,
+
+SWA like Mistral?
+
+use_sliding_windows = (
+    _flash_supports_window_size
+    and getattr(self.config, &quot;sliding_window&quot;, None) is not None
+    and kv_seq_len &gt; self.config.sliding_window
+)
+
+Upcasted RoPE like Gemma
+
+q_embed = (q.float() * cos.float()) +
+          (rotate_half(q).float() * sin.float())
+k_embed = (k.float() * cos.float()) +
+          (rotate_half(k).float() * sin.float())
+return q_embed.to(q.dtype), k_embed.to(k.dtype)
+
+Dynamic RoPE
+
+class Phi3SuScaledRotaryEmbedding(_Phi3ScaledRotaryEmbedding):
+math.sqrt(1 + math.log(scale) /
+              math.log(self.original_max_position_embeddings))
+
+class Phi3YarnScaledRotaryEmbedding(_Phi3ScaledRotaryEmbedding):
+return 0.1 * math.log(scale) + 1.0</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Sliding-window configuration fix" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Sliding-window configuration fix</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A config.json commit changes Phi-3’s sliding window from 2047 to 2048, citing the flash-attn pattern.
+
+[1:45](https://www.youtube.com/watch?v=TKmfBnW0mQA&amp;t=105s) [A configuration diff changes the sliding-window value from 2047 to 2048.](https://assets.ai.engineer/sites/aiecode2025/sha256/e7279bcd54f20c6baaac7a0768e57c2a92602b5ba1254641da20079cd1c99b23.webp)
+
+fix(config): Fixes typo on sliding_window due to flash-attn pattern.
+
+config.json
+@@ -26,7 +26,7 @@
+Before:
+26  &quot;rms_norm_eps&quot;: 1e-05,
+27  &quot;rope_scaling&quot;: null,
+28  &quot;rope_theta&quot;: 10000.0,
+29 - &quot;sliding_window&quot;: 2047,
+30  &quot;tie_word_embeddings&quot;: false,
+31  &quot;torch_dtype&quot;: &quot;bfloat16&quot;,
+32  &quot;transformers_version&quot;: &quot;4.39.3&quot;,
+
+After:
+26  &quot;rms_norm_eps&quot;: 1e-05,
+27  &quot;rope_scaling&quot;: null,
+28  &quot;rope_theta&quot;: 10000.0,
+29 + &quot;sliding_window&quot;: 2048,
+30  &quot;tie_word_embeddings&quot;: false,
+31  &quot;torch_dtype&quot;: &quot;bfloat16&quot;,
+32  &quot;transformers_version&quot;: &quot;4.39.3&quot;,
+
+Interface text:
+gugarosa committed on about 2 hours ago
+Commit b043e05
+1 Parent(s): 3a81184
+Browse files
+Files changed (1)
+config.json +1 -1
+config.json CHANGED</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Unsloth Phi-3 modifications" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Unsloth Phi-3 modifications</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Unsloth separates Phi-3’s QKV and gate/up projections. The speaker recommends unfusing QKV for LoRA fine-tuning; the slide shows similar leaderboard scores and a sliding-window correction from 2047 to 2048.
+
+[1:50](https://www.youtube.com/watch?v=TKmfBnW0mQA&amp;t=110s) [Diagrams show unfused attention and feed-forward projections alongside Phi-3 Mini and Medium benchmark comparisons.](https://assets.ai.engineer/sites/aiecode2025/sha256/c37aebd11f7288fee2a554b4c418c7f36376b730ad97c21dcde54fa0908c52cd.webp)
+
+Unsloth &quot;Mistral-fied&quot; Phi-3 Mini &amp; Medium
+
+self.qkv_proj = nn.Linear(self.hidden_size, op_size, bias=False)
+
+W(QKV) unfused now
+Wq Wk Wv → Wq K V
+
+A B
+LoRA A matrix now has 3, not 1
+
+gate_up_proj = nn.Linear(config.hidden_size, 2 * config.intermediate_size
+
+W(gate, up) unfused
+Wgate Wup → Wg Wu
+
+&quot;rope_theta&quot;: 10000.0,
+&quot;sliding_window&quot;: 2047,
+&quot;tie_word_embeddings&quot;: false,
+&quot;torch_dtype&quot;: &quot;bfloat16&quot;,
+2048
+
+Open LLM Leaderboard same performance
+
+Phi-3 Medium
+Model | Average | ARC | HellaSwag | MMLU | TruthfulQA | Winogrande | GSM8K
+unsloth/Phi-3-medium-4k-instruct | 73.57 | 67.06 | 85.69 | 77.85 | 57.75 | 72.85 | 80.21
+microsoft/Phi-3-medium-4k-instruct | 73.45 | 67.32 | 85.76 | 77.83 | 57.71 | 72.69 | 79.38
+
+Phi-3 Mini
+microsoft/Phi-3-mini-4k-instruct | 69.91 | 62.97 | 80.6 | 69.08 | 59.88 | 72.38 | 74.53
+unsloth/Phi-3-mini-4k-instruct | 69.86 | 62.97 | 80.61 | 69.08 | 59.88 | 72.69 | 73.92</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Double BOS tokens and tokenization" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Double BOS tokens and tokenization</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Training with two BOS tokens and inferring with one can lower accuracy. The slide highlights duplicate BOS tokens in Llama-3 Instruct and Gemma; Unsloth checks for and removes the extra token.
+
+[2:13](https://www.youtube.com/watch?v=TKmfBnW0mQA&amp;t=133s) [Tokenization examples compare model templates and llama.cpp with Hugging Face, highlighting double BOS tokens in Llama-3 Instruct and Gemma.](https://assets.ai.engineer/sites/aiecode2025/sha256/4cd6d131ba9ffc5f8498896f2f738da8208772f8f0ff5a3adc7dbe80133439a3.webp)
+
+1. Double BOS tokens
+
+Tokenization Fun!
+
+Llama-2
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]🌞It's🌞4.🌞&lt;/s&gt;
+
+Mistral-1
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;🌞🌞
+
+Mistral-2
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;
+
+Mistral-3
+&lt;s&gt;[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;
+
+Mixtral
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;
+
+Unsloth version of Mistral-1
+
+Mistral-1
+&lt;s&gt;🌞[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;🌞🌞
+
+Mistral-1[Unsloth]
+&lt;s&gt;[INST]🌞What🌞is🌞2+2?🌞[/INST]It's🌞4.&lt;/s&gt;
+
+from unsloth import load_correct_tokenizer
+
+GGUF tokenization &amp; HF Tokenization
+llama.cpp | Hugging Face
+
+Mistral
+1 -&gt; '&lt;s&gt;' | [(1, '&lt;s&gt;'),
+20811 -&gt; ' Below' | (20811, 'Below'),
+349 -&gt; ' is' | (349, 'is'),
+396 -&gt; ' an' | (396, 'an'),
+13126 -&gt; ' instruction' | (13126, 'instruction'),
+369 -&gt; ' that' | (369, 'that'),
+13966 -&gt; ' describes' | (13966, 'describes'),
+264 -&gt; ' a' | (264, 'a'),
+&gt; Token IDs match
+&gt; llama.cpp extra space in front
+
+Llama-3
+128000 -&gt; '&lt;|begin_of_text|&gt;' | [(128000, '&lt;|begin_of_text|&gt;'),
+39314 -&gt; 'Below' | (39314, 'Below'),
+374 -&gt; ' is' | (374, ' is'),
+459 -&gt; ' an' | (459, ' an'),
+7754 -&gt; ' instruction' | (7754, ' instruction'),
+430 -&gt; ' that' | (430, ' that'),
+16964 -&gt; ' describes' | (16964, ' describes'),
+264 -&gt; ' a' | (264, ' a'),
+&gt; Both match
+&gt; Both have extra spaces in front
+
+Llama-3 Instruct
+128000 -&gt; '&lt;|begin_of_text|&gt;'
+128000 -&gt; '&lt;|begin_of_text|&gt;'
+128006 -&gt; '&lt;|start_header_id|&gt;'
+882 -&gt; 'user'
+128007 -&gt; '&lt;|end_header_id|&gt;'
+&gt; Double BOS tokens!
+Careful - chat templates must use only 1 &lt;|begin_of_text|&gt; token
+
+Gemma-it
+2 -&gt; '&lt;bos&gt;' | [(2, '&lt;bos&gt;'),
+30641 -&gt; ' Below' | (33501, 'Below'),
+603 -&gt; ' is' | (603, ' is'),
+
+2 -&gt; '&lt;bos&gt;' | [(2, '&lt;bos&gt;'),
+2 -&gt; '&lt;bos&gt;' | (2, '&lt;bos&gt;'),
+106 -&gt; '&lt;start_of_turn&gt;' | (106, '&lt;start_of_turn&gt;'),
+1645 -&gt; 'user' | (1645, 'user'),
+108 -&gt; '[illegible] | (108, '\n'),
+&gt; Double BOS!
+&gt; First token after BOS different!</pre></details>
+        
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">激活函数是模型的一部分</a></li><li><a href="#sec-2">只插入一次序列开始 token</a></li><li><a href="#sec-3">聊天模板可能引用未经训练的嵌入</a></li><li><a href="#sec-4">别把“停止”的指令给遮掉了</a></li><li><a href="#sec-5">把训练模板带进部署</a></li><li><a href="#sec-6">谨慎训练敏感参数，并异步卸载</a></li><li><a href="#sec-7">根据数据选择序列长度和内存设置</a></li><li><a href="#sec-8">给 LoRA 足够的容量而不耗尽内存</a></li><li><a href="#sec-9">把一行 CSV 变成一段可重复的对话</a></li><li><a href="#sec-10">累积梯度，再检查推理提示词</a></li><li><a href="#sec-11">导出模型以及让它可用的配置</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">修复 Gemma、Llama 和 Phi-3 中的 bug</h2>
+      <div class="lede"><p>从 Gemma 的激活函数到 Llama 3 的特殊 token，可靠的微调取决于在训练、转换和推理过程中保住模型原有的假设。</p><p>熟悉分词、监督微调和 LoRA 会有帮助；代码示例使用 Python 和 PyTorch。</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="38">▶ 0:38</button></div>
+      <h3>激活函数是模型的一部分</h3>
+      <p>What happens when a model expects approximate GELU, but its implementation uses exact GELU? The mathematically more exact function is still the wrong function for those weights. <strong>Gemma</strong> provides Daniel Han’s opening example: one of Unsloth’s fixes was to use the approximate activation the model expected. The opening slides show GELU code comparisons alongside other implementation and precision differences.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/4f34a692fb045f1477bbc18252e9dedc20e6f7f2d446bfa0c280378e8f0cbc14" alt="Two posts show GELU code comparisons, a list of Gemma bugs, and a graph comparing precision fixes across layers." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Gemma implementation differences and Unsloth precision fixes.</figcaption></figure>
+<p>Tokenization creates another class of mismatches. Han points to the <a href="https://unsloth.ai/blog/gemma-bugs" target="_blank" rel="noopener">Gemma bug report</a> and its accompanying Colab, then briefly revisits <strong>Phi-3</strong>: he reports a sliding-window correction from 2,047 to 2,048 and recommends separating its fused QKV matrices for LoRA fine-tuning. These are the background to the main walkthrough, <strong>Llama 3</strong>, which he introduces as eight findings, including some not yet publicly announced.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="135">▶ 2:15</button></div>
+      <h3>只插入一次序列开始 token</h3>
+      <p>A fine-tune can train successfully and still encounter a different input format at inference. Han’s first Llama 3 example is <strong>duplicate beginning-of-sequence tokens</strong>: training examples start with two BOS tokens, while inference prompts start with one. He reports lower inference accuracy from this mismatch. Unsloth checks for the extra token and removes it automatically; Han notes that the same issue also affects <strong>Mistral</strong> and Gemma.</p>
+<p>Llama 3 needs a BOS token, but only one component should insert it. The distinction is between rendering a chat template and subsequently tokenizing that rendered text. A template can already contain the special tokens, so adding them again during tokenization duplicates them. Current <a href="https://huggingface.co/docs/transformers/chat_templating" target="_blank" rel="noopener">Hugging Face chat-template guidance</a> makes the two safe paths explicit: tokenize inside <code>apply_chat_template</code>, or render first and then tokenize with <code>add_special_tokens=False</code>.</p>
+<p>```python
+def tokenize_conversation(tokenizer, messages):
+    return tokenizer.apply_chat_template(
+        messages,
+        tokenize=True,
+        add_generation_prompt=False,
+    )</p>
+<p>def tokenize_rendered_conversation(tokenizer, messages):
+    rendered = tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=False,
+    )
+    return tokenizer(
+        rendered,
+        add_special_tokens=False,
+    )[&quot;input_ids&quot;]
+```</p>
+<p>Both functions assume a model-appropriate template that supplies its required special tokens. Inspect the resulting token sequence before training; checking only the human-readable prompt can miss an extra insertion by the tokenizer.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="204">▶ 3:24</button></div>
+      <h3>聊天模板可能引用未经训练的嵌入</h3>
+      <p>The next mismatch is between the checkpoint and its template. <strong>Llama 3 Base</strong> and <strong>Llama 3 Instruct</strong> do not have the same training history for special tokens. Han warns that applying the instruct template to the base model can introduce untrained tokens and produce NaN gradients during fine-tuning. His list includes reserved special tokens numbered 0–250, the end-of-turn token, and the start-header and end-header tokens. The embedding-mean graph shows some entries at zero: tokens deliberately left unused in the base model.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/ae5f761e357d2b0a34ba561bc3dd6e679edae7aa5943139945944635fc7f6af8" alt="Slide showing an embedding-mean graph beside reserved, end-of-turn, start-header, and end-header token labels." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Untrained special tokens in Llama-3 Base.</figcaption></figure>
+<p>The proposed repair initializes untrained rows from the mean of the trained rows. Unsloth performs this automatically. <strong>Exclude untrained rows from the mean itself</strong>, including its denominator. Otherwise, zero rows dilute the initialization. Han’s example of 10,000 untrained tokens illustrates this arithmetic; it is not a count of the affected Llama 3 tokens. The <a href="https://unsloth.ai/blog/llama3" target="_blank" rel="noopener">Llama 3 companion article</a> describes the same masked-mean repair.</p>
+<p>```python
+import torch</p>
+<p>@torch.no_grad()
+def initialize_untrained_rows(weight, untrained_mask):
+    # weight: [vocabulary_size, embedding_dimension]
+    # untrained_mask: one Boolean per vocabulary row
+    untrained_mask = untrained_mask.to(
+        device=weight.device, dtype=torch.bool
+    )
+    trained_mask = ~untrained_mask
+    if not trained_mask.any():
+        raise ValueError(&quot;At least one trained row is required&quot;)
+    if not untrained_mask.any():
+        return</p>
+<p>mean_row = weight[trained_mask].float().mean(dim=0)
+    weight[untrained_mask] = mean_row.to(weight.dtype)
+```</p>
+<p>The mask must identify the untrained rows for the checkpoint being repaired. The function leaves trained rows unchanged and computes the average only over them.</p>
+<p>For the ordinary fine-tuning path, Han’s recommendation is to use the instruct template with the instruct checkpoint. If the task requires training the base model with these tokens, another remedy is to train the <strong>token embeddings and language-model head</strong> rather than leaving those parameters frozen. That lets the newly used token representations learn alongside the rest of the adaptation.</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="331">▶ 5:31</button></div>
+      <h3>别把“停止”的指令给遮掉了</h3>
+      <p>Padding creates a subtler failure. In a training pipeline that masks labels by the padding token’s identity, assigning PAD and EOS the same token ID removes both from the cross-entropy loss. The real end-of-sequence token then provides no stopping supervision. Han describes the resulting symptom as infinite generation and points to Phi-3’s matching PAD and EOS IDs. The mechanism depends on how labels are masked: sharing an ID is dangerous here because the masking rule cannot distinguish genuine endings from padding.</p>
+<p>Consider a teaching sequence with a content token <code>42</code>, an EOS token <code>2</code>, and two padding positions. If PAD is also <code>2</code>, masking every occurrence of the pad ID turns <code>[42, 2, 2, 2]</code> into labels <code>[42, -100, -100, -100]</code>. Assigning padding a distinct ID, here <code>0</code>, lets the same rule preserve EOS: <code>[42, 2, 0, 0]</code> becomes <code>[42, 2, -100, -100]</code>. The <code>-100</code> labels are ignored by the loss.</p>
+<p>Han describes Unsloth’s repair as selecting an available untrained token for padding, or adding a new token when necessary. Adding one requires checking the vocabulary for collisions; his implementation appends extra hash characters until the proposed token string is unique.</p>
+<p>A distinct padding ID preserves EOS supervision
+Padding remains excluded from the loss while the real end-of-sequence token becomes a training target.
+Constructed example: Token IDs 42, 2 and 0, the four-position sequence, and the use of ignore label -100 are teaching values, not token IDs or a sequence shown in the recording. The comparison illustrates the described repair, not an executed training result.
+One sequence with two padding positions — unchanged: Content token 42 → EOS token 2 → padding → padding
+Operation: Assign padding the distinct token ID 0 instead of EOS ID 2, then rebuild labels by masking positions whose token ID equals PAD.
+- Position 1: content
+  - Before: PAD shares EOS ID 2: Token 42; label 42
+  - After: PAD has distinct ID 0: Token 42; label 42
+- Position 2: actual ending
+  - Before: PAD shares EOS ID 2: Token 2; label -100 (ignored)
+  - After: PAD has distinct ID 0: Token 2; label 2 (supervised)
+- Position 3: padding
+  - Before: PAD shares EOS ID 2: Token 2; label -100 (ignored)
+  - After: PAD has distinct ID 0: Token 0; label -100 (ignored)
+- Position 4: padding
+  - Before: PAD shares EOS ID 2: Token 2; label -100 (ignored)
+  - After: PAD has distinct ID 0: Token 0; label -100 (ignored)
+Padding remains excluded from the loss while the real end-of-sequence token becomes a training target.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="410">▶ 6:50</button></div>
+      <h3>把训练模板带进部署</h3>
+      <p>The same formatting contract must survive export. For Ollama, the chat template must match the one used during fine-tuning. Han introduces automatic generation of the Ollama <code>Modelfile</code> to avoid reconstructing that template by hand. His two Colab workflows cover an Alpaca dataset and a user-uploaded CSV, both ending in an Ollama deployment.</p>
+<p>Three community findings extend the checks into conversion and inference:</p>
+<p>- <strong>GGUF conversion:</strong> Han reports that the affected conversion workflow required CPU conversion rather than GPU conversion. He tentatively attributes the difference to float16 conversion precision. This is a historical workaround for the workflow he describes, not a general prohibition on GPU conversion.
+- <strong>Duplicate-BOS warnings:</strong> A community contribution added a warning in <code>llama.cpp</code> when BOS tokens are duplicated. The warning identifies the same training-and-serving mismatch discussed earlier.
+- <strong>System prompts:</strong> Some users found that including a system prompt improved results with Llama 3 Instruct. Han suggests trying it, especially when a prompt may have been omitted; he gives no measured comparison.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="518">▶ 8:38</button></div>
+      <h3>谨慎训练敏感参数，并异步卸载</h3>
+      <p>Han directs readers to the open-source <a href="https://github.com/unslothai/unsloth" target="_blank" rel="noopener">Unsloth repository</a>, where the Start Free Fine-Tune entry opens a corrected Colab notebook. By this point in the presentation, he says the Llama 3 fixes have been pushed to the repository. He also points to Discord support and blog posts covering Gemma, Llama 3, Phi-3 and continued pretraining.</p>
+<p>Continued pretraining brings the embedding and output layers back into the optimization problem. Han recommends training the token embeddings and language-model head with learning rates roughly 5–10 times lower than the other trained parameters. The intent is to adapt these layers without updating them as aggressively as the rest of the fine-tune.</p>
+<p>Han reports four times longer context with approximately 1–2% slower training completion using Unsloth’s offloaded gradient checkpointing. The talk does not specify the benchmark configuration. He describes moving gradients into system RAM; the accompanying engineering explanation clarifies that the checkpointing mechanism offloads <strong>activations</strong>. RAM is preferred before disk because disk transfers can make the fine-tune much slower. Even RAM offloading can lose its benefit if transfers block computation: the crucial implementation detail is <strong>non-blocking transfers</strong>, allowing data movement and GPU work to overlap.</p>
+    </section>
+<section class="section" id="sec-7">
+      <div class="section-head"><span class="num">07</span>
+      <button class="seek" data-t="634">▶ 10:34</button></div>
+      <h3>根据数据选择序列长度和内存设置</h3>
+      <p>The live walkthrough opens the Ollama Colab notebook, installs Unsloth and starts with <code>max_seq_length</code>. This setting should reflect the long sequences actually available for training. Setting it to one million or ten million does not create long-context training data; Han’s deliberately oversized example shows why the configuration must match the dataset’s content.</p>
+<p>Next comes <code>load_in_4bit</code>. Han describes four-bit loading as reducing memory use by four times and warns that disabling it may push usage to 16 GB in the demonstrated setup. He recommends leaving it enabled on the free Colab Tesla T4 and reserving higher-precision loading for larger GPUs. The talk does not separate weight storage from total training memory, so the fourfold figure should not be used as a total-memory sizing rule.</p>
+<p>The model-name field takes a Hugging Face model identifier. Han names Llama, Mistral, Gemma and Phi-3, then encourages trying models beyond the examples listed in the notebook. Compatibility still depends on the architecture and the installed Unsloth version; an identifier by itself does not establish support. The notebook frame shows model-loading settings alongside completed download bars before the walkthrough moves to adapter configuration.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/f7f283279b555b788174ede35fbf390373447bba62d1e338f0e1cb8999ec63e1" alt="Colab notebook displaying model-loading settings, Unsloth runtime information, and green download bars at 100 percent." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Model loading code and completed download output in the Unsloth notebook.</figcaption></figure>
+    </section>
+<section class="section" id="sec-8">
+      <div class="section-head"><span class="num">08</span>
+      <button class="seek" data-t="735">▶ 12:15</button></div>
+      <h3>给 LoRA 足够的容量而不耗尽内存</h3>
+      <p><code>get_peft_model</code> adds the PEFT LoRA adapters. The notebook starts with rank <code>r=16</code>; Han suggests 16, 32, 64 or 128 as practical choices. Powers of two are a preference, not a requirement. Increasing rank gives the adaptation more capacity, but also increases memory use and the risk of overfitting. He gives the model dimension as an upper-bound intuition, using 4,096 as his example, rather than recommending that rank as a starting point.</p>
+<p>Han recommends targeting all seven named attention and feed-forward projections rather than adapting only a subset:</p>
+<p>| Part of the model | LoRA target modules |
+| --- | --- |
+| Attention | <code>q_proj</code>, <code>k_proj</code>, <code>v_proj</code>, <code>o_proj</code> |
+| Feed-forward network | <code>gate_proj</code>, <code>up_proj</code>, <code>down_proj</code> |</p>
+<p>For <code>lora_alpha</code>, he recommends at least the rank and reports better results with twice the rank, illustrated by <code>r=16</code> and <code>lora_alpha=32</code>. These settings control different things: rank sets the adapter’s capacity, while alpha participates in scaling its contribution.</p>
+<p>One API distinction matters when following the recording. Han describes <code>use_rslora=True</code> as choosing alpha automatically. In current <a href="https://huggingface.co/docs/peft/package_reference/lora" target="_blank" rel="noopener">PEFT LoRA documentation</a>, it instead changes the scaling rule; rank and alpha remain configured values.</p>
+<p>``<code>math
+\begin{aligned}
+\text{Standard LoRA scale} &amp;= \frac{\alpha}{r} \\
+\text{Rank-stabilized LoRA scale} &amp;= \frac{\alpha}{\sqrt{r}}
+\end{aligned}
+</code>``</p>
+<p>Finally, the notebook offers Unsloth’s gradient-checkpointing mode for long-context fine-tuning. Han contrasts it with setting the option to ordinary <code>True</code>, which he describes as using more memory in this workflow.</p>
+    </section>
+<section class="section" id="sec-9">
+      <div class="section-head"><span class="num">09</span>
+      <button class="seek" data-t="824">▶ 13:44</button></div>
+      <h3>把一行 CSV 变成一段可重复的对话</h3>
+      <p>For data preparation, Han uploads a Titanic CSV. The task is to predict whether a passenger survived from attributes such as age, fare and embarkation location. Those feature columns must become the model’s input, with survival as the output.</p>
+<p>The demonstrated notebook expects an instruction/output pair. When a CSV has many feature columns, merge them into one instruction instead of discarding information. For example, this Python function formats a row while keeping the target out of the prompt:</p>
+<p>``<code>python
+def passenger_example(row):
+    instruction = (
+        &quot;Predict whether this Titanic passenger survived.\n&quot;
+        f&quot;Age: {row['Age']}\n&quot;
+        f&quot;Fare: {row['Fare']}\n&quot;
+        f&quot;Embarked: {row['Embarked']}&quot;
+    )
+    output = &quot;survived&quot; if int(row[&quot;Survived&quot;]) == 1 else &quot;died&quot;
+    return {&quot;instruction&quot;: instruction, &quot;output&quot;: output}
+</code>``</p>
+<p>Han contrasts this with Alpaca-style data, which separates instruction, input and response. Combining the instruction and auxiliary input gives the notebook a single user-side field and one response field. This is the interface of the export workflow he demonstrates, not a general two-column restriction imposed by Ollama or GGUF.</p>
+<p>The custom-template step then requires <strong>two input/output repetitions</strong>. One exchange does not fully specify how the next exchange joins it: trailing newlines and separators can become ambiguous. Han says the second repetition resolves these dangling-newline boundaries. His Llama 3 template example also contains two iterations, and he warns that omitting the second causes this notebook’s template processing to error. The repeated example defines the conversation boundary that must later be reproduced during inference.</p>
+    </section>
+<section class="section" id="sec-10">
+      <div class="section-head"><span class="num">10</span>
+      <button class="seek" data-t="929">▶ 15:29</button></div>
+      <h3>累积梯度，再检查推理提示词</h3>
+      <p>Han’s suggested training configuration uses a per-device batch size of <code>2</code> and <code>gradient_accumulation_steps=4</code>. For the single-device notebook, these give an effective batch size of eight:</p>
+<p>``<code>math
+\begin{aligned}
+B_{\text{effective}} &amp;= B_{\text{microbatch}} \times N_{\text{accumulation}} \\
+&amp;= 2 \times 4 = 8
+\end{aligned}
+</code>``</p>
+<p>A larger microbatch requires more batch-related memory at once. Increasing accumulation instead lets multiple forward/backward passes contribute to one optimizer update while retaining the smaller microbatch. Other choices, including sequence length and model configuration, still affect overall memory use.</p>
+<p>For the learning rate, Han suggests <code>2e-4</code> or smaller, with <code>2e-5</code> as another starting value. After training, the notebook runs inference using <code>apply_chat_template</code>. This returns to the first failure mode: the inference prompt must preserve the training format, including exactly one BOS token where required. Han notes that Unsloth handles the duplicate-BOS correction in this path.</p>
+    </section>
+<section class="section" id="sec-11">
+      <div class="section-head"><span class="num">11</span>
+      <button class="seek" data-t="971">▶ 16:11</button></div>
+      <h3>导出模型以及让它可用的配置</h3>
+      <p>The final notebook steps carry the fine-tune into Ollama:</p>
+<p>1. Install Ollama for the deployment environment.
+2. Save the model as GGUF, specifying multiple output formats if needed. The notebook can generate multiple GGUF outputs automatically instead of requiring a separate save workflow for each one.
+3. Inspect the generated <code>Modelfile</code> and copy it into a custom Ollama setup when appropriate.</p>
+<p>Han says the earlier workflow for producing multiple GGUF outputs required an extra ten minutes; he does not specify the model, hardware or formats for that timing. The generated <code>Modelfile</code> is the more consequential artifact: it carries the prompt template and stop parameters into the serving environment. Han identifies its automatic generation as the complicated part of the integration.</p>
+<figure><img src="https://ai.engineer/api/talk-essay-media/bc767ca8062e7b358c46ec633de59e14314e247be882cfac1321ac2fed3c74d0" alt="Notebook showing code to start Ollama and printed Modelfile text containing a prompt template and stop parameters." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The generated Ollama Modelfile displayed in Colab.</figcaption></figure>
+<p>The walkthrough ends with Ollama inference. The exported weights now have a corresponding serving configuration, so the model can receive the same conversation structure it learned during fine-tuning. Han points back to the Ollama chat-template notebook in the talk slides as the end-to-end path from data preparation to that final inference step.</p>
+    </section>
+    </div></div></section>
+
+  
+
+  <section id="resources" class="block"><h2>延伸阅读</h2><ul class="resources"><li><a href="https://unsloth.ai/blog/gemma-bugs" target="_blank" rel="noopener">Fixing All Gemma Bugs</a> — Unsloth's explanation of eight Gemma issues involving token formatting, numerical precision, normalization and GELU.</li><li><a href="https://unsloth.ai/blog/llama3" target="_blank" rel="noopener">Finetune Llama 3 with Unsloth</a> — Historical Llama 3 fine-tuning results and an explanation of untrained special tokens and their initialization.</li><li><a href="https://unsloth.ai/blog/long-context" target="_blank" rel="noopener">Unsloth Gradient Checkpointing</a> — The April 2024 explanation of activation offloading, with maximum-context estimates and benchmark conditions.</li><li><a href="https://github.com/unslothai/unsloth" target="_blank" rel="noopener">Unsloth repository</a> — The public Unsloth project, including installation guidance and training examples.</li><li><a href="https://huggingface.co/docs/transformers/chat_templating" target="_blank" rel="noopener">Hugging Face chat templates</a> — Current guidance for formatting conversations and avoiding duplicate special tokens during tokenization.</li><li><a href="https://huggingface.co/docs/peft/package_reference/lora" target="_blank" rel="noopener">PEFT LoRA configuration reference</a> — Configuration details for LoRA, including rank, alpha, trainable modules and rank-stabilized scaling.</li></ul></section>
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="0"><span class="ts">0:00</span><span class="tx">[upbeat music] Hello, everyone. Um, so today I'm gonna talk about how to fix b- bugs in open source models.</span></div><div class="tline" data-t="18"><span class="ts">0:18</span><span class="tx">Um, thanks for coming again. Um, we had a talk yesterday, the three-hour workshop, um, and thanks for coming again. Um, so we have slides. It's at tinyurl.com/unsloth2. Um, for the workshop slides, which we did yesterday, um, you can also access that now, um, tinyurl.com/unsloth as well.</span></div><div class="tline" data-t="38"><span class="ts">0:38</span><span class="tx">So you might know me from, like, the Gemma bug fixes that we did. So Gemma was an open source model by Google, and there are, like, a few bugs in there, and we fixed a few of them.</span></div><div class="tline" data-t="47"><span class="ts">0:47</span><span class="tx">Um, and we just did some tweets about this, and, you know, like, there's many bugs in there, like, you know, the activation function had to be exa- um, approximate GELU, not exact GELU, and there are some other issues that we talked about for Gemma.</span></div><div class="tline" data-t="62"><span class="ts">1:02</span><span class="tx">We also have, like, some, a few stickers which you can, you know, get them from, like, when we're outside. Um, but this is... Yeah, we won't be handing them during the talk.</span></div><div class="tline" data-t="71"><span class="ts">1:11</span><span class="tx">Um, but yeah, they're very cool and cute. Um, and also there's, like, tokenization problems as well in language models, which we also helped to fix.</span></div><div class="tline" data-t="79"><span class="ts">1:19</span><span class="tx">Today, I'm just gonna be talking about Llama 3 bugs. So yesterday I talked about Gemma and Phi-3, and today we're just sh- sharing all the stuff that we found with Llama 3.</span></div><div class="tline" data-t="89"><span class="ts">1:29</span><span class="tx">For Gemma, you can access, like, all the bug fixes that we did, um, in our blog post, and we have a Colab notebook for all of the Gemma bug fixes as well.</span></div><div class="tline" data-t="98"><span class="ts">1:38</span><span class="tx">For Phi-3, for example, um, we talked about this yesterday, um, and I just pasted some slides again if you wanna, like, review this in your own time. Um, for example, like, the sliding window should be two thousand and forty-eight, not two thousand and forty-seven.</span></div><div class="tline" data-t="112"><span class="ts">1:52</span><span class="tx">Um, you can also, like, you should unfuse all of the QKV matrices, otherwise LoRA fine-tuning will not work that well.</span></div><div class="tline" data-t="120"><span class="ts">2:00</span><span class="tx">But we'll be talking mainly about Llama 3. Um, so there is actually eight bugs in Llama 3. We... Some of them are not announced yet. Um, we will be announcing these later.</span></div><div class="tline" data-t="129"><span class="ts">2:09</span><span class="tx">Um, so this is, like, a prerelease. Um, and we'll be going through each of them separately.</span></div><div class="tline" data-t="135"><span class="ts">2:15</span><span class="tx">The first one is you must not use double BOS tokens. Um, so this is actually a very common theme in fine-tuning Llama 3. Some people don't actually know that you're adding two beginning of sentence tokens to the fine-tune, and this will actually ruin your fine-tune, um, by making the accuracy of your inference time lower.</span></div><div class="tline" data-t="152"><span class="ts">2:32</span><span class="tx">Um, so please, like, check before you fine-tune if you're using double BOS tokens. Um, in Unsloth, we do this, we check this automatically, and we'll remove the extra BOS token automatically for you.</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">So this will actually cause your model to lose accuracy, because if you trained on two BOS tokens and you do inference on one, then your model template will be incorrect.</span></div><div class="tline" data-t="171"><span class="ts">2:51</span><span class="tx">Um, so please check this. It's not just a Llama 3 problem. Other models like Mistral and Gemma also have problems like this, so just be careful of this issue.</span></div><div class="tline" data-t="181"><span class="ts">3:01</span><span class="tx">So a very easy way to check if you have double BOS tokens, if you use the apply_chat_template, um, uh, from Hugging Face, if you do the first one, your chat template must have a BOS token, otherwise it won't add it.</span></div><div class="tline" data-t="193"><span class="ts">3:13</span><span class="tx">Um, Llama 3 does require a BOS token. If you do the second one, you're actually having two BOS tokens if you do this, so please do not add a BOS token to the chat template.</span></div><div class="tline" data-t="204"><span class="ts">3:24</span><span class="tx">The second issue we found was you must not use the Llama 3 base model if you're using the Llama 3 template. Um, there are some untrained tokens in Llama 3 instruc-- um, in Llama 3 base.</span></div><div class="tline" data-t="215"><span class="ts">3:35</span><span class="tx">The instruct version actually has these tokens trained. So please be careful when you wanna use the Llama 3 base model when you wanna do your fine-tuning, because some of these tokens will cause NaNs for your gradients.</span></div><div class="tline" data-t="226"><span class="ts">3:46</span><span class="tx">These tokens include the reserved special tokens from zero to two hundred and fifty, the, um, end of, the end of turn token, the start header, and the end of header.</span></div><div class="tline" data-t="235"><span class="ts">3:55</span><span class="tx">Um, and the graph I showed shows you the, uh, mean of the embeddings versus the other tokens, and some of them actually are zero. So the Llama 3 team made some of these to- tokens go to zero purposefully because these tokens are not actually used for the model.</span></div><div class="tline" data-t="249"><span class="ts">4:09</span><span class="tx">Um, so just please don't use these, some of these tokens when you do fine-tuning as well. Um, if you wanna fix them, set them to the mean of the entire tokens.</span></div><div class="tline" data-t="259"><span class="ts">4:19</span><span class="tx">Um, in Unsloth, we do this automatically as well for you. Um, so we showed some code where you can take the mean of the un-- um, trained tokens and set them for the untrained tokens.</span></div><div class="tline" data-t="269"><span class="ts">4:29</span><span class="tx">Just be careful. Don't do this, like, incorrectly as well. If you wanna take the average of all the tokens, don't just take the average. You must remove the untrained tokens from the average.</span></div><div class="tline" data-t="278"><span class="ts">4:38</span><span class="tx">If you do not do that, you might actually have an incorrect average, right? If there's, like, ten thousand tokens which are untrained, if you divide it by ten thousand plus the number of trained tokens, your average will be incorrect.</span></div><div class="tline" data-t="289"><span class="ts">4:49</span><span class="tx">So, um, you have to do this more complicated method of masking out the untrained tokens and then take the average. Also, reminder, because of this issue, the Llama 3 chat template will not work for the base model.</span></div><div class="tline" data-t="302"><span class="ts">5:02</span><span class="tx">I have known, like, many fine-tuning people have used the Llama 3 instruct, um, chat template for the base model, and your fine-tune will actually be incorrect. Um, you will get NaNs in your gradients, and your whole fine-tune will be broken.</span></div><div class="tline" data-t="314"><span class="ts">5:14</span><span class="tx">So please do not use the Llama 3 instruct chat template for the Llama 3 base model. Only use this for the instruct model itself. Another way to fix this is to actually train the LLM head and the embed tokens, which will actually learn and remove the NaNs in your models.</span></div><div class="tline" data-t="331"><span class="ts">5:31</span><span class="tx">Another interesting fact, and not just a Llama 3 problem for, but for other models, is the pad token and the EOS token, uh, must not be the same. If you do this the same, your model will have infinite generations.</span></div><div class="tline" data-t="344"><span class="ts">5:44</span><span class="tx">Um, the reason is because the pad token gets masked out during the era, um, during the cross-entropy loss, and if you use the same t- pad token as the EOS token, then your EOS token, the end of sentence token, will be masked out.</span></div><div class="tline" data-t="355"><span class="ts">5:55</span><span class="tx">So just be very, very careful when you do fine-tuning to check what is the pad token ID and the EOS token ID. For example, if you look at Phi-3-</span></div><div class="tline" data-t="364"><span class="ts">6:04</span><span class="tx">They're the same. So technically, Phi-3, when you do fine-tuning, it will be infinite generations. So just be careful and look, you know, before you do have to fine-tune, check what is the EOS token and what is the pad token.</span></div><div class="tline" data-t="376"><span class="ts">6:16</span><span class="tx">They must be different. For Unsloth, we also do this automatically. We fix this for you, um, and we essentially check if there is any unreserved to-- uh, if there is any unreserved tokens, and we just select one which is untrained.</span></div><div class="tline" data-t="390"><span class="ts">6:30</span><span class="tx">If there is no untrained tokens, then we will add an extra pad token ourselves. Um, be careful. Do not add a pad token which has the same, like, vocabulary as your current vocabulary.</span></div><div class="tline" data-t="400"><span class="ts">6:40</span><span class="tx">So what we do is we actually check the tokens inside the vocabulary and add, like, extra hashes to see, you know, to make a new pad token.</span></div><div class="tline" data-t="410"><span class="ts">6:50</span><span class="tx">Another issue we found for fine-tuning, people, is, like, when you finish a fine-tune, you don't actually know how to export it to Ollama, and that is because the chat template for Ollama must be exactly the same as your fine-tune.</span></div><div class="tline" data-t="421"><span class="ts">7:01</span><span class="tx">Um, and this was actually very complicated to do before, and now we can actually automatically generate the Modelfile for you during the fine-tune. So we have, like, two Colab notebooks for you to use for Ollama.</span></div><div class="tline" data-t="432"><span class="ts">7:12</span><span class="tx">Um, one of them's the Alpaca dataset, and one of them's a-- You can upload a CSV file to make, um, Ollama work after you finish fine-tuning.</span></div><div class="tline" data-t="442"><span class="ts">7:22</span><span class="tx">Now, there are some community contributions for Llama 3, uh, bugs. Um, there is like thr- uh, three of them. The first one is someone noticed that you can only use CPU conversion and not GPU conversion when you convert to GGUF or llama.cpp.</span></div><div class="tline" data-t="455"><span class="ts">7:35</span><span class="tx">Um, so be, you know, be careful when you convert to llama.cpp that you must use the CPU version. Um, I think the main reason is because the precision is different in a GPU than a CPU.</span></div><div class="tline" data-t="465"><span class="ts">7:45</span><span class="tx">The CPU, when you do float16, it's different from when the GPU does float16 conversion. So just be careful on that as well.</span></div><div class="tline" data-t="474"><span class="ts">7:54</span><span class="tx">Another issue is, remember we talked about the double BOS tokens? Um, through a community contribution, the, um, llama.cpp now has a warning for you to tell you that you're using w-- BOS tokens.</span></div><div class="tline" data-t="485"><span class="ts">8:05</span><span class="tx">So please, you know, take heed of the warning and do not add double BOS tokens to your chat template and when you do inference.</span></div><div class="tline" data-t="493"><span class="ts">8:13</span><span class="tx">Another point someone found was adding a system prompt could make fine-tuning much better. Um, and so, like, sometimes when you in-- do inference on Llama 3 Instruct, if you add an actual system prompt, this could make your whole fine-tuning better.</span></div><div class="tline" data-t="507"><span class="ts">8:27</span><span class="tx">Um, I think for some people, when they add the system prompt, you actually miss the system prompt, like you don't actually add one. And so maybe try your fine-tune with the system prompt, and you never know, this could work.</span></div><div class="tline" data-t="518"><span class="ts">8:38</span><span class="tx">So we have like a GitHub package, um, which is open source, um, and you can click the button Start Free Fine-Tune to start your first free fine-tune using Unsloth.</span></div><div class="tline" data-t="526"><span class="ts">8:46</span><span class="tx">We already pushed all the Llama 3 bug fixes to our GitHub repo, and so the Start Free Fine-Tune button will redirect you to a fixed Colab notebook for all of these issues.</span></div><div class="tline" data-t="536"><span class="ts">8:56</span><span class="tx">Um, feel free to star us as well. We also, like, have a Discord channel, so if you have any questions, um, you can ask, you know, any question that you like about our, you know, how to do fine-tuning, talk about AI, and talk about our bugs as well.</span></div><div class="tline" data-t="550"><span class="ts">9:10</span><span class="tx">We also have like a blog post, so blog posts about all our fixes, about Gemma, b-- um, Llama 3, Phi-3, and more. Um, for example, we talked about continued pre-training.</span></div><div class="tline" data-t="559"><span class="ts">9:19</span><span class="tx">You can do continued pre-training using Unsloth now. We-- You can train on the LLM head and the embed tokens, and we show that instead of just training like that, you need to reduce the learning rate of the LLM head and the embed tokens by ten or, you know, maybe five to ten, and this will make your training</span></div><div class="tline" data-t="574"><span class="ts">9:34</span><span class="tx">much better. We also support four times longer context using Unsloth, um, and this also does not increase the time c-- uh, the time of completion. So we make it, uh, one to two percent slower, but you get four times longer context using Unsloth.</span></div><div class="tline" data-t="589"><span class="ts">9:49</span><span class="tx">Um, and this, uh, this was because, like, we use something called, um, offloading gradient checkpointing, where we offload the gradients to system RAM. There are some other systems which offload the gradients to the disk.</span></div><div class="tline" data-t="600"><span class="ts">10:00</span><span class="tx">Please do not do that. If you offload to disk, then your sys-- your time of completion of your fine-tune will be extremely slow. Um, so try to offload to system RAM first, and then offload to disk.</span></div><div class="tline" data-t="610"><span class="ts">10:10</span><span class="tx">Although if you don't... If you offload incorrectly, you might actually make this slower as well. So your offloading must be non-blocking calls, and do not do blocking calls to the system RAM.</span></div><div class="tline" data-t="621"><span class="ts">10:21</span><span class="tx">Yeah, so I will show you, um... Okay, let's see if I can open up, um... Let me go to...</span></div><div class="tline" data-t="634"><span class="ts">10:34</span><span class="tx">Does this work? Okay, I'm gonna open up a Colab notebook, um, for the Ollama one. Um, yes.</span></div><div class="tline" data-t="648"><span class="ts">10:48</span><span class="tx">Okay. So for the Ollama Colab notebook, you can simply just install Unsloth over here. Um, this is already for free for everyone to use. Um, and essentially, you don't forget when you do the Colab notebook, you have to select a max sequence length.</span></div><div class="tline" data-t="662"><span class="ts">11:02</span><span class="tx">Um, this de- this determines how long your model wants to do long context fine-tuning. Um, you can set this to any number that you like, but remember, your dataset must match the max sequence length.</span></div><div class="tline" data-t="672"><span class="ts">11:12</span><span class="tx">So for example, if you have-- If you wanna set the max sequence length to be like ten million or one million, um, but your dataset is only like one million tokens or like less, try to like not set that max sequence length to be that large.</span></div><div class="tline" data-t="683"><span class="ts">11:23</span><span class="tx">Otherwise, your model cannot do fine-tuning on long sequence. Um, load_in_4bit does four bit training, so this actually reduces memory usage by four times. Um, if you do, if you do it to false, your memory usage will explode, so please do not try false, um, especially on a free Colab Tesla T4.</span></div><div class="tline" data-t="700"><span class="ts">11:40</span><span class="tx">Um, if you do false, your memory usage might skyrocket to sixteen GB, so do not do that. Um, you only should do this if you use more stronger GPUs.</span></div><div class="tline" data-t="710"><span class="ts">11:50</span><span class="tx">We support, like Unsloth supports fine-tuning all models, including like Llama, Mistral, Gemma, Phi-3, and more. Um, so this area, like the model name over here, you can actually s-- try to select any model name that you like.</span></div><div class="tline" data-t="722"><span class="ts">12:02</span><span class="tx">Um, I don't think that people know that Unsloth can support other models other than the ones we listed. So please try to put any model, like a Hugging Face model name, in there, um, and it should work.</span></div><div class="tline" data-t="735"><span class="ts">12:15</span><span class="tx">So for the get_peft_model, this is where you add the PEFT LoRA adapters.</span></div><div class="tline" data-t="740"><span class="ts">12:20</span><span class="tx">The r is the rank, so we set it to be 16, but you can select any number that you like for fine-tuning. Um, so we suggest you normally to use powers of two, but you can use any number like one, two, three, like any number that you like.</span></div><div class="tline" data-t="751"><span class="ts">12:31</span><span class="tx">The larger the rank you select, you can make the model learn more about your data set. So... But if you add too large of a rank, you might actually overfit your data set, and also your memory usage might skyrocket again.</span></div><div class="tline" data-t="761"><span class="ts">12:41</span><span class="tx">So we normally suggest people to select sixteen, thirty-two, sixty-four, or one hundred and twenty-eight. Try not to select too large ranks. Um, the maximum rank you should select is the size of the dimension of the, uh, model itself.</span></div><div class="tline" data-t="772"><span class="ts">12:52</span><span class="tx">So if it's four thousand and ninety-six, set this to be four thousand and ninety-six.</span></div><div class="tline" data-t="777"><span class="ts">12:57</span><span class="tx">For the target modules, be careful. Um, you must do fine-tuning on all linear layers, right? So QKVO down, up, and, uh, gate. Some people have done fine-tuning without doing some of these layers.</span></div><div class="tline" data-t="789"><span class="ts">13:09</span><span class="tx">Please do not do that because this will cause your fine-tune to be not optimal. And the LoRA alpha, there is actually a trick for this. Um, normally speaking, select the alpha to be the same as the rank or larger.</span></div><div class="tline" data-t="800"><span class="ts">13:20</span><span class="tx">We found that if you do sixteen times two, so the rank times two, this can, this can make your fine-tuning much better. You can also use use_rslora to be True to, to set the rank automatically for you, uh, to set the alpha automatically for you.</span></div><div class="tline" data-t="813"><span class="ts">13:33</span><span class="tx">For the gradient checkpointing, Unsloth is the method which we showed that you can do long context fine-tuning. You can also set this to be True, um, but your memory usage will increase again.</span></div><div class="tline" data-t="824"><span class="ts">13:44</span><span class="tx">We also show you how to do data preparation in a co- Ollama Colab notebook. So this one is, we upload a Titanic CSV. So the Titanic data set, the goal was, can you predict if someone died or survived, um, if you're on the Titanic?</span></div><div class="tline" data-t="836"><span class="ts">13:56</span><span class="tx">And you get details about the person, for example, their age, their, like, fare, where did they embark from, and so on.</span></div><div class="tline" data-t="845"><span class="ts">14:05</span><span class="tx">With our new Colab notebooks, you have to be very careful when you do, um, Ollama chat templates, um, because when you do fine-tuning, you can only have two columns, the instruction and the output.</span></div><div class="tline" data-t="854"><span class="ts">14:14</span><span class="tx">But what happens if your CSV has more than one-- like more than two columns, the instruction and output? What we can do is you can merge the columns into one column, and with Unsloth now, you can actually do that.</span></div><div class="tline" data-t="863"><span class="ts">14:23</span><span class="tx">You can merge the columns into one. And also, we show you that you can do customizable chat templates now. So previously, if you want to do an Alpaca-style fine-tune, you have to use instruction, input, and response for the Alpaca-style fine-tuning.</span></div><div class="tline" data-t="879"><span class="ts">14:39</span><span class="tx">But remember, the problem is if you wanna output to Ollama or GGUF, you can only have two columns, the instruction and output, right? If you do ChatGPT, you c- you have to type something, and then the output comes along.</span></div><div class="tline" data-t="890"><span class="ts">14:50</span><span class="tx">You can't have, like, three inputs, right? So, so what we do is you can actually customize your tap- chat template, and you must include the input and the output, and you must do this repetition twice.</span></div><div class="tline" data-t="901"><span class="ts">15:01</span><span class="tx">Um, some people have asked me, like, &quot;Why do you have to do, uh, two repetitions of this chat template?&quot; It's because there is dangling new lines, um, and we found this-- we found a solution to this, is you have to specify two iterations of your ta- chat template.</span></div><div class="tline" data-t="916"><span class="ts">15:16</span><span class="tx">We also show examples of how to do the Llama 3 chat template using our methodology. Um, so you can see there is two iterations of the chat template.</span></div><div class="tline" data-t="924"><span class="ts">15:24</span><span class="tx">Reminder, if you don't use the two iterations, you actually-- it will error out.</span></div><div class="tline" data-t="929"><span class="ts">15:29</span><span class="tx">And this is the training methodologies. We normally suggest people to use a batch size of two, gradient accumulation of four. Remember, the memory usage is only relevant to the batch size, so try not to set the batch size to be very large, otherwise your memory usage will explode.</span></div><div class="tline" data-t="942"><span class="ts">15:42</span><span class="tx">Instead, set your gradient accumulation steps to be larger. Um, so the formula for the effective batch size is batch size times the gradient accumulation. So in this case, it's two times four, which is eight.</span></div><div class="tline" data-t="953"><span class="ts">15:53</span><span class="tx">Set your learning rate to be two e minus four or smaller, maybe two e minus five.</span></div><div class="tline" data-t="960"><span class="ts">16:00</span><span class="tx">And after that, you can also do inference on the model. Um, so now you have to use the apply_chat_template. Remember, be careful of double BOS tokens, but we in Unsloth fixed this.</span></div><div class="tline" data-t="971"><span class="ts">16:11</span><span class="tx">And finally, you have to save this to Ollama, um, and, you know, you have to install Ollama first. Um, saving now, we now support saving multiple GGUF files, so you don't actually have to save it to one GGUF file.</span></div><div class="tline" data-t="982"><span class="ts">16:22</span><span class="tx">You can save it to multiple, and we actually allow you to do this now. Um, before, if you want to save to multiple GGUF files, you have to wait ten minutes extra.</span></div><div class="tline" data-t="989"><span class="ts">16:29</span><span class="tx">You can now do this automatically by, you know, specifying more than one format.</span></div><div class="tline" data-t="996"><span class="ts">16:36</span><span class="tx">We also can show you the Modelfile which we created, so you can actually copy-paste the Modelfile and put this to custom, like a custom Ollama as well.</span></div><div class="tline" data-t="1003"><span class="ts">16:43</span><span class="tx">Um, so the Modelfile was the complicated part when we had to automatically generate this. So we have, like, internal code to generate the Modelfile automatically.</span></div><div class="tline" data-t="1012"><span class="ts">16:52</span><span class="tx">And finally, when you wanna do inference, you can do Lo- Ollama to do inference. Um, and you know, it works, um, in general. So try that out. Uh, the Ollama chat template notebook is in the slides, so tinyurl.com/unsloth2.</span></div><div class="tline" data-t="1025"><span class="ts">17:05</span><span class="tx">Um, and remember the workshop slides which we did yesterday, um, is tinyurl.com/unsloth. Um, and don't forget to join our Discord channel. Um, if you have any questions, I'm outside.</span></div><div class="tline" data-t="1035"><span class="ts">17:15</span><span class="tx">You can ask questions and stuff like that. Um, and yes, like, thanks for the, uh, thanks for coming and much appreciated. Thanks a lot. [outro music]</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>

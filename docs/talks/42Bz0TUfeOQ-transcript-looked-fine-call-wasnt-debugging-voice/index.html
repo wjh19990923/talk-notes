@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>转录看起来没问题，通话却出了问题 —— 调试语音智能体，Arize | AI 工程师中文版</title>
+<meta name="description" content="Fuad Ali 展示了一通退款电话如何在文字上看似挽回了局面，却仍在音频和执行层面失败——以及关联的 trace、音频评测和回放实验如何让这些失败更容易被发现和修复。" />
+<link rel="stylesheet" href="../../assets/style.css" />
+
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../../index.html">AI 工程师 · 中文版</a>
+  <nav class="topnav"><a href="../../index.html">全部演讲</a></nav>
+</header>
+<main class="wrap">
+  <section class="hero">
+    <a class="back" href="../../index.html">← 全部演讲</a>
+    <h1>转录看起来没问题，通话却出了问题 —— 调试语音智能体，Arize</h1>
+    <div class="orig-title">The Transcript Looked Fine. The Call Wasn't. — Debugging Voice Agents, Arize</div>
+    <div class="meta"><span class="speaker">Fuad Ali</span> · 17:59</div>
+    <div class="tags"><a class="tag" href="../../index.html#topic=voice-ai">语音 AI</a><a class="tag" href="../../index.html#topic=observability-and-reliability">可观测性与可靠性</a><a class="tag" href="../../index.html#topic=evals">评测</a><a class="tag" href="../../index.html#topic=agent-engineering">智能体工程</a><a class="tag" href="../../index.html#topic=human-in-the-loop-validation">人在环中验证</a></div>
+    <div class="actions">
+      <a class="btn primary" href="#article">阅读全文</a>
+      <a class="btn" href="#slides">幻灯片</a>
+      <a class="btn" href="#transcript">逐字稿</a>
+      <a class="btn" href="https://ai.engineer/talks/42Bz0TUfeOQ-transcript-looked-fine-call-wasnt-debugging-voice" target="_blank" rel="noopener">英文原页 ↗</a>
+    </div>
+  </section>
+
+  <section class="player-wrap">
+    <div class="player"><div id="yt" data-video="42Bz0TUfeOQ"></div>
+      <a class="yt-fallback" href="https://www.youtube.com/watch?v=42Bz0TUfeOQ" target="_blank" rel="noopener">在 YouTube 打开 ↗</a></div>
+    <aside class="chapters">
+      <div class="now"><div class="label">正在播放 <span id="clock">0:00</span></div><div id="nowTitle" class="now-title">可读的转写稿可能掩盖一段崩坏的对话</div></div>
+      <div class="label row">章节跳转 <span>共 6 节</span></div>
+      <ol id="chapterList" class="chapter-list"><li data-t="12"><span class="ts">0:12</span><span>可读的转写稿可能掩盖一段崩坏的对话</span></li><li data-t="220"><span class="ts">3:40</span><span>让音频、转写稿和执行记录保持在一起</span></li><li data-t="340"><span class="ts">5:40</span><span>规范化服务商事件，再把它们拼接成一个会话</span></li><li data-t="520"><span class="ts">8:40</span><span>检查操作，并评估音频本身</span></li><li data-t="699"><span class="ts">11:39</span><span>把分数挂在需要调查的 span 上</span></li><li data-t="819"><span class="ts">13:39</span><span>针对拟议的修复重放失败的交互</span></li></ol>
+    </aside>
+  </section>
+
+  <section id="slides" class="block">
+    <div class="block-head"><h2>幻灯片章节</h2><div class="slide-nav"><button class="icon" id="slidePrev">←</button><button class="icon" id="slideNext">→</button></div></div>
+    <p class="muted">共 18 组幻灯片与演示 · 时间戳为近似值</p>
+    <div id="slideStrip" class="slide-strip"><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="0" data-cap="Voice agents are growing fast" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Voice agents are growing fast</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>OpenAI’s voice model and Vercel’s AI Gateway tools illustrate rapid growth. David Weisburd calls coding agents AI’s first killer app and suggests voice may be the second.
+
+[1:11](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=71s) [Three social posts highlight developments in voice agents.](https://assets.ai.engineer/sites/aiecode2025/sha256/5188ac63710772b6117fce176bb4e2ddec334659d2111611f261b1024ca17c6d.webp)
+
+arize
+THE MOMENT
+
+Voice agents are growing fast
+
+OpenAI @OpenAI · May 7
+Introducing GPT-Realtime-2 in the API: our most intelligent voice model yet, bringing GPT-5-class reasoning to voice agents.
+
+Voice agents are now real-time collaborators that can listen, reason, and solve complex problems as conversations unfold.
+
+Now available in the API
+Show more
+3:58
+@OpenAI · model
+3.6M views
+
+David Weisburd @DWeisburd · 1h
+Coding agents are the first killer app of AI. Voice may be the second.
+
+Russ D’Sa says the difference is not intelligence. It is workflow economics.
+1:55
+@DWeisburd · thesis
+“second killer app”
+
+Vercel @vercel · Jun 29
+Voice agents, now on Vercel.
+
+Realtime, speech and transcription are now live on AI Gateway. Build with useRealtime, generateSpeech &amp; transcribe on AI SDK 7.
+
+VOICE AGENTS ON VERCEL
+AUDIO IS LIVE ON AI GATEWAY
+0:52
+@vercel · platform
+AI SDK 7
+
+Interface text:
+Voice agents · Fuad Ali
+2 / 17
+02 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="1" data-cap="One of the fastest-growing, hardest-to-debug categories" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One of the fastest-growing, hardest-to-debug categories</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Voice agents are spreading across support, scheduling and other uses, but transcripts can hide problems with latency, turn-taking, transcription drift and tone.
+
+[1:38](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=98s) [Cards describe rapid adoption, hidden failures, misleading logs and voice-agent use cases.](https://assets.ai.engineer/sites/aiecode2025/sha256/4df93b963cf20c50a32213614deb02c5cfb0eca179cba67cb0225f9ff4e29f0a.webp)
+
+arize
+THE PROBLEM
+
+One of the fastest-growing,
+hardest-to-debug categories
+
+EXPLODING
+Everyone's shipping one
+Support, scheduling, drive-thru, companions. Voice is everywhere.
+
+FRAGILE
+Failures you can't see
+Latency, turn-taking, transcription drift, tone.
+
+INVISIBLE
+The log lies
+The transcript reads fine. The call felt broken.
+
+Customer support
+Scheduling
+Drive-thru ordering
+Healthcare intake
+Outbound sales
+Language tutoring
+
+Voice agents · Fuad Ali
+03 / 17
+
+Interface text:
+3 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="2" data-cap="The transcript looks fine, but the call wasn't" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>The transcript looks fine, but the call wasn't</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>In an AI-generated refund call, the agent hears “fourteen” as “forty” and talks over the correction. The text log also hides 2.4 seconds of dead air before the agent speaks and its flat tone.
+
+[2:39](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=159s) [A refund transcript is paired with call issues including silence, interruption, transcription drift and robotic tone.](https://assets.ai.engineer/sites/aiecode2025/sha256/07d790ae7ed4d344359d997f9ec012bb31072be4c834ad8bf603e2bdf214b402.webp)
+
+arize
+THE GAP
+
+The transcript looks fine, but the call wasn't.
+
+WHAT THE TEXT LOG SHOWS
+Play the call
+
+User: I need a refund for order fourteen.
+Agent: Sure, I've started a refund for order forty.
+User: No, fourteen.
+Agent: Your refund is confirmed.
+
+WHAT ACTUALLY HAPPENED
+2.4s of dead air before the agent spoke, time-to-first-audio.
+The agent talked over the caller's correction, barge-in ignored.
+“fourteen” heard as “forty”, transcription drift.
+Flat, robotic tone on an upset caller.
+
+Interface text:
+Voice agents · Fuad Ali
+4 / 17
+04 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="3" data-cap="See the conversation beyond just the transcript" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>See the conversation beyond just the transcript</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Arize AX brings each turn’s audio, transcript and trace together with replayable sessions and per-turn metrics, making latency and interruptions easier to investigate.
+
+[3:57](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=237s) [Three cards describe audio with transcripts and traces, replayable sessions, and latency and interruption metrics.](https://assets.ai.engineer/sites/aiecode2025/sha256/d88d0bb8e03005b1551364c9c8bb307060157ac29b68facf0ccfd5a4a202fa65.webp)
+
+arize
+
+WHAT YOU NEED
+
+See the conversation beyond just the transcript
+
+TOGETHER
+Audio + transcript + trace
+Every turn: the raw audio, its transcript, and the span tree, in one view.
+
+SESSION
+The whole call, replayable
+Follow a session end to end, replay the audio, see turn-taking on a timeline.
+
+METRICS
+Latency &amp; interruptions
+Time-to-first-audio, barge-ins, and audio token cost, measured per turn.
+
+NEW IN AX
+Arize AX now traces, replays, and evaluates voice, the same observability and eval workflow you already run on text agents.
+
+Interface text:
+Voice agents · Fuad Ali
+05 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="4" data-cap="Every turn, traced span by span" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Every turn, traced span by span</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A span tree links user audio, assistant audio, an interruption and a tool call. Each span can include audio, transcripts and metrics; a session.id links turns.
+
+[4:46](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=286s) [A sample span tree shows input audio, assistant audio, an interruption and a tool call alongside trace capabilities.](https://assets.ai.engineer/sites/aiecode2025/sha256/292695cc009d0cb054500988280864f54db68d9beca017c13eba1d5089a00b14.webp)
+
+Every turn, traced span by span
+
+SPAN TREE, ONE TURN
+AUDIO · turn gpt-realtime
+  USER · input audio &quot;refund for order fourteen&quot;
+  LLM · assistant audio · time_to_first_token 2,410ms
+    RealtimeAudioInterrupted, caller barged in
+  TOOL · start_refund(order_id=40)
+
+ON EVERY SPAN
+Raw audio, play it inline from the trace.
+Input &amp; output transcripts, catch mishearings.
+time_to_first_token_ms + audio token cost.
+Interruption events, and a session.id linking the turns.
+
+Interface text:
+arize
+VOICE TRACES
+Voice agents · Fuad Ali
+6 / 17
+06 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="5" data-cap="Audio, transcript, latency &amp; evals, one trace view" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Audio, transcript, latency &amp; evals, one trace view</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Arize’s trace view brings a conversation tree, inline audio, transcript, latency and evaluations together for debugging. The example shows an assistant turn linked to a get_weather tool call.
+
+[5:19](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=319s) [A platform trace view shows a conversation tree and an audio waveform with playback and latency information.](https://assets.ai.engineer/sites/aiecode2025/sha256/ce243622c099528cfb4e416246025d315c09425d5a7735539e4a1692c7140d7e.webp)
+
+Audio, transcript, latency &amp; evals, one trace view
+
+▶ inline audio · 0:03 turn
+TTFA 0.74s
+tool get_weather
+conversation.turn → user → assistant
+
+Interface text:
+arize
+IN THE PLATFORM
+
+Arize AX
+Trace: [illegible]
+Trace Status OK
+Total Cost --
+Start Time 6/12/2026, 12:56:22 PM
++ Add Trace Eval
+Trace Tree
+Agent Graph
+Timeline
+conversation.turn
+user
+assistant
+get_weather
+assistant
+Input / Output
+Evaluations
+Annotations
+Prompts
+Customize Tabs
+Output
+TTFA: 0.74s
+0:00 / 0:03
+Okay, let's check what it's like in London right now.
+
+Voice agents · Fuad Ali
+07 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="6" data-cap="Realtime events become spans" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Realtime events become spans</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>WebSocket events map into a session lifecycle parent span and child spans for audio, conversation items and responses. Tool calls nest as spans, and errors attach to the active span.
+
+[5:38](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=338s) [WebSocket events map to a session span and child spans for audio, conversation items and responses.](https://assets.ai.engineer/sites/aiecode2025/sha256/3f21eed54fac6fd2b561bf81d3a68c2bb24bbd0075ad6886e63ba1fe026d9571.webp)
+
+arize
+UNDER THE HOOD
+
+Realtime events become spans
+
+Listen to the OpenAI Realtime API WebSocket and map its key events straight onto an OpenInference span tree.
+
+WEBSOCKET EVENTS
+SESSION  session.created / updated
+INPUT  speech_started / stopped
+CONVO  conversation.item.created
+OUTPUT  response.audio_transcript.done
+DONE  response.done · error
+
+ARIZE SPANS
+PARENT  session.lifecycle
+CHILD  Audio Input, transcript + url
+CHILD  conversation.item, role + content
+CHILD  Audio Output, transcript
+CHILD  response.lifecycle, token counts
+
+NO BLACK BOX  Tool calls nest as their own spans, and any error event is logged onto the active span, so failures land exactly where they happened.
+
+Interface text:
+Voice agents · Fuad Ali
+08 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="7" data-cap="Any provider, one queryable schema" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Any provider, one queryable schema</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Semantic conventions map OpenAI and Google event names to shared session, transcript and token-count attributes, so dashboards and filters keep working when providers change.
+
+[6:42](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=402s) [OpenAI and Google event names are normalized into shared session, transcript and token-count attributes.](https://assets.ai.engineer/sites/aiecode2025/sha256/629c88cb940f70c8cc2a265147c0167d7b9a473122ba417c5294897d205581f8.webp)
+
+arize
+UNDER THE HOOD
+
+Any provider, one queryable schema
+Semantic conventions normalize each provider’s own event names into the same typed attributes.
+
+OpenAI GPT-REALTIME
+response.audio_transcript.done
+input_audio_buffer.committed
+
+Google GEMINI LIVE
+serverContent.outputTranscription
+realtimeInput.audio
+
+SEMANTIC CONVENTIONS
+
+ARIZE SCHEMA
+session.id — stitch the call
+input.audio.transcript — what they said
+output.audio.transcript — what it said
+llm.token_count.* — cost
+
+WHY IT MATTERS
+Swap providers, or run both, and the same dashboards, filters and evals keep working. No bespoke parsing per vendor.
+
+Interface text:
+[illegible]
+Voice agents · Fuad Ali
+9 / 17
+09 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="8" data-cap="Replay the whole conversation" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Replay the whole conversation</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A session ID joins turns into a timeline. Playing audio from the trace helps reveal pauses and interruptions, then locate the span behind a failure.
+
+[7:38](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=458s) [Session IDs join turns into a timeline with inline audio and links to relevant spans.](https://assets.ai.engineer/sites/aiecode2025/sha256/188588f911c9278395c545ef49643be3ec291bfd21d9128f6adc8a21c0b210de.webp)
+
+arize
+SESSION VIEWS
+
+Replay the whole conversation
+
+session.id stitches every turn into one timeline, the full call, in order.
+Play the audio straight from the trace, no extra tooling, no exporting WAVs.
+See who spoke when, where the agent paused, where it got cut off.
+Jump from &quot;this felt wrong&quot; to the exact span that caused it.
+
+THE SHIFT
+You stop reading transcripts and start listening to the failure, with the trace open next to it.
+
+Voice agents · Fuad Ali
+10 / 17
+
+Interface text:
+[illegible]
+10 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="9" data-cap="Audio, transcript, latency &amp; evals, one trace view" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Audio, transcript, latency &amp; evals, one trace view</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>The trace tree places the get_weather tool call alongside an assistant turn with playable audio, its transcript and a 0.74s time to first audio, helping debug the call in context.
+
+[8:44](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=524s) [A trace view shows a conversation tree, a weather tool call, an audio waveform and latency.](https://assets.ai.engineer/sites/aiecode2025/sha256/5f333963d090710126baa7cb40ba81a3d66097b77b307a70ee4b556d055e3005.webp)
+
+arize
+IN THE PLATFORM
+
+Audio, transcript, latency &amp; evals, one trace view
+
+Trace: [illegible]
+Trace Status: OK
+Total Cost: --
+Start Time: 6/12/2026, 12:56:22 PM
+
+Trace Tree
+conversation.turn 13.3s
+  user 13.3s
+  assistant 1.31s
+    get_weather 0.22s
+  assistant 1.43s
+
+assistant
+Output  TTFA: 0.74s
+0:00 / 0:03
+Okay, let's check what it's like in London right now.
+
+▶ inline audio · 0:03 turn
+TTFA 0.74s
+tool get_weather
+conversation.turn → user → assistant
+
+Voice agents · Fuad Ali
+07 / 17
+
+Interface text:
+Arize AX
+jbennett Space
+Search...
+Home
+Observe
+Tracing Projects
+Monitors
+Dashboards
+Evaluate
+Evaluators
+Labeling Queues
+Improve
+Datasets &amp; Experiments
+Prompt Experiments
+More
+Invite User
+Settings
+Help
+Jim Bennett
+Agent Graph
+Timeline
+Search by span name
+Add Trace Eval
+Open in Playground
+Add to
+Annotate
+Add Span Eval
+Input / Output
+Evaluations
+Annotations
+Prompts
+Customize Tabs
+Pretty
+7 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="10" data-cap="One real session, turn by turn" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>One real session, turn by turn</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A real call shows 2.4 seconds of dead air, an interruption, and a refund filed for order 40 instead of 14. The session view lets you scrub the call and locate each failure on its span.
+
+[9:01](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=541s) [Four turns illustrate delay, interruption and a refund error caused by transcription drift.](https://assets.ai.engineer/sites/aiecode2025/sha256/eaebafb5172973101e11adb6dc12baa5faf41ffd488ab89071402e05976ff64f.webp)
+
+arize
+DEMO · FOLLOW A SESSION
+
+One real session, turn by turn
+
+Turn 1 · &quot;Hi, I need help with an order&quot; TTFA 480ms · clean
+Turn 2 · &quot;...a refund for order fourteen&quot; TTFA 2,410ms, 2.4s of dead air
+Turn 3 · agent speaks over the caller's correction RealtimeAudioInterrupted
+Turn 4 · refund filed for order 40, not 14 transcription drift
+
+THE PAYOFF
+Every one of these is invisible in a text log. In the session view, you scrub the call and each failure surfaces on its own span.
+
+Interface text: [illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="11" data-cap="Evals specific to audio" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Evals specific to audio</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Audio evals classify emotion from the audio itself, flag response-time breaches, and check interruptions and accuracy. Results attach to spans, where they can be filtered and trended.
+
+[9:52](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=592s) [Audio evaluations cover sentiment, time to first audio, interruptions and accuracy.](https://assets.ai.engineer/sites/aiecode2025/sha256/ad8929da1dec145f01b2b4fa307cf94f3f900b6474b4e36311e7ad41c92352ff.webp)
+
+arize
+VOICE EVALS
+
+Evals specific to audio
+
+TONE
+Sentiment from audio
+Classify caller emotion on the audio itself, positive / neutral / negative, not a guess from the transcript.
+
+LATENCY
+Time-to-first-audio SLAs
+Flag every turn that breaks your response-time budget.
+
+QUALITY
+Interruptions &amp; accuracy
+Barge-in handling, transcription drift, and task success per turn.
+
+IN THE PLATFORM
+Run evals directly against the audio (gpt-audio-mini). Results attach to each span as eval.&lt;name&gt;.{label, score, explanation}, filter and trend them like any eval.</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="12" data-cap="Create evals with Arize Skills" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Create evals with Arize Skills</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A plain-English request asks Claude to create a frustrated-tone audio eval. The example shows the Arize CLI authenticating and drafting the eval for audio spans.
+
+[11:49](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=709s) [A terminal-style example creates an audio sentiment eval from a plain-English request.](https://assets.ai.engineer/sites/aiecode2025/sha256/02aaeed618d303de22f53846f5370f6491c3d50b11b384d22515e51c3745e6d3.webp)
+
+arize
+AGENT SKILLS
+
+Create evals with Arize Skills
+
+&gt; Hey Claude, create an audio eval for sentiment analysis using gpt-audio to catch frustrated user tone on audio spans
+
+Thinking ..
+Calling arize CLI   authenticating workspace
+Drafting eval sentiment_frustration · model gpt-audio · target audio spans
+
+describe it in plain English
+the skill writes &amp; wires the eval
+runs on the audio spans
+
+Interface text:
+claude   ~/voice-agent</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="13" data-cap="Eval results attached to the span" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Eval results attached to the span</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>A user span carries a Gemini Audio Eval result with a label, score, and explanation. The speaker says attaching results to spans enables querying and filtering alongside the relevant audio.
+
+[12:59](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=779s) [An evaluations table shows a span-level label, score, and explanation.](https://assets.ai.engineer/sites/aiecode2025/sha256/df4e1c1f1d5094685feab3ee37512cb6f44b87f7cdee45462bb169a89f46e466.webp)
+
+arize
+IN THE PLATFORM
+
+Eval results, attached to the span
+
+USER  user
+Gemini Audio Eval: no
+
+name | scope | label | score | explanation
+Gemini Audio Eval | span | no | 0 | The user input asks about functional programming languages, not books.
+
+eval Gemini Audio Eval
+label no · score 0
+scope span
++ explanation on every result
+
+Interface text:
+Input / Output
+Evaluations 1
+Annotations
+Attributes
+Customize Tabs</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="14" data-cap="Same loop, now for voice" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Same loop, now for voice</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Voice agents follow an observe → evaluate → improve loop: capture traces and sessions, score the audio, then fix a failing turn and rerun the eval to verify it.
+
+[13:45](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=825s) [Three cards describe observing voice traces, evaluating audio, and fixing and verifying failures.](https://assets.ai.engineer/sites/aiecode2025/sha256/d18c6483b9397bf473f2920d8fda992e11710ba61e060d80f588b304000d71f0.webp)
+
+arize
+THE LOOP
+
+Same loop, now for voice
+
+Voice plugs into the same observe → evaluate → improve loop as the rest of your agents.
+
+OBSERVE
+Voice traces &amp; sessions
+Audio, transcripts, latency, interruptions, captured automatically.
+
+EVALUATE
+Voice evals
+Tone, latency, accuracy, scored on the audio, surfaced by Signal.
+
+IMPROVE
+Fix &amp; verify
+Investigate the failing turn, ship a fix, re-run the eval to confirm.
+
+ONE FACTORY
+Voice joins the same self-improving loop as your text agents. Signal, Harness-as-a-Judge, and experiments all work on audio too.
+
+Interface text:
+[illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="15" data-cap="Start seeing your voice agents" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Start seeing your voice agents</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Add the OpenInference instrumentor to trace audio turns, replay sessions to inspect time-to-first-audio and interruptions, then run a tone or latency eval with the arize-evaluator skill.
+
+[15:56](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=956s) [Three steps cover adding instrumentation, reviewing a session, and running a tone or latency eval.](https://assets.ai.engineer/sites/aiecode2025/sha256/b0fd6822712d25e4c0251c19872572d7d4d3810c227064af50b01db7f1e0551c.webp)
+
+arize
+START
+
+Start seeing your voice agents
+
+1. Add the OpenInference instrumentor, audio turns trace automatically as AUDIO + USER / LLM / TOOL spans.
+2. Open a session in Arize, replay it, check time-to-first-audio and interruptions.
+3. Run a tone or latency eval on the audio with the arize-evaluator skill.
+
+docs: arize.com/docs/ax/cookbooks/evaluate/tracing-and-evaluating-audio
+
+THE POINT
+Bring voice into the same rigor as the rest of your stack, debug by listening, score what you couldn't before.
+
+Interface text: [illegible]</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="" alt="" loading="lazy" data-lb="16" data-cap="Thank you" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>Thank you</h3>
+        <p></p>
+        <details><summary>幻灯片原文</summary><pre>Fuad invites builders to connect on Twitter or LinkedIn and share voice-agent use cases. The code AIEWF2026 offers a free year of Arize Pro.
+
+[17:08](https://www.youtube.com/watch?v=42Bz0TUfeOQ&amp;t=1028s) [Closing slide with contact QR codes and a promotional offer.](https://assets.ai.engineer/sites/aiecode2025/sha256/fb98e68716431472149341104d7d0e1b7a61ab7202e531e41642e7f37d10e3c8.webp)
+
+arize
+THANK YOU
+
+Thank you, let's keep building :)
+Scan to reach me, and grab a free year of Arize Pro.
+
+X / TWITTER
+@tofuadmiral
+
+LINKEDIN
+Fuad Ali
+
+A free year of Arize Pro, on us, use code AIEWF2026
+
+Voice agents · Fuad Ali
+17 / 17
+
+Interface text:
+17 / 17</pre></details>
+        
+      </div></article><article class="slide">
+      <img src="https://assets.ai.engineer/sites/aiecode2025/sha256/b1fe81cc9d214701bb2f3214a60b2f8a7aa3f584faa6e7f316b72b886084f994.webp" alt="AI Engineer World's Fair logo on a black background." loading="lazy" data-lb="17" data-cap="AI Engineer World's Fair" referrerpolicy="no-referrer" />
+      <div class="body">
+        <h3>AI Engineer World's Fair</h3>
+        <p>AI Engineer World's Fair logo on a black background.</p>
+        <details><summary>幻灯片原文</summary><pre>AI Engineer
+World’s Fair
+
+HTTPS://AI.ENGINEER</pre></details>
+        <button class="ts" data-t="1063">▶ 17:43</button>
+      </div></article></div>
+  </section>
+
+  <section id="article" class="block article"><div class="article-grid">
+    <nav class="toc"><div class="label">本文目录</div><ol id="toc"><li><a href="#sec-1">可读的转写稿可能掩盖一段崩坏的对话</a></li><li><a href="#sec-2">让音频、转写稿和执行记录保持在一起</a></li><li><a href="#sec-3">规范化服务商事件，再把它们拼接成一个会话</a></li><li><a href="#sec-4">检查操作，并评估音频本身</a></li><li><a href="#sec-5">把分数挂在需要调查的 span 上</a></li><li><a href="#sec-6">针对拟议的修复重放失败的交互</a></li></ol></nav>
+    <div>
+      <div class="label accent">阅读全文</div>
+      <h2 class="article-title">转录看起来没问题，通话却出了问题</h2>
+      <div class="lede"><p>Fuad Ali 展示了一通退款电话如何在文字上看似挽回了局面，却仍在音频和执行层面失败——以及关联的 trace、音频评测和回放实验如何让这些失败更容易被发现和修复。</p><figure><img src="https://ai.engineer/api/talk-essay-media/483de60a1d829472ae9e315120dfbd4d02d564fab69f748b44cdba7ff406317d" alt="The Transcript Looked Fine. The Call Wasn't. — Debugging Voice Agents, Arize 第 184 秒的演示画面" loading="lazy" class="zoom" referrerpolicy="no-referrer" /></figure><p>画面中的退款对话从“40 号订单”变成了客户的纠正：“不，是 14。”</p></div>
+      <section class="section" id="sec-1">
+      <div class="section-head"><span class="num">01</span>
+      <button class="seek" data-t="12">▶ 0:12</button></div>
+      <h3>可读的转写稿可能掩盖一段崩坏的对话</h3>
+      <p>Voice agents can fail in ways that their transcripts barely register. A response arrives late. The assistant talks over a correction. A number sounds close enough to another number that the wrong action follows. Fuad Ali, a product manager at Arize AI working on experimentation, opens with this debugging problem: voice needs observations that preserve how a conversation unfolded, alongside what its participants said.</p>
+<p>The stakes extend from customer support to drive-through ordering. Ali jokes about getting six hundred cheeseburgers at McDonald’s at two in the morning, but the underlying problem is ordinary: spoken requests lead to actions, and a plausible response does not establish that the action was right. Latency, turn-taking and transcription drift each create a separate way for that interaction to break.</p>
+<p>The central example is an AI-generated refund call. The customer asks for order fourteen. The agent announces a refund for order forty. The customer corrects it: “No, fourteen.” A final confirmation follows. Read as consecutive lines, the exchange invites a reassuring interpretation: the agent heard the correction and completed the intended refund.</p>
+<p>The call’s timing undermines that interpretation. There are 2.4 seconds of dead air before the first response, the agent talks over the caller, and fourteen is misheard. Its flat, robotic tone adds another audible problem. Text preserves the words of the correction without preserving whether the agent gave that correction room to change the interaction. The refund example therefore starts with a useful distinction: an apparent conversational recovery is something to investigate, rather than proof of a successful action.</p>
+    </section>
+<section class="section" id="sec-2">
+      <div class="section-head"><span class="num">02</span>
+      <button class="seek" data-t="220">▶ 3:40</button></div>
+      <h3>让音频、转写稿和执行记录保持在一起</h3>
+      <p>Debugging the call requires three views in the same place: playable audio, the transcript and the execution trace. The session must include multiple user and assistant turns, so a pause or interruption can be understood in context. Arize AX’s session view brings these observations together with latency and evaluation results.</p>
+<p>Each observation answers a different question:</p>
+<p>- <strong>Audio and turns:</strong> Who spoke, how did they sound, and where did speech overlap or stop?
+- <strong>Execution spans:</strong> What inputs, outputs and tool calls occurred during the interaction?
+- <strong>Metrics and evaluations:</strong> How long did the response take, what did audio tokens cost, and which interruption or quality checks failed?</p>
+<p>The links between these observations matter as much as their presence. A list of events leaves the engineer to reconstruct the conversation; a linked trace lets the engineer inspect a particular turn alongside the work that produced it.</p>
+<p>This carries familiar agent-development practices into voice. Coding agents already have tool calls, handoffs, sub-agents, harnesses and evaluations. Voice adds the need to preserve audible behavior and timing within that same debugging workflow. An interruption is part of the interaction’s behavior, even when every sentence looks reasonable on its own.</p>
+    </section>
+<section class="section" id="sec-3">
+      <div class="section-head"><span class="num">03</span>
+      <button class="seek" data-t="340">▶ 5:40</button></div>
+      <h3>规范化服务商事件，再把它们拼接成一个会话</h3>
+      <p><strong>OpenInference</strong> supplies the conventions underneath this view. Its open-source, OpenTelemetry-compliant semantic conventions give generative-AI activity a common representation. For real-time audio, the engineering work includes mapping WebSocket events into recognizable concepts: session lifecycle, audio input, transcripts, conversation items, output, response lifecycle and token counts.</p>
+<p>A shared schema makes events from providers such as OpenAI Realtime and Google Gemini Live queryable in the same way. Instead of writing a different parser for each vendor’s event stream, the instrumenter normalizes the supported provider events. That helps both during an incident—when filtering and sorting must find the relevant interaction among many traces—and during a provider change, when engineers need to keep checking the same system behavior. The conventions can also send observations to another backend, including Grafana; this tracing approach does not require Arize’s analysis interface.</p>
+<p>Normalization alone does not reconstruct a call. A session ID stitches turns and WebSocket events into one timeline, with tags identifying user and assistant activity. Playing audio directly from that trace makes it possible to inspect who spoke when, where the agent paused, where either participant was cut off, and when a tool ran.</p>
+<p>How do vendor-specific events become a conversation an engineer can inspect? The diagram separates two jobs: common conventions make events comparable, while session identity connects them into a call. The resulting view preserves both the conversation timeline and its execution relationships.</p>
+<p>A weather-agent preview illustrates the practical payoff. The session view places a weather tool call alongside the audio, so a tool failure can be investigated at the point where it affected the conversation. The engineer can follow the session’s trace tree rather than reconcile disconnected records from different systems.</p>
+<p>From provider events to a replayable session
+Semantic conventions normalize the events; session identity connects turns, audio and tool activity for inspection.
+- Provider event streams — Real-time events from OpenAI Realtime or Google Gemini Live.
+- OpenInference conventions — Represent audio, transcripts, lifecycle events and token counts in a common queryable schema.
+- Session timeline — A session ID stitches events and turns together; tags identify user and assistant.
+- Audio beside the trace tree — Inspect pauses, cutoffs and tool calls within the whole conversation.
+- Provider event streams → OpenInference conventions (Normalize provider events)
+- OpenInference conventions → Session timeline (Group by session identity)
+- Session timeline → Audio beside the trace tree (Replay and inspect linked activity)</p>
+    </section>
+<section class="section" id="sec-4">
+      <div class="section-head"><span class="num">04</span>
+      <button class="seek" data-t="520">▶ 8:40</button></div>
+      <h3>检查操作，并评估音频本身</h3>
+      <p>Returning to the refund call, the session view changes the diagnosis. The first turn exposes the 2.4-second wait for audio. The third turn exposes the assistant speaking over the caller. The tool call establishes the consequential outcome: the refund was processed for order forty, rather than fourteen. The customer’s correction existed in the conversation, but the executed action still targeted the wrong order.</p>
+<p>These observations separate failures that a single success label would blur. The call had a responsiveness problem, a turn-taking problem and an incorrect transaction. Scrubbing the audio beside the tool activity lets an engineer locate each one. It also prevents the agent’s final confirmation from serving as the only evidence that the task succeeded.</p>
+<p>Audio evaluations turn those observations into repeatable checks:</p>
+<p>- <strong>Tone and sentiment:</strong> Classify emotion from the actual audio, including positive, neutral or negative tone. Words alone can miss audible frustration.
+- <strong>Response latency:</strong> Check time to first audio against the service-level expectations of a customer-service interaction.
+- <strong>Conversation accuracy:</strong> Flag interruptions and transcription drift, including cases where spoken content and its textual representation diverge.
+- <strong>Task success:</strong> Check whether the interaction accomplished the requested task, rather than relying on a fluent confirmation.</p>
+<p>Audio-capable models can judge the underlying recording. A transcript-only LLM judge has no direct access to the pauses, overlap or vocal delivery that these checks need. Access to audio supplies the missing evidence; the talk does not establish the accuracy of the resulting sentiment classifiers.</p>
+<p>Some checks need evidence beyond either audio or text. An “agent as a judge” can use tools and third-party systems to gather evaluation context. Ali’s example is a role-based access-control check: did the agent access the system it was supposed to have access to? This makes evaluation an investigation with its own tool use, rather than only a model’s judgment of a conversation.</p>
+    </section>
+<section class="section" id="sec-5">
+      <div class="section-head"><span class="num">05</span>
+      <button class="seek" data-t="699">▶ 11:39</button></div>
+      <h3>把分数挂在需要调查的 span 上</h3>
+      <p>Arize’s skills provide a natural-language route to configuring an audio evaluator. The example request asks Claude to create a sentiment evaluation that catches frustrated tone on audio spans. Underneath that request, the CLI queries spans, analyzes traces, filters for audio-specific spans, creates and deploys the evaluator, and applies it to the system’s traces and spans.</p>
+<p>The operational work continues after evaluator creation. Incoming interactions need scoring, and engineers need to query the results at scale. Ali frames querying billions of spans with sub-second latency and running live evaluations as reasons to use a platform rather than build the whole workflow yourself. These are the scale requirements he describes, not a benchmark demonstrated in the recording.</p>
+<p>Putting evaluation outputs on the relevant spans keeps a score beside the audio and execution that explain it. Engineers can filter directly for failures and inspect them without searching a separate evaluation system. That placement also gives monitors something concrete to act on: a failed evaluation can trigger an investigation agent to examine misrepresented tool calls, uncovered edge cases or a missing tool.</p>
+    </section>
+<section class="section" id="sec-6">
+      <div class="section-head"><span class="num">06</span>
+      <button class="seek" data-t="819">▶ 13:39</button></div>
+      <h3>针对拟议的修复重放失败的交互</h3>
+      <p>The ending expands debugging into an observe, evaluate, improve loop. Observations preserve the interaction; evaluations attach judgments to it; fixes change the system; another experiment checks whether the change helped. Arize’s newly released agent experiments are described as “Postman with tracing”: a way to exercise an endpoint while retaining the trace needed to understand its behavior.</p>
+<p>Ali then sketches a future workflow for an SRE agent. Live audio is traced and scored. The agent investigates failures, proposes a fix, stands up the changed endpoint in development and replays the failed traces against it. A fresh trace checks whether latency decreased. This complete self-healing workflow is presented as a future vision, rather than a demonstrated autonomous repair in the recording.</p>
+<p>The hypothetical repair has a specific cause: tool results were too large, so the agent received too much information and its context became overloaded. The proposed change truncates tool results. Replaying the failed interactions against the development endpoint would then test the claimed latency improvement, and a pull request would present the problem, change and report card for human approval or rejection. This is a separate example from the refund call; it does not establish what caused that call’s 2.4-second delay.</p>
+<p>What turns a proposed repair into something a reviewer can assess? The cycle below keeps replay between implementation and approval. The important relationship is that the original failure supplies the test case, while a new trace supplies evidence about the changed endpoint.</p>
+<p>The immediate starting point is smaller: add the OpenInference instrumenter, trace audio, check time to first audio and interruptions, and evaluate whether calls accomplish their intended tasks. Tone and latency evaluations are useful first checks. Ali closes by asking for the same engineering rigor applied to coding agents and agents that execute financial actions—even when the voice agent is only taking a cheeseburger order. The task may sound mundane; the system still needs to hear the request and execute the right action.</p>
+<p>The proposed repair loop keeps failed traces as test cases
+In Ali’s future workflow, investigation leads to a development fix, replay produces comparison evidence, and a person reviews the resulting pull request.
+- Trace and evaluate calls — Capture incoming audio interactions and score them.
+- Investigate failures — An SRE agent examines traces and hypothesizes a cause.
+- Change the development endpoint — The example proposes truncating oversized tool results.
+- Replay failed traces — Trace the changed endpoint and compare latency.
+- Review the pull request — A person approves or rejects the proposed repair and its report card.
+- Trace and evaluate calls → Investigate failures (Failed interactions)
+- Investigate failures → Change the development endpoint (Propose and implement a repair)
+- Change the development endpoint → Replay failed traces (Test the changed endpoint)
+- Replay failed traces → Review the pull request (Present comparison evidence)
+- Review the pull request → Trace and evaluate calls (Continue the improvement loop)</p>
+    </section>
+    </div></div></section>
+
+  <section id="takeaways" class="block"><h2>要点总结</h2><ul class="takeaways"><li>逐字稿中的一次纠正并不能证明动作真的改变了：退款的例子最终处理的仍然是第四十号订单，而不是第十四号。</li><li>通用的音频约定让各供应商的事件可以被查询；会话 ID 把这些事件串成一条语音与工具活动的时间线。</li><li>同时评估可听到的行为和实际执行的结果。语气、响应延迟、打断和任务成功回答的是不同的问题。</li><li>把评估附加到相关的 span 上，让失败可以被筛选、检查，并用来触发调查。</li><li>拟议的自愈工作流通过重放失败的 trace 来测试开发中的修复，并在批准前给人工审查者提供对比证据。</li><li><a href="https://ai.engineer/talks/OA-Mc60Rboo-beating-rl-reflection-gepa-optimize-anything" target="_blank" rel="noopener">Beating RL With Reflection: GEPA and Optimize Anything</a> —— 讲解执行轨迹和诊断反馈如何指导对提示词和智能体程序的修改，把基于 trace 的改进思路扩展到语音调试之外。</li></ul></section>
+
+  
+
+  <section id="transcript" class="block">
+    <div class="block-head"><h2>完整逐字稿</h2>
+      <div class="tools"><input id="tSearch" type="search" placeholder="搜索逐字稿…" /><label class="follow"><input type="checkbox" id="follow" checked /> 跟随视频</label></div></div>
+    <div id="transcriptList" class="transcript"><div class="tline" data-t="12"><span class="ts">0:12</span><span class="tx">Folks, thanks for coming in out. I know it's lunchtime, so I know a lot of you folks are trying to eat as well. Appreciate you making the time. And for everyone listening online, thanks for tuning in as well. Uh, my name's Fuad. I'm a product manager here at Arize. Uh, I've been leading up kind of the experimentation side of the house, and one thing that I've been really interested in is voice agents. Uh, quick show of hands here, maybe online too, who here is building a voice agent? Anyone? Got... Okay, we got a couple. Uh, I</span></div><div class="tline" data-t="42"><span class="ts">0:42</span><span class="tx">think it's a really cool space. I'll be talking a little bit about voice traces, session views of voices, voice evals, and some of the stuff that's new in Arize. But I do wanna kinda mention this isn't a product pitch. This is, you know, really on why voice agents are invisible and how to see them. You can use Arize to do that. You can use another platform. But what I want you guys to take away from this is some of the failure modes and how you can actually start to see that. So we all know</span></div><div class="tline" data-t="72"><span class="ts">1:12</span><span class="tx">voice agents are growing really, really fast. Have a few tweets up, uh, kinda proving this. GPT Real-Time just dropped. That was literally May seventh. Uh, I have a screenshot from a tweet an hour ago from the LiveKit CEO talking about some of this. Uh, and Vercel on June twenty-ninth, which is only a couple days ago, um, on voice agents in Vercel. So as you can tell, uh, space is exploding fast, and that is gonna start to matter because as this space grows</span></div><div class="tline" data-t="102"><span class="ts">1:42</span><span class="tx">really fast, it is also one of the hardest to debug categories. So first off, it's exploding. Second off, it's pretty fragile. There's a lot of failure modes you can't really see. Um, and, uh, things like latency, turn-taking, and transcription drift become really, really important. Uh, and the log lies. If you're just looking at transcripts, I'll play a little audio file for you guys in a second, uh, it doesn't really capture what's actually going on under the hood. And just to give you guys some ideas</span></div><div class="tline" data-t="132"><span class="ts">2:12</span><span class="tx">of use cases, um, there's a lot of them from customer support, I think, which are the more boring ones, down through drive-through ordering. If you've been to White Castle, they have a, a bot called Linda now. Uh, Bojangles has, uh, Bo Linda as well. There's-- McDonald's is doing a lot of these as well, which I think is pretty cool. And personally, I'd be pretty pissed off if I was at McDonald's at two AM and I got six hundred cheeseburgers. So I think I'll show you a little bit about the failure modes and why it actually matters. So,</span></div><div class="tline" data-t="162"><span class="ts">2:42</span><span class="tx">uh, this is an example where the transcript looks fine, but the call wasn't. And if you read the text logs, you know, user says, &quot;I need a refund for order fourteen.&quot; Agent says, &quot;Sure. Start a refund for order forty.&quot; User says, &quot;No, fourteen.&quot; And it looks like the agent corrected itself, but this wasn't actually the case, and I'm gonna, I'm gonna play the call. It's AI generated. Let's see if it works. I need a refund for order fourteen.</span></div><div class="tline" data-t="191"><span class="ts">3:11</span><span class="tx">Sure. I've started a refund for order forty. No, fourteen. Your refund is confirmed. So if you notice in the transcript, if you could hear the audio there, uh, it wasn't, you know, the, the confir-confirmation on the, on the forty wasn't actually done by the agent. It kind of interrupted. Uh, and there was a big, uh, kinda latency spike, uh, after the user asked for the initial refund. Um, so w-what actually happened was that two and-- two point four seconds of dead air</span></div><div class="tline" data-t="220"><span class="ts">3:40</span><span class="tx">before the agent actually responded. The agent talking over the caller. Fourteen misheard, and obviously, the flat robotic tone is, is not a great look either. Um, so these are all audio-specific issues. If you just read this from an LLM output, you would have no idea anything is going on. So what you need to do is you need to see the conversation beyond just the transcript. Um, so that means the audio, the transcript, and the trace all in one place. The session as a whole, so</span></div><div class="tline" data-t="250"><span class="ts">4:10</span><span class="tx">multiple turns from the user back and forth in the same spa-- in the same trace view. And then metrics on those. So what was the latency like? What was the time to first audio like? Were there any interruptions? Sentiment analysis, et cetera. And these are some of the features we've just released at the beginning of this month in Arize AX. Uh, and really the point of this is the same workflows that you're running now to help your coding agents, uh, which are, you know, pretty complex processes now with harnesses, evals,</span></div><div class="tline" data-t="280"><span class="ts">4:40</span><span class="tx">uh, handoffs and sub-agents, tool calls. You wanna start to bring some of those best practices into your voice agents as well. So first off, you gotta trace it. You gotta see each individual span. Um, you gotta see the live audio and play it in line from your trace. Really matters to have all this data in the same place so you can start to debug things. Uh, you wanna see inputs and outputs. You wanna see the transcript obviously, but you also want to see, you know, specific metrics like I mentioned, like time to first token, uh, audio token costs,</span></div><div class="tline" data-t="310"><span class="ts">5:10</span><span class="tx">interruption events. And then finally, you wanna see linkage between these. You don't wanna just see these as a list. You actually wanna see some of the linkage between things, right?</span></div><div class="tline" data-t="320"><span class="ts">5:20</span><span class="tx">So Arize gives you that one trace view where you can actually play the audio in line, view the transcript, view latency in line, see the conversation turn between the user, uh, and the assistant, um, and see your evals in line as well. And this gives you a really, really powerful tool to debug.</span></div><div class="tline" data-t="340"><span class="ts">5:40</span><span class="tx">Under the hood, what this looks like is we've actually mapped, uh, the semantic conventions for audio onto OpenInference. So if you guys aren't familiar, Arize was first to market with OpenInference in twenty twenty-three. Uh, it is the first set of semantic conventions that is completely open source that maps, um, kind of what is happening with GenAI to an OTel compliant set of conventions. Uh, and I say this to say it's open source, it's free, and it maps pretty much any of the major foundational models or model</span></div><div class="tline" data-t="370"><span class="ts">6:10</span><span class="tx">providers. You guys can go rip this and send it to a Grafana backend, completely free to reuse. Not pitching the product here, just explaining some of the real engineering work it takes to map things like WebSocket events to- An easily understandable set of semantic conventions. So you can start to see things like the session lifecycle, the audio input, the transcript, conversation items, the output, uh, and then the response lifecycle and token counts as well. And so, yeah, real engineering work went behind this. It's all open source, uh, and</span></div><div class="tline" data-t="400"><span class="ts">6:40</span><span class="tx">we've mapped all the foundational models for you. What this allows you to do is you can now be provider-agnostic and have one queryable schema. Uh, so those semantic conventions normalize sort of these disparate model providers, whether it's OpenAI, Realtime, or Google with Gemini Live, into a set of schema that you can query. And if you've ever tried to debug at two AM, uh, off of a customer call, you know how important it is to be able to query</span></div><div class="tline" data-t="430"><span class="ts">7:10</span><span class="tx">across thousands, millions, even billions of traces that are coming in. You know how important it is to actually get to the part that you need to see, to filter that, to sort by that. All that becomes incredibly important. Um, and, you know, as new models drop, you also want to be able to swap in new providers and make sure that your systems are still functioning. So no bespoke parsing per vendor. It's one auto instrumenter. It captures every single thing that I just mentioned.</span></div><div class="tline" data-t="460"><span class="ts">7:40</span><span class="tx">And then finally, you want to be able to replay the whole conversation. So I pl- I played the audio for you guys in the beginning of this, but the session ID is essentially what stitches every turn into the timeline, the full call with every WebSocket event that's submitted, uh, with some tags on whether it's the user or the assistant. Um, you can actually play the audio in the UI directly from the trace. No external tooling, no exports, just play it straight from the trace. That allows you to see who spoke when, when the agent paused, where</span></div><div class="tline" data-t="490"><span class="ts">8:10</span><span class="tx">it got cut off, where the user got cut off, what tools the agent actually went and called, uh, when it did this. And so this really starts the paradigm shift, which is you're not just reading transcripts, you're listening to audio, you're really understanding the failure cases from there with the trace open right next to it. And, um, I'll just show you kind of q- quick sneak preview of what this looks like in Arize. As you can see here, this is an example of like, um, you know, an agent that can call to get, uh, a</span></div><div class="tline" data-t="520"><span class="ts">8:40</span><span class="tx">specific weather event. You can actually see when the agent kicks off that tool call in line with the rest of the audio. Uh, and this allows you to debug failures of that tool call while you're looking at the session audio. So you're no longer looking at disparate events from distant systems, but you're actually looking at the entire trace tree for everything that happened in that session. So that real session, few issues that we saw, right? Turn one, &quot;Hi, I need help with the order, a refund for order fourteen.&quot; We saw, you know, kind of</span></div><div class="tline" data-t="550"><span class="ts">9:10</span><span class="tx">that time to first audio of two point four seconds of dead air, which really impacts the user experience. We saw in turn three that the agent actually spoke over the caller's interaction, uh, which is not a good look for any assistant, especially one that's trying to be helpful. Um, and then ultimately, if you look at the tool call, you'll be able to also understand that the refund was processed for order forty and not fourteen, um, which is a huge, huge mistake. And actually seeing that live in the tool call is</span></div><div class="tline" data-t="580"><span class="ts">9:40</span><span class="tx">really, really important. And every single one of these things would be invisible in a text log. But with the session view, you can actually scrub the audio and, and find those failure surfaces within the tools, within, uh, what the agent is doing as well. Uh, the next thing I want to talk about real quick is evals that are specific to audio. So I kind of mentioned a few of them. Um, I think tonality and sentiment analysis is really important. You want to be able to classify user emotion based on the actual audio. Uh, transcript can't do this for</span></div><div class="tline" data-t="610"><span class="ts">10:10</span><span class="tx">you. It's very, very easy to look at a transcript and see that it, it, you know, s- looks fine, but tonality really matters. Um, positive, neutral, negative, not just a guess. Latency is really, really important in audio, and it's important in a few use cases. Models are getting better. There's, you know, Jetpack architectures, et cetera. But time to first audio SLAs are still really important for customer service use cases. Um, and you want to be able to flag things that are breaking that. You also want to flag things like I mentioned, like</span></div><div class="tline" data-t="640"><span class="ts">10:40</span><span class="tx">interruptions in accuracy, transcription drift, uh, and the task success. Um, and you want to be able to run these evals directly against the audio with evals that are based on audio models. Um, so, you know, LLM as a judge evals on a transcript are only so good, but actually evaling the underlying audio is really important. And so, um, we have kind of the tooling available in Arize to be able to do that, and we're supporting all the major audio platforms as well as they come out with new models. Um, so again,</span></div><div class="tline" data-t="670"><span class="ts">11:10</span><span class="tx">evals specific to audio really matter. They're not just transcription-based evals. Um, and as you start to scale up your LLM as a judge evals or even move to agent as a judge that are doing like complex tasks, like for example, doing RBAC checks and making sure the agent actually accessed the system it was supposed to have access to. Um, being able to run these agent as a judge workflows in Arize starts to become really important. And we're kind of seeing the industry move away from, you know, just an LLM as a judge analyzing a</span></div><div class="tline" data-t="699"><span class="ts">11:39</span><span class="tx">transcript or even analyzing audio, but actually accessing tools, accessing third-party systems, uh, and hydrating some of that evaluation information inside of it. So really easy to get started with evals in Arize through skills. Uh, it is literally as simple as, &quot;Hey Claude, create an audio eval for me for sentiment analysis using GPT Audio and catch frustrated user tone on those audio spans.&quot; And Arize will kind of take care of all the rest for you. The CLI under the hood,</span></div><div class="tline" data-t="730"><span class="ts">12:10</span><span class="tx">um, is able to query spans, do some trace analysis, filter for the spans that are audio specific, actually create that eval, deploy it, uh, and put it against traces and spans in your actual system. Um, and this is part of why Arize exists. Yes, of course, you could do this yourself. Uh, but when you're trying to query, you know, billions of spans, uh, with sub-second query latency, it becomes really hard. And also deploying these live evals as they come in, so you're scoring them, um, while users are actually</span></div><div class="tline" data-t="760"><span class="ts">12:40</span><span class="tx">interacting with your platform is really important. And then the final thing I'll mention is- You also want these evals on the spans themselves, uh, because then you start to be able to do really complex querying and filtering across your data. So you're not just looking at a failure and looking up an external system. You actually have the eval scores in line with the exact audio that you're looking at. Um, and that's why some of this is really powerful in Arize. Being able to see those eval outputs directly on the spans that are relevant, uh, helps you kind of get a</span></div><div class="tline" data-t="789"><span class="ts">13:09</span><span class="tx">full understanding of what is going wrong with, uh, the user interaction. Uh, and then you can kick off workflows from that. So evals and monitors attached to those evals can kick off investigation agents that automatically start to dive into, you know, what tool calls am I misrepresenting? Um, where is my agent failing? Is it capturing, you know, maybe a product surface area that I d- hadn't coded for? Is there a new edge case I need to code for in my agent? Maybe I need to expose a new tool. All</span></div><div class="tline" data-t="819"><span class="ts">13:39</span><span class="tx">those become, um, possible once you have the results directly on the spans. And so I'll, I'll just kind of flag and, and end with this thought. The same loop that you're doing to improve some of these tools like coding agents, we now need to do for voice. And the loop really follows observe, evaluate, and improve. And then from that loop, you can start to get some really, really cool continuous improvement loops within the Arize platform or within another</span></div><div class="tline" data-t="849"><span class="ts">14:09</span><span class="tx">platform if you choose to use it as well. Um, and the idea is once you observe and you have the data available to you, then you evaluate and you have the scores in line with your observations, then you can start to kick off fixes, whether they're fixes that you make or whether they're fixes that an agent is automatically making on behalf of you, and then you can start to verify and validate those fixes. So we just released agent experiments as well in Arize. Agent experiments, you can think of it kind of like Postman with tracing. So</span></div><div class="tline" data-t="879"><span class="ts">14:39</span><span class="tx">imagine a world where you have audio streaming in from your users. It's automatically traced. You have live evaluations in the platform that are automatically scoring those interactions. And then you have SRE agents, so not an actual engineer that you hire, but an SRE agent that's looking through the traces, understanding the failure modes, hypothesizing a fix, and then actually standing up a fix for you in dev, replaying those failed traces for you against that fixed endpoint, tracing that to validate</span></div><div class="tline" data-t="909"><span class="ts">15:09</span><span class="tx">that the latency actually decreases. And you wake up in the morning, you look at a PR, the PR has a description of a problem. &quot;Hey, I found out why the latency was high. Turns out we were not truncating our tool results, and so we were passing in way too much information to the agent. Context got overloaded. I introduced a truncation algorithm. I shipped it. I actually stood it up in dev. I tested against the traces that failed. Here's a report card. Here's how latency decreased.&quot; And you wake up in the morning, and all</span></div><div class="tline" data-t="939"><span class="ts">15:39</span><span class="tx">this is ready for you, and you just click approve or deny on the PR. That is the future that I think we want to see at Arize, where self-healing software and continuous improvement are realities for everyone who's building agents. And I think making that possible for voice is really, really important. So start seeing your agents. Add the OpenInference instrumenter. Open source, free to use, OTel compliant. You can send it to any back end. Um, so use Arize, don't use Arize, start tracing your audio.</span></div><div class="tline" data-t="969"><span class="ts">16:09</span><span class="tx">The second part of this is actually starting to do that analysis, and we would recommend Arize to do that. Sign up for a free account. Uh, I'll have a code up at the end of my presentation for you guys to sign up for, uh, a free year of Pro. Um, but start checking time to first audio. Start checking your interruptions. And start evaluating, um, how these interactions are actually going and whether they're accomplishing your use cases. Whether it's a tone or latency eval, um, try using the Arize skills to actually create that eval. Uh, we have some docs set up for you if you</span></div><div class="tline" data-t="999"><span class="ts">16:39</span><span class="tx">want to follow along, a bunch of examples and cookbooks ready, uh, and bring voice into the same rigor as the rest of your stack. You wouldn't be okay with this happening at the coding agent level. You wouldn't be okay with it happening, uh, for an agent that's able to execute stocks on Robinhood. You shouldn't be okay with it, uh, though the stakes might seem a little lower, for a McDonald's agent that's ordering you a cheeseburger either. Um, and so I'll end with that. Please, please keep building. Please connect with me also on Twitter. I still call it</span></div><div class="tline" data-t="1029"><span class="ts">17:09</span><span class="tx">Twitter, not X. Uh, on Twitter or LinkedIn. Would love to kind of talk and hear about some of the use cases you guys are building towards so we can add more evals to our library and make sure this is useful for you. And if you found this talk useful and you want to start investigating your voice agents, there is a free code up on the screen. It gives you a year of Arize Pro for free. Uh, it's AIEWF2026. Um, and you can get started and start tracing your voice agents. So thank you very much. My name is Fuad Ali. I'll be available for questions for a couple</span></div><div class="tline" data-t="1059"><span class="ts">17:39</span><span class="tx">minutes after, but really appreciate you guys listening. Cheers.</span></div></div>
+  </section>
+</main>
+<div id="lightbox" class="lightbox" hidden><button class="icon close" id="lbClose">✕</button><button class="icon" id="lbPrev">←</button><figure><img id="lbImg" alt="" referrerpolicy="no-referrer" /><figcaption id="lbCap"></figcaption></figure><button class="icon" id="lbNext">→</button></div>
+<script src="../../assets/talk.js"></script>
+<footer class="foot wrap">
+  中文版内容经授权翻译自 <a href="https://ai.engineer/talks" target="_blank" rel="noopener">AI Engineer</a> 的演讲库；视频版权归原作者所有。翻译仅供参考，如有出入以英文原文为准。
+</footer>
+</body>
+</html>
