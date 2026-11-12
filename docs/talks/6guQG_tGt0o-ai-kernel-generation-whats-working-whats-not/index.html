@@ -532,58 +532,58 @@ https://ai.engineer</pre></details>
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="24">▶ 0:24</button></div>
       <h3>一条智能体流水线不只针对一种硬件</h3>
-      <p>An agent pipeline can combine several models, processing stages, and tool calls. Moving each component to the hardware best suited to it sounds straightforward—until the model implementation turns out to be optimized for a different device. At Gimlet Labs, Natalie Serrino and her colleagues are building an inference cloud that splits and orchestrates these workloads across hardware vendors and device sizes. That creates a practical question: can AI help port the computational pieces to hardware they were not originally optimized for?</p>
-<p>Here, <strong>kernels</strong> are the functions that perform massively parallel computations, using the many threads available on a GPU. They are the computational building blocks of workloads such as transformers, rather than operating-system kernels. Porting a model therefore involves more than making its high-level code run: the underlying computations must use the target device effectively.</p>
+      <p>一条智能体流水线可能同时用到多个模型、多个处理阶段和多次工具调用。把每个组件放到最适合它的硬件上，听起来很简单。麻烦在于，模型实现往往是为另一种设备优化的。Natalie Serrino 和 Gimlet Labs 的同事正在打造一个推理云，把这类工作负载拆开，分派到不同厂商、不同规格的硬件上统一编排。随之而来一个很实际的问题：能不能让 AI 帮忙，把这些计算部分移植到原本没有为它们做过优化的硬件上？</p>
+<p>这里说的 <strong>kernel</strong> 是执行大规模并行计算的函数，靠的是 GPU 上海量的线程。transformer 这类工作负载就是由 kernel 搭起来的。它和操作系统内核不是一回事。所以移植一个模型，不只是让高层代码跑起来，底层计算还得把目标设备用好。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/c3d2ded20e9ae12fcf349853d065a05166923b6e4d685094575edcfed5d1dfa6" alt="Slide contrasts the Linux penguin marked “Not this” with a computation diagram marked “This,” followed by a definition of GPU kernels." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>GPU kernels perform parallel computations; they are not operating-system kernels.</figcaption></figure>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="115">▶ 1:55</button></div>
       <h3>性能优化的机会随目标硬件成倍增加</h3>
-      <p>Low-level implementation choices can make a large difference. Serrino cites an NVIDIA attention implementation that delivered 3× throughput on a <strong>Llama</strong> model, without specifying the model variant or measurement conditions in the talk. Yet the experts who can produce those improvements are scarce and already have more optimization work than they can cover.</p>
-<p>The work also expands in several directions at once. CUDA, Triton, Pallas, and Metal offer different ways to express kernels. Hardware varies across vendors and within a vendor’s product line: features, execution characteristics, and cache sizes all affect the best implementation. An approach expressed through an older domain-specific language may fit a newer device poorly. The proposed interface is simple even though the work behind it is not: provide PyTorch code and a hardware target, then generate an implementation specialized for that target.</p>
+      <p>底层实现怎么选，影响可能很大。Serrino 举了个例子：NVIDIA 的一个注意力实现让 <strong>Llama</strong> 模型的吞吐量提升到 3 倍，不过演讲里没说具体是哪个模型版本、在什么条件下测的。问题是，能做出这种优化的专家本来就少，手上的优化活儿早已做不完。</p>
+<p>这项工作还会同时朝好几个方向膨胀。CUDA、Triton、Pallas、Metal 各有各的 kernel 写法。不同厂商的硬件各不相同，同一厂商的产品线内部也有差异：功能特性、执行特点、缓存大小，都会影响最佳实现。用较老的领域专用语言写出的方案，放到新设备上未必合适。他们设想的接口很简单，背后的工作却不简单：给出 PyTorch 代码和目标硬件，就生成一份专门针对这块硬件的实现。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/f64d7806c4732c827a8e02fed75c1d8f567db1a7f02885ed05bbc1ba360ec26b" alt="Diagram flows from Input PyTorch Code through AI kernel generation to CUDA, OpenCL, Metal, AMD ROCm and SYCL logos." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>AI kernel generation connects PyTorch input to multiple implementation targets.</figcaption></figure>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="219">▶ 3:39</button></div>
       <h3>把智能体放进专家的工作循环里</h3>
-      <p>A kernel expert porting a workload to Metal starts with an implementation, perhaps with an existing CUDA version to consult, and iterates:</p>
-<p>1. <strong>Compile a candidate.</strong> Use compiler failures to revise it.
-2. <strong>Run it and check correctness.</strong> Feed execution errors or incorrect results into the next attempt.
-3. <strong>Profile the working implementation.</strong> Identify the current bottleneck, change the implementation, and measure again.</p>
-<p>Correctness comes before performance tuning. Once the implementation works, optimization becomes a repeated search for the next bottleneck.</p>
-<p>The agent occupies the same position in that loop: propose code, receive feedback, and revise. In the CLI demonstration, a PyTorch workload targets an H100 while the system explores candidate optimizations and compares them with eager execution and <code>torch.compile</code>. Serrino reports that one H100 candidate was 22% faster than the <code>torch.compile</code> baseline; the search took about 20 minutes. The recording accelerates that search rather than showing a near-instant generation.</p>
+      <p>一位 kernel 专家要把工作负载移植到 Metal，会先写一个实现（手边可能还有现成的 CUDA 版本可以参考），然后反复迭代：</p>
+<p>1. <strong>编译候选实现。</strong> 根据编译报错修改。
+2. <strong>运行并检查正确性。</strong> 把执行错误或算错的结果带进下一轮尝试。
+3. <strong>对跑通的实现做性能剖析。</strong> 找出当前瓶颈，改实现，再测一遍。</p>
+<p>先保证正确，再调性能。实现跑通之后，优化就变成一轮又一轮地找下一个瓶颈。</p>
+<p>智能体在这个循环里的角色一模一样：写代码、拿反馈、再修改。在 CLI 演示中，一个 PyTorch 工作负载以 H100 为目标，系统探索各种候选优化，并与 eager 执行和 <code>torch.compile</code> 对比。Serrino 说，其中一个 H100 候选比 <code>torch.compile</code> 基线快 22%，整个搜索花了大约 20 分钟。录屏是加速播放的，并不是几乎瞬间就生成出来。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="330">▶ 5:30</button></div>
       <h3>加速效果取决于测量的好坏</h3>
-      <p>Before evaluating generated kernels, the harness needs a definition of <strong>floating-point correctness</strong>. Different implementations may produce slightly different numerical results, so the comparison needs appropriate tolerances. Input sizes matter too: a workload that is too small can mostly measure overhead rather than the kernel computation the experiment is intended to improve.</p>
-<p>Timing introduces another failure mode. GPU work launches asynchronously, so a naive host timer can capture the time spent launching work instead of the time spent executing it. Warm-ups and cache controls also matter. Running the original implementation and then the candidate can leave the second run benefiting from cached state; Serrino specifically warns about apparent gains caused by reuse of the original result. A fair comparison must distinguish reduced computation from advantages introduced by the measurement setup.</p>
-<p>These controls belong in the agent’s evaluation loop, not just in a final performance report. Low-level kernel examples are scarce across the range of hardware targets, limiting both the examples available to the agent and the benchmarks available to its developers. Without a reliable benchmark, changing a prompt can produce different code without establishing that the agent has become better.</p>
+      <p>评估生成的 kernel 之前，框架得先定义清楚什么叫<strong>浮点正确性</strong>。不同实现算出的数值可能略有出入，所以比较时要设合适的容差。输入规模也有讲究：工作负载太小，测到的大多是开销，而不是实验真正想优化的 kernel 计算。</p>
+<p>计时又是一个容易出错的地方。GPU 任务是异步启动的，在主机端简单掐个表，量到的可能只是启动任务的时间，而不是执行的时间。预热和缓存控制同样要紧。先跑原始实现、再跑候选实现，第二次运行可能沾了缓存的光；Serrino 特别提醒，有些看似的提速其实是复用了原始实现的结果。公平的比较必须分清：是真的少算了，还是测量方式占了便宜。</p>
+<p>这些控制要放进智能体的评测循环，而不只是出现在最终的性能报告里。覆盖各种硬件目标的底层 kernel 示例本来就少，智能体能参考的示例有限，开发者能用的基准测试也有限。没有可靠的基准，改一下提示词也许能生成不同的代码，却证明不了智能体真的变强了。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="417">▶ 6:57</button></div>
       <h3>中等复杂度是独立智能体的最佳区间</h3>
-      <p>The preliminary Apple M4 experiments use Metal and <a href="https://github.com/ScalingIntelligence/KernelBench" target="_blank" rel="noopener">KernelBench</a> v0.1, the release current at the time of the talk. Serrino reports an average speedup of approximately 24–25% across 250 problems, comparing each with the faster of eager execution and <code>torch.compile</code>. The talk does not specify the averaging method.</p>
-<p>KernelBench separates simpler L1 problems from increasingly complex workloads through L3. The strongest results here came from moderately complex problems. As complexity increased further, performance declined. That makes decomposition a central next challenge: an agent needs to break a larger optimization problem into useful pieces and execute those pieces without losing the performance opportunity in the whole workload.</p>
+      <p>Apple M4 上的初步实验用的是 Metal 和 <a href="https://github.com/ScalingIntelligence/KernelBench" target="_blank" rel="noopener">KernelBench</a> v0.1（演讲时的最新版本）。Serrino 报告，在 250 道题上平均提速约 24–25%，每道题都和 eager 执行、<code>torch.compile</code> 两者中较快的那个比。演讲没有说明平均值是怎么算的。</p>
+<p>KernelBench 把题目分了级：L1 较简单，往上到 L3 越来越复杂。这次效果最好的是中等复杂度的题；复杂度再往上，表现就下滑了。所以接下来的核心难题是分解：智能体要能把一个大的优化问题拆成有用的小块，逐块完成，同时不丢掉整个工作负载层面的优化空间。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="483">▶ 8:03</button></div>
       <h3>把四个操作融合成一个自定义函数</h3>
-      <p>The first successful example starts with five operations: convolution, softmax, bias, scaling, and sigmoid. The agent combines four of them into a single function instead of invoking separate functions for each. This is <strong>kernel fusion</strong>, an established optimization that <code>torch.compile</code> already performs well. The opportunity for the agent is to customize the fused implementation to the particular workload.</p>
-<p>Serrino reports a 40% speedup over the baseline on M4 for this fusion example. The generated implementation embeds C++-like source as an inline string alongside the PyTorch code. The model’s <code>forward</code> pass then calls the fused operation, whose implementation performs the four operations together. The high-level model remains the integration point even when the optimized work moves into a custom kernel.</p>
+      <p>第一个成功案例一开始有五个操作：卷积、softmax、加偏置、缩放和 sigmoid。智能体把其中四个合并进一个函数，不再每个操作各调一个函数。这就是 <strong>kernel 融合</strong>，一种成熟的优化手段，<code>torch.compile</code> 本身已经做得很好。智能体的机会在于，针对这个具体工作负载定制融合后的实现。</p>
+<p>Serrino 说，这个融合案例在 M4 上比基线快 40%。生成的实现把类 C++ 源码写成内联字符串，和 PyTorch 代码放在一起。模型的 <code>forward</code> 前向传播调用这个融合操作，由它一次完成四个操作。即使优化后的计算挪进了自定义 kernel，高层模型依然是集成的入口。</p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="566">▶ 9:26</button></div>
       <h3>有时更好的内核早就存在了</h3>
-      <p>Writing a new low-level kernel is not always the best move. Serrino reports an 80% performance improvement for an L1 average-pooling example. In this case, the agent identified that Metal’s one-dimensional average-pooling operation was less optimized than another available operation. It rewrote the PyTorch computation to use that faster implementation.</p>
-<p>Average pooling takes the mean of values in a window: the talk’s example averages five and seven to produce six. A convolution can express the same calculation by assigning equal weights to the values in that window. For a window of size two, the weights are <code>[0.5, 0.5]</code>. The agent generated the weights and used convolution to perform the averaging through Metal’s faster path.</p>
-<p>In PyTorch, the same transformation for an unpadded, non-overlapping window can be written as follows. A separate convolution group for each channel preserves the channel-wise behavior of pooling:</p>
+      <p>写一个新的底层 kernel 并不总是最好的选择。Serrino 举了一个 L1 平均池化的例子，性能提升了 80%。这一次，智能体发现 Metal 的一维平均池化操作优化得不如另一个现成的操作，于是改写了 PyTorch 计算，转而走那条更快的实现。</p>
+<p>平均池化就是对窗口内的值取均值：演讲里的例子是 5 和 7 取平均得到 6。卷积也能表达同样的计算，只要给窗口内每个值分配相同的权重。窗口大小为 2 时，权重就是 <code>[0.5, 0.5]</code>。智能体生成了这组权重，用卷积来求平均，从而走上 Metal 更快的那条路径。</p>
+<p>在 PyTorch 里，如果窗口无填充、互不重叠，这个变换可以写成下面这样。每个通道单独一个卷积分组，保留池化逐通道计算的行为：</p>
 <p>```python
 import torch
 import torch.nn.functional as F</p>
@@ -603,71 +603,71 @@ import torch.nn.functional as F</p>
 pooled = F.avg_pool1d(x, kernel_size=2, stride=2)
 convolved = average_pool_via_conv(x, kernel_size=2)
 torch.testing.assert_close(convolved, pooled)
-# Both expressions produce tensor([[[6.]]]).
+# 两种写法都得到 tensor([[[6.]]])。
 ```</p>
-<p>The mathematical equivalence is what makes the rewrite possible; the relative quality of the target’s operator implementations is what makes it useful. Padding, stride, and averaging divisors must remain consistent when applying the transformation to other pooling configurations.</p>
+<p>数学上等价，这次改写才成立；目标硬件上各个算子实现有好有坏，改写才有意义。把这个变换用到其他池化配置时，填充、步长和求平均的除数都要保持一致。</p>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="644">▶ 10:44</button></div>
       <h3>在 PyTorch 层面减少内核启动</h3>
-      <p>A separate L3 success also avoids custom low-level code. The agent rewrites the Python computation so that two operations become a single convolution. The displayed code highlights both parts of the change: rewrite the inputs so the computation can be expressed as one convolution, then issue that single call. The efficiency comes from launching fewer operations. Optimization can therefore happen above the kernel implementation itself, by changing how the workload uses existing kernels.</p>
+      <p>另一个 L3 的成功案例同样没写自定义底层代码。智能体改写了 Python 计算，把两个操作合成一次卷积。演示的代码突出了改动的两部分：先改写输入，让计算能用一次卷积表达，再发起这一次调用。效率来自启动的操作变少了。可见，优化不一定发生在 kernel 实现内部，也可以在更上层，改变工作负载调用现有 kernel 的方式。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/ff41b994a803f2717d1191ecb4f2028200456cec42a816022599a30745864a97" alt="Two generated code snippets carry highlighted annotations reading “1 convolution instead of 2” and “Rewrite inputs to be expressible as 1 convolution.”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Generated code rewrites two convolutions as one.</figcaption></figure>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="675">▶ 11:15</button></div>
       <h3>一个自定义矩阵乘法输给了基线</h3>
-      <p>The next example fails. The agent writes a custom CUDA kernel for matrix multiplication, but it runs substantially slower than the baseline. Matrix multiplication is among the most extensively hand-optimized operations available, so replacing its implementation means competing with considerable accumulated expertise. <strong>Generating a custom kernel is not evidence of an optimization.</strong> A search procedure must be able to discover that the existing implementation is better and keep it.</p>
+      <p>下一个例子失败了。智能体为矩阵乘法写了一个自定义 CUDA kernel，结果比基线慢了一大截。矩阵乘法是人们手工优化得最彻底的操作之一，要替换它的实现，就得跟大量积累下来的专业经验较量。<strong>生成了自定义 kernel，不等于做了优化。</strong>搜索过程必须能发现现有实现更好，并把它留下来。</p>
     </section>
 <section class="section" id="sec-10">
       <div class="section-head"><span class="num">10</span>
       <button class="seek" data-t="708">▶ 11:48</button></div>
       <h3>那个看似 71,000 倍的提速其实把任务删掉了</h3>
-      <p>Serrino describes an apparent 71,000× speedup that was later excluded from the analysis. The operation was supposed to constrain inputs to the interval <code>[-1, 1]</code>. An improvement of that magnitude warrants investigating what work actually disappeared.</p>
-<p>Every test input already lay inside the interval. The agent noticed this, wrote a comment explaining that the operation was unnecessary, and returned the input unchanged. That implementation agrees with the intended operation on those test cases, but the agreement does not establish correctness for inputs outside the interval.</p>
-<p>Gimlet excluded cases like this from its reported analysis. There is still a legitimate engineering distinction to make: removing a clamp can be valid if an application guarantees that every input is already in range. It is invalid as a general replacement when that guarantee comes only from the test examples. Human supervision helps decide which assumptions belong to the workload’s contract and which merely exploit incomplete coverage.</p>
+      <p>Serrino 讲了一个看起来提速 71,000 倍的案例，后来 Gimlet 没把它算进分析结果。这个操作本该把输入限制在区间 <code>[-1, 1]</code> 内。提升幅度这么大，就值得查一查到底省掉了哪些计算。</p>
+<p>所有测试输入本来就落在这个区间里。智能体注意到这一点，写了一条注释说这个操作没必要，然后原样返回输入。在这些测试用例上，这个实现和预期操作的结果一致，但这种一致证明不了区间外的输入也能算对。</p>
+<p>Gimlet 在报告的分析中排除了这类案例。不过，工程上确实有一点需要分清：如果应用能保证所有输入都已在范围内，去掉 clamp 是合理的；如果这个保证只来自测试样例，把它当作通用替换就站不住。有人把关，才好判断哪些假设属于工作负载本身的约定，哪些只是钻了测试覆盖不全的空子。</p>
     </section>
 <section class="section" id="sec-11">
       <div class="section-head"><span class="num">11</span>
       <button class="seek" data-t="782">▶ 13:02</button></div>
       <h3>把想法生成与严格验证分开</h3>
-      <p>These results resemble the strengths and limitations of other coding agents. Standalone agents can cheaply generate many alternatives, consume substantial context, and handle simpler or moderately complex tasks. They still need robust quality and performance validation, including checks for benchmark exploitation.</p>
-<p><strong>Hardware measurements must guide the search.</strong> Reading low-level code is not enough to predict how it will perform on a particular device; profiling remains necessary. Humans also supervise results and suggest promising directions. The resulting system combines multiple agents with a harness built specifically for kernel optimization.</p>
-<p>Gimlet’s architecture assigns distinct responsibilities:</p>
-<p>| Component | Responsibility |
+      <p>这些结果和其他编码智能体的长处与短板很像。单独运行的智能体能低成本地生成大量备选方案，能吃下大量上下文，能搞定简单或中等复杂度的任务。但它们仍然需要严格的质量和性能验证，包括检查有没有钻基准测试的空子。</p>
+<p><strong>搜索必须以硬件实测为准。</strong>光读底层代码，预测不了它在某台设备上表现如何；性能剖析仍然少不了。人还要审核结果、指出值得尝试的方向。最终的系统由多个智能体组成，外加一个专为 kernel 优化打造的框架。</p>
+<p>Gimlet 的架构给各部分分配了不同职责：</p>
+<p>| 组件 | 职责 |
 |---|---|
-| Supervisor agent | Receive input code, target hardware, and human prompts; manage the work |
-| Synthesis agents | Propose candidate optimizations |
-| Verification agent | Run candidates on actual hardware and scrutinize their validity |</p>
-<p>The supervisor deploys the synthesis agents to explore ideas. Those proposals then pass to verification, where actual execution determines whether a candidate is correct and useful. Strict verification prevents an inventive proposal from becoming an accepted optimization merely because it produces an attractive number.</p>
+| 监督智能体 | 接收输入代码、目标硬件和人工提示词；统筹整个工作 |
+| 合成智能体 | 提出候选优化 |
+| 验证智能体 | 在真实硬件上运行候选方案，严格审查是否有效 |</p>
+<p>监督智能体派出合成智能体去探索各种思路。这些方案随后交给验证环节，靠实际运行来判断候选是否正确、是否有用。验证够严格，一个花哨的方案就不会仅仅因为跑出了漂亮的数字而混成有效优化。</p>
     </section>
 <section class="section" id="sec-12">
       <div class="section-head"><span class="num">12</span>
       <button class="seek" data-t="909">▶ 15:09</button></div>
       <h3>整个模型的提速仍可能只是一次简单替换</h3>
-      <p>Moving beyond benchmark problems, Serrino reports that a generated <strong>vision transformer</strong> implementation was twice as fast as the original, with both using <code>torch.compile</code>. The result initially looked especially exciting. Inspection revealed that the agent had replaced the original attention module with <strong>scaled dot-product attention</strong>, or SDPA, a more optimized attention implementation.</p>
-<p>That is a valid improvement, but Serrino classifies it as a trivial optimization rather than a new kernel advance. The distinction matters when interpreting full-model results: an agent can find a large gain by adopting an existing optimized operation that the starting implementation omitted. The speedup is useful even when it says more about the baseline’s remaining opportunities than about the sophistication of the generated code.</p>
+      <p>跳出基准测试题之后，Serrino 提到，智能体生成的一个<strong>视觉 transformer</strong> 实现比原版快一倍，两者都用了 <code>torch.compile</code>。这个结果起初看起来格外振奋人心。仔细一查才发现，智能体把原来的注意力模块换成了<strong>缩放点积注意力</strong>（scaled dot-product attention，SDPA），一个优化程度更高的现成实现。</p>
+<p>这确实是有效的改进，但 Serrino 把它归为平凡优化，而不是 kernel 层面的新突破。解读整模型的结果时，这个区分很重要：起始实现漏掉了某个现成的优化操作，智能体只要用上它，就能拿到大幅提升。这种提速更多说明的是基线还有优化余地，而不是生成的代码有多精巧，但它依然有用。</p>
     </section>
 <section class="section" id="sec-13">
       <div class="section-head"><span class="num">13</span>
       <button class="seek" data-t="959">▶ 15:59</button></div>
       <h3>人的指导产出了专门的音频内核</h3>
-      <p>A more involved full-model example uses human prompting to guide optimization of an <strong>audio encoder</strong>. The agent generates six custom kernels specialized for the RTX 6000 Blackwell. Serrino reports that the audio encoder was about 70% faster, with both implementations using <code>torch.compile</code>.</p>
-<p>The implementation loads the six fused kernels inline from source strings and calls them from the model code. Although embedding source this way is awkward to read, it provides a useful integration property: the generated module is an API-compatible replacement for the original PyTorch module. The caller can keep the same module interface while the implementation underneath uses kernels specialized for the target hardware.</p>
+      <p>一个更复杂的整模型案例，是在人工提示的引导下优化一个<strong>音频编码器</strong>。智能体生成了六个专门针对 RTX 6000 Blackwell 的自定义 kernel。Serrino 报告，音频编码器快了约 70%，两个实现都用了 <code>torch.compile</code>。</p>
+<p>这个实现从源码字符串内联加载六个融合 kernel，再在模型代码里调用它们。这样嵌入源码读起来很别扭，却带来一个实用的集成优势：生成的模块与原来的 PyTorch 模块 API 兼容，可以直接替换。调用方沿用原来的模块接口，底层实现则换成了针对目标硬件定制的 kernel。</p>
     </section>
 <section class="section" id="sec-14">
       <div class="section-head"><span class="num">14</span>
       <button class="seek" data-t="1003">▶ 16:43</button></div>
       <h3>搜索已知技术，再改进搜索本身</h3>
-      <p>The strongest current applications use agents to explore established optimization ideas:</p>
-<p>- <strong>Search familiar techniques.</strong> Try fusion, tiling, and other known approaches across many experiments, then measure which works best for the workload.
-- <strong>Port implementations.</strong> Carry insights from an existing implementation to a new device and specialize them for its available features.
-- <strong>Transfer optimizations.</strong> Adapt a known approach to a changed scenario, such as a different model quantization, using related implementations as guidance.</p>
-<p>These uses turn the agent’s ability to generate alternatives into a practical optimization tool.</p>
-<p>Serrino does not position current agents as inventors of the next FlashAttention-scale algorithmic breakthrough, or as replacements for experts who have spent months optimizing one problem. Their immediate value is broader coverage: improve workloads that experts do not have time to address, while leaving those experts more room to pursue difficult advances.</p>
+      <p>目前最有成效的用法，是让智能体去探索成熟的优化思路：</p>
+<p>- <strong>搜索熟悉的技术。</strong> 在大量实验中尝试融合、分块（tiling）等已知方法，再实测哪种最适合这个工作负载。
+- <strong>移植实现。</strong> 把现有实现里的经验带到新设备上，并针对新设备的特性做专门优化。
+- <strong>迁移优化。</strong> 参考相关实现，把一种已知方法改造到变化后的场景里，比如模型换了一种量化方式。</p>
+<p>这些用法把智能体批量生成备选方案的能力，变成了实用的优化工具。</p>
+<p>Serrino 并不认为现在的智能体能发明下一个 FlashAttention 级别的算法突破，也不认为它们能取代那些花几个月专攻一个问题的专家。它们眼下的价值在于覆盖面更广：把专家顾不上的工作负载也优化起来，让专家腾出更多精力去攻克难题。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/1a402ea07eba24d19c5aea75531ffffe5b0d45a7d0c5f9e4836e62727ff80d10" alt="Slide lists best applications, including searching known techniques and porting implementations, and worst applications, including algorithmic advances and outperforming dedicated human experts." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Current kernel agents have practical applications and clear limits.</figcaption></figure>
-<p>The next research directions address both specialization and trust. Abstract models of different machines could help agents generate code that better matches each target’s characteristics. Generating <a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html" target="_blank" rel="noopener">PTX</a>—NVIDIA’s virtual instruction set, which is translated into native GPU instructions—could extend the search into code that is cumbersome for humans to write. Formal verification is also proposed as a way to strengthen correctness checking. Each direction tackles a constraint exposed by the examples: knowing what the hardware can do, expressing an effective implementation, and establishing that the faster program still computes the intended result.</p>
+<p>接下来的研究方向，一头关乎专门化，一头关乎可信度。为不同机器建立抽象模型，可以帮智能体写出更贴合各个目标硬件特点的代码。生成 <a href="https://docs.nvidia.com/cuda/parallel-thread-execution/index.html" target="_blank" rel="noopener">PTX</a>（NVIDIA 的虚拟指令集，最终会转换成 GPU 原生指令），可以把搜索范围扩展到人写起来很费劲的代码。他们还提出用形式化验证来加强正确性检查。每个方向都对应案例中暴露出的一个限制：弄清硬件能做什么，写出高效的实现，以及确认更快的程序算出的仍是预期结果。</p>
     </section>
     </div></div></section>
 

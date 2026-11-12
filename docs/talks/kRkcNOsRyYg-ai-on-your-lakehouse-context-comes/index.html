@@ -2351,70 +2351,70 @@ Codespaces: glowing funicular · main* · Ln 1, Col 1 · Spaces: 2 · UTF-8 · L
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="128">▶ 2:08</button></div>
       <h3>维修历史和手册只是开始</h3>
-      <p>An auto-repair copilot can retrieve the right records and still give the wrong answer. Its warehouse contains structured repair history; its document store contains manuals, safety bulletins, and recalls. Text-to-SQL and vector search make those sources accessible, but access alone does not ensure that an agent sees the relationships it needs.</p>
-<p>Consider Autofix, the fictional national repair chain used throughout the workshop. A technician has a vehicle in a bay and needs to know how to repair it. Leadership wants a copilot to support that work, and the AI engineer has to connect the technical library to the history of repairs already performed. The demonstration uses cloud-stored documents and BigQuery, with patterns intended to extend to Databricks and Snowflake. As the number of similar tables and documents grows, relevant context can fall through the cracks even when individual retrieval calls work correctly.</p>
-<p>The harder questions concern the whole operation: Which incoming vehicles lack documentation? Which documents are never used? Which repairs keep failing? Which recalls form recurring groups? A similarity search returns things resembling a query; establishing a missing connection requires examining coverage and relationships. Even a seemingly ordinary warehouse question can depend on choosing the correct joins among many lookalike tables.</p>
-<p><strong>The context an agent receives should fit the question it is answering.</strong> The workshop introduces three shapes:</p>
-<p>| Shape | Context supplied | Useful question |
+      <p>一个汽修 copilot 能检索到正确的记录，却照样给出错误答案。它的数据仓库里存着结构化的维修历史，文档库里则是维修手册、安全通告和召回通知。Text-to-SQL 和向量搜索让智能体能访问这些数据源，但能访问不等于能看清它需要的关联。</p>
+<p>以 Autofix 为例。这是一家虚构的全国连锁维修企业，贯穿整场工作坊。一位技师的工位上停着一辆车，他需要知道怎么修。管理层希望用 copilot 辅助这项工作，AI 工程师就得把技术资料库和已完成的维修历史连起来。演示用的是云端存储的文档和 BigQuery，这套模式也计划推广到 Databricks 和 Snowflake。相似的表和文档越来越多时，即使每次检索调用都没出错，相关上下文也可能被漏掉。</p>
+<p>更难的问题关乎整个业务：哪些进厂车辆缺少文档？哪些文档从来没人用？哪些维修反复失败？哪些召回会反复聚成一类？相似度搜索返回的是和查询相像的东西；要找出缺失的关联，得检查覆盖范围和彼此的关系。哪怕一个看似普通的数仓问题，也可能取决于能否在众多长得差不多的表之间选对 join。</p>
+<p><strong>智能体拿到的上下文，应该和它要回答的问题对得上。</strong> 工作坊介绍了三种形态（shape）：</p>
+<p>| 形态 | 提供的上下文 | 适合回答的问题 |
 |---|---|---|
-| Table of Contents | Hierarchy and document cross-links | What should I read next? |
-| Themes | Groups inferred from interlinking | What patterns span the library? |
-| Connections | Warehouse metadata and join paths | How do these records relate? |</p>
-<p>The implementation starts with Connections, then builds document navigation and Themes.</p>
+| Table of Contents（目录） | 层级结构和文档交叉链接 | 接下来该读什么？ |
+| Themes（主题） | 从相互链接中推断出的分组 | 整个资料库里有哪些规律？ |
+| Connections（关联） | 数仓元数据和 join 路径 | 这些记录之间是什么关系？ |</p>
+<p>实现从 Connections 开始，然后搭建文档导航和 Themes。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/758d52101718b0b6015f7f7b4b0a13b1dbeedc0c749d134ebb891b712c73ad7f" alt="Slide outlining search limitations, three graph shapes, and agent context, with a portability note below." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Context comes in shapes, not queries.</figcaption></figure>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="457">▶ 7:37</button></div>
       <h3>一个图谱、一个智能体和一个可运行的工作区</h3>
-      <p>The underlying model is a <strong>property graph</strong>. Nodes represent things such as people and cars; relationships represent associations such as a person owning or driving a car. Both can carry properties, including strings, numbers, dates, and vectors. Blumenfeld compares the connected structure to pre-joined tables: once relationships exist, a query can follow them instead of reconstructing each association from scratch.</p>
-<p>The <a href="https://graphacademy.neo4j.com/courses/workshop-lakehouse" target="_blank" rel="noopener">GraphAcademy workshop</a> organizes the exercises into seventeen lessons. To follow along:</p>
-<p>1. Sign in, enroll in the course, and open its Environment lesson.
-2. Launch the preconfigured GitHub Codespace in your own account. A local clone is also possible through the repository’s Bash setup script, but requires the local dependencies, including Claude Code.
-3. Wait for initialization, then populate the environment file with Anthropic access, BigQuery credentials, and your individually provisioned Neo4j sandbox credentials.
-4. Start Claude Code. In the demonstration, opening a fresh terminal resolves the case where it asks for a subscription instead of recognizing the API key. Accept the configured MCP server and ask the agent to check its Neo4j connection.</p>
-<p>Blumenfeld’s graph already contains data from an earlier run; a new participant’s sandbox begins empty.</p>
-<p>The coding workflow uses the <a href="https://github.com/neo4j-labs/neo4j-cli" target="_blank" rel="noopener">Neo4j CLI</a> to execute database queries, a Cypher skill to guide query construction, and a Graph Data Science skill for the later algorithms. Rather than handwrite every query, participants give the agent specifications for the outputs they want.</p>
-<p>The repository separates those concerns: <code>.claude</code> contains skills; outline, search, and themes scripts contain implementation placeholders; a small Python SQL runner calls BigQuery; and Markdown specifications describe the required outputs. Solution scripts provide a recovery path when generated queries fail. The repository also includes data-loading material, Databricks directions for comparisons with Genie and AI Search, source PDFs, and a readable Markdown corpus. Cursor is a possible local alternative, though Blumenfeld has not tested the workshop with it.</p>
+      <p>底层模型是<strong>属性图</strong>（property graph）。节点代表人、车之类的实体；关系代表实体之间的关联，比如某人拥有或驾驶某辆车。节点和关系都可以带属性，包括字符串、数字、日期和向量。Blumenfeld 把这种相连的结构比作预先 join 好的表：关系一旦建立，查询就可以顺着关系走，不必每次从头重建关联。</p>
+<p><a href="https://graphacademy.neo4j.com/courses/workshop-lakehouse" target="_blank" rel="noopener">GraphAcademy 工作坊</a>把练习分成十七节课。跟着做的步骤如下：</p>
+<p>1. 登录，报名课程，打开其中的 Environment 一课。
+2. 在自己的账号里启动预先配置好的 GitHub Codespace。也可以用仓库里的 Bash 安装脚本克隆到本地，但要先装好本地依赖，包括 Claude Code。
+3. 等初始化完成，然后在环境变量文件里填入 Anthropic 访问凭证、BigQuery 凭证，以及分配给你个人的 Neo4j sandbox 凭证。
+4. 启动 Claude Code。演示中，Claude Code 有时不认 API key，反而要求订阅，新开一个终端就能解决。接受已配置好的 MCP server，然后让智能体检查一下 Neo4j 连接。</p>
+<p>Blumenfeld 的图里已经有上一次运行留下的数据；新参与者的 sandbox 一开始是空的。</p>
+<p>编码流程用 <a href="https://github.com/neo4j-labs/neo4j-cli" target="_blank" rel="noopener">Neo4j CLI</a> 执行数据库查询，用一个 Cypher skill 指导查询编写，后面的算法则用 Graph Data Science skill。参与者不用手写每条查询，而是把想要的输出写成规格说明交给智能体。</p>
+<p>仓库把这些职责分开：<code>.claude</code> 里放 skill；outline、search 和 themes 脚本里留着待实现的占位代码；一个小小的 Python SQL runner 负责调用 BigQuery；Markdown 规格说明描述要求的输出。生成的查询跑不通时，可以用参考答案脚本兜底。仓库里还有数据加载材料、用来对比 Genie 和 AI Search 的 Databricks 指引、源 PDF，以及一份可读的 Markdown 语料。本地也可以改用 Cursor，不过 Blumenfeld 没用它测过这个工作坊。</p>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="1317">▶ 21:57</button></div>
       <h3>Connections：用图谱选择 SQL</h3>
-      <p>The warehouse schema centers on work orders, with vehicles, diagnostic trouble codes (DTCs), procedures, work-order parts, and parts connected through primary and foreign keys. The first task is to make those relationships legible to the agent. <a href="https://github.com/neo4j-labs/neocarta/blob/main/README.md" target="_blank" rel="noopener">NeoCarta</a>, a Neo4j Labs project, supplies a graph representation of warehouse metadata. It can also represent business terminology and processes, although the workshop does not use those extensions.</p>
-<p>Blumenfeld distinguishes an ontology, which helps interpret and reason about data, from a semantic layer, which supplies agreed terms for querying it accurately. A separate virtual-graph approach can expose SQL data through a federated Cypher interface; the exercise instead uses an MCP ingestion operation to build the metadata graph. The workshop load is described as producing six tables and five reference join paths. Its hierarchy runs from database to schema to table to columns, with optional representative values.</p>
-<p>The first question is concrete: Which vehicle received part <code>IC2042</code>? The agent reads the NeoCarta metadata through MCP, identifies the relevant join path, and uses the Python runner to query BigQuery. <strong>The graph guides warehouse execution without replicating the warehouse wholesale.</strong> Representative values may accompany metadata, but the repair records remain in BigQuery and SQL retrieves the answer.</p>
-<p>During the setup recap, one detail matters for anyone following along: an absent <code>.env</code>, or a workspace containing only <code>.env.example</code>, can mean initialization is still running. The setup script populates files asynchronously. Each participant must use their own sandbox credentials alongside the service credentials. Once the query completes, the agent’s Python SQL calls perform the selections and joins, and the displayed answer groups vehicles by make and vehicle count. The demonstrated join paths come from BigQuery’s primary/foreign-key metadata; NeoCarta can also use query logs or manually supplied joins, terminology, and metrics.</p>
+      <p>数仓 schema 以工单为中心，车辆、故障诊断码（DTC）、维修流程、工单配件和配件通过主键、外键相连。第一项任务是让智能体看懂这些关系。<a href="https://github.com/neo4j-labs/neocarta/blob/main/README.md" target="_blank" rel="noopener">NeoCarta</a> 是 Neo4j Labs 的项目，它把数仓元数据表示成图。它也能表示业务术语和流程，不过工作坊没用到这些扩展。</p>
+<p>Blumenfeld 区分了两个概念：本体（ontology）帮助解读数据、对数据做推理；语义层（semantic layer）提供一套约定好的术语，让人能准确地查询数据。另有一种虚拟图方案，可以通过联邦式 Cypher 接口暴露 SQL 数据；这个练习则用一个 MCP 导入操作来构建元数据图。按工作坊的说法，这次加载会生成六张表和五条参考 join 路径。层级从数据库到 schema、到表、再到列，还可以附带代表性取值。</p>
+<p>第一个问题很具体：零件 <code>IC2042</code> 装到了哪辆车上？智能体通过 MCP 读取 NeoCarta 元数据，找出相关的 join 路径，再用 Python runner 查询 BigQuery。<strong>图负责指引数仓查询，并不把整个数仓复制一遍。</strong> 元数据旁边可以附带代表性取值，但维修记录仍留在 BigQuery，答案由 SQL 取回。</p>
+<p>回顾环境搭建时，有个细节对跟着做的人很重要：如果没有 <code>.env</code>，或者工作区里只有 <code>.env.example</code>，可能说明初始化还没跑完。安装脚本是异步生成这些文件的。每位参与者都要用自己的 sandbox 凭证，再加上共享的服务凭证。查询完成后，筛选和 join 都由智能体发起的 Python SQL 调用完成，展示出的答案按品牌分组并列出车辆数。演示里的 join 路径来自 BigQuery 的主键/外键元数据；NeoCarta 也可以用查询日志，或者手动提供的 join、术语和指标。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/a2c71ceab9d840ee92900f4220fd7842885b5e67eb41f3dbc8f08a2ea918f922" alt="GraphAcademy environment lesson with an Open in GitHub Codespaces button and a folder overview." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Opening the workshop Codespace.</figcaption></figure>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="2066">▶ 34:26</button></div>
       <h3>什么时候元数据就够了——什么时候要导入记录</h3>
-      <p>A graph can improve execution and it can improve an agent’s understanding of a schema. Supply-chain shortest paths and variable-length traversals illustrate the first use. Choosing a short join path from hundreds of candidate tables illustrates the second: the final SQL may be simple even when discovering the right relationship is difficult. NeoCarta addresses that discovery problem while preserving existing warehouse access. <a href="https://neo4j.com/blog/auradb/neo4j-virtual-graph-is-now-in-public-preview/" target="_blank" rel="noopener">Neo4j Virtual Graph</a>, described in the recording as a preview capability, moves the graph interface down to query execution through Cypher pushdown. Related context-graph work is mentioned, but is not part of this implementation.</p>
-<p>Why not copy the transactional data into Neo4j? The answer depends on what the copy buys:</p>
-<p>- <strong>Keep records in the warehouse:</strong> continuously updated datasets require synchronization, selective copying can require custom ETL, and security policies may prohibit moving sensitive records into another system.
-- <strong>Import records for graph workloads:</strong> large recursive joins, graph algorithms, graph embeddings, and clustering can justify native graph storage. Unstructured documents also benefit when ingestion gives them a useful structure.</p>
-<p>The metadata graph itself persists. Starting NeoCarta does not rebuild it: the build-connections script explicitly invokes ingestion, after which later queries reuse the stored metadata. Blumenfeld expects the load to be idempotent but does not rerun it to demonstrate that property.</p>
-<p>The Cypher skill is maintained internally and distributed alongside skills for agent memory, cloud infrastructure, and language drivers. Its purpose is to supply current query guidance instead of letting the agent rely on old web examples. Blumenfeld does not describe the exact process used to author its <code>SKILL.md</code>; the dev-container installation file shows where the CLI and skills are installed.</p>
+      <p>图既能改进执行，也能改进智能体对 schema 的理解。供应链里的最短路径和变长遍历属于前一种用法。从数百张候选表里挑出一条短的 join 路径属于后一种：最终的 SQL 也许很简单，难的是找到正确的关系。NeoCarta 解决的正是这个发现问题，同时保留现有的数仓访问方式。<a href="https://neo4j.com/blog/auradb/neo4j-virtual-graph-is-now-in-public-preview/" target="_blank" rel="noopener">Neo4j Virtual Graph</a> 在录像中提到时还是预览功能，它通过 Cypher 下推把图接口下沉到查询执行层。演讲还提到了相关的上下文图（context graph）工作，但不在这次实现之内。</p>
+<p>为什么不把交易数据直接复制到 Neo4j？要看复制能换来什么：</p>
+<p>- <strong>记录留在数仓：</strong> 持续更新的数据集需要同步，选择性复制可能要写定制 ETL，安全策略也可能不允许把敏感记录搬到另一个系统。
+- <strong>把记录导入图来跑图计算：</strong> 大规模递归 join、图算法、图嵌入和聚类，都可能值得用原生图存储。非结构化文档也能受益，前提是导入过程给了它们有用的结构。</p>
+<p>元数据图本身会持久保存。启动 NeoCarta 不会重建它：build-connections 脚本显式调用导入，之后的查询复用已存好的元数据。Blumenfeld 认为加载是幂等的，但没有重跑一遍来演示。</p>
+<p>Cypher skill 由内部维护，和智能体记忆、云基础设施、语言驱动等 skill 一起发布。它的作用是提供最新的查询指导，免得智能体照搬网上的旧示例。Blumenfeld 没讲 <code>SKILL.md</code> 具体是怎么写出来的；dev container 的安装文件里可以看到 CLI 和 skill 装在哪里。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/ec16dba8fc3f3d9abf40685f587638698c902afa1786f2e05a687336e10f045e" alt="GitHub displays the Cypher SKILL.md with description, compatibility, When to Use, When NOT to Use, and Pre-flight sections." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The Neo4j Cypher skill’s scope and usage guidance.</figcaption></figure>
-<p>A question about bronze, silver, and gold data layers receives a roadmap answer rather than an additional demonstration. NeoCarta is customer-driven; at the time of the workshop, a Databricks connector is under development, with metric views and document support among the possible extensions being discussed.</p>
+<p>有人问到 bronze、silver、gold 数据分层，得到的是路线图层面的回答，没有额外演示。NeoCarta 由客户需求驱动；工作坊举办时，Databricks 连接器正在开发，正在讨论的扩展方向包括 metric view 和文档支持。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="2620">▶ 43:40</button></div>
       <h3>目录：保留文档已有的结构</h3>
-      <p>The document side contains simulated manuals, bulletins, and recalls, available as PDFs and Markdown. An ABS manual, for example, refers to platform codes and diagnostic troubleshooting material elsewhere in the library. Those references already carry useful structure. The loader reads local files for the exercise, standing in for the cloud-stored collection.</p>
-<p>The Table of Contents shape lets the agent navigate that structure. Blumenfeld invokes <a href="https://github.com/VectifyAI/PageIndex" target="_blank" rel="noopener">PageIndex</a> as an analogy for reading a document hierarchy; it is not a workshop dependency. The outline begins with a library, descends through folders, documents, and sections, and includes cross-links to other documents. Every location has a hierarchical URI. An agent can use a URI to retrieve text, inspect a subtree, or follow a reference into another part of the library. Unlike Connections, this shape imports document content into the graph.</p>
-<p>A familiar GraphRAG ingestion pipeline extracts entities—vehicles or parts, for example—and connects them to source chunks. Here the first graph is lighter: a deterministic parser preserves containment, section order, and existing named links, resembling the references in an Obsidian vault. Hyperlinks can supply the same kind of cross-document relationship.</p>
-<p>For documents with consistent structure and substantial interlinking, this avoids an LLM extraction pass. The loader is designed to be idempotent, and the hierarchy becomes part of each node’s URI, from library through folder and file to section. Inspecting the loaded graph reveals the three relationships the tools will use: containment through <code>HAS</code>, section ordering, and cross-document references through <code>LINKS_TO</code>.</p>
+      <p>文档这边是模拟的维修手册、技术通告和召回通知，有 PDF 和 Markdown 两种格式。比如一份 ABS 手册会引用资料库里别处的平台代码和故障诊断排查材料。这些引用本身就带着有用的结构。练习中，加载器读取本地文件，代替云端存储的文档集。</p>
+<p>Table of Contents 形态让智能体能在这种结构里导航。Blumenfeld 拿 <a href="https://github.com/VectifyAI/PageIndex" target="_blank" rel="noopener">PageIndex</a> 作类比，说明怎么阅读文档层级；工作坊并不依赖它。大纲从资料库开始，往下依次是文件夹、文档和章节，并包含指向其他文档的交叉链接。每个位置都有一个层级化 URI。智能体可以用 URI 取文本、查看某棵子树，或顺着引用跳到资料库的其他部分。和 Connections 不同，这种形态会把文档内容导入图中。</p>
+<p>常见的 GraphRAG 导入流水线会抽取实体（比如车辆或零件），再把它们连到来源文本块上。这里的第一张图更轻量：一个确定性的解析器保留包含关系、章节顺序和已有的命名链接，类似 Obsidian 笔记库里的引用。超链接也能提供同类的跨文档关系。</p>
+<p>文档结构统一、相互链接又多时，这种做法可以省掉一轮 LLM 抽取。加载器按幂等设计，层级会写进每个节点的 URI，从资料库、文件夹、文件一直到章节。查看加载好的图，可以看到工具要用的三种关系：用 <code>HAS</code> 表示包含，章节顺序，以及用 <code>LINKS_TO</code> 表示跨文档引用。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="3168">▶ 52:48</button></div>
       <h3>构建一个能在合适深度停下的大纲</h3>
-      <p>The outline tool starts as a query placeholder inside the Autofix skill’s script. A Markdown specification describes the human-readable shape and optional arguments, and the agent uses the Cypher skill to implement it. The central operation is a variable-length traversal over <code>HAS</code>; the demonstration shows a bound of <code>*0..25</code>, with the script controlling traversal depth. A second query retrieves cross-links.</p>
-<p>The containment operation can be expressed directly in Cypher. Given a root URI, this query returns the root and descendants through the demonstrated bound, together with their depth:</p>
+      <p>outline 工具起初只是 Autofix skill 脚本里的一个查询占位符。一份 Markdown 规格说明描述了人类可读的输出形态和可选参数，智能体借助 Cypher skill 把它实现出来。核心操作是沿 <code>HAS</code> 做变长遍历；演示中的上限是 <code>*0..25</code>，遍历深度由脚本控制。另一条查询负责取回交叉链接。</p>
+<p>包含关系的操作可以直接用 Cypher 写。给定一个根 URI，下面的查询会在演示的上限内返回根节点及其后代，以及各自的深度：</p>
 <p>``<code>cypher
 MATCH (root {uri: $rootUri})
 MATCH path = (root)-[:HAS*0..25]-&gt;(node)
@@ -2422,25 +2422,25 @@ RETURN node.uri AS uri,
        length(path) AS depth
 ORDER BY depth, uri;
 </code>``</p>
-<p>The zero-length path includes the root itself. This is the traversal core; the complete outline also formats the hierarchy and attaches the separately retrieved references.</p>
-<p>Without a root URI or depth restriction, the script returns the entire graph. Blumenfeld can do that with the workshop’s small corpus, but discourages it for larger collections. Setting depth to one gives a shallow view; supplying a URI moves the root. The live example starts at the Falcon 2.0 document, then takes a coil-identification URI from a link and uses it to request another outline. The output of one navigation step becomes the input to the next.</p>
-<p>To check whether the agent actually uses these tools, inspect its tool-call history, including NeoCarta MCP calls. Asking the agent to describe its steps is useful for teaching, but production verification belongs in execution logs. The ingestion code is similarly inspectable: the corpus parser uses regex for these consistently structured documents. Messier sources may require additional processing, including <strong><a href="https://arxiv.org/abs/2311.08526" target="_blank" rel="noopener">GLiNER</a></strong> for entity extraction or an LLM; that does not make either a complete document-structure parser. NeoCarta’s MCP endpoint, its CLI, and the skills approach are not inherently tied to a particular model.</p>
+<p>长度为零的路径包含根节点本身。这是遍历的核心；完整的大纲还会排版层级，并附上单独取回的引用。</p>
+<p>如果不给根 URI、也不限深度，脚本会返回整张图。工作坊的语料小，Blumenfeld 可以这么做，但对更大的文档集不建议这样。把深度设为 1 能得到浅层视图；传入 URI 则会换一个根。现场示例从 Falcon 2.0 文档开始，然后从一条链接里拿到线圈识别的 URI，再用它请求另一份大纲。上一步导航的输出，成了下一步的输入。</p>
+<p>要确认智能体真的用了这些工具，就看它的工具调用历史，包括 NeoCarta 的 MCP 调用。让智能体描述自己的步骤适合教学，但生产环境的验证应该看执行日志。导入代码同样可以检查：对这些结构统一的文档，语料解析器用的是正则。更杂乱的数据源可能需要额外处理，比如用 <strong><a href="https://arxiv.org/abs/2311.08526" target="_blank" rel="noopener">GLiNER</a></strong> 抽取实体，或者用 LLM；但这两者都算不上完整的文档结构解析器。NeoCarta 的 MCP 端点、它的 CLI 以及 skill 这套做法，本身都不绑定特定模型。</p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="3789">▶ 1:03:09</button></div>
       <h3>让词汇对写查询的人保持有用</h3>
-      <p>A single <code>HAS</code> relationship across all containment levels makes the variable-length query simple. Separate types such as <code>HAS_FOLDER</code>, <code>HAS_DOCUMENT</code>, and <code>HAS_SECTION</code> would require more cases. The same reasoning keeps <code>LINKS_TO</code> general. More specific relationships can express richer distinctions, but hundreds of types become harder for both people and agents to manage. On the warehouse side, semantic metadata serves a related purpose: it reconciles business terminology with the physical schema.</p>
-<p>Navigation complements search. A full-text or vector query can locate a starting point; an outline can expose its neighbors and the larger structure around it. Repeated similarity searches may miss a document that matters when investigating an absence or a coverage gap. Explicit traversal provides a different way to inspect the collection, rather than requiring every next step to resemble the original question.</p>
-<p>The workshop also leaves some entities implicit. Instead of creating a dedicated part node for every mention, the agent can read a part from a document and use it to query the warehouse. Blumenfeld sees stronger agents making this practical in some cases. A domain such as life sciences may still require explicit molecule and medication ontologies because precise relationships are essential to valid inference. The decision is about the domain’s required semantics, not a universal requirement to extract everything—or nothing—during ingestion.</p>
+      <p>所有包含层级都用同一种 <code>HAS</code> 关系，变长查询就很简单。如果拆成 <code>HAS_FOLDER</code>、<code>HAS_DOCUMENT</code>、<code>HAS_SECTION</code> 等不同类型，就要处理更多情况。<code>LINKS_TO</code> 保持通用也是同样的道理。关系越具体，能表达的区分越丰富，但类型多到几百种时，人和智能体都更难管。在数仓那边，语义元数据起着类似的作用：把业务术语和物理 schema 对齐。</p>
+<p>导航和搜索是互补的。全文或向量查询可以找到起点；大纲则能展示它的邻居和周围更大的结构。排查某样东西的缺失或覆盖缺口时，反复做相似度搜索可能漏掉关键文档。显式遍历提供了另一种查看文档集的方式，不要求每一步都和最初的问题相似。</p>
+<p>工作坊也让有些实体保持隐式。智能体不必为每次提到的零件都建一个专门的零件节点，而是可以从文档里读出零件，再拿它去查数仓。Blumenfeld 认为，智能体能力变强后，这种做法在一些场景下变得可行。生命科学之类的领域可能仍然需要显式的分子和药物本体，因为关系必须精确，推断才站得住。怎么取舍，取决于领域需要什么样的语义；并没有一条普适的规定，要求导入时必须把所有东西都抽出来，或者什么都不抽。</p>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="4127">▶ 1:08:47</button></div>
       <h3>搜索文本，再限定到一个子树</h3>
-      <p>The next placeholder implements search using Neo4j’s Lucene full-text index, without vector search. The index covers document and section nodes containing text, not folders, and returns matches with scores. Because each match carries a hierarchical URI, the query can apply a subtree restriction after full-text retrieval: keep only nodes whose URI begins with the requested prefix.</p>
-<p><strong>Semantic expansion</strong> supplies some vocabulary flexibility without an embedding pipeline. If a user describes an engine shuddering, the agent can expand that description to terms such as misfire or rough idle, then combine them with Lucene’s <code>OR</code>. The demonstration also searches for coils only under recalls. The URI encodes enough containment information to scope those results without an additional graph traversal.</p>
-<p>The complete callable procedure is <a href="https://neo4j.com/docs/cypher-manual/current/indexes/semantic-indexes/full-text-indexes/" target="_blank" rel="noopener"><code>db.index.fulltext.queryNodes()</code></a>. The following Cypher shows the search-then-filter sequence, with the configured index name, Lucene expression, URI scope, and result limit supplied as parameters:</p>
+      <p>下一个占位符用 Neo4j 的 Lucene 全文索引实现搜索，不用向量搜索。索引覆盖带文本的文档节点和章节节点，不包括文件夹，返回带分数的匹配结果。每个匹配都带着层级化 URI，所以查询可以在全文检索之后再按子树过滤：只保留 URI 以指定前缀开头的节点。</p>
+<p><strong>语义扩展</strong>不需要 embedding 流水线，也能带来一定的词汇灵活性。如果用户说发动机在抖，智能体可以把这个描述扩展成 misfire（缺火）、rough idle（怠速不稳）之类的词，再用 Lucene 的 <code>OR</code> 组合起来。演示还只在召回通知里搜索线圈。URI 里编码的包含信息足以限定结果范围，不需要额外的图遍历。</p>
+<p>完整的可调用过程是 <a href="https://neo4j.com/docs/cypher-manual/current/indexes/semantic-indexes/full-text-indexes/" target="_blank" rel="noopener"><code>db.index.fulltext.queryNodes()</code></a>。下面的 Cypher 展示了先搜索、再过滤的顺序，配置好的索引名、Lucene 表达式、URI 范围和结果数量上限都以参数传入：</p>
 <p>``<code>cypher
 CALL db.index.fulltext.queryNodes($indexName, $lucene)
 YIELD node, score
@@ -2449,76 +2449,76 @@ RETURN node.uri AS uri, score
 ORDER BY score DESC
 LIMIT $limit;
 </code>``</p>
-<p>For the symptom example, <code>$lucene</code> can contain <code>misfire OR &quot;rough idle&quot;</code>. For a recall-only coil search, it contains the coil query and <code>$scopeUri</code> identifies the recalls subtree. The prefix condition filters the returned nodes; it does not change the full-text index into a separate index for that folder.</p>
+<p>在症状那个例子里，<code>$lucene</code> 可以是 <code>misfire OR &quot;rough idle&quot;</code>。只在召回通知里搜线圈时，它装的是线圈查询，<code>$scopeUri</code> 则指向召回通知所在的子树。前缀条件只过滤返回的节点，并不会把全文索引变成那个文件夹专用的索引。</p>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="4478">▶ 1:14:38</button></div>
       <h3>名称、新鲜度和引用都是检索质量的一部分</h3>
-      <p>An agent can help create a missing full-text index, but it still needs a sensible indexing contract. Neo4j supports indexing multiple labels and properties, and that flexibility creates choices the agent may misunderstand. Blumenfeld thinks he may have generated the workshop index with an agent, but does not recall that construction step.</p>
-<p>Document names matter because an outline exposes names before content. A poor title gives the agent less evidence for deciding where to navigate; search can compensate by looking inside the document. Outdated or drifted content is another problem. Blumenfeld proposes last-updated or authority metadata as possible additions, and emphasizes descriptive link aliases: they explain why a document points elsewhere. LLM enrichment during ingestion can help when that descriptive information is missing.</p>
-<p>A deterministic load can rebuild the same document graph from unchanged sources. Incremental updates are possible too, but a document is not isolated: renaming it changes the URI that other documents may reference. Partial synchronization therefore needs to update or clean the affected subtree and account for incoming links, rather than simply replacing one node.</p>
-<p>An audience question about selectively applying PageIndex leads to a useful sequencing clarification. There is no mandatory outline-first order. An agent can inspect an outline and then search within a promising area, or search first and then follow the matching document’s links. The optional practice material explores the Cypher details further, though the live workshop moves on to Themes.</p>
+      <p>智能体可以帮忙建缺失的全文索引，但索引怎么建，仍然要有合理的约定。Neo4j 支持对多个标签和属性建索引，这种灵活性也带来了一些智能体可能理解错的选择。Blumenfeld 觉得工作坊的索引可能是他用智能体生成的，但记不清这一步了。</p>
+<p>文档名很重要，因为大纲先展示名字，再展示内容。标题起得差，智能体判断往哪里导航的依据就少；搜索可以深入文档内部来弥补。内容过时或走样是另一个问题。Blumenfeld 提议可以加上最后更新时间或权威性之类的元数据，并强调链接别名要有描述性：别名说明了一份文档为什么指向别处。缺少这类描述信息时，导入阶段用 LLM 补充会有帮助。</p>
+<p>来源不变时，确定性加载能重建出同一张文档图。增量更新也做得到，但文档不是孤立的：给它改名会改变它的 URI，而其他文档可能正引用这个 URI。所以部分同步不能只替换一个节点，而要更新或清理受影响的子树，并处理指向它的链接。</p>
+<p>观众问到能否有选择地应用 PageIndex，由此引出一个关于顺序的有用澄清：并没有必须先看大纲的规定。智能体可以先看大纲，再在有希望的区域里搜索；也可以先搜索，再顺着匹配文档的链接往下走。可选的练习材料会进一步讲 Cypher 细节，不过现场工作坊直接进入了 Themes。</p>
     </section>
 <section class="section" id="sec-10">
       <div class="section-head"><span class="num">10</span>
       <button class="seek" data-t="4903">▶ 1:21:43</button></div>
       <h3>主题：通过文档链接发现分组</h3>
-      <p>Looking only at <code>LINKS_TO</code> relationships reveals another shape. Manuals, recalls, and bulletins refer to one another; a guide may be the shared target of many repair procedures. Zooming out reveals groups of highly interconnected documents. These groups can expose subjects that were never explicitly tagged in the library.</p>
+      <p>只看 <code>LINKS_TO</code> 关系，又能看出另一种形态。维修手册、召回通知和技术通告彼此引用；一份指南可能是许多维修流程共同指向的目标。把视角拉远，就能看到一组组高度互连的文档。这些分组可能揭示资料库里从来没人显式标注过的主题。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/0250d960b543173d8378cadb71af22b1df977c9b405a28031be07112271f0d43" alt="GraphAcademy lesson beside a graph result showing a central node connected to surrounding nodes and a results overview." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Exploring links between documents and sections.</figcaption></figure>
-<p>The workshop uses <strong><a href="https://neo4j.com/docs/graph-data-science/current/algorithms/leiden/" target="_blank" rel="noopener">Leiden community detection</a></strong> to assign documents to groups. The aim resembles the global-versus-local distinction in <a href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener">Microsoft GraphRAG</a>, but the input here is existing document structure rather than an LLM-extracted entity graph. Blumenfeld describes Leiden as a successor to Louvain with more efficient behavior. Neo4j Graph Data Science runs it on an in-memory projection of the relevant graph. His discussion of millions or billions of nodes concerns the intended scale of graph analytics, not a measured workshop run; the projection still requires adequate memory.</p>
-<p>The agent receives a compact view of each group rather than a graph visualization:</p>
-<p>| Field | What it conveys |
+<p>工作坊用 <strong><a href="https://neo4j.com/docs/graph-data-science/current/algorithms/leiden/" target="_blank" rel="noopener">Leiden 社区发现</a></strong> 给文档分组。目标类似 <a href="https://arxiv.org/abs/2404.16130" target="_blank" rel="noopener">Microsoft GraphRAG</a> 里全局与局部的区分，但这里的输入是已有的文档结构，而不是 LLM 抽取出来的实体图。Blumenfeld 把 Leiden 描述为 Louvain 的后继算法，运行更高效。Neo4j Graph Data Science 在相关子图的内存投影上运行它。他谈到的数百万乃至数十亿节点，指的是图分析的目标规模，并非工作坊实测；投影仍然需要足够的内存。</p>
+<p>智能体拿到的不是图的可视化，而是每个分组的精简视图：</p>
+<p>| 字段 | 含义 |
 |---|---|
-| Theme ID | The community assignment |
-| Interlinking description | Conductance-based separation from other groups |
-| Top shared targets | References common to the group |
-| Most-linked documents | Central documents to inspect next |</p>
-<p>Conductance relates connections across the community boundary to connectivity within the graph, supporting descriptions such as tightly or loosely interlinked. Link labels and document titles make the groups interpretable: the examples expose a BCM/bus cluster and a braking cluster containing rotor pads and hydraulic lines, without generating new theme names.</p>
-<p>The implementation again begins with a specification and a placeholder, this time in <code>themes.py</code>. The agent uses the Cypher and GDS skills to build the projection, while the script calls Leiden through the GDS library. Before projecting, it collapses section-to-section references to their owning documents using the URI structure. That produces document-level relationships, so the resulting communities describe how documents group together rather than fragmenting the view across individual sections.</p>
-<p>Blumenfeld reports 13 groups at the default <code>gamma=1</code> and 14 themes at <code>gamma=2</code> on the simulated workshop corpus. Gamma controls resolution, allowing a more finely divided view; the appropriate setting depends on the corpus. The output continues to use source link labels and document names. Returned URIs let the agent move from a theme into an outline or scoped search, supporting questions about concentrated issues, thin documentation, or where new material belongs.</p>
+| Theme ID | 社区归属 |
+| 互连描述 | 按传导率（conductance）衡量和其他分组分得多开 |
+| 头部共同目标 | 组内共同引用的对象 |
+| 被链接最多的文档 | 下一步值得查看的核心文档 |</p>
+<p>传导率把跨社区边界的连接和图内的连通性联系起来，可以支撑“紧密互连”“松散互连”这类描述。链接标签和文档标题让分组变得好理解：示例中出现了一个 BCM/总线簇，还有一个包含刹车盘、刹车片和液压管路的制动簇，都没有生成新的主题名。</p>
+<p>实现同样从一份规格说明和一个占位符开始，这次在 <code>themes.py</code> 里。智能体用 Cypher 和 GDS skill 构建投影，脚本则通过 GDS 库调用 Leiden。投影之前，它利用 URI 结构把章节之间的引用折叠到各自所属的文档上。这样得到的是文档级的关系，生成的社区反映的是文档怎样聚在一起，不会把视图打散到一个个章节上。</p>
+<p>Blumenfeld 报告，在模拟的工作坊语料上，默认 <code>gamma=1</code> 时得到 13 个分组，<code>gamma=2</code> 时得到 14 个主题。gamma 控制分辨率，可以把视图切得更细；合适的取值取决于语料。输出仍然沿用来源中的链接标签和文档名。返回的 URI 让智能体能从某个主题跳到大纲或限定范围的搜索，用来回答这类问题：哪些问题集中出现，哪里的文档太单薄，新材料该放在哪里。</p>
     </section>
 <section class="section" id="sec-11">
       <div class="section-head"><span class="num">11</span>
       <button class="seek" data-t="5603">▶ 1:33:23</button></div>
       <h3>社区描述、变化的数据与信任</h3>
-      <p>Leiden supplies group IDs; describing those groups is a separate choice. The workshop displays source metadata, which avoids generated labels but depends on good document titles and link names. Microsoft GraphRAG-style processing can instead add entity extraction and hierarchical LLM summaries, at additional cost and latency, with potentially varying generated text. Source-derived descriptions avoid that generation variability, but unchanged documents alone do not guarantee identical Leiden assignments: reproducibility also depends on randomness controls and execution settings.</p>
-<p>For changing data, rerun the projection and retain snapshots of the communities and their descriptions. Those snapshots let an application examine how groups evolve over time. Blumenfeld points to chargeback fraud and anti-money-laundering analysis as established uses of temporal community analysis, where repeated clustering helps reveal changing patterns.</p>
-<p>Large theme views can be filtered by community size or conductance, but small communities may still be important. Filtering the view also does not validate the source. The deterministic parser trusts existing references: a wrong link remains a wrong link, and a malformed section may survive ingestion. Agent traversal could help audit such problems, but the workshop does not demonstrate a complete cleaning solution.</p>
+      <p>Leiden 给出分组 ID；怎么描述这些分组是另一回事。工作坊展示的是来源元数据，不用生成标签，但依赖好的文档标题和链接名。也可以走 Microsoft GraphRAG 那种处理方式，加上实体抽取和分层的 LLM 摘要，代价是更多成本和延迟，生成的文本也可能每次不同。直接取自来源的描述没有生成带来的波动，但文档不变并不能保证 Leiden 每次分组都一样：可复现性还取决于随机性控制和执行设置。</p>
+<p>数据会变的话，就重跑投影，并保留社区及其描述的快照。有了快照，应用就能观察分组随时间怎样演变。Blumenfeld 举了退单欺诈（chargeback fraud）和反洗钱分析的例子，它们是时序社区分析的成熟用法，反复聚类有助于发现不断变化的模式。</p>
+<p>主题视图很大时，可以按社区规模或传导率过滤，但小社区也可能很重要。过滤视图也不等于验证了来源。确定性解析器信任已有的引用：错的链接还是错的，格式有问题的章节也可能原样进入图中。智能体遍历可以帮忙审查这类问题，但工作坊没有演示完整的清洗方案。</p>
     </section>
 <section class="section" id="sec-12">
       <div class="section-head"><span class="num">12</span>
       <button class="seek" data-t="5959">▶ 1:39:19</button></div>
       <h3>从一个诊断码到一条维修建议</h3>
-      <p>Predefined shapes do not have to cover every possible question. The Neo4j CLI can retrieve the schema and execute custom Cypher, letting a coding agent compose a query when it needs to connect information in an unanticipated way. Blumenfeld reports a better text-to-Cypher experience with the CLI and maintained skills, without presenting a measured comparison. The live CLI exercise is abbreviated, but the schema inspection shows the information available to the agent.</p>
+      <p>预定义的形态不必覆盖所有可能的问题。Neo4j CLI 能获取 schema、执行自定义 Cypher，编码智能体需要以意料之外的方式关联信息时，可以自己写查询。Blumenfeld 说，配合 CLI 和持续维护的 skill，text-to-Cypher 的体验更好，但没有给出量化对比。现场的 CLI 练习做了删减，不过 schema 检查展示了智能体能拿到哪些信息。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/57d79399f8d03a83c50afd61c921a40ebebc9153117273789bf33d0dbcdd566e" alt="Codespaces terminal shows schema output with index and constraint tables beneath an open theme-format document." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Inspecting graph schema through the Neo4j CLI.</figcaption></figure>
-<p>The first combined demonstration returns to the technician: for a given VIN and diagnostic code, what has fixed similar vehicles? The operational goal is to reduce the <strong>comeback ratio</strong>—customers returning because the previous repair did not work. Warehouse history records those outcomes, while manuals, recalls, and bulletins describe the parts and procedures. A prewritten domain skill exposes the outline, search, and themes scripts alongside the SQL runner and NeoCarta MCP access.</p>
-<p>The answer is assembled through several operations:</p>
-<p>1. Search for the diagnostic code and related symptoms, including misfire or rough idle.
-2. Locate the relevant engine manual and inspect its linked procedures.
-3. Retrieve the warehouse join paths.
-4. Query the vehicle and comparable work orders involving the diagnostic code and part.
-5. Combine the repair history with the documentation to recommend replacing the old ignition coil with its revised part.</p>
-<p>The graph supplies the document-to-procedure route; the warehouse supplies what happened in previous repairs.</p>
-<p>Blumenfeld’s comparison with vector retrieval is about the path through the evidence. A search-based system can answer this question too, but repeatedly searching for each related procedure introduces opportunities to retrieve a misfire passage about the wrong part. Following the manual’s explicit links gives the agent a more constrained route before it returns to the warehouse.</p>
+<p>第一个综合演示回到技师的问题：给定 VIN 和诊断码，类似的车之前是怎么修好的？业务目标是降低<strong>返修率</strong>（comeback ratio），也就是客户因为上次没修好又回来的比例。数仓里的历史记录了这些结果，维修手册、召回通知和技术通告则说明零件和维修流程。一个预先写好的领域 skill 暴露了 outline、search 和 themes 脚本，以及 SQL runner 和 NeoCarta MCP 访问。</p>
+<p>答案靠几步操作拼起来：</p>
+<p>1. 搜索诊断码和相关症状，包括 misfire 或 rough idle。
+2. 找到相关的发动机手册，查看它链接的维修流程。
+3. 取回数仓 join 路径。
+4. 查询这辆车，以及涉及该诊断码和零件的同类工单。
+5. 把维修历史和文档结合起来，建议把旧点火线圈换成改进版零件。</p>
+<p>图提供从文档到维修流程的路径；数仓提供以往维修的实际结果。</p>
+<p>Blumenfeld 拿向量检索作比较，着眼点在于穿过证据的路径。基于搜索的系统也能回答这个问题，但每个相关流程都要反复搜索，就多了几次机会检索到一段讲缺火、却针对另一个零件的内容。顺着手册里的显式链接走，智能体在回到数仓之前，走的路线更受约束。</p>
     </section>
 <section class="section" id="sec-13">
       <div class="section-head"><span class="num">13</span>
       <button class="seek" data-t="6331">▶ 1:45:31</button></div>
       <h3>找到资料库与现场之间的不匹配</h3>
-      <p>The supervisor’s question is broader: Are documented procedures consistent with field problems, what documentation is missing, and what documentation is not being used? This requires comparing the technical library with work-order history. A search result by itself cannot establish that the relevant documentation is absent; the analysis needs some account of what exists on both sides. The agent works across document information, diagnostic codes, and warehouse queries to investigate the gaps.</p>
-<p>For this exercise, Blumenfeld explicitly disables the Neo4j CLI so the predefined shapes remain visible. With unrestricted CLI access, the agent might prefer custom Cypher instead. The intended investigation compares field codes, repair choices, and comeback history against the library: repeated unsuccessful repairs can suggest that the correct procedure is not being applied, while documentation with no corresponding field activity raises a different coverage question.</p>
-<p>The live agent takes a different route from the one requested. It performs extensive semantic-expansion full-text searches instead of using the outline. Blumenfeld reports procedure mismatches and two field DTC codes with no code-level documentation. The hierarchical URIs still help it navigate the search results, but the demonstration does not show the intended outline traversal. Blumenfeld attributes the extra delay to the comprehensive searches and suggests that following explicit links could have reduced the work. <strong>A tool being available does not mean the agent will choose it.</strong></p>
+      <p>主管的问题更宽：文档里的维修流程和现场问题一致吗？缺了哪些文档？哪些文档没人用？这需要把技术资料库和工单历史对照起来。单凭一条搜索结果，无法确定相关文档不存在；分析得先弄清两边各有什么。智能体在文档信息、诊断码和数仓查询之间来回，排查这些缺口。</p>
+<p>在这个练习里，Blumenfeld 特意禁用了 Neo4j CLI，好让预定义的形态保持可见。如果不限制 CLI，智能体可能更倾向于写自定义 Cypher。预期的排查方式是拿现场故障码、维修选择和返修历史去对照资料库：反复修不好，可能说明没用上正确的流程；有文档却没有对应的现场记录，则是另一类覆盖问题。</p>
+<p>现场的智能体没有按要求的路线走。它没用大纲，而是做了大量带语义扩展的全文搜索。Blumenfeld 报告发现了维修流程不匹配的情况，还有两个现场 DTC 码没有任何码级别的文档。层级化 URI 仍然帮它在搜索结果间导航，但演示没能展示预期的大纲遍历。Blumenfeld 认为多出来的耗时来自这些地毯式搜索，并说顺着显式链接走本可以少做些工作。<strong>工具摆在那儿，不代表智能体会选它。</strong></p>
     </section>
 <section class="section" id="sec-14">
       <div class="section-head"><span class="num">14</span>
       <button class="seek" data-t="6730">▶ 1:52:10</button></div>
       <h3>主题覆盖，以及智能体仍需执行的关联</h3>
-      <p>The final demonstration asks for common patterns across bulletins and recalls, together with how many cars each affects. The agent calls Themes to identify groups, retrieves fixes from warehouse history, and associates the work orders with the relevant themes. This connects the library’s subject structure to operational activity.</p>
-<p>A question about when the shapes are defined exposes the design sequence: first specify what the agent should receive, then derive the queries needed to produce it, and use those queries to inform the data model. The underlying document graph remains the <code>HAS</code> containment tree plus cross-links. The completed answer uses Themes and Connections without search, grouping cars and work orders under theme types and presenting percentages.</p>
-<p>Asked how accuracy holds up as the knowledge base grows, Blumenfeld says he has not benchmarked this exact implementation. Customers evaluate their own ontologies and query patterns against alternatives such as ordinary vector search on their own datasets. These exercises establish the mechanisms and show the tool choices made during the live run; evaluating accuracy and improving the skill’s routing guidance remain application-specific work.</p>
-<p>The last architectural question uses financial statements and CEO commentary as another example of structured and unstructured sources. In this workshop, <strong>the warehouse metadata graph and the document graph have no explicit edges connecting them</strong>. The agent extracts a part or diagnostic code from one source and uses it to look up information in the other, performing the cross-source match at query time. Stored links could make that mapping more deterministic. Blumenfeld leaves them out to keep the initial implementation easy to build and model-agnostic.</p>
-<p>The online course remains available for repeating the exercises. The shared credentials are temporary: Blumenfeld plans to withdraw the Anthropic key and leave the BigQuery key available only for a while. Anyone returning to the workshop should be prepared to supply their own access.</p>
+      <p>最后一个演示要找出技术通告和召回通知中的共同模式，以及每种模式影响多少辆车。智能体调用 Themes 找出分组，从数仓历史里取回修复记录，再把工单关联到相应的主题上。这样，资料库的主题结构就和实际业务活动连了起来。</p>
+<p>有人问这些形态是什么时候定义的，由此引出设计顺序：先明确智能体应该拿到什么，再推导出生成它所需的查询，然后用这些查询指导数据建模。底层的文档图依旧是 <code>HAS</code> 包含树加交叉链接。最终答案用了 Themes 和 Connections，没有用搜索，按主题类型把车辆和工单归组，并给出百分比。</p>
+<p>有人问知识库变大后准确率能否保持，Blumenfeld 说他没对这套实现做过基准测试。客户会在自己的数据集上，拿自己的本体和查询模式去和普通向量搜索等方案做评测。这些练习的作用是把机制搭起来，并展示现场运行时智能体做了哪些工具选择；评测准确率、改进 skill 里的路由指引，仍然要结合具体应用来做。</p>
+<p>最后一个架构问题拿财务报表和 CEO 评论举例，作为结构化与非结构化数据源并存的另一个场景。在这个工作坊里，<strong>数仓元数据图和文档图之间没有显式的边相连</strong>。智能体从一个来源里抽出零件或诊断码，再拿去另一个来源查信息，跨来源的匹配在查询时完成。把链接存下来能让这种映射更确定。Blumenfeld 没这么做，是为了让最初的实现容易搭建，并且不绑定模型。</p>
+<p>在线课程会一直开放，可以重复做练习。共享凭证是临时的：Blumenfeld 打算收回 Anthropic key，BigQuery key 也只再保留一段时间。之后再回来做工作坊的人，要准备好自己的访问凭证。</p>
     </section>
     </div></div></section>
 

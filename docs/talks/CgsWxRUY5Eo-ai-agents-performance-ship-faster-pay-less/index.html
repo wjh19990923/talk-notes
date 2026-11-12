@@ -622,74 +622,74 @@ Rajat Shah · AI Platform, Netflix</pre></details>
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="0">▶ 0:00</button></div>
       <h3>为什么更快的编码会制造性能瓶颈</h3>
-      <p>What happens when generating code becomes easier than checking what it costs to run? Rajat Shah works on large-scale distributed systems for machine-learning model hosting in Netflix’s AI platform organization. His starting problem is performance-engineering throughput: how to keep infrastructure efficient as coding agents help engineers ship more code.</p>
-<p>Shah frames the mismatch as code authoring becoming 10× faster, with a deliberately exaggerated suggestion that CPU bills are growing at the same pace. The underlying concern is concrete: agents optimized to produce working code quickly do not necessarily produce the fastest implementation.</p>
+      <p>当生成代码比算清它的运行成本还容易时，会发生什么？Rajat Shah 在 Netflix 的 AI 平台部门工作，负责机器学习模型托管背后的大规模分布式系统。他关心的问题是性能工程的吞吐量：编码智能体帮工程师交付越来越多的代码，基础设施怎样才能保持高效？</p>
+<p>Shah 这样描述两者的错位：写代码快了 10 倍。他还故意夸张地说，CPU 账单也在以同样的速度上涨。背后的担忧很实在：智能体追求的是尽快写出能跑的代码，而能跑的代码未必是最快的实现。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/6086d339b4abf0dac6103c0a0b561eb5dc02e0e4dad0fb7709bc15496b0415d1" alt="Slide reading “We ship 10x faster now” with the revealed callout “Our CPU bills ship 10x faster too.”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Faster code delivery comes with a CPU-cost warning.</figcaption></figure>
-<p>Better models help, but they do not automatically know an organization’s internal platform, frameworks or established code patterns. An agent may import a convention from another codebase or invent a way to use an internal framework that its designers never anticipated. <strong>Performance depends on local knowledge as well as general coding ability.</strong></p>
+<p>更强的模型有帮助，但模型不会自动了解一家公司的内部平台、框架和既有代码模式。智能体可能把别的代码库的惯例搬过来，也可能用一种框架设计者从没想到的方式调用内部框架。<strong>性能不只看通用编码能力，也看对本地代码的了解。</strong></p>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="136">▶ 2:16</button></div>
       <h3>手动性能剖析循环</h3>
-      <p>A performance engineer typically works through a recurring sequence:</p>
-<p>1. Trigger profiling on one production instance in a service fleet.
-2. Download the profile, which may contain structured call-stack and CPU data in JSON.
-3. Open a visualizer and search for expensive paths.
-4. Find the corresponding packages and methods in the source repositories.
-5. Diagnose a fix, submit it for code review and merge it.
-6. Repeat the investigation for the next opportunity.</p>
-<p>The visualizer makes the data readable, but interpreting it remains a learned skill. Finding a hot path is only the beginning; the engineer must connect it to code that can actually be improved.</p>
+      <p>性能工程师通常要反复走这样一套流程：</p>
+<p>1. 在服务集群中挑一台生产实例，触发性能剖析。
+2. 下载剖析结果，里面可能有 JSON 格式的结构化调用栈和 CPU 数据。
+3. 打开可视化工具，查找开销大的路径。
+4. 在源码仓库里找到对应的包和方法。
+5. 诊断问题、写好修复，提交代码评审并合并。
+6. 寻找下一个优化机会，把排查过程再走一遍。</p>
+<p>可视化工具让数据变得可读，但读懂数据仍是一门靠经验积累的手艺。找到热点路径只是开始，工程师还得把它对应到真正能改进的代码上。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/b8e90850fc7a80c597e9b5887ceb480b6a085008691f914c2d26b66aead06438" alt="Slide titled “What a (human) perf engineer does today” shows six numbered workflow steps, with Repeat highlighted in orange. A speaker inset partially covers the final step." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The manual profiling workflow: trigger, download, squint, search, find (?), and repeat.</figcaption></figure>
-<p>That repetition makes proactive profiling difficult to sustain across many services. It is easy for profiling to become something people reach for during a 2 a.m. CPU incident. Shah estimates that identifying hot paths can take an engineer about 20 minutes. The experiment begins with a narrower question than autonomous optimization: can an LLM read the profile and shorten that search? The team tested the idea on live services.</p>
+<p>正因为要反复做，主动剖析很难在大量服务上长期坚持下去。剖析很容易沦为凌晨 2 点 CPU 告警时才想起来的工具。据 Shah 估计，工程师找出热点路径大约要 20 分钟。这次实验并没有一上来就追求自主优化，问题要窄得多：LLM 能不能读懂剖析结果，缩短这段搜索时间？团队在线上服务上验证了这个想法。</p>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="310">▶ 5:10</button></div>
       <h3>性能剖析工具和编程智能体已经提供了什么</h3>
-      <p>The first assumption is that profilers expose comparable information across runtimes. A Java, Python or Go profiler can sample a production instance at high frequency and record its call stacks, including <strong>self CPU</strong>—work attributed to a method itself—and <strong>inclusive CPU</strong>, which includes work beneath it in the call path. The file formats need not be identical for an agent to reason over this common structure.</p>
-<p>The second assumption is that coding agents already recognize common performance patterns from their training:</p>
-<p>- <strong>Quadratic work:</strong> loops whose total work grows as O(N²).
-- <strong>Loop invariants:</strong> computations repeated inside a loop even though their result could be calculated once.
-- <strong>Repeated allocation:</strong> objects recreated on a frequently executed path when their construction could be moved elsewhere.
-- <strong>Contention and batching:</strong> coordination or repeated small operations that could be reorganized to reduce overhead.</p>
-<p>Shah makes this capability conditional on the quality of the code in training. The useful starting point is pattern recognition: combine an expensive runtime path with a familiar implementation smell to identify something worth investigating.</p>
+      <p>第一个假设是：不同运行时的剖析器给出的信息大体相当。Java、Python 或 Go 的剖析器都能对生产实例高频采样，记录调用栈，其中包括 <strong>self CPU</strong>（方法自身消耗的 CPU）和 <strong>inclusive CPU</strong>（还算上调用路径中下层方法的开销）。文件格式不必完全一样，智能体照样能基于这种共同结构做推理。</p>
+<p>第二个假设是：编码智能体在训练中已经认识常见的性能模式：</p>
+<p>- <strong>平方级开销：</strong> 总工作量按 O(N²) 增长的循环。
+- <strong>循环不变量：</strong> 结果只需算一次，却在循环里反复计算。
+- <strong>重复分配：</strong> 在高频执行的路径上反复创建对象，其实完全可以挪到别处构造。
+- <strong>争用与批处理：</strong> 协调开销，或大量重复的小操作，重新组织后能降低开销。</p>
+<p>Shah 也指出，这种能力取决于训练数据里代码的质量。真正有用的起点是模式识别：把运行时的高开销路径和熟悉的实现“坏味道”对上，就能找到值得深挖的地方。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="452">▶ 7:32</button></div>
       <h3>从调用栈到部署的源代码</h3>
-      <p>The first distinctive finding connects two rows in the profile. Rows one and three belong to the same call path: <code>ImmutableMap.copyOf</code> appears inside a tensor-merge method, shown on the slide as <code>TensorSet.merge</code>. Recognizing what the copy operation does lets the agent suspect repeated copying and quadratic accumulation. Shah reports that this initial inference came from the profile’s call stack, before the agent inspected the source. It gives the investigation a target; source inspection then establishes how that target is implemented.</p>
+      <p>第一个很有代表性的发现，来自把剖析结果里的两行联系起来。第一行和第三行属于同一条调用路径：<code>ImmutableMap.copyOf</code> 出现在一个张量合并方法里，幻灯片上显示为 <code>TensorSet.merge</code>。智能体知道这个拷贝操作在做什么，于是怀疑这里有重复拷贝和平方级累积。据 Shah 介绍，智能体还没看源码，单凭剖析结果里的调用栈就做出了这个初步推断。这给排查指明了目标；接下来查看源码，才弄清这个目标具体是怎么实现的。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/5274d98eae07e88ecdd820d262591b9d21aa70cbbfc16095c556f59da127a162" alt="Three ranked method rows show self and inclusive percentages beside an analysis panel identifying an O(N²) loop involving TensorSet.merge and ImmutableMap.copyOf." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Ranked method data links ImmutableMap.copyOf to a suspected quadratic loop.</figcaption></figure>
-<p>To turn that suspicion into a proposed fix, the agent needs to connect runtime evidence to the correct version of the code:</p>
-<p>1. Search for the method and identify its owning repository.
-2. Resolve the production build to its exact Git commit and check out that revision.
-3. Locate the relevant implementation, avoiding a detour through unrelated internal-library details.
-4. Trace the full method call path with the source available.</p>
-<p><strong>The production commit is part of the evidence.</strong> Inspecting a different revision could mean explaining code that did not produce the profile. With this connection in place, the experiment on a couple of services could test whether the agent could go beyond detection and produce a real fix suitable for an engineer to approve.</p>
+<p>要把这个怀疑变成修复方案，智能体得把运行时证据和正确版本的代码对应起来：</p>
+<p>1. 搜索这个方法，确定它属于哪个仓库。
+2. 把生产构建对应到确切的 Git commit，并检出这个版本。
+3. 找到相关实现，别绕进无关的内部库细节里。
+4. 对照源码，追踪完整的方法调用路径。</p>
+<p><strong>生产环境的 commit 本身就是证据的一部分。</strong> 看错了版本，解释的可能是根本没产生这份剖析结果的代码。打通这一环后，团队在几个服务上做实验，检验智能体能否不止于发现问题，而是真正写出可以交给工程师审批的修复。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="661">▶ 11:01</button></div>
       <h3>一项发现，然后在各服务间搜索</h3>
-      <p>In the tensor-merge example, Shah reports that the quadratic pattern accounted for 8.8% of CPU time during the profiling period. That is the cost attributed to the pattern, not the amount saved by removing it. With sufficient skill or prompt instructions and a capable coding agent, the workflow could proceed through repository checkout, implementation discovery and a proposed code change.</p>
-<p>Shah reports reaching code review in under five minutes in the large-codebase experiment. He also reports observing production CPU and latency savings after optimization. The useful operational result is that the agent could carry an investigation through to a reviewable change, rather than merely name an expensive method.</p>
-<p>The next opportunity was to reuse a discovery. A profile exposed <a href="https://netflix.github.io/atlas-docs/spectator/lang/java/registry/overview/" target="_blank" rel="noopener">Spectator</a> metrics counter objects being created on every iteration of a hot path. Once the agent recognized that pattern, it could search other repositories for the same usage. Shah reports finding the counter-creation pattern in seven services, with potential CPU-cycle savings of 0.5–4.6% if it were fixed across those repositories. Those savings remain conditional; the broader mechanism is a production finding becoming a search pattern for additional services.</p>
+      <p>在张量合并的例子里，据 Shah 介绍，这个平方级模式在剖析期间占了 8.8% 的 CPU 时间。这是记在该模式头上的开销，不等于消除它之后能省下的量。只要有合适的 skill 或提示词指令，再配上能力足够的编码智能体，这套流程就能一路走完：检出仓库、找到实现、提出代码修改。</p>
+<p>Shah 表示，在大型代码库的实验中，从开始到提交代码评审不到五分钟。他还说，优化上线后，生产环境的 CPU 和延迟都观察到了下降。从实际运维看，真正有用的是：智能体能把排查一路推进到可评审的代码修改，而不只是点出某个方法开销大。</p>
+<p>下一个机会是复用已有的发现。一份剖析结果显示，在一条热点路径上，每次迭代都会新建一个 <a href="https://netflix.github.io/atlas-docs/spectator/lang/java/registry/overview/" target="_blank" rel="noopener">Spectator</a> 指标计数器对象。智能体认出这个模式后，就能去其他仓库搜索同样的写法。Shah 说，他们在七个服务里找到了这种创建计数器的写法；如果在这些仓库里全部修掉，有望节省 0.5%–4.6% 的 CPU 周期。这些节省目前还只是预估；更值得关注的是背后的机制：一次生产环境的发现，可以变成搜索模式，套用到更多服务上。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="858">▶ 14:18</button></div>
       <h3>把共享目录当作持久的记忆</h3>
-      <p>Once an agent can find and propose fixes, the next question is how to carry those discoveries into the development cycle. An individual invocation does not contain all the accumulated context of a performance engineer. Compact model memory is insufficient for remembering the organization’s patterns, previous investigations and framework-specific lessons.</p>
-<p>Shah’s solution is a <strong>stateful catalog paired with a stateless LLM</strong>. Store patterns and anti-patterns centrally so agents working on different teams and products can reuse them. Some entries will be specific to an internal framework; others, such as quadratic accumulation, can be generalized across languages. The catalog becomes a durable description of what the organization has learned about efficient code.</p>
-<p>The initial implementation can be Markdown files in a centralized Git repository. A vector database is unnecessary to get started. As production investigations uncover patterns, agents add entries; a later investigation in another service can consult those entries instead of rediscovering the same explanation. This is how one service’s profiling effort becomes reusable knowledge for the fleet.</p>
+      <p>智能体能找问题、提修复之后，下一个问题是怎样把这些发现带进开发流程。单次调用并不具备性能工程师积累下来的全部上下文。模型的记忆容量有限，记不住组织里的各种模式、过往的排查记录和特定框架的经验教训。</p>
+<p>Shah 的方案是<strong>有状态的模式库，搭配无状态的 LLM</strong>。把模式和反模式集中存放，不同团队、不同产品的智能体都能复用。有些条目只适用于某个内部框架；另一些，比如平方级累积，可以推广到各种语言。久而久之，模式库就成了一份长期有效的记录，写明组织在高效代码上学到了什么。</p>
+<p>最初的实现可以只是集中式 Git 仓库里的一些 Markdown 文件，起步阶段用不着向量数据库。生产排查中发现了新模式，智能体就往库里添条目；之后排查另一个服务时，可以直接查阅这些条目，不必把同样的解释重新摸索一遍。一个服务的剖析成果，就这样变成了整个集群可复用的知识。</p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="1092">▶ 18:12</button></div>
       <h3>目录条目里应该有什么</h3>
-      <p>An empty catalog is a valid starting point, but existing material can seed it. Shah suggests Jeff Dean’s writing on C++ optimization, <a href="https://github.com/meta-pytorch/torchfix" target="_blank" rel="noopener">TorchFix</a> and internal performance playbooks. TorchFix is more precisely a Python static-analysis linter for PyTorch code with best-effort autofixes; its repository was archived in January 2026. Its documented checks still illustrate the kind of reusable patterns a catalog can capture. Internal playbooks contribute the organization-specific knowledge that a general coding agent lacks.</p>
-<p>A useful entry supplies query hints, relevant symbols, services where the pattern has been confirmed and a confidence level that can be updated as evidence accumulates. That confidence should support a decision to request human review. It should not authorize a direct production push: an optimization can change business behavior that the agent does not understand or that the tests fail to cover.</p>
-<p>Pair the anti-pattern with the preferred implementation. For the <code>ImmutableMap</code> accumulation example, the distinction is repeatedly copying a growing map versus accumulating entries and making the immutable copy once. A Java illustration makes that difference explicit:</p>
+      <p>模式库从空开始也完全可以，但现成的资料能帮它起步。Shah 推荐了 Jeff Dean 关于 C++ 优化的文章、<a href="https://github.com/meta-pytorch/torchfix" target="_blank" rel="noopener">TorchFix</a> 和内部的性能手册。更准确地说，TorchFix 是一个针对 PyTorch 代码的 Python 静态分析 linter，会尽量提供自动修复；它的仓库已于 2026 年 1 月归档。不过它文档里列出的检查项，依然很好地展示了模式库可以收录哪类可复用的模式。内部手册则补上组织特有的知识，这恰恰是通用编码智能体缺少的。</p>
+<p>一个有用的条目应该包含：查询提示、相关符号、已确认存在该模式的服务，以及一个随证据积累而更新的置信度。置信度用来帮助判断要不要请人评审，而不是授权直接推到生产环境：一次优化可能改变业务行为，智能体未必理解这些行为，测试也未必覆盖得到。</p>
+<p>把反模式和推荐的实现写在一起。拿 <code>ImmutableMap</code> 累积的例子来说，区别在于：是反复拷贝一个不断变大的 map，还是先累积所有条目、最后只做一次不可变拷贝。下面的 Java 示例把这个差别写得很清楚：</p>
 <p>```java
 import com.google.common.collect.ImmutableMap;
 import java.util.LinkedHashMap;
@@ -716,50 +716,50 @@ import java.util.Map;</p>
     }
 }
 ```</p>
-<p>For distinct, non-null keys and non-null values, the first method repeatedly copies an increasingly large map; the second accumulates into one mutable map before producing the immutable result. Both retain the last value for a repeated key. Recording the implementation alongside the pattern makes the catalog actionable, while preserving the need to check the actual application’s semantics.</p>
+<p>假设键互不相同，键和值也都不为 null：第一个方法会反复拷贝一个越来越大的 map；第二个方法先累积到一个可变 map 里，最后再生成不可变结果。遇到重复的键，两者都保留最后一个值。把实现和模式一起记下来，模式库就能直接拿来用；当然，实际应用的语义仍然需要核对。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/7c7339c5017b211a6b370ad5249bb806e29cf87fbe3fdd11bd540f3390846f0a" alt="O(N²) ImmutableMap Accumulation entry lists symbols, services, CPU delta and confidence beside code labeled before O(N²) and after O(N)." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A catalog entry pairs pattern metadata with before-and-after code.</figcaption></figure>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="1253">▶ 20:53</button></div>
       <h3>在人工审查之前先跑测试和金丝雀发布</h3>
-      <p>A system that generates speculative optimization reviews can simply move the bottleneck onto reviewers. Before asking for attention, the agent should run unit, integration and basic functional tests. These checks establish whether the proposed change preserves the business behavior encoded in the test suite.</p>
-<p>Incomplete coverage makes a second gate valuable: an automated <strong>canary comparison</strong>. Shah’s example uses two machines, one running the old code and one the proposed optimization. Send the same traffic to both for a period such as ten minutes, then compare their behavior. With suitable automation, this comparison can happen before the change requires a human reviewer’s attention.</p>
-<p>The report gives the agent evidence for whether to open a review:</p>
-<p>| Signal | Question |
+      <p>如果系统不停地生成试探性的优化评审，瓶颈只会转移到评审者身上。在请人看之前，智能体应该先跑单元测试、集成测试和基本的功能测试。这些检查能确认：提议的改动有没有保住测试套件里体现的业务行为。</p>
+<p>测试覆盖总有缺口，所以第二道关卡很有价值：自动化的<strong>金丝雀对比</strong>。Shah 举的例子用了两台机器，一台跑旧代码，一台跑提议的优化。给两台机器发送同样的流量，持续一段时间，比如十分钟，然后比较它们的表现。只要自动化做到位，这次对比可以在需要人工评审之前就完成。</p>
+<p>对比报告给了智能体依据，判断要不要发起评审：</p>
+<p>| 信号 | 问题 |
 |---|---|
-| CPU usage | Does the proposed change reduce compute usage? |
-| Latency | Does request processing improve? |
-| Error rate | Has the optimization broken behavior? |</p>
-<p>An increase in errors is a stop signal, even if CPU usage falls. Observability, canary execution and verification are standard engineering infrastructure that the agent must be able to use. The engineer remains the final decision-maker. Shah’s division of responsibility is direct: the profiler estimates the opportunity, the canary establishes the observed effect, and the engineer decides whether to accept the change.</p>
+| CPU 使用率 | 改动有没有降低计算资源消耗？ |
+| 延迟 | 请求处理有没有变快？ |
+| 错误率 | 优化有没有破坏原有行为？ |</p>
+<p>只要错误率上升，就该停下，哪怕 CPU 使用率降了。可观测性、金丝雀发布和验证都是标准的工程基础设施，智能体必须会用。最终拍板的仍然是工程师。Shah 的分工说得很直接：剖析器估算优化空间，金丝雀确认实际效果，工程师决定是否接受改动。</p>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="1458">▶ 24:18</button></div>
       <h3>把目录移进审查和编写环节</h3>
-      <p>Production profiling is a useful starting point, but changing code that already works in production requires care. As the catalog grows, its findings can move earlier in development. A reviewer agent can inspect a proposed change, look up the relevant pattern and leave an inline suggestion grounded in previous profiling evidence. The same catalog now supports both reactive diagnosis and preventative review.</p>
+      <p>从生产环境剖析入手是个好起点，但要改的是生产环境里已经正常运行的代码，必须格外小心。随着模式库不断扩充，它的发现可以前移到开发的更早阶段。评审智能体可以检查提议的改动，查找相关模式，再根据过往的剖析证据留下行内建议。同一个模式库，既能用于事后诊断，也能用于事前评审。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/3179e70b54ac6583e124f1b15c986714cd12d5052700211335dbf608fa8e21b8" alt="Architecture slide contrasts Profile → Analyze → Fix → PR with PR created → Catalog lookup → Inline comment, above a shared Pattern Catalog banner." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Reactive profiling and proactive review share the Pattern Catalog.</figcaption></figure>
-<p>The next step is to give the catalog to the authoring agent itself. Before writing a known inefficient pattern, the agent can retrieve the preferred approach and use it in the initial implementation. This consultation can slow code generation and consume additional tokens, so the catalog needs structure and indexing. Hierarchical navigation should lead the agent to the relevant entry without loading the whole collection into its context. Catching a pattern during authoring avoids both a later review correction and the possibility of deploying the known inefficiency.</p>
+<p>下一步是把模式库直接交给写代码的智能体。智能体在写出已知的低效模式之前，可以先查到推荐做法，一开始就照着写。查阅模式库可能拖慢代码生成，还会多消耗 token，所以模式库需要有结构、有索引。分层导航应该能把智能体引到相关条目，而不必把整个库都塞进上下文。在编写阶段就拦住低效模式，既省掉了之后评审时的返工，也避免了把已知的低效代码部署上线。</p>
     </section>
 <section class="section" id="sec-10">
       <div class="section-head"><span class="num">10</span>
       <button class="seek" data-t="1633">▶ 27:13</button></div>
       <h3>打好集成的基础</h3>
-      <p>Putting agents into more development stages only helps if the underlying checks are dependable. Business logic needs strong test coverage. Canary automation must be reliable, and the agent needs clear ways to invoke it and retrieve its numerical report. The Git catalog is another shared foundation: humans and agents can both read and author it. Engineers building a framework can record its good and bad usage patterns while they still have the design context in mind.</p>
-<p>The integration chain should let the workflow trigger profiling on an instance in a CPU cluster, download the data, feed it to the model, retrieve the relevant source and validate a proposed fix through a production canary using shadow or real traffic. Weak connections between those steps create friction and can introduce production bugs. Begin with reactive investigation, make the foundations dependable and gradually move the accumulated knowledge into earlier development stages.</p>
+      <p>把智能体放进更多开发环节，前提是底层的检查靠得住。业务逻辑需要扎实的测试覆盖。金丝雀自动化必须可靠，智能体也要有清晰的办法触发它、拿到数值报告。Git 里的模式库是另一块共享基础：人和智能体都能读，也都能写。开发框架的工程师可以趁设计思路还清楚，把框架的正确用法和错误用法记下来。</p>
+<p>整条集成链路要能支撑这样的工作流：在 CPU 集群的某个实例上触发剖析，下载数据，交给模型分析，取回相关源码，再借助影子流量或真实流量，在生产环境用金丝雀验证提议的修复。环节之间衔接不牢，就会产生摩擦，甚至引入生产 bug。先从事后排查做起，把基础打牢，再逐步把积累的知识推到开发的更早阶段。</p>
     </section>
 <section class="section" id="sec-11">
       <div class="section-head"><span class="num">11</span>
       <button class="seek" data-t="1799">▶ 29:59</button></div>
       <h3>从辅助诊断到定时编排</h3>
-      <p>The first useful deployment does not need complete automation. In Shah’s manual baseline, engineers can spend hours finding problems. At <strong>level one</strong>, a person may still trigger the profiler, transfer the profile and run the canary, while the LLM identifies a potential fix. That already frees time previously spent inspecting flame graphs.</p>
-<p><strong>Level two</strong> connects the tools, integrations, harnesses and hooks into a predefined workflow. The sequence is fixed: trigger profiling, download the profile, analyze it, validate a candidate change with a canary and provide a suggested fix for review. The model does not need to invent the overall plan. Once the sequence works reliably, it can be scheduled—for example, weekly on each service—to find newly introduced problems closer to the time their code was written.</p>
+      <p>第一次有用的落地，不必做到完全自动化。在 Shah 描述的手工基线下，工程师可能要花好几个小时找问题。到了<strong>第一级</strong>，触发剖析器、传输剖析结果、运行金丝雀这些事可能仍然由人来做，LLM 负责找出可能的修复。光是这样，就已经省下了原本盯着火焰图的时间。</p>
+<p><strong>第二级</strong>把各种工具、集成、框架和 hook 串成一套预先定义好的工作流。步骤是固定的：触发剖析、下载剖析结果、分析、用金丝雀验证候选改动，再给出修复建议供评审。模型不需要自己规划整体流程。这套流程跑稳之后，就可以定时执行，比如每周在每个服务上跑一次，趁代码刚写完不久就发现新引入的问题。</p>
     </section>
 <section class="section" id="sec-12">
       <div class="section-head"><span class="num">12</span>
       <button class="seek" data-t="1948">▶ 32:28</button></div>
       <h3>更高自主性的边界</h3>
-      <p><strong>Level three</strong> allows the agent to plan, reason and act beyond a fixed workflow. That flexibility brings additional obligations: stronger evaluation, sandboxing and security guardrails against prompt injection and other attacks on agent infrastructure. Shah recommends starting with assistance and progressing to orchestration, where he sees the greatest practical benefit. Greater autonomy is a further investment to make when the workflow actually needs it.</p>
+      <p><strong>第三级</strong>允许智能体跳出固定工作流，自己规划、推理和行动。灵活性也带来了更多责任：更严格的评测、沙箱隔离，以及安全护栏，用来防范提示词注入等针对智能体基础设施的攻击。Shah 建议先从辅助做起，再推进到编排——他认为编排的实际收益最大。更高的自主性需要进一步投入，等工作流真正需要时再上。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/f60bb93329f670787b925e366c9054ccc1a2e1e2f817357e3f14e39744b2bb55" alt="Four columns show Manual, Level 1 Assist, Level 2 Orchestrate and Level 3 Autonomous. Orchestrate is highlighted and lists tool integrations, canary and tests, catalog, and weekly scheduling." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The adoption ladder highlights orchestration between assistance and autonomy.</figcaption></figure>
     </section>
     </div></div></section>

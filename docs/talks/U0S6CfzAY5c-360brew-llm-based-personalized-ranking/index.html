@@ -410,130 +410,130 @@ X: [redacted]</pre></details>
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="35">▶ 0:35</button></div>
       <h3>一个模型同时服务信息流、职位和搜索</h3>
-      <p>When someone opens a feed to read an article or searches for a job, the system must find content relevant to that person’s interests. Search and online shopping pose similar matching problems, yet their rankers are often trained and optimized separately. Each new architecture then has to make its way through multiple development and deployment processes. Could one model handle those tasks together?</p>
+      <p>有人打开信息流读文章，或者搜索职位时，系统得找出符合这个人兴趣的内容。搜索和网购面对的也是类似的匹配问题，但它们的排序模型往往各自训练、各自优化。每推出一种新架构，都得分别走一遍好几套开发和部署流程。能不能用一个模型把这些任务都包下来？</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/8b371b4628c8dc06d8691b0a2350a6870930839b0834fe36a46dbdee9f819a27" alt="Slide with Operational, Quality, and Developer experience columns above the question, “What if we have one model?”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The pain points motivating one model: operational cost, disjoint optimization, and slow rollout of change.</figcaption></figure>
-<p>That is the starting point for <strong><a href="https://arxiv.org/abs/2501.16450" target="_blank" rel="noopener">360Brew</a></strong>, the personalization project Hamed Firooz and Maziar Sanjabi describe. The aim is a foundation model that understands a member’s journey across LinkedIn well enough to support its different personalization tasks. Three capabilities would make that consolidation useful:</p>
-<p>- <strong>Zero-shot recommendation:</strong> Describe a new task, its user and its candidate entity, then ask about relevance—without first collecting a task-specific dataset and deploying another ranker.
-- <strong>In-context learning:</strong> Give the model a few interactions, or a description of a member’s interests, to support personalization when behavioral history is sparse.
-- <strong>Instruction following:</strong> Let members specify niche interests or topics they want to explore, and use those instructions to guide recommendations.</p>
-<p>These are different ways to adapt the same model: change the task description, provide examples, or express a preference directly.</p>
+<p>这就是 <strong><a href="https://arxiv.org/abs/2501.16450" target="_blank" rel="noopener">360Brew</a></strong> 的出发点。Hamed Firooz 和 Maziar Sanjabi 介绍了这个个性化项目。他们想打造一个基础模型，让它充分理解会员在 LinkedIn 上的完整轨迹，从而支撑平台上各种个性化任务。要让这种整合真正有用，模型需要三种能力：</p>
+<p>- <strong>零样本推荐：</strong> 描述一个新任务，以及对应的用户和候选实体，然后直接问模型相关性如何。不必先收集任务专属的数据集，也不必再部署一个排序模型。
+- <strong>上下文学习：</strong> 给模型几条交互记录，或一段会员兴趣描述。这样在行为历史稀疏时，模型也能做个性化。
+- <strong>指令遵循：</strong> 让会员说出自己的小众兴趣或想探索的话题，再用这些指令引导推荐。</p>
+<p>这三种能力其实是调整同一个模型的不同方式：改任务描述、给示例，或者直接表达偏好。</p>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="212">▶ 3:32</button></div>
       <h3>把会员行为变成一个预测提示词</h3>
-      <p>The first implementation step is <strong>promptification</strong>: turn profiles, history and recorded interactions into text the LLM can consume. The prompt begins with an instruction defining the task, adds information about the member, supplies past interactions, and finally introduces a new item. The prediction question is what the member will do with that item. This makes the task instruction part of the input rather than fixing the task entirely in a separate model’s architecture.</p>
-<p>For a feed-engagement task, the structure can be expressed as a prompt like this:</p>
+      <p>实现的第一步是<strong>提示词化</strong>（promptification）：把个人资料、历史记录和交互记录转成 LLM 能读的文本。提示词先用一条指令定义任务，再加上会员信息和过往交互，最后引入一个新条目。模型要预测的是：会员会怎么对待这个条目。这样一来，任务指令成了输入的一部分，不再完全固化在某个单独模型的架构里。</p>
+<p>以信息流互动任务为例，这个结构可以写成下面这样的提示词：</p>
 <p>```text
-Task: Predict whether the member will engage with the candidate post.</p>
-<p>Member profile:
-Software engineer interested in database performance.</p>
-<p>Past interactions, oldest to newest:
-- Liked a post about query optimization.
-- Was shown a post about office furniture; did not engage.</p>
-<p>Candidate post:
-How database indexes change query execution plans.</p>
-<p>Question:
-Will this member engage with the candidate post?
+任务：预测该会员是否会与候选帖子互动。</p>
+<p>会员资料：
+软件工程师，关注数据库性能。</p>
+<p>过往交互（从早到晚）：
+- 点赞了一篇关于查询优化的帖子。
+- 看到一篇关于办公家具的帖子，没有互动。</p>
+<p>候选帖子：
+数据库索引如何改变查询执行计划。</p>
+<p>问题：
+该会员会与这篇候选帖子互动吗？
 ```</p>
-<p>The profile, observed responses and candidate all remain explicit. A general-purpose LLM can already do something with that information, Sanjabi explains, but adequate recommendation quality requires training for the problem.</p>
+<p>个人资料、观察到的反馈和候选内容都清清楚楚摆在那里。Sanjabi 解释说，通用 LLM 拿到这些信息已经能做点事情，但要让推荐质量达标，还得针对这个问题专门训练。</p>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="284">▶ 4:44</button></div>
       <h3>先构建教师模型，再缩小模型</h3>
-      <p>The development pipeline separates maximizing quality from maximizing serving efficiency:</p>
-<p>1. <strong>Start with an open-source model.</strong> Apply upcycling to control model size and the tradeoff between throughput and quality.
-2. <strong>Train for the domain and tasks.</strong> Run continued pretraining, fine-tuning, instruction fine-tuning and alignment.
-3. <strong>Establish a large teacher.</strong> Sanjabi describes <strong>Brew-XL</strong> here as a 150-billion-parameter model optimized for quality.
-4. <strong>Distill into a smaller student.</strong> He gives a 3B model as an example of a size that can be made practical for serving.</p>
-<p>The large model is an intermediate asset: recommendation traffic demands too many predictions to treat the highest-quality teacher as the default online serving model.</p>
-<p>The number of stages makes automation part of the model-development method. Repeatedly moving through training, alignment and distillation would otherwise make iteration cumbersome. Sanjabi says the team also tried avoiding the large teacher, but directly training a small model did not work as well. <strong>First establish the capability at large scale, then transfer it into a cheaper model</strong> is the recipe their experiments supported.</p>
+      <p>开发流水线把“追求质量”和“追求服务效率”拆开来做：</p>
+<p>1. <strong>从开源模型起步。</strong> 用 upcycling 控制模型规模，在吞吐量和质量之间做取舍。
+2. <strong>针对领域和任务训练。</strong> 依次做继续预训练、微调、指令微调和对齐。
+3. <strong>训出一个大型教师模型。</strong> Sanjabi 提到的 <strong>Brew-XL</strong> 就是这个角色：一个 1500 亿参数、专为质量优化的模型。
+4. <strong>蒸馏成小型学生模型。</strong> 他举的例子是 3B 模型，这个规模可以做到真正上线服务。</p>
+<p>大模型只是中间产物。推荐流量需要的预测量太大，没法把质量最高的教师模型直接当作默认的在线服务模型。</p>
+<p>阶段这么多，自动化就成了模型开发方法的一部分。不然反复走训练、对齐、蒸馏这一套，迭代会非常笨重。Sanjabi 说团队也试过跳过大型教师模型，但直接训小模型，效果不如先训大模型。实验支持的做法是：<strong>先在大模型上把能力练出来，再迁移到更便宜的模型里</strong>。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="400">▶ 6:40</button></div>
       <h3>扩展数据、模型容量和会员历史</h3>
-      <p>There are three distinct ways to improve the model. The first is <strong>training-data scale</strong>. Recommendation systems may have six months, a year or more of behavioral logs, depending on what they record. In the experiment Sanjabi presents, increasing the amount of training data improves performance. That makes the available interaction history a resource for continued model development, not merely an input to individual predictions.</p>
-<p>The second lever is <strong>model capacity</strong>. Sanjabi reports improved performance in a <strong>Mixtral</strong> architecture experiment spanning 7B to 8×22B. This is especially useful for the XL teacher, where the immediate objective is quality before compression.</p>
-<p>The third lever is <strong>context length</strong>, which determines how much of a member’s history can accompany a prediction. Supplying more history initially improves performance in the presented experiment, but the curve eventually turns downward. Sanjabi attributes that decline to the tested model’s difficulty generalizing to longer contexts, rather than to the additional history becoming less informative. A larger context window therefore creates an opportunity to use more evidence; the model still has to use that evidence effectively.</p>
+      <p>提升模型有三个杠杆。第一个是<strong>训练数据规模</strong>。推荐系统视记录的内容而定，可能积累了半年、一年甚至更久的行为日志。在 Sanjabi 展示的实验里，训练数据越多，效果越好。可见，现有的交互历史不只是单次预测的输入，也是持续开发模型的资源。</p>
+<p>第二个杠杆是<strong>模型容量</strong>。Sanjabi 介绍了一项 <strong>Mixtral</strong> 架构实验，模型从 7B 一直到 8×22B，规模越大效果越好。这对 XL 教师模型尤其有用：它眼下的任务就是先把质量做上去，再谈压缩。</p>
+<p>第三个杠杆是<strong>上下文长度</strong>，它决定一次预测能带上多少会员历史。在展示的实验里，历史给得越多，效果起初越好，但曲线最终会掉头向下。Sanjabi 认为，下降的原因是受测模型难以泛化到更长的上下文，而不是多出来的历史没那么有信息量。更大的上下文窗口让模型有机会用上更多证据，但模型还得真能用好这些证据。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="522">▶ 8:42</button></div>
       <h3>稀疏的历史和未见过的场景</h3>
-      <p>Cold-start members test whether the model can personalize without a rich interaction record. The presented cohorts include members with fewer than five interactions and members with fewer than 100. Sanjabi reports that 360Brew’s advantage over the production models grows as the number of interactions decreases. He interprets this as a benefit of the LLM’s world knowledge: the model can bring useful prior understanding to profiles and content when behavioral evidence is limited.</p>
-<p>Sanjabi reports that, on four tasks whose surfaces were excluded from training, 360Brew matched or exceeded some production models trained specifically for those tasks. The relevant comparison is against specialized models with exposure to their own task, not against untrained baselines. These are model-quality comparisons; they do not establish online business gains or replacement of the production rankers. The proposed operational benefit is faster rollout: a new feature or surface could begin with the shared model instead of waiting for a dedicated recommendation system.</p>
+      <p>冷启动会员考验的是：没有丰富的交互记录，模型还能不能做个性化。展示的分组包括交互少于 5 次的会员和少于 100 次的会员。Sanjabi 报告，交互次数越少，360Brew 相对生产模型的优势越大。他认为这得益于 LLM 的世界知识：行为证据有限时，模型能凭已有的先验理解去解读个人资料和内容。</p>
+<p>Sanjabi 报告，有四个任务所在的产品界面完全没参与训练，而在这些任务上，360Brew 追平甚至超过了一些专门为它们训练的生产模型。比较对象是见过自身任务数据的专用模型，而不是没训练过的基线。这些都是模型质量上的比较，既不能证明线上业务有收益，也不能说明可以替换现有的生产排序模型。设想中的运营收益是上线更快：新功能或新界面可以先用共享模型起步，不必等一套专属推荐系统建好。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="638">▶ 10:38</button></div>
       <h3>逐步压缩，每步之间做恢复</h3>
-      <p>Serving changes the objective. Firooz describes recommendation workloads requiring tens of thousands of queries per second and roughly 400–500 ms latency. Meeting that demand requires combining smaller models, sparsification and quantization rather than relying on model size alone.</p>
-<p>The distillation process reduces capacity in stages. Firooz describes an illustrative progression from a large teacher through 8B, 3B and 1B students, with each student learning from the preceding model. His account uses both 250B and 150B for the starting teacher, so the exact teacher size in this serving recipe is inconsistent; the earlier Brew-XL description uses 150B. The stable result is the comparison between procedures: staged distillation worked better for the team than jumping directly from 150B to 1B. Starting small also performed poorly, which Firooz attributes to insufficient capacity and reasoning ability for the tasks.</p>
-<p>Pruning follows the same gradual pattern. Transformer redundancy creates opportunities to remove attention heads, MLPs or layers; reducing activation and parameter precision is another compression option. But removing too much structure at once can damage quality. The team instead alternates a small pruning step with distillation, then repeats. Distillation provides a recovery stage before the next reduction.</p>
-<p>In the presented pruning experiment, Firooz describes gradual pruning as approaching no information loss, while aggressive initial pruning caused up to a 1% reduction in model quality. The talk does not specify the quality metric or whether that percentage is relative or a percentage-point change. The practical comparison is between a sequence of small reductions with recovery and one large initial reduction.</p>
+      <p>到了服务阶段，目标就变了。Firooz 介绍，推荐负载需要每秒数万次查询，延迟大约 400–500 ms。要满足这样的需求，光靠缩小模型不够，得把小模型、稀疏化和量化结合起来。</p>
+<p>蒸馏分阶段削减容量。Firooz 描述了一个示意流程：从大型教师模型出发，依次蒸馏出 8B、3B 和 1B 的学生模型，每个学生都向上一个模型学习。他说起起始教师模型时，有时说 250B，有时说 150B，所以这套服务方案里教师模型的确切规模前后不一致；前文介绍 Brew-XL 时用的是 150B。能确定的是两种做法的对比：对团队来说，分阶段蒸馏比从 150B 一步跳到 1B 效果更好。从小模型起步同样表现不佳，Firooz 认为原因是小模型的容量和推理能力应付不了这些任务。</p>
+<p>剪枝也遵循同样循序渐进的思路。Transformer 内部有冗余，可以去掉部分注意力头、MLP 或层；降低激活值和参数的精度是另一种压缩手段。但一次去掉太多结构会损害质量。团队的做法是先小步剪枝，接着蒸馏，然后重复。每次蒸馏都给模型留出一个恢复阶段，再进入下一轮削减。</p>
+<p>在展示的剪枝实验中，Firooz 说渐进式剪枝几乎没有信息损失，而一开始就激进剪枝，会让模型质量最多下降 1%。演讲没有说明用的是哪个质量指标，也没说这个 1% 是相对值还是百分点。实际要比较的是两种做法：分多次小幅削减、每次留出恢复期，还是一开始就大刀阔斧砍一次。</p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="811">▶ 13:31</button></div>
       <h3>保留足够的精度以区分候选项</h3>
-      <p>Quantization reduces the cost of activations and model parameters, but the team found that applying FP8 uniformly across every layer significantly hurt quality. Their solution is <strong>mixed precision</strong>, with special treatment for the output that becomes the ranking score.</p>
-<p>| Model component | Precision choice | Purpose |
+      <p>量化能降低激活值和模型参数的开销。但团队发现，所有层统一用 FP8 会明显损害质量。他们的解决办法是<strong>混合精度</strong>，并对最终变成排序分数的那部分输出单独处理。</p>
+<p>| 模型组件 | 精度选择 | 目的 |
 |---|---|---|
-| Activations and parameters where suitable | FP8 | Reduce serving cost |
-| Final LM head | FP32 | Preserve output-score resolution |</p>
-<p>For this system, Firooz reports that using FP16, BF16 or FP8 for the LM head caused numerical distinctions to collapse, impaired calibration and made recommended items harder to distinguish. Ranking depends on differences between candidate probabilities, so preserving those differences can matter even when much of the model tolerates lower precision. The FP32 head is a system-specific finding, not a claim that every ranking model needs the same precision policy.</p>
+| 适合降精度的激活值和参数 | FP8 | 降低服务成本 |
+| 最终的 LM head | FP32 | 保住输出分数的分辨率 |</p>
+<p>Firooz 报告，在这个系统里，LM head 只要用 FP16、BF16 或 FP8，数值上的区分度就会塌缩，校准变差，推荐条目之间也更难拉开差距。排序靠的是候选概率之间的差异，所以即便模型大部分都能承受低精度，保住这些差异仍然可能很关键。FP32 head 是针对这个系统的发现，并不是说所有排序模型都得用同样的精度策略。</p>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="862">▶ 14:22</button></div>
       <h3>去掉任务不需要的注意力计算</h3>
-      <p>Attention is another major serving cost. A recommendation task gives the implementation structure it can exploit: not every history item needs to attend to every other item. Rather than preserve all possible attention links, the model can use a sparse pattern tailored to the information needed for prediction.</p>
-<p>The same principle applies to <strong>multi-item scoring</strong>. Instead of processing one candidate at a time, the system can score tens or hundreds together—Firooz gives 50 and 500 as examples. The crucial constraint is that the candidate items must not attend to one another. Putting them in the same request should not make one candidate’s prediction depend on the contents of the other candidates.</p>
-<p>Across four or five successive releases, Firooz reports a 7× reduction in latency and a 30× increase in queries handled per GPU. These are combined gains from the serving optimizations, not measurements of sparsity alone. The talk does not specify the hardware, workload, batch and context settings, or latency percentile needed to reproduce the comparison. The chart captures the intended outcome: more work from each GPU while each query waits less.</p>
+      <p>注意力是另一大服务开销。推荐任务本身的结构就可以拿来利用：并不是每条历史记录都需要关注其他所有记录。模型不必保留所有可能的注意力连接，可以采用一种稀疏模式，按预测真正需要的信息量身定制。</p>
+<p>同样的思路也适用于<strong>多条目打分</strong>。系统不必一次只处理一个候选，可以一口气给几十到几百个候选打分，Firooz 举的例子是 50 个和 500 个。关键约束是：候选条目之间不能互相关注。把它们放进同一个请求，不应该让某个候选的预测结果受其他候选内容影响。</p>
+<p>Firooz 报告，经过连续四五个版本，延迟降到原来的 1/7，单块 GPU 处理的查询量提升了 30 倍。这是多项服务优化叠加的收益，不是单独测稀疏化得出的结果。演讲没有给出硬件、负载、batch 和上下文设置，也没给出延迟分位数，没法据此复现这组对比。图表表达的是想要的效果：每块 GPU 多干活，每个查询少等待。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/0c8e367be7113951e391e13c12f8fc8c6a65cdb96dec6f8f30f4cd84ed47321c" alt="Throughput and Latency slide with rising brown throughput bars and a falling orange latency line across releases R8 through R12." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Reported serving gains: 7× lower latency and 30× higher throughput.</figcaption></figure>
-<p>The prepared presentation closes by pointing to technical reports and papers sharing lessons from the project. The audience questions then fill in several practical details: how generalization is checked, how multi-item scoring executes, and how history selection interacts with serving.</p>
+<p>演讲正式部分的结尾，指向了几份分享项目经验的技术报告和论文。随后的观众提问补上了几处实践细节：怎么检验泛化能力、多条目打分具体怎么执行、历史选择和服务之间如何相互牵制。</p>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="971">▶ 16:11</button></div>
       <h3>哪些能迁移——哪些开箱即用？</h3>
-      <p>An audience member asks the natural follow-up to the unseen-task results: after so much fine-tuning, how does the team know the model will work on the next five tasks? Firooz describes a suite of approximately 50–60 internal and external benchmarks. <a href="https://arxiv.org/abs/2311.07911" target="_blank" rel="noopener">IFEval</a> checks retained instruction following, while LinkedIn tasks excluded from training test transfer to new domains. Those checks address different capabilities: following instructions is not itself evidence of recommendation quality on a new surface. The answer supplies ongoing empirical tests, rather than a guarantee about future tasks.</p>
-<p>The next question moves from LinkedIn’s infrastructure to a smaller website. An audience member introduces Microsoft’s <a href="https://github.com/nlweb-ai/NLWeb" target="_blank" rel="noopener">NLWeb</a>, then asks what a real-estate site with thousands of listings could use as an out-of-the-box recommender. Sanjabi says he is unfamiliar with NLWeb and does not evaluate it. He also does not identify a ready-made model for the listing-site problem. Making a foundation model useful beyond large companies is part of the project’s ambition, but the answer does not offer an immediately available solution. The audience member recommends investigating NLWeb, and Sanjabi agrees to look.</p>
+      <p>有位观众顺着“未见任务”的结果追问：微调了这么多轮，团队怎么知道模型在接下来五个任务上也能行？Firooz 介绍了一套大约 50–60 个内部和外部基准。<a href="https://arxiv.org/abs/2311.07911" target="_blank" rel="noopener">IFEval</a> 检查模型是否还保留指令遵循能力，没参与训练的 LinkedIn 任务则检验它向新领域迁移的能力。两类检查针对的是不同能力：会遵循指令，本身并不能证明模型在新界面上推荐得好。这个回答给出的是持续进行的实证测试，而不是对未来任务的保证。</p>
+<p>下一个问题把视角从 LinkedIn 的基础设施转到了小网站。一位观众先介绍了 Microsoft 的 <a href="https://github.com/nlweb-ai/NLWeb" target="_blank" rel="noopener">NLWeb</a>，然后问：一个有几千条房源的房产网站，能用什么开箱即用的推荐系统？Sanjabi 说自己不了解 NLWeb，没有对它做评价。他也没能给出现成的模型来解决房源网站的问题。让基础模型在大公司之外也派上用场，是这个项目的抱负之一，但这次回答并没有拿出马上能用的方案。这位观众建议他研究一下 NLWeb，Sanjabi 答应会去看看。</p>
     </section>
 <section class="section" id="sec-10">
       <div class="section-head"><span class="num">10</span>
       <button class="seek" data-t="1075">▶ 17:55</button></div>
       <h3>多条目打分发生在预填充阶段</h3>
-      <p>Does scoring multiple items mean generating multiple answers through several decoding steps? Firooz clarifies that the system keeps the work in <strong>prefill</strong>. It does not use multi-step generation or speculative decoding for this operation. The candidate items are sequenced together in the input, and the attention pattern prevents them from attending to one another.</p>
-<p>The team implemented custom attention-mask kernel work in SGLang and vLLM. Firooz describes query segments containing up to 500 candidates, with candidates attending to member history and profile information rather than to other candidates. These are the team’s serving integrations described in the talk, not a claim that a current default installation exposes the same behavior.</p>
-<p>Using the earlier feed example, add a second candidate about office furniture. At the level of whole prompt regions, the relevant cross-region connections are:</p>
+      <p>给多个条目打分，是不是意味着要多步解码、生成多个答案？Firooz 澄清说，这部分工作全都在 <strong>prefill</strong> 阶段完成。这个操作既不用多步生成，也不用投机解码。候选条目在输入里依次排开，注意力模式保证它们彼此不会互相关注。</p>
+<p>团队在 SGLang 和 vLLM 里自己写了注意力掩码的 kernel。Firooz 介绍，一个查询片段最多能容纳 500 个候选，候选只关注会员的历史和资料，不关注其他候选。这些是演讲中介绍的团队自研服务集成，并不是说当前默认安装的版本也有同样的行为。</p>
+<p>沿用前面的信息流例子，再加一个关于办公家具的候选帖子。以整块提示词区域为单位来看，相关的跨区域连接如下：</p>
 <p>``<code>text
-Candidate query                  Profile + history   Other candidate
-Database-index post              allowed             blocked
-Office-furniture post            allowed             blocked
+候选查询          资料 + 历史    另一个候选
+数据库索引帖子    允许           屏蔽
+办公家具帖子      允许           屏蔽
 </code>``</p>
-<p>Both candidates can use the same evidence about the engineer’s interests and past responses. Neither can use the other candidate as additional evidence. This is the separation the mask must preserve; the table abstracts away token-level attention within each region. No engagement outcome has been assigned—the operation organizes the evidence available when the model computes the scores.</p>
+<p>两个候选能用上同一份证据，也就是这位工程师的兴趣和过往反馈；但谁都不能拿另一个候选当额外证据。掩码要守住的正是这种隔离。这张表只看区域之间，省略了每个区域内部 token 级别的注意力。表里也还没有任何互动结果：这一步只是在模型计算分数时，把它能用的证据组织好。</p>
     </section>
 <section class="section" id="sec-11">
       <div class="section-head"><span class="num">11</span>
       <button class="seek" data-t="1143">▶ 19:03</button></div>
       <h3>选择历史而不破坏缓存</h3>
-      <p>A member’s history can include job applications, job postings and many other entities. Fitting that history into context raises a selection problem before inference begins. Firooz describes experiments with three approaches:</p>
-<p>- <strong>Retrieval:</strong> Use a RAG system to find historical items closest to the current query.
-- <strong>Chronological ordering:</strong> Supply interactions according to their order in time.
-- <strong>Time-based weighting:</strong> Experiment with weight decay over chronological history.</p>
-<p>For most of the team’s applications, chronological ordering was sufficient. Firooz connects that result to recommendation’s preference for freshness: recent activity is often particularly useful evidence of what a member wants now.</p>
-<p>Selection is not only about relevance or recency. The context also contains a distribution of positive and negative examples, and the team must decide how to balance them and how much history to include. Those are familiar ML engineering questions inside a new input format: converting interactions to text does not remove sampling decisions.</p>
-<p>Sanjabi adds a serving constraint: a more sophisticated history-selection strategy must avoid breaking <strong>KV caching</strong>. Changing which historical items appear, or how they are ordered, can interfere with the cache reuse the serving system depends on. An alternative to chronological history therefore has to earn its place on both prediction quality and serving behavior.</p>
+      <p>会员的历史可能包括求职申请、职位发布和许多其他实体。要把这些历史塞进上下文，推理开始前就得先解决“选哪些”的问题。Firooz 介绍了团队试过的三种方法：</p>
+<p>- <strong>检索：</strong> 用 RAG 系统找出与当前查询最接近的历史条目。
+- <strong>按时间排序：</strong> 按交互发生的先后顺序放入。
+- <strong>按时间加权：</strong> 尝试对按时间排列的历史做权重衰减。</p>
+<p>对团队的大多数应用来说，按时间排序就够了。Firooz 认为这和推荐系统看重新鲜度有关：最近的行为往往最能说明会员此刻想要什么。</p>
+<p>选择历史不只看相关性或时效性。上下文里还有正负样本的分布，团队要决定怎么平衡二者、放进多少历史。这些都是熟悉的 ML 工程问题，只是换了一种输入格式：把交互转成文本，采样决策并不会因此消失。</p>
+<p>Sanjabi 补充了一条服务上的约束：更复杂的历史选择策略不能破坏 <strong>KV caching</strong>。换掉其中的历史条目，或者调整它们的顺序，都可能干扰缓存复用，而服务系统正依赖这种复用。所以，任何想取代按时间排序的方案，都得在预测质量和服务表现两方面都站得住脚。</p>
     </section>
 <section class="section" id="sec-12">
       <div class="section-head"><span class="num">12</span>
       <button class="seek" data-t="1235">▶ 20:35</button></div>
       <h3>让整个实验可复现</h3>
-      <p>The final question asks how the team manages so many combinations of model and serving changes. Firooz’s answer is concrete: experiment results are automatically pushed into an Excel sheet. A developer investigating quantization can change its parameters and trigger the rest of the flow end to end with a button. Automation makes it practical to compare variants repeatedly, rather than manually shepherding each experiment through disconnected stages.</p>
-<p>Most of that automation was built in-house, but it integrates open-source tools including Lightning, vLLM and SGLang. The engineering emphasis is on making those components work well together and optimizing the entire flow. The development system is what lets the team repeatedly move from a quality improvement to compression, serving evaluation and a recorded result.</p>
+      <p>最后一个问题是：模型和服务的改动组合这么多，团队怎么管理？Firooz 的回答很具体：实验结果会自动推送到一张 Excel 表里。研究量化的开发者改完参数，点一下按钮，就能端到端跑完后续整个流程。有了自动化，反复比较各种变体才变得可行，不用手动推着每个实验穿过一个个互不相连的阶段。</p>
+<p>这套自动化大部分是自研的，但集成了 Lightning、vLLM 和 SGLang 等开源工具。工程上的重点是让这些组件配合顺畅，并优化整个流程。正是这套开发系统，让团队能一遍遍走完从质量改进到压缩、服务评测，再到记录结果的全过程。</p>
     </section>
     </div></div></section>
 

@@ -880,36 +880,36 @@ Mode: Command  Ln 1, Col 1  module2-graph-construction-and-retrieval.ipynb  1</p
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="0">▶ 0:00</button></div>
       <h3>给智能体一个关于数据的模型</h3>
-      <p>How should an agent retrieve information when part of the answer lives in documents and part lives in structured records? Zach Blumenfeld’s <a href="https://github.com/neo4j-product-examples/neo4j-employee-graph" target="_blank" rel="noopener">Neo4j Employee Graph</a> notebook walkthrough starts with an architecture that puts a <strong>knowledge graph</strong> between those sources and the agent’s retrieval tools. Document extraction brings in unstructured information; standard ETL brings in structured data. Both feed the model the agent queries.</p>
+      <p>如果答案一部分在文档里，一部分在结构化记录里，智能体该怎么检索？Zach Blumenfeld 用 <a href="https://github.com/neo4j-product-examples/neo4j-employee-graph" target="_blank" rel="noopener">Neo4j Employee Graph</a> 这个 notebook 做演示。他先给出一套架构：在这些数据源和智能体的检索工具之间放一层<strong>知识图谱</strong>。文档抽取负责导入非结构化信息，标准 ETL 负责导入结构化数据，两路数据都汇入同一个模型，供智能体查询。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/2d8fe56ad1134b66a8319912bf082f31cd3180f6170f77d95f64951e5e242861" alt="Architecture diagram showing AI models, a Neo4j knowledge graph, document and table sources, retrieval tools, and a knowledge assistant." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>GraphRAG architecture connects structured and unstructured data to a knowledge graph and agent retrieval tools.</figcaption></figure>
-<p>That shared model matters when retrieval becomes a sequence of operations. An agent can decompose a question into several queries rather than make one vector search and answer from its results. A small, explicit data model helps it decide what to retrieve and how the pieces fit together. The model can then grow as additional sources arrive. Here, the starting point is an employee graph.</p>
+<p>一旦检索变成一连串操作，这个共享模型就派上了用场。智能体不必只做一次向量搜索、再根据结果作答，而是可以把问题拆成多个查询。数据模型小而明确，就能帮它判断该检索什么、检索结果怎么拼起来。之后接入新的数据源，模型还能继续扩展。这次的起点是一张员工图谱。</p>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="120">▶ 2:00</button></div>
       <h3>检索到的五份简历并不等于员工人数统计</h3>
-      <p>The employee assistant should support skills analysis, team substitutions, collaboration discovery, and identifying skill gaps. Its first source is a folder of PDF resumes for Cyberdyne Systems—the Terminator reference—with professional experience and descriptions of work. Blumenfeld initially loads each resume into Neo4j as a document node containing text, metadata, and an embedding. The database is a graph database, but this first retrieval path treats it as a document store.</p>
-<p>An agent built with Google’s <a href="https://adk.dev/" target="_blank" rel="noopener">Agent Development Kit</a> receives instructions to retrieve information and one tool: document search. Asked how many Python developers the company has, it reports five because the retrieval setting is <code>K = 5</code>. Blumenfeld explicitly identifies that answer as wrong: the agent has turned the size of its retrieved result set into a claim about the whole workforce. <strong>A retrieval limit is not an aggregation.</strong></p>
+      <p>这个员工助手要能做技能分析、安排团队替补人选、发现协作关系，还要找出技能缺口。第一个数据源是一文件夹 PDF 简历，来自 Cyberdyne Systems（致敬《终结者》），内容包括职业经历和工作描述。Blumenfeld 先把每份简历作为一个文档节点载入 Neo4j，节点里存着文本、元数据和 embedding。Neo4j 虽然是图数据库，但第一条检索路径只是把它当文档库用。</p>
+<p>这个智能体用 Google 的 <a href="https://adk.dev/" target="_blank" rel="noopener">Agent Development Kit</a> 搭建，指令是检索信息，工具只有一个：文档搜索。问它公司有多少 Python 开发者，它答五个，原因是检索参数设成了 <code>K = 5</code>。Blumenfeld 明确指出这个答案是错的：智能体把检索结果的条数，当成了全公司的人数。<strong>检索上限不等于聚合统计。</strong></p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/f653e3fa8aa80af31b3c196b74720c86134e486fc1295fbe7fa588cd919f3ba3" alt="Notebook output stating there are five Python developers, followed by retrieval criteria and a numbered list of five employees." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The document-search response reports five Python developers and lists the retrieved employees.</figcaption></figure>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="236">▶ 3:56</button></div>
       <h3>相似度、分布和协作需要不同的操作</h3>
-      <p>Entity extraction and additional metadata could help with the counting problem. The next question exposes a different limitation: who is most similar to a particular employee in skills or experience? Lucas is a full-stack AI engineer with Python, JavaScript, and machine-learning experience. The agent uses those descriptions as search terms to retrieve similar resumes. That can find plausible candidates, but the explanation reveals semantic search rather than an explicit, controllable comparison of skill sets.</p>
-<p>As the questions broaden, the missing operations become clearer:</p>
-<p>| Question | What document search does | What the answer requires |
+      <p>计数问题也许可以靠实体抽取和补充元数据来解决。下一个问题却暴露了另一种局限：谁在技能或经验上和某位员工最相似？Lucas 是全栈 AI 工程师，有 Python、JavaScript 和机器学习经验。智能体把这些描述当作搜索词，去检索相似的简历。这样能找到看起来合理的人选，但从它的解释能看出，它做的只是语义搜索，而不是明确、可控地比较两人的技能。</p>
+<p>问题越问越宽，缺了哪些操作也就越清楚：</p>
+<p>| 问题 | 文档搜索做了什么 | 回答真正需要什么 |
 | --- | --- | --- |
-| Summarize technical talent and skills distribution | Retrieves resumes using selected terms | Aggregate skills across employees |
-| Find people collaborating on many projects | Searches for collaborators | Connect people through shared projects |</p>
-<p>A useful workforce summary needs counts and distributions, not just relevant examples. Likewise, searching for the word “collaborators” does not establish who worked with whom. Resumes may contain that evidence, but the relationships remain buried in text.</p>
+| 汇总技术人才和技能分布 | 用挑选的关键词检索简历 | 跨员工聚合技能 |
+| 找出参与多个项目协作的人 | 搜索“合作者”相关内容 | 通过共同项目把人连起来 |</p>
+<p>一份有用的人才概况，需要的是数量和分布，而不只是几个相关的例子。同样，搜“合作者”这个词，也弄不清谁和谁一起干过活。简历里或许有这些证据，但人与人的关系仍然埋在文字里。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="340">▶ 5:40</button></div>
       <h3>抽取人员、技能和成就</h3>
-      <p>The next step is to express the questions’ requirements at the data layer. Start with three concepts: people, skills they know, and things they do. Entity extraction turns the resumes into that graph. The accomplishment model then becomes more specific: someone published, built, won, led, managed, optimized, or shipped something. Those things connect to domains and work types, allowing related activities to meet at shared concepts rather than relying on similar wording.</p>
-<p>Blumenfeld uses <a href="https://pydantic.dev/docs/validation/latest/concepts/models/" target="_blank" rel="noopener">Pydantic models</a> and enumerations to define accomplishment types, domains, and work types. A compact Python version of that extraction contract can look like this; the domain and work-type vocabularies here are illustrative:</p>
+      <p>下一步是在数据层把这些问题的需求表达出来。先从三个概念入手：人、人掌握的技能、人做的事。实体抽取把简历转成这张图。接着，成就模型再细化一层：某人发表、构建、赢得、领导、管理、优化或交付了某样东西。这些东西再连到领域和工作类型上。这样，相关的活动就能在共同的概念上交汇，不必靠措辞相似来匹配。</p>
+<p>Blumenfeld 用 <a href="https://pydantic.dev/docs/validation/latest/concepts/models/" target="_blank" rel="noopener">Pydantic 模型</a> 和枚举来定义成就类型、领域和工作类型。这份抽取约定用 Python 精简地写出来，大致如下（领域和工作类型的取值仅作示意）：</p>
 <p>```python
 from enum import Enum
 from pydantic import BaseModel, Field</p>
@@ -940,46 +940,46 @@ from pydantic import BaseModel, Field</p>
     skills: list[str] = Field(default_factory=list)
     accomplishments: list[Accomplishment] = Field(default_factory=list)
 ```</p>
-<p>The schema constrains the structure and allowed values of extraction output. It does not establish whether an extracted skill or accomplishment is factually correct.</p>
-<p>The extraction workflow—Blumenfeld recalls using LangChain here—decomposes the documents and produces JSON containing each person’s skills and accomplishments. Loading that JSON into Neo4j creates a more expressive model: people connect through shared skills, the things they worked on, and higher-level concepts describing that work. Those connections become queryable evidence for the assistant’s answers.</p>
+<p>schema 约束的是抽取结果的结构和允许取值，并不能保证抽出来的技能或成就符合事实。</p>
+<p>抽取流程会拆解文档，生成一份 JSON，列出每个人的技能和成就。Blumenfeld 回忆这一步用的是 LangChain。把 JSON 载入 Neo4j 后，模型的表达力就强多了：人与人通过共同技能、做过的东西，以及描述这些工作的上层概念连在一起。这些连接成了可以查询的证据，助手的回答就建立在这些证据上。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="512">▶ 8:32</button></div>
       <h3>通过显式的关系来计数和比较</h3>
-      <p>The next agent receives similar instructions plus a description of the graph’s data model. An MCP server gives it access to the schema and supports the Cypher query workflow. The useful division of labor is schema inspection, language-model query generation, and database execution; MCP is the interface connecting those capabilities, not the reasoning mechanism itself.</p>
-<p>Now the Python-developer question can match people connected to the Python skill and aggregate the matches. Blumenfeld reports twenty developers from the graph query, describing the result as much closer to correct. That is a result from the demonstration’s extracted graph, not an independently established workforce total. With illustrative labels and relationship names, the operation is:</p>
+      <p>下一个智能体拿到的指令差不多，只是多了一份图谱数据模型的说明。它通过一个 MCP server 读取 schema，并完成 Cypher 查询流程。分工是这样的：查看 schema，由语言模型生成查询，再交给数据库执行。MCP 只是把这些能力连起来的接口，本身不负责推理。</p>
+<p>现在问 Python 开发者有多少，智能体可以先匹配所有连到 Python 技能的人，再做聚合。Blumenfeld 说图查询返回了二十名开发者，比之前接近正确多了。不过这个数字来自演示中抽取出的图谱，并不是独立核实过的员工总数。用示意性的标签和关系名写出来，查询如下：</p>
 <p>``<code>cypher
 MATCH (person:Person)-[:KNOWS]-&gt;(:Skill {name: 'Python'})
 RETURN count(DISTINCT person) AS python_developers;
 </code>``</p>
-<p>The <a href="https://neo4j.com/docs/cypher-manual/current/functions/aggregating/" target="_blank" rel="noopener">Cypher aggregation</a> counts distinct matched people rather than retrieved documents. <code>DISTINCT</code> prevents repeated matches for the same person from inflating this count; completeness still depends on the people and skill relationships present in the graph.</p>
-<p>The same similarity question—who is most similar to Lucas Martinez, and why?—now returns Sarah. The explanation uses shared skills and the sizes of the compared skill sets; Blumenfeld says some runs also consider similar accomplishments. The useful change is that the comparison refers to inspectable relationships and an overlap calculation, rather than only search-term selection.</p>
-<p>That also gives corrections a concrete target. If a person has an incorrect skill relationship, it can be audited and changed in the graph. The assistant can then aggregate those same relationships to summarize how many people know each skill, or break down accomplishments. <strong>The data model makes both the answer and the underlying evidence easier to inspect.</strong></p>
+<p><a href="https://neo4j.com/docs/cypher-manual/current/functions/aggregating/" target="_blank" rel="noopener">Cypher 聚合</a> 数的是匹配到的人，而不是检索到的文档。<code>DISTINCT</code> 让同一个人重复匹配时只算一次，不会把数字抬高。但数得全不全，仍取决于图里有没有录入相应的人和技能关系。</p>
+<p>再问同样的相似度问题：谁和 Lucas Martinez 最像，为什么？这次返回的是 Sarah。解释依据的是两人的共同技能和各自技能集的大小；Blumenfeld 说，有几次运行还把相似的成就也考虑了进去。关键变化在于，比较的依据变成了可以检查的关系和重叠度计算，不再只是挑了哪些搜索词。</p>
+<p>纠错也因此有了具体的落点。某人的技能关系如果录错了，可以直接在图里核查、修改。助手还能聚合同一批关系，统计每项技能有多少人掌握，或者拆解成就的分布。<strong>有了数据模型，答案和背后的证据都更容易检查。</strong></p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="625">▶ 10:25</button></div>
       <h3>添加工具，支持更丰富的员工对比</h3>
-      <p>Generated Cypher is not the only retrieval option. Blumenfeld adds specialized tools alongside it, including a query that traverses between person IDs. He describes a zero-to-three-hop traversal that can follow connections through skills, common systems, domains, and accomplishments. This broadens the evidence for similarity beyond a direct skill match.</p>
-<p>Because the query explores relationships, Blumenfeld says an added collaboration or project link could also be picked up by that traversal. The scope is still determined by the query’s allowed paths and hop bounds. He also claims flexibility and higher performance for complex graph traversals, but presents no performance benchmark.</p>
+      <p>检索不只有生成 Cypher 这一条路。Blumenfeld 在它之外又加了几个专用工具，其中一个查询会在人员 ID 之间做遍历。按他的描述，遍历深度是 0 到 3 跳，可以沿着技能、共同系统、领域和成就一路追踪连接。这样，判断相似度的证据就不再局限于技能直接匹配。</p>
+<p>Blumenfeld 说，这个查询探索的是关系，所以新加的协作或项目连接也能被遍历捕捉到。不过遍历范围仍由查询允许的路径和跳数上限决定。他还称，这种做法在复杂图遍历上更灵活、性能更好，但没有拿出性能基准测试。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/3f75a7e1d46f78529eb0b12d663ee2c1b51300bddb7147fc9c77ac8a660925eb" alt="Neo4j graph showing two employee nodes connected through colored intermediate nodes, with Lucas Martinez's properties in a side panel." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A graph query displays connections between employees through shared attributes.</figcaption></figure>
-<p>With these tools available, the Lucas Martinez comparison returns more detailed evidence: numbers associated with shared skills and domains such as AI, analytics, and data engineering. The agent can use the retrieved connections to explain how the employees’ work overlaps, instead of giving only a broad statement that their resumes are similar.</p>
+<p>有了这些工具，再比较 Lucas Martinez，返回的证据就详细多了：共同技能，以及 AI、分析、数据工程等共同领域，都附有对应的数字。智能体可以用检索到的连接，说明两名员工的工作在哪里重叠，而不是笼统地说一句“他们的简历很像”。</p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="747">▶ 12:27</button></div>
       <h3>把个人成就扩展为共同的工作</h3>
-      <p>The final source is structured internal data from a human resource information system, or HRIS. It describes projects and collaboration among the same people already represented by the resumes. This introduces information the initial extraction model did not capture: multiple employees working on the same thing.</p>
-<p>Resume ingestion began with an ownership assumption: a person could have many accomplishments, but each accomplishment belonged to one person because it came from that person’s resume. Shared project records change that relationship to many-to-many.</p>
-<p>For the relational design Blumenfeld describes, representing shared ownership would require a join table and a model refactor. In the graph, additional relationships can connect multiple people to shared work. New node and relationship types can also be introduced as sources and agent requirements expand. The existing people and their resume-derived skills remain useful; the new collaboration data adds another way to connect them and another class of questions to ask.</p>
+      <p>最后一个数据源是人力资源信息系统（HRIS）里的内部结构化数据。它记录的是项目和协作情况，涉及的正是简历里已有的那批人。这带来了最初的抽取模型没有覆盖的信息：多名员工在做同一件事。</p>
+<p>导入简历时有一个归属假设：一个人可以有很多成就，但每项成就只属于一个人，因为它出自这个人的简历。共享的项目记录把这种关系变成了多对多。</p>
+<p>按 Blumenfeld 描述的关系型设计，要表示共同归属，就得加一张关联表，还要重构模型。在图里，只要多加几条关系，就能把多个人连到同一项工作上。数据源和智能体需求扩展时，也可以随时引入新的节点和关系类型。已有的人员和从简历里抽出的技能照样有用；新的协作数据只是多了一种把人连起来的方式，也让助手能回答一类新问题。</p>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="850">▶ 14:10</button></div>
       <h3>找出谁一起交付过 AI 项目</h3>
-      <p>A collaboration tool now matches people working on the same thing within selected domains. Asked which individuals collaborated to “deliver the most AI things,” the agent can invoke that operation against shared project relationships. It no longer needs to approximate collaboration by searching resume text for the term.</p>
-<p>The resulting answer identifies Sarah Chen and Dr. Amanda Foster and lists their shared AI projects; it also includes other collaboration evidence involving supply-chain work. The final demonstration brings the two sources together: resumes establish skills and individual experience, while structured project records establish shared work. The assistant can answer who collaborated by returning the projects that connect them.</p>
+      <p>现在有了一个协作工具，可以在选定领域里找出做同一件事的人。问智能体哪些人合作“交付的 AI 成果最多”，它可以基于共享项目关系调用这个工具，不必再到简历文本里搜“协作”这个词来近似判断。</p>
+<p>最终答案找出了 Sarah Chen 和 Dr. Amanda Foster，列出了两人共同参与的 AI 项目，还附上了其他协作证据，涉及供应链方面的工作。最后这个演示把两个数据源结合了起来：简历说明每个人的技能和经历，结构化的项目记录说明谁和谁一起干过活。问到谁和谁协作过，助手可以直接给出把他们连在一起的项目。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/4b7d558e71b1f70af731575e431c3d9912e99a8dbeb74b4343aaa4ae60eead48" alt="Rendered notebook answer listing frequent AI project collaborators, two shared projects, other collaborations, and a summary." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The collaboration response names Sarah Chen and Dr. Amanda Foster and lists their shared AI projects.</figcaption></figure>
     </section>
     </div></div></section>
