@@ -382,87 +382,87 @@ app
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="28">▶ 0:28</button></div>
       <h3>一个在本地能用的智能体仍然需要生产运行时</h3>
-      <p>A coding agent can accept a prompt, generate files and show a working application—and still leave its developer responsible for everything that happens when a connection drops, a tool fails or a user takes days to approve the next action. Peter Wielander begins with that gap between building agent capabilities and operating them in production. The workshop converts the <a href="https://github.com/vercel/examples/tree/main/apps/vibe-coding-platform" target="_blank" rel="noopener">Vibe Coding Platform</a> into a durable agent while retaining its streaming interface. The intended result includes resumability, human approval and an inspector that exposes execution as a timeline of steps.</p>
+      <p>编码智能体能接收提示词、生成文件、跑出一个能用的应用。可一旦连接中断、工具出错，或者用户隔了好几天才批准下一步，后果仍然全由开发者兜着。Peter Wielander 的演讲就从这道鸿沟讲起：给智能体加能力是一回事，在生产环境里把它跑稳是另一回事。这场工作坊把 <a href="https://github.com/vercel/examples/tree/main/apps/vibe-coding-platform" target="_blank" rel="noopener">Vibe Coding Platform</a> 改造成持久化智能体，同时保留原有的流式界面。改造目标有三个：支持断点续跑，支持人工审批，再配一个检查器，把执行过程展示成按步骤排列的时间线。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/4469a3478ce9064141b9e79a75ef916458b682b8bdf530b3e80a6d4cf34fbeb9" alt="Workflow inspector with completed status and green timing bars, including executeGenerateFiles and executeRunCom… steps." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A completed codeWorkflow run shown as a timeline of steps.</figcaption></figure>
-<p>The underlying agent loop alternates between an LLM and backend operations: tool calls, MCP servers, approval requests and other asynchronous tasks. For an agent that might run for hours, the usual supporting infrastructure includes queues, persisted messages and intermediate state, retry handling and observability. <a href="https://github.com/vercel/workflow" target="_blank" rel="noopener">Workflow DevKit</a> brings those responsibilities into an open-source TypeScript orchestration library. This workshop deploys to Vercel; other deployment targets require a compatible backend adapter.</p>
-<p><strong>The workflow controls the sequence; steps perform the work.</strong> A workflow is the orchestration function that decides when to call the model, when to execute a tool and when to return to the model. The LLM calls and tool executions become isolated steps whose results can be persisted and whose failures can be retried. That separation also creates the foundation for reconnectable streams, suspension and webhook-driven approval.</p>
+<p>智能体循环在 LLM 和后端操作之间来回切换，后端操作包括工具调用、MCP 服务器、审批请求和其他异步任务。一个可能连跑几个小时的智能体，通常要配一整套基础设施：队列、持久化的消息和中间状态、重试处理、可观测性。<a href="https://github.com/vercel/workflow" target="_blank" rel="noopener">Workflow DevKit</a> 把这些活儿收进了一个开源的 TypeScript 编排库。本次工作坊部署到 Vercel；要部署到其他平台，需要配一个兼容的后端适配器。</p>
+<p><strong>工作流管顺序，步骤干活。</strong> 工作流就是编排函数，决定什么时候调用模型、什么时候执行工具、什么时候再回到模型。LLM 调用和工具执行各自成为独立的步骤：结果可以持久化，失败可以重试。这种拆分也为可重连的流、挂起和 webhook 驱动的审批打下了基础。</p>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="310">▶ 5:10</button></div>
       <h3>让现有的应用边界保持可见</h3>
-      <p>The starting point is the <code>apps/vibe-coding-platform</code> application in <a href="https://github.com/vercel/examples" target="_blank" rel="noopener">vercel/examples</a>, using the workshop’s stripped-down <code>conf/1-base</code> branch. Numbered checkpoint branches let participants compare each increment. The linked repository’s current main branch has since moved to AI SDK v6; the checkpoint names here refer to the recording’s implementation.</p>
+      <p>起点是 <a href="https://github.com/vercel/examples" target="_blank" rel="noopener">vercel/examples</a> 里的 <code>apps/vibe-coding-platform</code> 应用，用的是工作坊精简过的 <code>conf/1-base</code> 分支。每一步改动都有带编号的检查点分支，参与者可以逐个对比。注意：链接仓库的 main 分支后来已升级到 AI SDK v6，这里提到的检查点名称对应录制时的实现。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/115236ce9b6e06772050a884c435d56b656e5cf97f4d03d3b80ee17411b2f502" alt="Slide naming the repository and branch above the OSS Vibe Coding Platform interface, with chat, preview, sandbox filesystem and output areas." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The baseline example in vercel/examples on branch conf/1-base.</figcaption></figure>
-<p>Running <code>pnpm dev</code> brings up a prompt-driven coding interface. The agent generates files, runs code and eventually exposes the application in an iframe. Vercel Sandbox provides the filesystem and execution environment. The chat endpoint checks the requested model ID, creates an AI SDK agent and streams its output back to the browser. Internally, the agent alternates <code>streamText</code> calls with tool execution.</p>
-<p>| Tool | Responsibility |
+<p>运行 <code>pnpm dev</code> 会启动一个靠提示词驱动的编码界面。智能体生成文件、运行代码，最后把应用放进 iframe 里展示。Vercel Sandbox 提供文件系统和执行环境。聊天接口先检查请求的模型 ID，再创建一个 AI SDK 智能体，把输出流式传回浏览器。智能体内部交替执行 <code>streamText</code> 调用和工具。</p>
+<p>| 工具 | 职责 |
 |---|---|
-| Create sandbox | Wrap sandbox creation |
-| Get sandbox URL | Retrieve the preview address |
-| Run command | Execute a command in the sandbox |
-| <code>generateFiles</code> | Generate a file from a prompt |</p>
-<p>The tool definitions combine instructions, a Zod input schema and an execution function. For example, <code>executeRunCommand</code> wraps <code>sandbox.runCommand</code> with error handling. On the client, <code>useChat</code> consumes the stream and updates the interface. These boundaries matter: the workflow refactor changes how execution survives failures, while the tools still perform the same operations and the UI still expects the same messages.</p>
+| 创建沙箱 | 封装沙箱创建 |
+| 获取沙箱 URL | 拿到预览地址 |
+| 运行命令 | 在沙箱里执行命令 |
+| <code>generateFiles</code> | 根据提示词生成文件 |</p>
+<p>每个工具定义都由三部分组成：说明、Zod 输入 schema 和执行函数。比如 <code>executeRunCommand</code> 在 <code>sandbox.runCommand</code> 外面包了一层错误处理。客户端用 <code>useChat</code> 读取数据流并更新界面。弄清这些边界很重要：改造成工作流之后，变的只是执行怎样扛过故障；工具做的事不变，UI 期待的消息也不变。</p>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="557">▶ 9:17</button></div>
       <h3>抽取并编译编排函数</h3>
-      <p>Start by installing the runtime and its AI helpers:</p>
+      <p>先安装运行时和配套的 AI 辅助库：</p>
 <p>``<code>bash
 pnpm add workflow @workflow/ai
 </code>``</p>
-<p>For Next.js, wrap the existing configuration with <code>withWorkflow</code> from <code>workflow/next</code>:</p>
+<p>如果用 Next.js，就用 <code>workflow/next</code> 里的 <code>withWorkflow</code> 包住现有配置：</p>
 <p>```typescript
 import type { NextConfig } from &quot;next&quot;;
 import { withWorkflow } from &quot;workflow/next&quot;;</p>
 <p>const nextConfig: NextConfig = {};</p>
 <p>export default withWorkflow(nextConfig);
 ```</p>
-<p>This enables compilation of workflow code separately from the application’s ordinary code. Wielander also adds the optional TypeScript plugin for better completion.</p>
-<p>Next, move the agent invocation into a separate function, passing in the arguments previously available inside the route handler. At first this is only an extraction. Adding <code>&quot;use workflow&quot;</code> at the beginning of that function changes its execution contract: the compiler creates a separate bundle and restricts imports that would introduce side effects into orchestration. <strong>Deterministic orchestration can be replayed without repeating arbitrary external operations.</strong></p>
-<p>The AI SDK agent hides its model calls inside its loop, so marking those calls individually would be awkward. <code>DurableAgent</code> supplies that integration: its internal LLM calls already have step boundaries. The refactor then needs two changes around streaming and invocation:</p>
-<p>1. Obtain the workflow-associated writable stream with <code>getWritable</code> and give it to the agent, replacing the route handler’s stream.
-2. Start the extracted function through <code>start</code> from <code>workflow/api</code>, passing its arguments separately.
-3. Use the returned run instance to expose the workflow’s stream to the UI.</p>
-<p>The route now starts a durable run and connects the browser to its output. It no longer owns the entire lifetime of the agent’s execution.</p>
+<p>这样工作流代码就会和应用的普通代码分开编译。Wielander 还加了一个可选的 TypeScript 插件，让代码补全更好用。</p>
+<p>接下来，把调用智能体的代码抽到一个单独的函数里，原来路由处理函数里能拿到的参数都传进去。这一步起初只是提取函数。在函数开头加上 <code>&quot;use workflow&quot;</code> 之后，它的执行约定就变了：编译器会为它单独打包，并禁止那些会给编排逻辑带来副作用的 import。<strong>编排是确定性的，所以可以重放，不必把任意外部操作再做一遍。</strong></p>
+<p>AI SDK 的智能体把模型调用藏在自己的循环里，要逐个标记这些调用很别扭。<code>DurableAgent</code> 正好补上这一块：它内部的 LLM 调用已经自带步骤边界。剩下的改造围绕流式输出和调用方式，还需要两处改动：</p>
+<p>1. 用 <code>getWritable</code> 拿到与工作流关联的可写流，交给智能体，替换掉路由处理函数原来的流。
+2. 通过 <code>workflow/api</code> 里的 <code>start</code> 启动抽出来的函数，参数单独传入。
+3. 用返回的 run 实例把工作流的流暴露给 UI。</p>
+<p>现在路由只负责启动一次持久化运行，再把浏览器接到它的输出上。智能体执行的整个生命周期不再归它管。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="938">▶ 15:38</button></div>
       <h3>标记工具并检查运行过程</h3>
-      <p><code>DurableAgent</code> covers model calls, but the application’s four tools still need <code>&quot;use step&quot;</code> in their execution functions. On the demonstrated serverless deployment, each step executes separately. The runtime records its inputs and successful outputs, reuses recorded results during recovery and retries failed execution. After adding the directives, Wielander restarts <code>pnpm dev</code> and submits another query: the application continues streaming.</p>
-<p>Open the local inspector from the application directory:</p>
+      <p><code>DurableAgent</code> 管住了模型调用，但应用的四个工具还得在各自的执行函数里加上 <code>&quot;use step&quot;</code>。在演示用的 serverless 部署上，每个步骤单独执行。运行时会记录步骤的输入和成功输出，恢复时直接复用记下的结果，执行失败就重试。加完指令后，Wielander 重启 <code>pnpm dev</code>，又提交了一个查询：应用照常流式输出。</p>
+<p>在应用目录下打开本地检查器：</p>
 <p>``<code>bash
 npx workflow web
 </code>``</p>
-<p>Every marked step becomes an inspectable span with inputs, outputs and associated events. This makes the execution boundaries visible without adding a separate tracing layer to every tool.</p>
-<p>In this application, each prompt starts a workflow that runs to completion. A different product could make an entire user session one workflow: process a query, wait for another query, then continue the loop. That choice determines what the run ID represents—a single request or a longer-lived interaction—and permits sessions that remain active across weeks of intermittent work.</p>
+<p>每个标记过的步骤都会变成一个可检查的 span，带有输入、输出和相关事件。执行边界一目了然，不用给每个工具单独加一层 tracing。</p>
+<p>在这个应用里，每条提示词都会启动一个工作流，一直跑到结束。换一个产品，也可以把整个用户会话做成一个工作流：处理一条查询，等下一条，再继续循环。这个选择决定了 run ID 代表什么——是单个请求，还是一段更长的交互。选后者，会话就能在断断续续的几周里一直保持活跃。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="1122">▶ 18:42</button></div>
       <h3>恢复工具进度数据包</h3>
-      <p>The first refactor preserves the agent’s text stream, but the right-hand tool panel is empty. Its custom UI depends on data packets that the tools are no longer sending. Within a tool, <code>getWritable</code> retrieves the same default workflow stream; obtaining its writer lets the tool emit the packets the client already understands. For sandbox creation, the demonstrated packet is <code>data-create-sandbox</code>, carrying the tool-call identity and sandbox identity.</p>
-<p>A workflow can also expose named streams for separate channels. The storage belongs to the backend adapter: Wielander describes local file-backed streams and a possible Redis-backed production implementation keyed by workflow identity. Steps attach as writers, and clients attach as readers. The API handler simply returns access to that stream. Because the stream survives the handler, losing the connection does not erase the output; a client can reconnect to the same run.</p>
-<p>After restarting the development server, the sandbox’s initial loading state appears. It still does not change to completed, because only the initial packet has been written. Completion and other progress transitions require their own packets. Wielander switches to <code>conf/2-workflow</code>, which already contains the necessary <code>writer.write</code> calls across the tools, restoring the richer interface without changing the orchestration design.</p>
+      <p>第一轮改造保住了智能体的文本流，但右侧的工具面板是空的。面板的自定义 UI 靠工具发来的数据包驱动，而工具现在不发了。在工具内部，<code>getWritable</code> 拿到的是同一条默认工作流流；取得它的 writer 后，工具就能发出客户端已经认识的数据包。以创建沙箱为例，演示中的数据包是 <code>data-create-sandbox</code>，里面带着工具调用的标识和沙箱的标识。</p>
+<p>工作流还可以暴露具名流，当作不同的通道。流的存储由后端适配器负责：Wielander 介绍了本地基于文件的流，以及生产环境的一种可能实现——存在 Redis 里，以工作流标识为键。步骤作为 writer 接入，客户端作为 reader 接入。API 处理函数只需返回这条流的访问入口。流比处理函数活得久，所以连接断了，输出也不会丢；客户端可以重新连上同一个运行。</p>
+<p>重启开发服务器后，沙箱的初始加载状态出现了。但它还是不会变成“已完成”，因为目前只写了初始数据包。完成状态和其他进度切换，都需要各自的数据包。Wielander 切换到 <code>conf/2-workflow</code>，这个分支已经在各个工具里写好了所需的 <code>writer.write</code> 调用。更丰富的界面回来了，编排设计一点没动。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="1422">▶ 23:42</button></div>
       <h3>重新连接而不启动另一个智能体</h3>
-      <p>Persistent output needs a client reconnection path. The implementation proceeds from identifying the run to retrieving its stream:</p>
-<p>1. Return <code>run.runId</code> alongside the initial stream. Wielander uses a response header, although another transport would also work.
-2. Add a Next.js route at <code>/chat/ID/stream</code>.
-3. Extract the ID and call <code>getRun</code> from the workflow API.
-4. Return that run’s readable stream, without invoking the agent again.
-5. Accept a start index when the client needs to continue from a particular chunk rather than replay the entire output.</p>
-<p><strong>Resuming a stream reconnects to existing work; it does not submit the prompt again.</strong></p>
-<p>The <code>4-streams</code> checkpoint supplies the client transport changes. Middleware around <code>useChat</code> checks for an existing run ID and chooses the reconnection endpoint when one is available. Wielander shows this conditional transport code briefly rather than rebuilding it live, then initiates a Vercel preview deployment before moving on to suspension.</p>
+      <p>输出能持久保存了，客户端还得有办法重新连上。实现思路是先找到运行，再取它的流：</p>
+<p>1. 返回初始流时一并带上 <code>run.runId</code>。Wielander 把它放在响应头里，换别的传输方式也行。
+2. 新增一个 Next.js 路由 <code>/chat/ID/stream</code>。
+3. 从中取出 ID，调用工作流 API 的 <code>getRun</code>。
+4. 返回这个运行的可读流，不要再调用一次智能体。
+5. 如果客户端想从某个分块接着读，而不是把全部输出重放一遍，就接收一个起始索引。</p>
+<p><strong>恢复流是重新连上已有的工作，不是把提示词再提交一次。</strong></p>
+<p><code>4-streams</code> 检查点提供了客户端传输层的改动。<code>useChat</code> 外面包了一层中间件，先看有没有现成的 run ID，有就改走重连接口。Wielander 只简单展示了这段条件传输代码，没有现场重写，随后发起一次 Vercel 预览部署，接着讲挂起。</p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="1667">▶ 27:47</button></div>
       <h3>等待而不必让一个执行实例一直存活</h3>
-      <p>The orchestration layer runs briefly to arrange step execution. When an otherwise idle workflow reaches a durable wait, it can release execution resources until it is time to continue. Inside a workflow, a three-day pause is expressed directly:</p>
+      <p>编排层只短暂运行，负责安排步骤的执行。一个空闲的工作流遇到持久化等待时，可以先释放执行资源，到点再继续。在工作流里，暂停三天可以直接这么写：</p>
 <p>```typescript
 import { sleep } from &quot;workflow&quot;;</p>
 <p>export async function waitThreeDays() {
@@ -471,16 +471,16 @@ import { sleep } from &quot;workflow&quot;;</p>
   return &quot;ready&quot;;
 }
 ```</p>
-<p>The persistent stream remains available to reconnecting clients. Exposing sleep to an agent also makes longer-lived behavior possible: process email, wait a day, then process email again.</p>
-<p>What survives if the execution instance disappears? A step invocation is registered as an event; successful completion records its output. Recovery uses that saved history and the step results to reconstruct progress. Completed external calls need not be performed again merely to reach the point where execution stopped. This is durable recovery through recorded execution, rather than a requirement to keep the original process and its memory alive.</p>
-<p>The preview deployment is now live. Wielander opens the same style of workflow inspector against the deployed application, using deployment-selection options, and inspects its steps. He also invokes the cancellation control; the displayed confirmation offers <code>Keep Running</code> and <code>Cancel Run</code>. The intended operational experience is the same locally and remotely: inspect a run, understand its progress and stop it when necessary.</p>
+<p>这期间，持久化的流仍然可供重连的客户端读取。把 sleep 交给智能体，还能实现周期更长的行为：处理邮件，等一天，再处理邮件。</p>
+<p>如果执行实例没了，还剩下什么？每次调用步骤都会登记成一个事件，成功完成时再记下输出。恢复时，运行时根据这份历史和步骤结果重建进度。已经完成的外部调用，不必为了回到中断的位置再执行一遍。这种持久恢复靠的是执行记录，而不是让原来的进程和它的内存一直活着。</p>
+<p>预览部署上线了。Wielander 用部署选择选项，对已部署的应用打开同款工作流检查器，查看其中的步骤。他还点了取消按钮，弹出的确认框里有 <code>Keep Running</code> 和 <code>Cancel Run</code> 两个选项。目标是让本地和远程的运维体验一致：查看运行、了解进度、必要时叫停。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/83e121cfbe9df8e24a2029e8a4ac24205ff55260f273e20874d47cc58d8a7a99" alt="Cancel Workflow Run dialog over a workflow timeline, with Keep Running and Cancel Run buttons." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The workflow inspector asks whether to cancel a running workflow.</figcaption></figure>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="1918">▶ 31:58</button></div>
       <h3>把 sleep 作为一个智能体工具暴露出来</h3>
-      <p>The next tool accepts a numeric timeout in milliseconds and calls Workflow’s <code>sleep</code>. Its execution function does not need another <code>&quot;use step&quot;</code> directive: sleep already participates in durable execution and appears in inspection. The tool description restricts it to explicit user requests.</p>
+      <p>下一个工具接收一个以毫秒为单位的超时数值，然后调用 Workflow 的 <code>sleep</code>。它的执行函数不用再加 <code>&quot;use step&quot;</code> 指令：sleep 本身就参与持久执行，也会出现在检查器里。工具说明限定：只有用户明确要求时才能用它。</p>
 <p>```typescript
 import { tool } from &quot;ai&quot;;
 import { sleep } from &quot;workflow&quot;;
@@ -501,51 +501,51 @@ import { z } from &quot;zod&quot;;</p>
   execute: runSleepCommand,
 });
 ```</p>
-<p>Add <code>sleepTool</code> to the agent’s tools. To display progress, use a separate step for the stream write: writing directly from replayable orchestration would emit the packet again each time that orchestration replays.</p>
-<p>A participant’s setup error exposes a separate dependency. Creating an AI Gateway API key has not satisfied the example’s Sandbox authentication requirements; the participant sees a missing-header/OIDC error. Wielander explains that this application also requires logging into Vercel because it uses Vercel Sandbox. He promises a later Sandbox-free branch for local execution, but does not demonstrate it in the session.</p>
-<p>The sleep progress packet includes the tool-call ID, and the existing UI expects wait handling rather than a <code>data-sleep</code> type. Wielander requests a 30-second sleep followed by a random result; the workflow inspector shows the sleep operation, while the application still fails to display its expected progress packet. The durable operation and the client’s rendering integration are separate things to verify.</p>
+<p>把 <code>sleepTool</code> 加进智能体的工具列表。要显示进度，就把写流的操作放进单独的步骤：如果直接在可重放的编排代码里写，每重放一次，数据包就会再发一遍。</p>
+<p>一位参与者的环境配置出了错，暴露出另一层依赖。参与者创建了 AI Gateway API key，但这满足不了示例中 Sandbox 的认证要求，结果报了缺少请求头 / OIDC 的错误。Wielander 解释说，这个应用用了 Vercel Sandbox，所以还必须登录 Vercel。他承诺之后提供一个不依赖 Sandbox、能在本地跑的分支，但现场没有演示。</p>
+<p>sleep 的进度数据包带有工具调用 ID，而现有 UI 期待的是等待处理，不是 <code>data-sleep</code> 类型。Wielander 让智能体先睡 30 秒，再返回一个随机结果。工作流检查器里出现了这次 sleep 操作，应用却依旧没能显示预期的进度数据包。持久化操作本身和客户端的渲染集成是两回事，要分开验证。</p>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="2240">▶ 37:20</button></div>
       <h3>在构建宝可梦图鉴之前暂停等待批准</h3>
-      <p>The <code>conf/5-webhooks</code> checkpoint adds a human approval tool. Its sequence resembles sleep: log progress, create a webhook, expose its URL and await the webhook. Instead of resuming after elapsed time, the workflow resumes when a request reaches the generated endpoint. The demonstration asks the agent to wait for human approval before coding a Pokémon index.</p>
-<p>After another development-server restart, the run pauses at the approval link. The endpoint uses the local host in development and the deployment host in production. It is also more than a notification URL: Wielander describes request handling with <code>respondWith</code> and validation of the request body against a Zod schema before allowing execution to continue.</p>
-<p>An audience question sharpens the meaning of suspension. Sleep and webhook waits appear like steps in the inspector and compose through promises, but internally they suspend execution. An otherwise idle run does not keep a worker busy waiting. Concurrent work can still continue, and <code>Promise.race</code> can combine a wait with another operation.</p>
-<p>The distinction becomes clearer with the audience’s example of a process continuously calculating π in a sandbox. Workflow suspension does not mean suspending that VM. Vercel Sandbox is the separate environment that holds files and executes generated programs—Wielander compares it to an EC2 instance.</p>
-<p>| Operation | What it affects |
+      <p><code>conf/5-webhooks</code> 检查点加入了一个人工审批工具。它的流程和 sleep 类似：记录进度、创建 webhook、暴露它的 URL，然后等待 webhook。不同的是，工作流不是等时间到了再继续，而是等有请求打到生成的接口上。演示中，智能体要先等人工审批，再去写一个宝可梦索引。</p>
+<p>又一次重启开发服务器后，运行停在了审批链接这里。这个接口在开发环境用本地主机，在生产环境用部署主机。它也不只是一个通知 URL：Wielander 介绍说，可以用 <code>respondWith</code> 处理请求，并在放行之前用 Zod schema 校验请求体。</p>
+<p>观众的一个问题让“挂起”的含义更清楚了。sleep 和 webhook 等待在检查器里看起来和步骤一样，也能通过 Promise 组合，但在内部，它们会挂起执行。空闲的运行不会占着一个 worker 干等。并发的工作照样可以继续，<code>Promise.race</code> 也能把等待和其他操作组合起来。</p>
+<p>观众举了个例子：沙箱里有个进程在不停地算 π。这个例子让区别更明显了。工作流挂起，并不等于把那台虚拟机也挂起。Vercel Sandbox 是一个独立的环境，负责存放文件、执行生成的程序——Wielander 把它比作一台 EC2 实例。</p>
+<p>| 操作 | 影响的对象 |
 |---|---|
-| Workflow <code>sleep</code> | The workflow’s continuation |
-| Terminal <code>sleep</code> | A command running inside the sandbox |
-| Webhook wait | Continuation pending an external request |</p>
-<p>After the approval URL is clicked, the workflow resumes and produces the Pokédex.</p>
+| 工作流 <code>sleep</code> | 工作流何时继续 |
+| 终端 <code>sleep</code> | 沙箱里运行的命令 |
+| Webhook 等待 | 等外部请求到来后再继续 |</p>
+<p>点击审批 URL 之后，工作流恢复运行，生成了宝可梦图鉴。</p>
     </section>
 <section class="section" id="sec-10">
       <div class="section-head"><span class="num">10</span>
       <button class="seek" data-t="2598">▶ 43:18</button></div>
       <h3>持久性止于你暴露出来的边界</h3>
-      <p>Could the same workflow launch <a href="https://github.com/anthropics/claude-code" target="_blank" rel="noopener">Claude Code</a>? A terminal application does not automatically expose its internal model calls and tool calls as workflow steps. Wielander suggests adding workflow boundaries to an agent implementation whose orchestration can be instrumented. Simply starting Claude Code inside a VM is closer to opening an SSH session: the workflow can record the command step, but it does not thereby manage the VM’s internal state or every operation performed by the external agent. Only integrated step boundaries receive the workflow’s granular resumability and inspection.</p>
-<p>Permissions remain application responsibilities. If a tool can delete an S3 resource, its author must enforce the authorization for that deletion. Network access and model-provider access likewise retain the application’s existing controls. Workflow DevKit supplies durable orchestration; it does not itself sandbox untrusted code. The example uses Vercel Sandbox as a separate isolation mechanism, with a fresh VM for a sandbox session.</p>
+      <p>同一个工作流能不能启动 <a href="https://github.com/anthropics/claude-code" target="_blank" rel="noopener">Claude Code</a>？终端应用不会自动把内部的模型调用和工具调用暴露成工作流步骤。Wielander 的建议是：找一个编排逻辑可以插桩的智能体实现，在里面加上工作流边界。只是在虚拟机里启动 Claude Code，更像是开了一个 SSH 会话：工作流能记下执行命令这一步，但并不因此接管虚拟机的内部状态，也管不到外部智能体做的每个操作。只有集成进来的步骤边界，才能享受工作流细粒度的断点续跑和检查。</p>
+<p>权限仍然由应用自己负责。如果某个工具能删除 S3 资源，工具作者就得自己做好删除操作的授权校验。网络访问和模型服务商的访问也一样，沿用应用现有的管控措施。Workflow DevKit 提供的是持久化编排，本身并不隔离不受信任的代码。示例用 Vercel Sandbox 做独立的隔离，每个沙箱会话都用一台全新的虚拟机。</p>
     </section>
 <section class="section" id="sec-11">
       <div class="section-head"><span class="num">11</span>
       <button class="seek" data-t="2804">▶ 46:44</button></div>
       <h3>把运行生命周期与步数限制和部署变更分开</h3>
-      <p>A long-running workflow is bound to its deployment. In Wielander’s example, a workflow runs for a week while the application is deployed five more times: the existing run continues on its original deployment, while new runs use the newer deployment. A year-long monthly-summary agent makes the next problem obvious—eventually an existing run may need newer code. He describes a planned upgrade interface that checks step signatures and recorded events; cancellation followed by a new run is the available alternative in the workshop.</p>
-<p>Long workflow lifetimes do not remove serverless execution limits. Each step is still subject to its hosting platform’s timeout. Wielander uses five- and fifteen-minute limits as platform-dependent examples: a step that exceeds its limit fails, may retry and exposes those repeated failures in inspection. The remedy is to split oversized work into smaller steps. Continuing an existing run after such a code change belongs to the upgrade capability being discussed.</p>
-<p>Each call to the example’s chat route starts an independent workflow, and that workflow continues even when nobody reads its stream. The run API supports inspection of active runs, their versions and current steps, along with cancellation. Concurrency in the demonstrated system is bounded by provider capacity rather than an application-level admission limit. Per-step and per-workflow concurrency controls are presented as upcoming features: a proposed limit of ten active runs would queue additional starts until capacity becomes available. Wielander uses that mechanism to illustrate different free and paid product tiers.</p>
-<p>Two more requests concern manipulating recorded progress:</p>
-<p>- <strong>Rollback:</strong> An audience member asks about moving from step seven back to step three. Persisted inputs and outputs make earlier replay conceivable, but the operation is explicitly unsupported in the workshop. Another approach raised in the discussion is to model subsequent state changes while retaining a growing event log.
-- <strong>Metadata:</strong> A proposed tagging API would attach arbitrary tags during execution, potentially supporting early exit or deduplication.</p>
-<p>These are extensions to the runtime’s recorded history, rather than features added to the coding agent during the demonstration.</p>
+      <p>长时间运行的工作流和它所在的部署绑定在一起。Wielander 举例：一个工作流跑了一周，期间应用又部署了五次；已有的运行继续在原来的部署上跑，新的运行则用新部署。换成一个连跑一年、每月出一份总结的智能体，下一个问题就很明显了——已有的运行迟早要用上新代码。他介绍了一个规划中的升级接口，会检查步骤签名和已记录的事件。在工作坊当下，能用的替代办法是先取消，再启动一个新运行。</p>
+<p>工作流能跑很久，不代表 serverless 的执行限制就没了。每个步骤仍然受托管平台超时时间的约束。Wielander 以 5 分钟和 15 分钟为例，具体数值取决于平台：超时的步骤会失败，可能会重试，这些反复失败也会显示在检查器里。解决办法是把过大的任务拆成更小的步骤。改完代码后想让已有的运行接着跑，就属于正在讨论的升级能力了。</p>
+<p>示例中，每次调用聊天路由都会启动一个独立的工作流；就算没人读它的流，工作流也会继续跑。通过 run API，可以查看活跃的运行、它们的版本和当前步骤，也可以取消运行。在演示的系统里，并发量只受服务商容量限制，应用层面没有准入控制。按步骤和按工作流的并发控制还在路上：比如把活跃运行上限设为 10 个，超出的启动请求就会排队，等有空位再执行。Wielander 用这个机制说明怎样区分免费和付费的产品档位。</p>
+<p>还有两个需求，都和改动已记录的进度有关：</p>
+<p>- <strong>回滚：</strong> 有观众问，能不能从第七步退回第三步。输入和输出都已持久化，理论上可以重放更早的步骤，但工作坊明确表示目前不支持。讨论中还提到另一种思路：保留一份不断增长的事件日志，把后续的状态变化建模进去。
+- <strong>元数据：</strong> 有人提议做一个打标签的 API，在执行过程中附加任意标签，也许能用来提前退出或去重。</p>
+<p>这些都是对运行时执行记录的扩展，不是演示中给编码智能体新加的功能。</p>
     </section>
 <section class="section" id="sec-12">
       <div class="section-head"><span class="num">12</span>
       <button class="seek" data-t="3137">▶ 52:17</button></div>
       <h3>组合后端、调度与通信</h3>
-      <p>Portability has two layers. The framework integration handles compilation and the application’s API layer; the durability backend provides storage and queuing. Hosting Next.js somewhere does not by itself provide that backend. Wielander points to a first-party Postgres implementation and explains that adapters connect workflow execution to databases, storage and queues. Run data is also available through an API and open-source UI components, allowing applications to build their own inspection experience or export information to systems such as Datadog.</p>
-<p>Scheduling follows ordinary TypeScript control flow. A loop can await a day, perform work and repeat. For a wall-clock schedule, calculate the delay to the next desired time; for conditional work, wake periodically and check whether execution is needed. External API checks must happen in steps. A scheduling workflow can launch another workflow or invoke an agent directly. If each scheduled execution needs a separate output channel, deterministic names passed to <code>getWritable</code> let clients select the appropriate stream.</p>
-<p>Cancellation and early wake-up solve different problems. The inspector, API and CLI can cancel an existing workflow. To continue early rather than cancel, race a timer against approval:</p>
+      <p>可移植性分两层。框架集成负责编译和应用的 API 层；持久化后端负责存储和排队。把 Next.js 托管到某个地方，并不会自动得到这个后端。Wielander 提到了一个官方的 Postgres 实现，并解释说，适配器负责把工作流执行接到数据库、存储和队列上。运行数据也能通过 API 和开源 UI 组件拿到，应用可以自己搭检查界面，也可以把数据导出到 Datadog 这类系统。</p>
+<p>调度就用普通的 TypeScript 控制流来写。一个循环可以等一天、干点活、再重复。要按挂钟时间调度，就算出离下一个目标时间还有多久；要按条件执行，就定期醒来，看看是否需要干活。调用外部 API 做检查，必须放在步骤里。调度工作流可以启动另一个工作流，也可以直接调用智能体。如果每次调度执行都需要单独的输出通道，就给 <code>getWritable</code> 传入确定性的名称，让客户端挑选对应的流。</p>
+<p>取消和提前唤醒解决的是两类问题。检查器、API 和 CLI 都能取消已有的工作流。如果想提前继续而不是取消，就让计时器和审批赛跑：</p>
 <p>```typescript
 import { createWebhook, sleep } from &quot;workflow&quot;;</p>
 <p>export async function waitForApprovalOrTomorrow() {
@@ -558,34 +558,34 @@ import { createWebhook, sleep } from &quot;workflow&quot;;</p>
 <p>return &quot;ready&quot;;
 }
 ```</p>
-<p>As in the approval tool, the application must expose the webhook URL to the person who can trigger it. The race permits continuation when either event arrives; it does not establish cancellation behavior for the losing operation.</p>
-<p>Communication between agents also uses application-level mechanisms. Steps can call Node.js APIs or <code>fetch</code>, coordinate through a shared database, or write to a shared stream. The choice depends on whether the agents need shared state, external requests or a common output channel.</p>
+<p>和审批工具一样，应用必须把 webhook URL 交给能触发它的人。race 让两个事件中任意一个先到就能继续；但输掉的那个操作要不要取消、怎么取消，它并不负责。</p>
+<p>智能体之间的通信同样靠应用层机制。步骤可以调用 Node.js API 或 <code>fetch</code>，可以通过共享数据库协调，也可以写同一条流。选哪种，取决于智能体之间需要的是共享状态、外部请求，还是一个公共的输出通道。</p>
     </section>
 <section class="section" id="sec-13">
       <div class="section-head"><span class="num">13</span>
       <button class="seek" data-t="3483">▶ 58:03</button></div>
       <h3>为重试设计副作用</h3>
-      <p><strong>Persisting a completed step does not make a partially failed side effect safe to repeat.</strong> Compiler restrictions protect deterministic workflow code; steps intentionally permit external effects. If a step changes an external system and then fails before its completion is recorded, its author must make another attempt well behaved through transactional or idempotent operations.</p>
-<p>Retry policy is also an application decision. An ordinary failure can signal that the runtime should retry, but error-specific handling may instead request human intervention or choose another path. Durable orchestration provides a place to express those decisions; it does not know whether repeating a particular business operation is acceptable.</p>
-<p>The cumulative <code>conf/5-webhooks</code> checkpoint contains the workflow conversion, resumable streams, sleep and human approval. Wielander promises to share the slides afterward. At the time of the recording, Workflow DevKit is in beta, and he tentatively forecasts general availability in January. The discussion mentions production use in v0. Wielander and a participant report more than one million internal workflow runs per day. That operational claim sits alongside continuing work on API stability and outstanding issues.</p>
-<p>The project invites feature requests through GitHub RFC discussions and issues. Its adapters are open source, so teams can inspect how the runtime connects to backend storage and use those implementations as a starting point for their own infrastructure.</p>
+      <p><strong>已完成的步骤会持久化，但这不代表执行到一半失败的副作用可以放心重来。</strong> 编译器的限制保护的是确定性的工作流代码；步骤本来就允许产生外部副作用。如果某个步骤改动了外部系统，却在完成状态写入之前失败，步骤作者就得靠事务或幂等操作，保证再试一次也不出乱子。</p>
+<p>重试策略也由应用来定。普通的失败可以通知运行时重试；遇到特定错误，也可以改为请求人工介入，或者换一条路径。持久化编排提供了写下这些决策的地方，但它不知道某个业务操作能不能重复执行。</p>
+<p>最终的 <code>conf/5-webhooks</code> 检查点集齐了前面所有改动：工作流改造、可恢复的流、sleep 和人工审批。Wielander 承诺会后分享幻灯片。录制时，Workflow DevKit 还处于 beta 阶段，他初步预计 1 月正式发布。讨论中提到 v0 已在生产环境里用上了它。Wielander 和一位参与者表示，内部每天的工作流运行次数超过 100 万。同时，API 稳定性和一些遗留问题仍在处理中。</p>
+<p>项目欢迎大家在 GitHub 的 RFC 讨论区和 issue 里提功能需求。适配器都是开源的，团队可以看看运行时怎样接入后端存储，再以这些实现为起点，搭建自己的基础设施。</p>
     </section>
 <section class="section" id="sec-14">
       <div class="section-head"><span class="num">14</span>
       <button class="seek" data-t="3706">▶ 1:01:46</button></div>
       <h3>默认锁定版本，有意识地迁移</h3>
-      <p>The versioning discussion returns to deployment identity. A deployment corresponds to a workflow version, and a run retains the identity of the version it uses. Deployment-specific URLs also scope webhook routing; the public API routes new work to whichever version the application selects. Wielander describes <code>run.upgrade</code> as part of the proposed interface for checking compatibility and moving existing runs to newer code.</p>
-<p>For bulk migration, the proposed UI or CLI would select runs, check whether their recorded progress can continue under the target version and upgrade compatible runs. If that is not possible, it could offer cancellation and a new run with the same inputs. The compiler supplies information for these checks: Wielander describes storing AST information and workflow and step input/output signatures in a version manifest.</p>
-<p>Recorded event history provides another compatibility test: replay it against the new code and see whether the new implementation can follow it. The audience pushes on the danger of automatically changing many active agents at once. This exposes a real design tradeoff. If code evolves in place, the current implementation may need to handle histories originating from many older versions, accumulating compatibility branches and extra reasoning burden.</p>
-<p>Atomic deployment environments allow a simpler default: existing runs remain pinned, and migration is an explicit operation. Full replay, partial replay and in-place upgrades remain possible design choices above that foundation. The hard part is making the migration decision understandable and safe for the operator, rather than silently forcing every active run onto newly deployed code.</p>
+      <p>关于版本的讨论又回到了部署身份上。一个部署对应一个工作流版本，每个运行都记着自己所用版本的身份。部署专属的 URL 也限定了 webhook 的路由范围；公开 API 则把新任务路由到应用选定的版本。Wielander 介绍说，<code>run.upgrade</code> 是拟议接口的一部分，用来检查兼容性，并把已有的运行迁到新代码上。</p>
+<p>做批量迁移时，拟议中的 UI 或 CLI 会先选出一批运行，检查它们已记录的进度能否在目标版本下继续，再升级兼容的那些。如果不行，可以提供取消选项，再用相同输入启动一个新运行。这些检查所需的信息由编译器提供：Wielander 介绍说，版本清单里会存 AST 信息，以及工作流和步骤的输入/输出签名。</p>
+<p>已记录的事件历史提供了另一种兼容性测试：拿它对着新代码重放，看新实现能不能走通。观众追问：一次性自动改动大量活跃智能体，风险有多大？这暴露出一个真实的设计取舍。如果代码原地演进，当前实现可能要处理来自许多旧版本的历史，兼容分支越积越多，理解代码也越来越费劲。</p>
+<p>有了原子化的部署环境，默认做法就可以简单些：已有的运行固定在原版本上，迁移要显式触发。在这个基础上，完整重放、部分重放和原地升级都还是可选的设计方案。难点在于让运维人员看得懂迁移决策、能放心执行，而不是悄悄把所有活跃运行强行切到新部署的代码上。</p>
     </section>
 <section class="section" id="sec-15">
       <div class="section-head"><span class="num">15</span>
       <button class="seek" data-t="4036">▶ 1:07:16</button></div>
       <h3>检查执行而不暴露密钥</h3>
-      <p>The final observability question asks what a team can send to its existing Datadog installation. Wielander identifies OpenTelemetry spans as the export path, then clarifies that first-party enrichment with step and event-log context is planned, potentially through a helper. Applications can emit their own telemetry and attach their own tags. The local inspector demonstrated earlier and the proposed external telemetry enrichment are distinct parts of the operational interface.</p>
-<p>The last question concerns secrets, including secrets that need updating. Workflow inspection exposes stored inputs and outputs to users with inspection API access; ordinary application callers would not normally have those privileges. For credentials used by execution code, Wielander points to the deployment’s usual process environment and environment-variable injection. Avoid logging those values. This explains how execution obtains secrets, but does not specify how rotation propagates to runs pinned to older deployments.</p>
-<p>At this point in the recording, encryption of persisted workflow data is described as future work. The immediate design boundary is therefore concrete: operational visibility includes recorded data, so access to the inspector and the contents of step inputs, outputs and logs all need deliberate treatment. Durability preserves the information needed to continue execution; the application must also decide which information is appropriate to preserve and expose.</p>
+      <p>最后一个可观测性问题是：团队能往现有的 Datadog 里送哪些数据？Wielander 指出，导出途径是 OpenTelemetry span。他接着补充：官方计划给这些 span 补上步骤和事件日志的上下文，可能以辅助函数的形式提供。应用也可以自己发遥测数据、打自己的标签。前面演示的本地检查器，和拟议中的外部遥测增强，是运维接口里两块不同的部分。</p>
+<p>最后一个问题关于密钥，包括需要更新的密钥。有检查 API 权限的用户，能在工作流检查器里看到存储的输入和输出；普通的应用调用方一般没有这些权限。至于执行代码要用的凭据，Wielander 建议沿用部署惯用的进程环境和环境变量注入。不要把这些值写进日志。这解释了执行时怎样拿到密钥，但没有说明密钥轮换后，怎样同步到那些固定在旧部署上的运行。</p>
+<p>按录制时的说法，持久化工作流数据的加密还属于后续工作。眼下的设计边界因此很具体：运维可见性包括已记录的数据，所以谁能访问检查器，步骤的输入、输出和日志里放什么，都要专门考虑。持久化保存的是继续执行所需的信息；哪些信息适合保存、适合暴露，还得由应用自己决定。</p>
     </section>
     </div></div></section>
 

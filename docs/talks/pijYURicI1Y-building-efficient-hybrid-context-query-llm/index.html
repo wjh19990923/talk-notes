@@ -527,54 +527,54 @@ app · Streamlit</pre></details>
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="29">▶ 0:29</button></div>
       <h3>商品搜索既需要语义也需要结构化约束</h3>
-      <p>A shopper may know what a product should do and how much they can spend without knowing the catalog’s exact wording. Their request combines a description with a constraint. A product-search application therefore needs to distinguish descriptive intent, conditions on structured fields, and requests containing both. Replacing keyword input with natural language makes the interface more expressive, but the retrieval system still has to translate that expression into appropriate operations.</p>
-<p>A language model’s training data is not a live product catalog. Retrieval-Augmented Generation, or RAG, supplies relevant external information alongside the user’s question so the model can ground its response in that information. For product search, this means retrieving catalog context that fits the request, rather than relying on the model’s existing knowledge of products.</p>
-<p>Hanspal introduces security before building the pipeline. Useful context must not become a route to sensitive data simply because a user asks for it. That is a requirement for the application, not a guarantee conferred by adding retrieval: the system must control which data the request can reach.</p>
+      <p>购物者可能清楚商品该有什么用、自己能花多少钱，却不知道商品目录里具体怎么写。他们的需求里既有描述，也有约束。所以商品搜索应用要分清三种情况：描述性的意图、针对结构化字段的条件，以及两者兼有的请求。用自然语言替代关键词输入，界面的表达力更强了，但检索系统仍然得把这些表达转换成合适的操作。</p>
+<p>语言模型的训练数据不是实时的商品目录。检索增强生成（Retrieval-Augmented Generation，RAG）把相关的外部信息和用户问题一起交给模型，让模型的回答有据可依。放到商品搜索里，就是检索与请求匹配的商品目录上下文，而不是依赖模型对商品已有的了解。</p>
+<p>Hanspal 在搭建流水线之前先讲安全。用户开口要什么，系统就给什么，有用的上下文就可能变成通向敏感数据的路径。这是对应用本身的要求，加上检索并不会自动带来这种保障：系统必须控制请求能触及哪些数据。</p>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="105">▶ 1:45</button></div>
       <h3>动态请求需要有边界的数据访问</h3>
-      <p>Why revisit secure retrieval when data-driven applications have existed for years? Hanspal’s distinction concerns the shape of the application’s data interface. In the conventional product-search application Hanspal describes, the software consumes a relatively fixed feed. Records and results change, but new functionality generally comes from changing the application around that interface.</p>
-<p>A context-driven application must instead select information according to an open-ended natural-language request. The required context can vary with what the user asks. That flexibility also gives users room to request behavior the application designer did not intend, so interpreting a request and deciding whether to permit it are separate responsibilities.</p>
-<p>Hanspal introduces <a href="https://hasura.io/docs/2.0/auth/authorization/permissions/" target="_blank" rel="noopener">Hasura’s GraphQL API and permission system</a> as the data-access layer. A unified interface can expose different data sources while allowing requests to vary in structure. GraphQL expresses the operation; permissions govern what the execution role may do. A dynamic query language does not itself establish authorization.</p>
+      <p>数据驱动的应用早就有了，为什么还要重新讨论安全检索？Hanspal 的关键区分在于应用数据接口的形态。在他描述的传统商品搜索应用里，软件消费的是一个相对固定的数据源。记录和结果会变，但新功能通常来自修改接口外围的应用代码。</p>
+<p>上下文驱动的应用则不同，它得根据开放式的自然语言请求挑选信息。需要什么上下文，取决于用户问什么。这种灵活性也给了用户空间，去提出应用设计者本没打算支持的要求。所以，理解请求和决定是否放行，是两项独立的职责。</p>
+<p>Hanspal 用 <a href="https://hasura.io/docs/2.0/auth/authorization/permissions/" target="_blank" rel="noopener">Hasura 的 GraphQL API 和权限系统</a> 作为数据访问层。一个统一的接口可以对外暴露多个数据源，同时允许请求的结构各不相同。GraphQL 负责表达操作，权限决定执行角色能做什么。动态查询语言本身并不等于授权。</p>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="188">▶ 3:08</button></div>
       <h3>准备好记录，再暴露一个 GraphQL 接口</h3>
-      <p>The retrieval interface must accommodate three kinds of request:</p>
-<p>- <strong>Semantic search</strong> matches the meaning of a request against product descriptions in a vector database.
-- <strong>Structured search</strong> applies conditions to fields such as <code>price</code> and <code>category</code>. Natural language must become a structured operation, expressed in SQL or GraphQL, for example.
-- <strong>Hybrid search</strong> combines descriptive similarity with structured conditions.</p>
-<p>Here, hybrid means semantic retrieval plus structured constraints. The demonstration does not introduce a fusion of keyword and vector rankings. Hasura provides one GraphQL interface for all three request shapes.</p>
-<p>Hanspal’s <a href="https://docs.streamlit.io/" target="_blank" rel="noopener">Streamlit application</a> supplies the user-facing entry point. It accepts a natural-language request, calls a language model to generate GraphQL, and submits the generated operation to Hasura. The model performs the translation; Hasura executes the resulting data request.</p>
-<p>In the console’s Data tab, a Postgres product table and a product vector table are already connected. Although the architecture can expose multiple sources, Hanspal simplifies the live searches to use only <a href="https://docs.weaviate.io/weaviate" target="_blank" rel="noopener">Weaviate</a>. Its prepared records hold vectors alongside structured product fields, including price and category. The demonstrated hybrid search therefore does not require a live join between Postgres and Weaviate.</p>
-<p>Preparation happens before the search request. Hanspal uses <a href="https://hasura.io/docs/2.0/event-triggers/overview/" target="_blank" rel="noopener">Hasura event triggers</a> to initiate vectorization when a new product is inserted into Postgres, then saves the vectorized record in the vector database. The insertion event starts the ingestion work; subsequent searches operate on the prepared collection. The console’s <code>Product_vectors</code> table shows the product records with their <code>name</code>, <code>description</code>, <code>price</code>, and <code>category</code> fields.</p>
+      <p>检索接口需要支持三类请求：</p>
+<p>- <strong>语义搜索</strong>：在向量数据库中，把请求的含义与商品描述做匹配。
+- <strong>结构化搜索</strong>：对 <code>price</code>、<code>category</code> 这类字段施加条件。自然语言必须转换成结构化操作，比如用 SQL 或 GraphQL 表达。
+- <strong>混合搜索</strong>：把描述上的相似度和结构化条件结合起来。</p>
+<p>这里的“混合”指语义检索加结构化约束。演示中并没有引入关键词排序与向量排序的融合。Hasura 用同一个 GraphQL 接口承接全部三种请求。</p>
+<p>Hanspal 的 <a href="https://docs.streamlit.io/" target="_blank" rel="noopener">Streamlit 应用</a> 是面向用户的入口。它接收自然语言请求，调用语言模型生成 GraphQL，再把生成的操作提交给 Hasura。模型负责翻译，Hasura 负责执行最终的数据请求。</p>
+<p>控制台的 Data 标签页里，一张 Postgres 商品表和一张商品向量表已经接好。这套架构虽然能接入多个数据源，Hanspal 为了简化，现场搜索只用了 <a href="https://docs.weaviate.io/weaviate" target="_blank" rel="noopener">Weaviate</a>。预先准备好的记录里，向量和结构化商品字段（包括价格和类别）存在一起。所以演示中的混合搜索不需要在 Postgres 和 Weaviate 之间做实时 join。</p>
+<p>准备工作在搜索之前就已完成。Hanspal 用 <a href="https://hasura.io/docs/2.0/event-triggers/overview/" target="_blank" rel="noopener">Hasura 事件触发器</a>：Postgres 一插入新商品，就触发向量化，再把向量化后的记录存进向量数据库。插入事件启动摄取流程，之后的搜索都在准备好的数据集上进行。控制台的 <code>Product_vectors</code> 表列出了这些商品记录，包含 <code>name</code>、<code>description</code>、<code>price</code> 和 <code>category</code> 字段。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/f151dd15711d1236e9d2869979191b6966ef9a13e0e44f5d4004a171d0c1222b" alt="Product records combine descriptions, structured fields, and vectors in the demo." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Product records combine descriptions, structured fields, and vectors in the demo.</figcaption></figure>
-<p>The console’s API tab provides a workspace for executing queries and inspecting their results. Hanspal then moves to Streamlit, whose configuration panel contains the Hasura endpoint, an admin secret, and an OpenAI API key for the Chat Completion API. These settings connect the demonstration’s components. The execution privileges attached to those requests become consequential in the later authorization test.</p>
+<p>控制台的 API 标签页提供了一个工作区，可以执行查询、查看结果。随后 Hanspal 切到 Streamlit，配置面板里填着 Hasura 端点、一个 admin secret，以及调用 Chat Completion API 用的 OpenAI API key。这些设置把演示的各个组件串了起来。而这些请求带着什么执行权限，到后面的授权测试中就成了关键。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="365">▶ 6:05</button></div>
       <h3>三个购物请求检验检索接口</h3>
-      <p>The first request asks for essential oils for relaxation. The generated GraphQL operation identifies that descriptive intent as the input to semantic search, and the application displays returned products. The task is to match what the shopper wants the product for, rather than apply a numeric condition.</p>
-<p>Next, Hanspal asks for products costing less than $500. The generated operation identifies <code>price</code> as the field and less-than as the comparison: <code>price &lt; 500</code>. The application displays products satisfying that condition. Unlike the relaxation request, this search depends on a precise field comparison.</p>
-<p>The third request combines the two: essential oil diffusers in a price range of $500 to $1,000. The generated GraphQL operation includes a semantic search for diffusers and a price-range filter, and the application again displays results. Semantic relevance identifies the kind of product; the structured constraint determines which prices qualify. <a href="https://docs.weaviate.io/weaviate/search/filters" target="_blank" rel="noopener">Weaviate filters</a> provide the structured part of retrieval from the prepared collection.</p>
+      <p>第一个请求是找有助放松的精油。生成的 GraphQL 操作把这个描述性意图当作语义搜索的输入，应用随即展示返回的商品。这里要匹配的是购物者想拿商品做什么，而不是某个数值条件。</p>
+<p>接着，Hanspal 要找价格低于 500 美元的商品。生成的操作识别出字段是 <code>price</code>，比较方式是“小于”：<code>price &lt; 500</code>。应用展示了满足条件的商品。和放松精油那次不同，这次搜索靠的是精确的字段比较。</p>
+<p>第三个请求把两者合在一起：价格在 500 到 1,000 美元之间的精油扩香器。生成的 GraphQL 操作既包含针对扩香器的语义搜索，也包含价格区间过滤，应用再次展示了结果。语义相关性确定商品属于哪一类，结构化约束决定哪些价格合格。检索中的结构化部分由 <a href="https://docs.weaviate.io/weaviate/search/filters" target="_blank" rel="noopener">Weaviate 过滤器</a> 在准备好的数据集上完成。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/cae69fa396ebaaa33723c3e1f76944af7167824a8dd3bfb9bc283ad62fd4118c" alt="A natural-language request becomes a GraphQL query with price constraints." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A natural-language request becomes a GraphQL query with price constraints.</figcaption></figure>
-<p>Consider an illustrative diffuser record priced at $750. Its description can supply the semantic match, while its price falls inside the requested interval. Neither condition substitutes for the other: an unrelated product at the right price would not satisfy the descriptive request, and a relevant diffuser outside the range would not satisfy the price constraint. The $750 record is a teaching example, not a reported result from the demonstration.</p>
+<p>举个例子：假设有一条扩香器记录，售价 750 美元。它的描述满足语义匹配，价格也落在要求的区间内。两个条件谁也替代不了谁：价格合适但毫不相关的商品满足不了描述上的需求，相关但价格超出区间的扩香器也满足不了价格约束。这条 750 美元的记录只是讲解用的例子，并非演示中实际返回的结果。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="495">▶ 8:15</button></div>
       <h3>一个插入请求暴露出权限边界</h3>
-      <p>The successful searches have exercised the intended behavior. Hanspal now turns to an unintended operation: asking the search interface to insert a hair-oil product named <code>special oil</code>, priced at $10,000, in category <code>home</code>, with description <code>Fantastic hair oil</code> and product ID <code>10001</code>. This is a request to change the catalog, not retrieve context from it.</p>
-<p>The model generates a GraphQL insert mutation, and the initial execution privileges allow it to succeed. Hanspal returns to the console and filters the table for the new product ID, removing quotation marks from the lookup value because the identifier field is an integer. The matching record appears: the search application has actually written to the database.</p>
-<p>The repair is a permission change. In the console, Hanspal creates a product-search role and grants it only select access. For simplicity, Hanspal applies no row checks and makes all product columns accessible. The role can read products but receives no insert permission. This is an operation-level restriction; the deliberately broad read permissions do not establish protection for sensitive rows or columns.</p>
-<p>Hanspal retries the insertion request under the restricted role, changing the product ID to <code>7002</code>. The model still generates an insert mutation. This time execution returns an error because the role lacks insert permission. The application displays the role as <code>product_search_bot</code>, and the GraphQL error reports that the insert field cannot be queried on <code>mutation_root</code>. The attempts preserve the insertion intent and operation type, but they are not byte-identical requests.</p>
+      <p>前面几次成功的搜索验证了预期行为。Hanspal 接着尝试一个预期之外的操作：让搜索界面插入一款护发油商品，名为 <code>special oil</code>，售价 10,000 美元，类别 <code>home</code>，描述为 <code>Fantastic hair oil</code>，商品 ID 为 <code>10001</code>。这是在修改商品目录，而不是从中检索上下文。</p>
+<p>模型生成了一条 GraphQL 插入 mutation，初始的执行权限也放行了它。Hanspal 回到控制台，按新商品 ID 筛选表格；ID 字段是整数类型，所以他把查找值两边的引号去掉了。匹配的记录出现了：搜索应用真的写进了数据库。</p>
+<p>修复办法是改权限。Hanspal 在控制台创建了一个商品搜索角色，只给它 select 权限。为了简单，他没设行级检查，所有商品列也都开放访问。这个角色能读取商品，但没有 insert 权限。这是操作层面的限制；读权限故意放得很宽，敏感的行和列并没有因此受到保护。</p>
+<p>Hanspal 在受限角色下重试插入请求，把商品 ID 改成了 <code>7002</code>。模型照样生成了插入 mutation。这一次执行报错，因为该角色没有 insert 权限。应用显示当前角色为 <code>product_search_bot</code>，GraphQL 错误提示无法在 <code>mutation_root</code> 上查询 insert 字段。两次尝试的插入意图和操作类型一致，但请求内容并不完全相同。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/079e550b0b961a00f1c9021fc870a8690ec37a0a8d0a96b6fcaaff979de78aa4" alt="The generated insert mutation is rejected under the restricted product-search role." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The generated insert mutation is rejected under the restricted product-search role.</figcaption></figure>
-<p>The rejection separates generation from authorization. The model remains willing to propose a write, but that proposal cannot grant the execution role permission to perform it. The application’s access boundary holds even when the generated operation falls outside the intended search behavior.</p>
-<p>Hanspal closes by returning to the hybrid product-search use case: descriptive requests and structured filters can share a retrieval interface while execution permissions constrain its operations.</p>
+<p>这次拒绝把生成和授权分开了。模型依然愿意提出写操作，但提出写操作并不能让执行角色获得相应的权限。即便生成的操作超出了预期的搜索行为，应用的访问边界依然守得住。</p>
+<p>最后，Hanspal 回到混合商品搜索这个用例：描述性请求和结构化过滤可以共用一个检索接口，而执行权限限定了这个接口能做哪些操作。</p>
     </section>
     </div></div></section>
 

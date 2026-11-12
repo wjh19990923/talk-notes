@@ -284,87 +284,87 @@ OpenAI</pre></details>
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="15">▶ 0:15</button></div>
       <h3>一个视觉生成器包含什么？</h3>
-      <p>What does it take to train a model that generates images and video at scale? The neural network is only one part of the answer. Sander Dieleman introduces himself as a research scientist who has spent more than a decade at Google DeepMind, working on the generative media team behind models such as <strong>Veo</strong> and <strong>Nano Banana</strong>. His starting point is diffusion: the prevailing approach to audiovisual generation in this account, alongside the autoregressive approach that dominates language modeling.</p>
-<p>The engineering decisions run from data curation and representation through modeling, architecture and distributed training, then into sampling, distillation and control. Representation determines what the network must learn; sampling determines how its predictions become a finished output; control determines whether that output is useful. Dieleman’s <a href="https://sander.ai/" target="_blank" rel="noopener">blog</a> develops the intuition behind these generative mechanisms.</p>
+      <p>要大规模训练能生成图像和视频的模型，需要做些什么？神经网络只是答案的一部分。Sander Dieleman 自我介绍说，他是研究科学家，在 Google DeepMind 工作了十多年，所在的生成式媒体团队做出了 <strong>Veo</strong>、<strong>Nano Banana</strong> 等模型。他从扩散讲起：按他的说法，扩散是音视频生成的主流方法；语言建模的主流则是自回归。</p>
+<p>工程决策贯穿整条链路：从数据整理和表示，到建模、架构和分布式训练，再到采样、蒸馏和控制。表示决定网络要学什么；采样决定网络的预测怎样变成成品；控制决定成品有没有用。Dieleman 在<a href="https://sander.ai/" target="_blank" rel="noopener">博客</a>里详细讲了这些生成机制背后的直觉。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/84b646a4bc022b53864eda3d9336a36e036493fbeecb7ae7d7531fc372bf2a19" alt="Slide with eight labeled photographs arranged in two rows, illustrating the talk’s eight topics." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Eight topics: data, representation, modelling, architecture, training, sampling, distillation and control.</figcaption></figure>
-<p><strong>Improving the data can be a better investment than tweaking the model or optimizer.</strong> That priority runs against a familiar research incentive: use the same fixed dataset as everyone else so results remain comparable. Building a capable generator requires inspecting and improving the data itself. Dieleman describes curation as still underrated, while leaving specific practices undisclosed because they are part of what differentiates the models and are sparsely documented in publications.</p>
+<p><strong>改进数据，回报可能比调模型、调优化器更高。</strong> 这和研究界一个常见的惯性相悖：大家都用同一个固定数据集，结果才好横向比较。可要做出能力强的生成模型，就得亲自检查、改进数据。Dieleman 觉得大家至今仍低估了数据整理，但他没有透露具体做法：这些做法正是模型之间拉开差距的地方，论文里也很少写。</p>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="239">▶ 3:59</button></div>
       <h3>让每个训练样本都易于处理</h3>
-      <p>Images arrive as two-dimensional pixel grids; video adds time to that grid. Early diffusion models operated directly on pixels, but increasing resolution and duration quickly makes that representation expensive. Dieleman’s example is a single 30-second, 1080p video at 30 frames per second: several gigabytes of pixel data for one training item. The exact memory footprint depends on the numeric precision used, before accounting for training overhead.</p>
-<p>Existing image and video codecs solve a different compression problem. JPEG and conventional video formats prioritize compact storage, even when their representations obscure the structure that a generative model needs. Instead, train a compressor whose output remains convenient to model. An <strong>autoencoder</strong> learns to reconstruct its input after forcing it through a compact latent bottleneck.</p>
-<p>The resulting pipeline has three distinct operations:</p>
-<p>1. <strong>Train the autoencoder.</strong> An encoder compresses an image or video into latents, and a decoder learns to reconstruct it.
-2. <strong>Train the generator.</strong> Encode training examples, then learn a generative model over those latent representations. Either autoregression or diffusion can occupy this stage; Dieleman reports that diffusion generally has an edge for audiovisual quality at a given parameter budget.
-3. <strong>Generate and decode.</strong> Sample a new latent representation, then pass it through the previously trained decoder to obtain pixels.</p>
-<p>The generator therefore learns a distribution over compressed examples, while the decoder handles the return to the visible image or video.</p>
+      <p>图像是二维像素网格，视频在这个网格上再加一个时间维度。早期扩散模型直接在像素上运算，但分辨率和时长一上去，这种表示很快就变得非常昂贵。Dieleman 举了个例子：一段 30 秒、1080p、每秒 30 帧的视频，光像素数据就有好几 GB，而这只是一条训练样本。具体占多少内存取决于数值精度，这还没算训练本身的开销。</p>
+<p>现有的图像和视频编解码器，解决的是另一类压缩问题。JPEG 和常规视频格式优先追求存储紧凑，哪怕这样会掩盖生成模型需要的结构。更好的办法是自己训练一个压缩器，让它的输出依然便于建模。<strong>自编码器</strong>先把输入挤过一个紧凑的潜在瓶颈，再学着把它重建出来。</p>
+<p>这样得到的流程分为三个独立步骤：</p>
+<p>1. <strong>训练自编码器。</strong> 编码器把图像或视频压缩成潜变量（latent），解码器学着把它重建出来。
+2. <strong>训练生成器。</strong> 先对训练样本编码，再在这些潜在表示上学习生成模型。这一阶段可以用自回归，也可以用扩散；Dieleman 说，在参数预算相同时，扩散生成的音视频质量通常略胜一筹。
+3. <strong>生成并解码。</strong> 采样一个新的潜在表示，再送进之前训练好的解码器，得到像素。</p>
+<p>所以，生成器学的是压缩后样本的分布，解码器负责把结果还原成看得见的图像或视频。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/1e3fd2ddff00a52df5e1e16994fd3b6957d33744fef72dc89642996683fb592e" alt="Three-row diagram showing encoder–decoder reconstruction, generator training on latents, and sampling through a generator and decoder." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Two training stages and a sampling pipeline connect encoders, latents, an iterative generator and a decoder.</figcaption></figure>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="413">▶ 6:53</button></div>
       <h3>压缩细节，同时保留网格结构</h3>
-      <p>Consider a 256×256 RGB image encoded into a 32×32 latent grid. Dieleman tentatively associates these dimensions with the original <a href="https://github.com/CompVis/stable-diffusion" target="_blank" rel="noopener"><strong>Stable Diffusion</strong></a>; they match its eightfold spatial downsampling. The important distinction is between spatial resolution and total tensor size: latent channels also consume memory. Extra channels carry information that simply resizing the image would discard, including some high-frequency detail. Compression remains lossy, but the representation is much smaller.</p>
-<p>Video offers additional redundancy along the time dimension. Dieleman says learned compression can often reduce video tensor sizes by roughly two orders of magnitude. That is an attributed general observation rather than a ratio for a specified codec or latent configuration; its practical consequence is the difference between fitting a training example in memory and being unable to process it.</p>
-<p>These learned compressors deliberately preserve more obvious structure than a codec such as H.265. The latent representation still has a grid topology, only at a coarser scale, so the neural network can exploit spatial relationships. A visualization from <a href="https://arxiv.org/abs/2502.09509" target="_blank" rel="noopener"><strong>EQ-VAE</strong></a> makes this visible: principal components across latent channels are mapped to RGB. Animals remain recognizable in the resulting images. Much of the compression affects local texture and fine structure, while the broad arrangement of the scene remains available to the generator.</p>
+      <p>以一张 256×256 的 RGB 图像为例，编码后变成 32×32 的潜在网格。Dieleman 不太确定地说，这组尺寸对应最早的 <a href="https://github.com/CompVis/stable-diffusion" target="_blank" rel="noopener"><strong>Stable Diffusion</strong></a>；它们也确实符合该模型空间上 8 倍下采样的设定。关键要分清空间分辨率和张量总大小：潜在通道同样占内存。多出来的通道承载着直接缩小图像会丢掉的信息，包括一部分高频细节。压缩依然有损，但表示小了很多。</p>
+<p>视频在时间维度上还有更多冗余。Dieleman 说，学习式压缩通常能把视频张量缩小约两个数量级。这是他给出的一般性观察，并不是某个特定编解码器或潜在配置下的压缩比。它的实际意义在于：一条训练样本是能装进内存，还是根本没法处理，往往就差这一步。</p>
+<p>这类学习式压缩器有意保留了比 H.265 等编解码器更明显的结构。潜在表示仍是网格拓扑，只是尺度更粗，神经网络因此能利用空间关系。<a href="https://arxiv.org/abs/2502.09509" target="_blank" rel="noopener"><strong>EQ-VAE</strong></a> 的一张可视化图直观展示了这一点：把各潜在通道的主成分映射成 RGB，得到的图里依然认得出动物。压缩主要作用在局部纹理和精细结构上，场景的整体布局仍然留给生成器使用。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="579">▶ 9:39</button></div>
       <h3>为什么单次去噪预测是模糊的</h3>
-      <p>Once the representation is tractable, the next decision is how to generate it. Autoregression turns the data into a sequence and predicts successive elements. That ordering is natural for language, but a two-dimensional image requires an imposed traversal order. Diffusion instead defines a corruption process: gradually add noise, then learn a denoiser that predicts how to reverse the corruption. Both approaches build an output iteratively.</p>
-<p>The bunny example shows what corruption removes first. With a little Gaussian noise, the whiskers become difficult to distinguish, but the silhouette still identifies the animal. More noise eventually erases the global structure as well. This ordering—fine detail disappearing before broad structure—will matter when the process runs backward.</p>
-<p>To explain the reverse process, Dieleman reduces image space to a two-dimensional diagram. Actual images and videos are high-dimensional objects, so this is a geometric aid rather than a literal picture of their space. Let <code>x₀</code> be a clean sample and <code>xₜ</code> its noisy version at corruption time <code>t</code>. During generation, the sampler begins with noise and eventually reaches an intermediate state resembling <code>xₜ</code>. The denoiser then predicts a clean image from that observation.</p>
-<p>The prediction is ambiguous because corruption destroyed information. Many clean originals could explain the same noisy observation. A denoiser that averages those possibilities produces blur: the backward-process slide contrasts a noisy cat, a blurry prediction and a sharp original. <strong>The prediction supplies a direction toward plausible images, not a finished image to accept immediately.</strong> The surrounding region of possibilities is the useful interpretation of that blurry estimate.</p>
+      <p>表示变得好处理之后，下一个问题是怎么生成它。自回归把数据排成序列，逐个预测后续元素。这种顺序对语言很自然，但二维图像只能人为规定一个遍历顺序。扩散则定义一个破坏过程：逐步加噪，再学一个去噪器，预测怎样把破坏逆转回来。两种方法都是迭代地构建输出。</p>
+<p>兔子的例子展示了破坏过程最先抹掉什么。加一点高斯噪声，胡须就难以分辨，但看轮廓仍认得出是兔子。噪声再多，整体结构最终也会消失。细节先消失、大结构后消失——等过程反向运行时，这个顺序就很关键。</p>
+<p>为了讲清反向过程，Dieleman 把图像空间简化成一张二维示意图。真实的图像和视频都是高维对象，所以这张图只是几何上的辅助，不是它们所在空间的真实样貌。设 <code>x₀</code> 是干净样本，<code>xₜ</code> 是它在破坏时刻 <code>t</code> 的加噪版本。生成时，采样器从噪声出发，最终到达某个类似 <code>xₜ</code> 的中间状态。去噪器再根据这个观测，预测出一张干净图像。</p>
+<p>这个预测有歧义，因为破坏过程毁掉了信息：同一个带噪观测，可能来自许多不同的干净原图。去噪器对这些可能性取平均，结果就是模糊。讲反向过程的那页幻灯片把带噪的猫、模糊的预测和清晰的原图摆在一起对比。<strong>预测给出的是通往合理图像的方向，而不是一张可以直接拿来用的成品。</strong> 更有用的理解是：这张模糊的估计代表它周围一整片可能的原图。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/0911ca0633e61b6dc3ed4dcdd7bfaa241930e1dcbb250a65dd2bf4debd15278f" alt="Slide titled “Diffusion: backward process” showing a noisy cat at upper right, a blurry cat prediction at left connected by a dotted line, and a sharp original cat below." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The backward diffusion diagram contrasts a noisy cat image, a blurry prediction, and the clean original.</figcaption></figure>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="829">▶ 13:49</button></div>
       <h3>迈一小步，再预测一次</h3>
-      <p>Jumping all the way to the predicted clean image would preserve the blur. Instead, move a small distance toward it and ask the denoiser again. This resembles neural-network optimization: an update direction is useful locally, and an excessively large step can carry you beyond the region where it applies. The difference is the space being traversed. An optimizer changes model parameters; a diffusion sampler changes pixels or latent values.</p>
-<p>Many sampling algorithms then add a little <strong>fresh noise</strong>, less than the amount removed by denoising. This is new randomness, not the exact noise just removed. The denoiser makes imperfect predictions, and repeatedly feeding those imperfections back can accumulate error. Fresh noise obscures some of those mistakes and can make the trajectory more robust. Other samplers omit this step.</p>
-<p>At the next state, <code>xₜ₋₁</code>, the image is slightly less noisy. The denoiser now has more information, so its prediction changes and the region of plausible originals shrinks. Repeating the process progressively resolves the ambiguity until a particular sample emerges. The sampler succeeds by repeatedly revising local predictions rather than trusting its first estimate.</p>
+      <p>如果一步跳到预测的干净图像，模糊也会原样保留。正确做法是朝它走一小段，再问一次去噪器。这和神经网络优化很像：更新方向只在局部有效，步子迈得太大，就会越出它适用的范围。区别在于走的是哪个空间：优化器改的是模型参数，扩散采样器改的是像素或潜变量的值。</p>
+<p>许多采样算法接着会加一点<strong>新噪声</strong>，量比去噪时去掉的少。这是新的随机性，不是刚刚去掉的那份噪声。去噪器的预测并不完美，把这些误差一轮轮喂回去，误差就可能累积。新噪声能掩盖一部分错误，让轨迹更稳健。也有些采样器省掉这一步。</p>
+<p>到了下一个状态 <code>xₜ₋₁</code>，图像的噪声又少了一点。去噪器拿到的信息更多，预测随之改变，可能的原图范围也缩小了。如此反复，歧义逐步消除，最终得到一个具体的样本。采样器能成功，靠的是不断修正局部预测，而不是相信第一次的估计。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="982">▶ 16:22</button></div>
       <h3>为什么扩散模型由粗到细地生成</h3>
-      <p>Fourier analysis explains why this procedure fits visual data so well. Starting with four ImageNet images, Dieleman takes a two-dimensional Fourier transform of each. The result is complex-valued and can be separated into magnitude and phase. Setting phase aside for this analysis, radial averaging summarizes each two-dimensional magnitude spectrum as a one-dimensional curve.</p>
-<p>On log-log axes, those curves look approximately straight: a signature of a power-law relationship between frequency and spectral magnitude. Natural images typically have stronger low-frequency components and weaker high-frequency components; Dieleman extends the same broad observation to video. Gaussian noise, by contrast, has a flat spectrum in expectation. When added to an image, it leaves the stronger image frequencies visible while drowning out weaker ones.</p>
-<p>Increasing the noise level therefore obscures the highest frequencies first, then progressively lower frequencies, until no image structure remains distinguishable. Reversing that process establishes low-frequency structure before adding high-frequency detail. Dieleman calls this <strong>spectral autoregression</strong>: an approximate analogy, not a hard autoregressive ordering. It lets the generator establish the scene’s broad semantics before filling in its details, and it lets training emphasize the noise levels—and therefore scales—that matter most perceptually.</p>
+      <p>傅里叶分析能解释这套流程为什么特别适合视觉数据。Dieleman 取了四张 ImageNet 图像，分别做二维傅里叶变换。结果是复数，可以拆成幅度和相位。这里先不管相位，用径向平均把每个二维幅度谱概括成一条一维曲线。</p>
+<p>在双对数坐标下，这些曲线近似直线，说明频率和频谱幅度之间是幂律关系。自然图像通常低频成分强、高频成分弱；Dieleman 认为视频大体也是如此。高斯噪声则不同，它的频谱在期望意义上是平的。把它加到图像上，较强的图像频率仍然看得见，较弱的就被淹没了。</p>
+<p>所以，噪声越大，最先被盖住的是最高频，然后频率越来越低，直到图像结构完全无法分辨。把这个过程反过来，就是先建立低频结构，再补上高频细节。Dieleman 称之为<strong>频谱自回归</strong>（spectral autoregression）：这只是近似的类比，并非严格的自回归顺序。它让生成器先定下场景的大体语义，再填充细节；训练时也可以侧重感知上最重要的噪声水平，也就是最重要的尺度。</p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="1199">▶ 19:59</button></div>
       <h3>为空间和时间选择一种架构</h3>
-      <p>The denoiser’s input-output contract is straightforward: receive a noisy image and predict its clean counterpart. <strong>U-Nets</strong>, originally developed for segmentation, were a natural fit because they support tasks that preserve spatial dimensions, including image restoration. Early Stable Diffusion models used this architecture. Transformers also work, with one important difference from a typical language model: denoising permits fully bidirectional attention, so there is no need for a causal mask. Adopting transformers also brings the scaling knowledge developed for language models.</p>
-<p>For video, the relationship between autoregression and diffusion admits several choices:</p>
-<p>| Approach | Generation order |
+      <p>去噪器的输入输出约定很简单：输入带噪图像，预测对应的干净图像。<strong>U-Net</strong> 最初为分割任务开发，天然适合图像修复这类保持空间维度的任务。早期的 Stable Diffusion 模型就用这种架构。Transformer 同样可行，而且和典型语言模型有个重要区别：去噪允许完全双向的注意力，不需要因果掩码。改用 Transformer，还能直接沿用语言模型积累下来的扩展（scaling）经验。</p>
+<p>在视频上，自回归和扩散有几种组合方式：</p>
+<p>| 方法 | 生成顺序 |
 |---|---|
-| Fully autoregressive | Flatten height × width × time; generate token by token |
-| Joint diffusion | Noise and denoise the full spatiotemporal volume |
-| Hybrid | Generate frames in temporal order; use diffusion within each frame |</p>
-<p>Dieleman describes joint diffusion as the common approach among modern video generators. The hybrid becomes especially useful for real-time generation, where new frames must follow events as they unfold. He names <strong>Genie</strong> as an example of this compromise.</p>
+| 完全自回归 | 把高 × 宽 × 时间展平，逐 token 生成 |
+| 联合扩散 | 对整个时空体积一起加噪、去噪 |
+| 混合 | 按时间顺序逐帧生成，每帧内部用扩散 |</p>
+<p>Dieleman 说，联合扩散是当今视频生成模型的常见做法。混合方案在实时生成中尤其有用，因为新帧必须跟着事件的发展一帧帧生成。他举了 <strong>Genie</strong> 作为这种折中方案的例子。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/b2f96955a8e800ede5595d6d92d98cee475fdad0278093dd21df8c1bd7527e1f" alt="Three cubes with width, height and time axes show small blue blocks, blue temporal slices and a fully blue volume beneath an autoregression-to-diffusion arrow." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Autoregression, hybrid generation and diffusion illustrated across video dimensions.</figcaption></figure>
-<p>Training these networks eventually requires more than splitting a batch across accelerators. <strong>Data parallelism</strong> distributes examples across chips; <strong>model parallelism</strong> distributes the model itself. Dieleman says these visual models still tend to be smaller than contemporary LLMs, but they are large enough that sharding and communication matter. He names JAX and <code>pjit</code> as tools for expressing sharding and letting the compiler reduce inter-chip communication. Current <a href="https://docs.jax.dev/en/latest/changelog.html" target="_blank" rel="noopener">JAX documentation</a> deprecates <code>pjit</code> in favor of <code>jax.jit</code>; the underlying objective remains efficient distributed execution, without a guarantee of globally optimal placement.</p>
+<p>训练这些网络，最终不只是把一个 batch 拆到多个加速器上那么简单。<strong>数据并行</strong>把样本分到不同芯片上；<strong>模型并行</strong>则把模型本身拆开。Dieleman 说，这些视觉模型通常仍比同期的 LLM 小，但已经大到分片和通信不能忽视。他提到用 JAX 和 <code>pjit</code> 描述分片方式，让编译器减少芯片间通信。当前的 <a href="https://docs.jax.dev/en/latest/changelog.html" target="_blank" rel="noopener">JAX 文档</a>已弃用 <code>pjit</code>，改推 <code>jax.jit</code>；底层目标不变，仍是高效的分布式执行，但不保证得到全局最优的放置方案。</p>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="1409">▶ 23:29</button></div>
       <h3>放大提示词的作用</h3>
-      <p>Sampling introduces choices independent of the denoiser architecture. A deterministic sampler associates an initial noise sample with a fixed output, which is useful for distillation. A stochastic sampler introduces fresh randomness along the way and can resist accumulated prediction errors. <strong>Guidance</strong> adds another choice: trading diversity for quality. In Dieleman’s account, increasing guidance makes samples more alike while improving their individual quality, helping diffusion models perform well without reaching LLM parameter counts. Guidance also applies to autoregressive models, though he finds it especially effective for diffusion.</p>
-<p>The mechanism starts with two predictions for the same noisy input. First, predict without the text prompt. Then predict with it. A prompt describing a rabbit restricts which originals could explain the observation, so the conditioned prediction is typically less blurry. The useful quantity is the difference between those predictions. Amplifying that difference yields a new denoising direction that emphasizes what the prompt contributes.</p>
-<p>Writing the unconditional prediction as <code>u</code>, the conditional prediction as <code>c</code>, and the guidance scale as <code>s</code>, the combination is:</p>
+      <p>采样还有一些选择，和去噪器架构无关。确定性采样器会把一个初始噪声样本对应到固定的输出，这对蒸馏很有用。随机采样器在过程中引入新的随机性，能抵御预测误差的累积。<strong>引导</strong>（guidance）又带来一个选择：用多样性换质量。按 Dieleman 的说法，引导越强，样本彼此越像，单个样本的质量却越高；扩散模型因此不必达到 LLM 的参数规模也能表现出色。引导同样适用于自回归模型，不过他发现它在扩散模型上效果格外明显。</p>
+<p>引导的机制从对同一个带噪输入做两次预测开始。第一次不带文本提示词，第二次带上。描述兔子的提示词限定了哪些原图能解释这个观测，所以有条件的预测通常没那么模糊。真正有用的是两次预测之差。放大这个差值，就得到一个新的去噪方向，突出提示词带来的那部分信息。</p>
+<p>把无条件预测记作 <code>u</code>，有条件预测记作 <code>c</code>，引导系数记作 <code>s</code>，组合方式如下：</p>
 <p>``<code>math
 \begin{aligned}
 \Delta &amp;= c-u \\
 \hat{x}_{0,\mathrm{guided}} &amp;= u+s\Delta
 \end{aligned}
 </code>``</p>
-<p>In Python with JAX, the tensor operation is compact:</p>
+<p>用 Python 和 JAX 写出来，张量运算非常简洁：</p>
 <p>```python
 import jax.numpy as jnp</p>
 <p>def guided_prediction(
@@ -375,50 +375,50 @@ import jax.numpy as jnp</p>
     delta = conditional - unconditional
     return unconditional + scale * delta
 ```</p>
-<p>Both inputs must be predictions for the same noisy sample and noise level, expressed in the same prediction parameterization. With this convention, <code>scale=1</code> returns the conditional prediction; larger values extrapolate beyond it. The sampler uses the combined prediction for its next update, while the rest of the procedure—including optional fresh noise—continues as before. The described guidance procedure requires two model evaluations per sampling step.</p>
-<p>The guided-versus-unguided examples come from OpenAI’s 2021 <a href="https://arxiv.org/abs/2112.10741" target="_blank" rel="noopener"><strong>GLIDE</strong></a> paper, an early large-scale pixel-space diffusion model. In the displayed comparisons, guidance reduces diversity while making individual images better match their prompts. Dieleman characterizes guidance as effectively standard in modern image generation and suggests that users would be surprised by the quality loss if it were removed. For a user seeking one useful image, the improvement can matter more than preserving the full diversity of possible outputs.</p>
+<p>两个输入必须针对同一个带噪样本、同一个噪声水平，而且采用同一种预测参数化方式。按这种约定，<code>scale=1</code> 返回的就是有条件预测；取更大的值，则会越过它继续外推。采样器用组合后的预测做下一步更新，其余流程（包括可选的新噪声）照旧进行。按这里描述的引导方法，每个采样步要调用两次模型。</p>
+<p>有引导和无引导的对比示例出自 OpenAI 2021 年的 <a href="https://arxiv.org/abs/2112.10741" target="_blank" rel="noopener"><strong>GLIDE</strong></a> 论文，这是一个早期在像素空间上做的大规模扩散模型。从展示的对比看，引导降低了多样性，但让单张图像更贴合提示词。Dieleman 认为，引导在现代图像生成中实际上已是标配；要是去掉它，用户会惊讶于质量下滑之大。对只想要一张好用图像的用户来说，这点提升可能比保留所有可能输出的多样性更重要。</p>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="1681">▶ 28:01</button></div>
       <h3>把轨迹蒸馏成更少的步数</h3>
-      <p>Here, <strong>distillation</strong> primarily means reducing the number of network passes needed to generate a sample, rather than shrinking the network. Sampling traces a nonlinear trajectory through pixel or latent space. At each point, the denoiser supplies a local direction—a tangent telling the sampler where to move next. With a deterministic sampler, a particular initial noise sample follows a fixed path toward a particular output.</p>
-<p>Once that path is available, a different learning target becomes possible: predict where it ends. <a href="https://arxiv.org/abs/2303.01469" target="_blank" rel="noopener"><strong>Consistency models</strong></a> provide a way to distill that endpoint prediction from a diffusion model, potentially replacing many local updates with a direct jump. This is one of several approaches to reducing sampling steps.</p>
-<p>A single jump asks a great deal of the network. Dieleman illustrates the difficulty as asking one pass to do work previously spread over roughly fifty passes. A compromise is to learn endpoint predictions over shorter intervals of the trajectory, retaining several generation steps—three in his example. Those counts illustrate the quality-versus-compute choice; they are not a measured speedup. Smaller intervals give the network less work to compress into each prediction.</p>
+      <p>这里的<strong>蒸馏</strong>主要指减少生成一个样本所需的网络前向次数，而不是把网络变小。采样过程会在像素或潜在空间里走出一条非线性轨迹。在每个点上，去噪器给出一个局部方向，也就是一条切线，告诉采样器下一步往哪走。用确定性采样器时，某个初始噪声样本会沿固定路径走向某个特定输出。</p>
+<p>有了这条路径，就可以换一个学习目标：直接预测路径的终点。<a href="https://arxiv.org/abs/2303.01469" target="_blank" rel="noopener"><strong>一致性模型</strong></a>（consistency models）提供了一种办法，从扩散模型中蒸馏出这种终点预测，有望用一次直接跳跃取代许多次局部更新。这是减少采样步数的几种方法之一。</p>
+<p>只跳一步，对网络的要求很高。Dieleman 打了个比方：这相当于让一次前向完成原本分摊在约五十次前向里的工作。折中的办法是在轨迹上更短的区间内学习终点预测，保留几步生成——他的例子里是三步。这些步数只是用来说明质量与算力的取舍，并非实测的加速比。区间越短，每次预测要压缩进去的工作就越少。</p>
     </section>
 <section class="section" id="sec-10">
       <div class="section-head"><span class="num">10</span>
       <button class="seek" data-t="1802">▶ 30:02</button></div>
       <h3>给用户语言之外的控制手段</h3>
-      <p>A generator is useful only to the extent that people can influence what it produces. Text prompts are a convenient interface for describing a scene, but they are awkward for some precise requests. To place yourself in a generated video, supplying a photo or short video is more direct than describing your appearance in exhaustive detail. Video also calls for explicit controls over camera motion, event speed and event timing. These signals need representations suited to the thing being controlled.</p>
+      <p>生成器有多大用处，取决于人能在多大程度上左右它的输出。文本提示词描述场景很方便，但碰到某些精确需求就显得笨拙。想把自己放进生成的视频里，直接给一张照片或一段短视频，比事无巨细地描述长相直接得多。视频还需要显式控制镜头运动、事件速度和事件发生的时间点。这些信号都要用适合被控对象的方式来表示。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/c90e26adf8b009fcb3337092422769087eb3b089bb1a1a4e76e154edd67e35ab" alt="Conditioning signals slide lists text prompts, reference-based style, subject and scene, and video controls beside a large camera photograph." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Conditioning signals include text, reference images and controls for camera motion, speed and event timing.</figcaption></figure>
-<p>The training question is when to introduce those signals. Most pre-training examples may lack specialized camera or timing annotations. One option is to pre-train with text conditioning, then introduce additional controls during post-training. That stage can also incorporate human preferences through reinforcement learning or direct preference optimization. The broad visual distribution is learned first; later training shapes how users steer it and which outputs the system favors.</p>
+<p>训练上的问题是：这些信号什么时候引入。大多数预训练样本可能没有专门的镜头或时间标注。一种做法是预训练时只用文本做条件，到后训练阶段再加入其他控制。这个阶段还可以通过强化学习或直接偏好优化融入人类偏好。模型先学到广泛的视觉分布；之后的训练再决定用户怎样操控它，以及系统偏向哪些输出。</p>
     </section>
 <section class="section" id="sec-11">
       <div class="section-head"><span class="num">11</span>
       <button class="seek" data-t="1935">▶ 32:15</button></div>
       <h3>为什么模型会形成一种风格——以及引导在哪里有帮助</h3>
-      <p>The audience questions begin with a visible consequence of the quality-diversity trade-off: does guidance explain why a model such as Nano Banana has a recognizable style? Dieleman attributes part of that effect to guidance, but suspects post-training plays the larger role. Pre-training models a broad image distribution; post-training selects an opinionated portion of it.</p>
-<p>Guidance can also produce more specific artifacts. Dieleman identifies excessive saturation as a common sign that the guidance scale is too high. Because the conditional–unconditional difference is amplified at different noise levels, the same scale can have different effects over the trajectory. He describes work that avoids guidance at the beginning and end while emphasizing it in the middle. A guidance schedule therefore offers another way to manage the trade-off, beyond choosing a single scale for every step.</p>
-<p>For text diffusion, a prompt can likewise serve as a conditioning signal, making the same guidance principle applicable. How well it works is a separate question. Dieleman’s intuition is that guidance benefits from a <strong>semantic gap</strong> between the conditioning signal and the output: a text description supplies high-level meaning while an image contains detailed visual realization. A segmentation mask operates closer to the spatial structure of the pixels and, in his experience, benefits less from guidance. He offers the same intuition for why guidance is less common in language generation, including autoregressive models.</p>
+      <p>观众提问先从质量与多样性取舍的一个明显后果说起：像 Nano Banana 这样的模型有一眼可辨的风格，是因为引导吗？Dieleman 认为引导是部分原因，但他猜后训练的作用更大。预训练建模的是广泛的图像分布；后训练则从中挑出带有鲜明取向的一部分。</p>
+<p>引导也可能带来更具体的瑕疵。Dieleman 指出，饱和度过高往往说明引导系数设得太大。有条件与无条件预测之差在各个噪声水平下都会被放大，所以同一个系数在轨迹不同阶段的效果也不同。他介绍了一些工作：开头和结尾不用引导，中间加强引导。可见，除了给每一步选同一个系数，还可以用引导调度（guidance schedule）来处理这种取舍。</p>
+<p>在文本扩散中，提示词同样可以充当条件信号，所以同样的引导原理也适用。至于效果如何，是另一回事。Dieleman 的直觉是，条件信号和输出之间有<strong>语义落差</strong>时，引导才更有用：文本描述提供高层含义，图像则包含细致的视觉呈现。分割掩码更贴近像素的空间结构，按他的经验，从引导中获益较少。他也用同样的直觉解释，为什么语言生成（包括自回归模型）较少用引导。</p>
     </section>
 <section class="section" id="sec-12">
       <div class="section-head"><span class="num">12</span>
       <button class="seek" data-t="2127">▶ 35:27</button></div>
       <h3>框架选择与更多采样的局限</h3>
-      <p>Asked whether JAX is better suited than PyTorch to sharding, Dieleman qualifies the comparison: he has little hands-on PyTorch experience after more than a decade at Google. He connects JAX’s design to making TPU use convenient, particularly across multiple chips with fast interconnects. PyTorch also supports parallelism and sharding; these capabilities are not exclusive to JAX. The explanation concerns design priorities and his experience, not a comparative performance measurement.</p>
-<p>Does taking more denoising steps improve the result? Up to a point. Finite sampling updates approximate a nonlinear trajectory with a piecewise-linear path. If those updates deviate too far from the underlying trajectory, sample quality suffers. More, smaller steps can reduce that approximation error, but the benefit has a limit. Another route is to learn straighter trajectories from the outset: <a href="https://arxiv.org/abs/2209.03003" target="_blank" rel="noopener">rectified flow and Reflow</a> aim to make accurate generation possible with coarser, fewer updates.</p>
+      <p>有人问 JAX 是否比 PyTorch 更适合做分片。Dieleman 先说明了前提：他在 Google 待了十多年，几乎没怎么上手用过 PyTorch。他认为 JAX 的设计考虑之一是让 TPU 好用，尤其是在通过高速互联连接的多芯片上。PyTorch 同样支持并行和分片，这些能力并非 JAX 独有。他讲的是设计侧重和个人经验，不是性能对比测试的结果。</p>
+<p>去噪步数越多，结果就越好吗？到一定程度为止。有限次采样更新，是用分段线性路径去近似一条非线性轨迹。如果更新偏离真实轨迹太远，样本质量就会下降。步数更多、步子更小，可以减少这种近似误差，但收益有上限。另一条路是从一开始就学出更直的轨迹：<a href="https://arxiv.org/abs/2209.03003" target="_blank" rel="noopener">rectified flow 和 Reflow</a> 的目标，就是让更少、更粗的更新也能准确生成。</p>
     </section>
 <section class="section" id="sec-13">
       <div class="section-head"><span class="num">13</span>
       <button class="seek" data-t="2245">▶ 37:25</button></div>
       <h3>注入正确的信号，选择正确的采样器</h3>
-      <p>A question about camera control asks whether a simulator could provide known camera parameters for training. Dieleman does not confirm such a workflow: he cannot disclose internal practices and is not directly involved in the capabilities team doing that work. The general design problem is to find a semantically meaningful representation for the control, then choose how to introduce it into the transformer.</p>
-<p>Two concrete interfaces are available:</p>
-<p>- <strong>Additional tokens:</strong> include conditioning information as extra tokens the model can attend to.
-- <strong>Broadcast conditioning:</strong> make the signal available to every token. The diffusion noise level is typically supplied this way, rather than represented by one extra token.</p>
-<p>The signal’s role should determine its interface. A global property such as the current noise level needs to inform processing throughout the representation. Dieleman mentions another conditioning approach without specifying it.</p>
-<p>The final question returns to fresh-noise injection: can generation be deterministic without it? The same denoiser can support stochastic or fully deterministic sampling. Deterministic trajectories are especially useful when moving between the data and noise distributions in both directions, and when training a student to reproduce a teacher’s trajectory. The consistency-distillation approach discussed here uses a deterministic teacher; that requirement does not extend to every way of training a consistency model. Dieleman closes by pointing to a longer version of the talk on YouTube. The practical distinction remains that training a denoiser leaves several generation procedures available, each with different consequences for robustness, reversibility and inference cost.</p>
+      <p>有个关于镜头控制的问题：能不能用模拟器提供已知的相机参数来训练？Dieleman 没有证实存在这样的流程：他不能透露内部做法，也没有直接参与负责这项工作的能力团队。一般性的设计问题是：先为这种控制找到有语义意义的表示，再决定怎样把它送进 Transformer。</p>
+<p>有两种具体的接入方式：</p>
+<p>- <strong>额外 token：</strong> 把条件信息作为额外的 token 加进去，供模型做注意力。
+- <strong>广播条件：</strong> 让每个 token 都能拿到这个信号。扩散的噪声水平通常就是这样提供的，而不是单独用一个额外 token 来表示。</p>
+<p>信号起什么作用，就决定了该用哪种接入方式。像当前噪声水平这样的全局属性，需要影响整个表示的处理过程。Dieleman 还提到了另一种条件注入方法，但没有展开。</p>
+<p>最后一个问题回到注入新噪声：不加新噪声，生成能否是确定性的？同一个去噪器既能做随机采样，也能做完全确定性的采样。在数据分布和噪声分布之间双向转换，或者训练学生模型复现教师模型的轨迹时，确定性轨迹尤其有用。这里讨论的一致性蒸馏方法用的是确定性的教师模型；但并非所有训练一致性模型的方法都有这个要求。Dieleman 最后提到，YouTube 上有这场演讲的加长版。实践上要记住的区别是：训练好一个去噪器后，有好几种生成流程可选，它们在稳健性、可逆性和推理成本上各有不同。</p>
     </section>
     </div></div></section>
 

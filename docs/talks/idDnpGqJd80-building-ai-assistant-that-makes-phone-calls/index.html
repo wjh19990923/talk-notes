@@ -851,67 +851,67 @@ Prettier</pre></details>
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="30">▶ 0:30</button></div>
       <h3>一个私人助理实际上会做什么？</h3>
-      <p>Calendar events, reminders, and timers cover only a small part of a personal assistant’s work. Beyond physical errands, much of the job happens on the phone and over email. Could an AI assistant know enough about its user to handle those conversations with another person, without making the interaction uncomfortable? Tom Redman, head of developer experience at Convex, starts with that problem: combine real-time speech recognition, personal context, and nearly real-time speech synthesis into an assistant that can act by phone.</p>
+      <p>日历事件、提醒和计时器，只占私人助理工作的一小部分。除了跑腿，大量工作要靠电话和邮件完成。AI 助手能不能足够了解用户，替用户和另一个人把这些对话办妥，又不让对方觉得别扭？Convex 开发者体验负责人 Tom Redman 从这个问题出发：把实时语音识别、个人上下文和近乎实时的语音合成组合起来，做一个能打电话办事的助手。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/3384cabab8cdf457519c9b3f1ca4b4b70c54318f5ad00558a8df4fdbc7d7684d" alt="Slide titled “Building a better AI assistant,” with a subtitle about making calls, a reaction image, and a speaker inset." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Building a better AI assistant: “This one can make calls.”</figcaption></figure>
-<p>The prototype is called Floyd because Redman misremembered the name of Lloyd, the personal assistant in <em>Entourage</em>. Running it requires Google Cloud with speech-to-text enabled, a Convex account, an OpenAI key, and a Twilio account, with configuration for each in the environment. The <a href="https://github.com/get-convex/ai-world-fair" target="_blank" rel="noopener">Floyd workshop repository</a> accompanies the project; during the workshop, Redman clarifies that it is not yet on GitHub and promises to share it afterward through Slack.</p>
+<p>这个原型叫 Floyd，因为 Redman 把《明星伙伴》（<em>Entourage</em>）里私人助理 Lloyd 的名字记错了。运行它需要四样东西：开通了语音转文字的 Google Cloud、一个 Convex 账号、一个 OpenAI key 和一个 Twilio 账号，每一项都要在环境变量里配好。项目配有 <a href="https://github.com/get-convex/ai-world-fair" target="_blank" rel="noopener">Floyd workshop 仓库</a>。workshop 期间，Redman 说明仓库还没上 GitHub，并承诺会后通过 Slack 分享。</p>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="243">▶ 4:03</button></div>
       <h3>数据库就是交接点</h3>
-      <p>Start with a request such as booking a dentist appointment. The phone or web client streams the user’s voice to Google Cloud and receives a transcription. It then saves the request text and the requesting user in Convex. That write is the client’s handoff to the backend.</p>
-<p>The server subscribes to a <strong>reactive query</strong> for new requests. It does not poll, and the client does not separately notify it that work has arrived. When the query result changes, the server picks up the request and writes a progress status. The client has its own subscription, so that status appears in the interface through the same database mechanism. <strong>Request dispatch and progress reporting share a durable record.</strong></p>
+      <p>以预约牙医这样的请求为例。手机或网页客户端把用户的语音流式发给 Google Cloud，拿回转写文本，再把请求文本和发起请求的用户存进 Convex。客户端就靠这次写入把任务交给后端。</p>
+<p>服务器订阅了一个监听新请求的<strong>响应式查询</strong>（reactive query）。它不轮询，客户端也不用另外通知它有活来了。查询结果一变，服务器就接手请求，并写入进度状态。客户端有自己的订阅，这个状态会通过同一套数据库机制出现在界面上。<strong>派发请求和汇报进度，共用同一条持久化记录。</strong></p>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="357">▶ 5:57</button></div>
       <h3>准备上下文，再开始对话</h3>
-      <p>A short request depends on information the user has not repeated. Calling a child’s school requires knowing which school; booking car service may require the car model and a preferred mechanic. Floyd’s intended memory grows from requests, information the user supplies, and possible connections such as email. Users can provide as much or as little as they want, with the assistant asking for missing details. For each task, the server saves a <strong>moment-in-time context snapshot</strong> on the request, alongside the requester and the request text.</p>
-<p><strong>GPT-4o</strong> receives the request and its context before the call begins. The server prepares the model for a conversation in which the next participant will be the person answering the phone. Ordinarily, the destination number comes from existing user context. Looking up a vendor based on the user’s location is a proposed extension, not implemented here. If that search failed, Floyd could ask the user by text whether they have a preferred vendor.</p>
-<p>Once connected, the conversation repeats a pipeline:</p>
-<p>1. The model generates a conversational response.
-2. OpenAI text-to-speech turns that response into audio.
-3. Twilio carries the audio to the person on the phone.
-4. The person’s reply streams to Google Cloud for transcription.
-5. The transcription returns to the model for the next turn.</p>
-<p>The loop continues until the conversation finishes. An audience member suggests using multimodal <strong>Gemini</strong> to accept audio directly and remove the separate transcription step. Redman has not tried it; replaceable service boundaries are intended to make that kind of experiment possible.</p>
-<p>During the call, the server appends transcript entries to the request in Convex. A React client using <code>useQuery</code> receives the changed result automatically. Where a local <code>useState</code> value would need explicit updates, the subscribed query lets database writes drive the displayed transcript. The user can watch the conversation develop without participating in the media connection.</p>
+      <p>一句简短的请求，背后要用到很多用户不会再说一遍的信息。给孩子的学校打电话，得知道是哪所学校；预约汽车保养，可能要知道车型和常去的修理工。按设想，Floyd 的记忆来自三个地方：历次请求、用户主动提供的信息，以及邮箱这类可能接入的数据源。用户想提供多少都行，缺了什么，助手会主动问。每个任务开始时，服务器都会在请求上保存一份<strong>当下的上下文快照</strong>，和请求人、请求文本放在一起。</p>
+<p>通话开始前，<strong>GPT-4o</strong> 会拿到请求和对应的上下文。服务器先让模型做好准备：接下来和它对话的，是接电话的人。目标号码通常来自已有的用户上下文。根据用户位置查找商家是设想中的扩展，这里没有实现。如果真搜不到，Floyd 可以发短信问用户有没有常去的商家。</p>
+<p>接通后，对话按下面这条流水线循环：</p>
+<p>1. 模型生成对话回复。
+2. OpenAI 文本转语音把回复变成音频。
+3. Twilio 把音频传给电话那头的人。
+4. 对方的回答流式发给 Google Cloud 转写。
+5. 转写结果回到模型，开始下一轮。</p>
+<p>这个循环一直跑到对话结束。有观众建议用多模态的 <strong>Gemini</strong> 直接接收音频，省掉单独的转写步骤。Redman 还没试过。他把各个服务的边界设计成可替换的，正是为了方便做这类实验。</p>
+<p>通话过程中，服务器把转写条目追加到 Convex 里的请求上。用了 <code>useQuery</code> 的 React 客户端会自动收到更新后的结果。换成本地 <code>useState</code>，就得手动更新；订阅查询则让数据库写入直接驱动界面上的转写内容。用户不用接入媒体连接，也能看着对话一步步展开。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="725">▶ 12:05</button></div>
       <h3>给学校打电话</h3>
-      <p>For the live demonstration, every destination number is overridden to call Redman’s own phone. He plays the business or school receiving the call; the prototype is not contacting real vendors. He asks Floyd to call the school and explain that Mara is sick and staying home. When he stops speaking, the client submits the request automatically and displays its ID. His phone rings.</p>
-<p>Redman answers as Mara’s school. Floyd introduces itself as calling on behalf of Tom Redman and reports that Mara Redman is staying home sick. The conversation continues through follow-up questions: is she going to be okay, and when will she return? Floyd says she hopes to be back by the end of the week. The spoken request supplied no return date; the demonstration does not establish where Floyd obtained that answer.</p>
-<p>The exchange reaches a polite ending, but the pauses between turns are conspicuous. Redman identifies latency as crucial and proposes production configurations and alternative models as further experiments. He also describes using Opus for efficient, phone-quality streaming; the later media walkthrough distinguishes that codec discussion from the format sent to Twilio.</p>
-<p>Behind the call is an <strong>action plan</strong> generated before any vendor-facing speech. OpenAI is prompted as a teammate: here is the request, here is what is known about the user, and here is the task to accomplish. For the school request, the plan extracts Mara’s full name, the school, the absence reason, the current date, and the steps needed to fulfill the request. The server feeds the plan back as additional conversation context; it is not read aloud.</p>
-<p>Navigating an automated call tree remains separate work. Redman has neither tried it nor added specific support, although he considers it a solvable problem. His first experiment targets the less certain part: sustaining a conversation with a human. The request detail view also exposes the transcript as it arrives.</p>
+      <p>现场演示时，所有目标号码都改成了 Redman 自己的手机号。他扮演接电话的商家或学校，原型并没有联系真实商家。他让 Floyd 给学校打电话，说 Mara 生病了，今天在家休息。他一停下来，客户端就自动提交请求，并显示请求 ID。接着，他的手机响了。</p>
+<p>Redman 以 Mara 学校的身份接起电话。Floyd 自我介绍说是代表 Tom Redman 打来的，告知 Mara Redman 生病在家。对方接着追问：她没事吧？什么时候能回来？Floyd 说她希望本周结束前能回来。口头请求里并没有提到返校日期，演示也没交代 Floyd 这个答案从哪来。</p>
+<p>对话礼貌地收了尾，但每轮之间的停顿很明显。Redman 认为延迟是关键，打算接下来试试生产环境配置和其他模型。他还提到用 Opus 实现高效的电话音质流式传输；后面讲解媒体处理时会说明，这里说的编解码器和发给 Twilio 的音频格式是两回事。</p>
+<p>通话背后有一份<strong>行动计划</strong>，在 Floyd 对商家开口之前就已生成。提示词让 OpenAI 扮演队友：这是请求，这是我们对用户的了解，这是要完成的任务。以给学校打电话为例，计划会提取出 Mara 的全名、学校、缺勤原因、当天日期，以及完成请求需要的步骤。服务器把这份计划作为额外的对话上下文喂回模型，但不会念出来。</p>
+<p>应付自动语音菜单是另一项工作。Redman 既没试过，也没做专门支持，不过他认为这个问题能解决。他的第一个实验瞄准更没把握的部分：和真人把对话进行下去。请求详情页也会实时显示陆续到来的转写。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="1031">▶ 17:11</button></div>
       <h3>订花——以及知道何时停下</h3>
-      <p>The next request is to order flowers for Krista. Redman answers as Sweet Violet’s Flowers while the action plan appears in the interface. Floyd asks for delivery that day. When asked which flowers, it says Krista likes the shop’s usual offerings and asks for a popular recommendation.</p>
-<p>The shop offers peonies and roses for $560. Floyd initially responds, “That sounds good,” and asks whether they can deliver to an address in Guelph, ON that day. When the shop asks whether Tom’s information is already on file, Floyd asks whether the details are needed again, then abruptly says it will have to call back. No completed purchase is demonstrated.</p>
-<p>That exit is deliberate: the assistant has a bailout instruction for situations where it lacks information the other person needs. Redman describes the next step as a text to the user explaining that a budget is missing and the flowers are expensive. The text is a prospective follow-up, not something shown arriving. The demonstrated behavior is narrower: Floyd can stop the call, but it has already verbally accepted the quoted offer before doing so.</p>
-<p>Redman then opens the stored flower request in the Convex dashboard, adds that there is no budget, and saves it. The client immediately reflects the edited request. This is the same mechanism that makes appended transcript entries appear: a database mutation changes a subscribed query result. The dashboard also contains user context. Redman explicitly calls the implementation a proof of concept, far from production best practice; the edit demonstrates synchronization, not a resumed or completed order.</p>
+      <p>下一个请求是给 Krista 订花。Redman 扮演 Sweet Violet’s Flowers 花店接电话，界面上同时出现了行动计划。Floyd 要求当天送达。被问到要什么花时，它说 Krista 喜欢店里常卖的那些，请对方推荐一款受欢迎的。</p>
+<p>花店推荐芍药和玫瑰，价格 560 美元。Floyd 先说了句“听起来不错”，又问当天能不能送到安大略省 Guelph 的一个地址。花店问 Tom 的信息是不是已经存档，Floyd 反问需不需要再提供一遍，随后突然说得回头再打过来。演示里没有完成购买。</p>
+<p>这样退出是有意设计的：助手有一条“撤退”指令，缺少对方需要的信息时就挂断。Redman 说，下一步是给用户发短信，说明没有预算、花又很贵。这条短信只是设想中的后续动作，演示里没看到它发出。实际演示的能力更有限：Floyd 能中止通话，但在那之前，它已经口头接受了报价。</p>
+<p>接着，Redman 在 Convex 控制台打开存好的订花请求，补上“没有预算”，然后保存。客户端立刻显示了修改后的请求。追加的转写条目能出现在界面上，靠的也是这套机制：数据库 mutation 改变了被订阅的查询结果。控制台里也存着用户上下文。Redman 明确说这只是概念验证，离生产环境的最佳实践还很远。这次编辑演示的是数据同步，订单既没有恢复，也没有完成。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="1252">▶ 20:52</button></div>
       <h3>把电话连接与界面分开</h3>
-      <p>The original goal included streaming the call transcript back to the user and eventually letting the user listen to the call live. Redman first tried to keep the implementation together in a Next.js application hosted on Vercel. Socket.IO helped with parts of the initial transcription, but handling Twilio’s stateful WebSocket audio connection proved difficult in that serverless hosting setup. This describes the 2024 implementation constraint; Vercel later announced <a href="https://vercel.com/changelog/websocket-support-is-now-in-public-beta" target="_blank" rel="noopener">WebSocket support in Functions</a> on Fluid compute in June 2026, subject to function limits.</p>
-<p>The revised design assigns persistent media handling to an Express server. That server does the phone-call work and writes updates to Convex; the frontend subscribes only to the data it needs. It does not need to own the call’s socket or poll for progress. The side-by-side interface and database view show the resulting separation: a call transcript in Floyd, personal context in a Convex <code>sessionUsers</code> record.</p>
+      <p>最初的目标包括把通话转写实时推回给用户，最终还要让用户能实时收听通话。Redman 一开始想把所有功能都放进一个部署在 Vercel 上的 Next.js 应用里。Socket.IO 帮他搞定了最初的部分转写功能，但在这种 serverless 托管环境下，Twilio 有状态的 WebSocket 音频连接很难处理。这是 2024 年实现时的限制；2026 年 6 月，Vercel 宣布 Fluid compute 上的 <a href="https://vercel.com/changelog/websocket-support-is-now-in-public-beta" target="_blank" rel="noopener">Functions 支持 WebSocket</a>，但仍受函数本身的限制。</p>
+<p>改版后的设计把需要长连接的媒体处理交给一台 Express 服务器。它负责打电话，并把更新写入 Convex；前端只订阅自己需要的数据，既不用持有通话的 socket，也不用轮询进度。界面和数据库视图并排摆着，拆分的效果一目了然：Floyd 里显示通话转写，Convex 的 <code>sessionUsers</code> 记录里存着个人上下文。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/a7ada28c35cbd9e66e226c0fd5dca5efbb9964da07f880f21f7b889164e7a407" alt="Side-by-side browser windows show completed Floyd requests and a call transcript on the left, with an expanded sessionUsers context field in Convex on the right." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Floyd’s call transcript beside a Convex sessionUsers record.</figcaption></figure>
-<p>Sharing a codebase is still possible. Convex schemas, backend functions, and APIs can live alongside frontend code while being deployed to Convex servers, rather than shipped to the browser. A host that supports the required persistent WebSockets could also change how the media server is packaged. <strong>Code location and execution location are separate decisions.</strong></p>
+<p>代码库仍然可以共用。Convex 的 schema、后端函数和 API 可以和前端代码放在一起，但它们部署到 Convex 服务器上，不会打包进浏览器。如果托管平台支持所需的持久 WebSocket，媒体服务器的部署形态也可以换。<strong>代码放在哪里，和代码在哪里运行，是两个独立的决定。</strong></p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="1432">▶ 23:52</button></div>
       <h3>一个查询把 React 看板与服务器状态连接起来</h3>
-      <p>In the frontend walkthrough, a single subscribed query produces the request array. The dashboard renders that array as a list and uses the selected request’s data for the detail pane. When a matching request changes, the query result updates and React renders the new state.</p>
-<p>There is an important difference between the earlier architecture sketch and the actual query: the prototype’s <code>get</code> function is not user-specific, and the application has no authentication. The intended per-user subscription is therefore not an access-control boundary in this implementation.</p>
-<p>The generated identifier <code>api.requests.get</code> connects the React subscription to the exported Convex query. This minimal component illustrates the data flow without adding another copy of the query result in local state:</p>
+      <p>讲到前端时，一个订阅查询就拿到了整个请求数组。前端面板把这个数组渲染成列表，再用选中请求的数据填充详情面板。匹配的请求一有变化，查询结果就跟着更新，React 随即渲染新状态。</p>
+<p>前面的架构草图和实际查询有个重要区别：原型里的 <code>get</code> 函数不区分用户，应用也没有身份认证。所以在这个实现里，设想中的按用户订阅并不能起到访问控制的作用。</p>
+<p>自动生成的标识符 <code>api.requests.get</code> 把 React 订阅和导出的 Convex 查询连了起来。下面这个最小组件展示了数据流，没有在本地 state 里再存一份查询结果：</p>
 <p>```tsx
 import { useQuery } from &quot;convex/react&quot;;
 import { api } from &quot;../convex/_generated/api&quot;;</p>
@@ -923,47 +923,47 @@ import { api } from &quot;../convex/_generated/api&quot;;</p>
 <p>return &lt;pre&gt;{JSON.stringify(requests, null, 2)}&lt;/pre&gt;;
 }
 ```</p>
-<p>Convex generates the typed API from the backend functions and updates it as those files change. The query implementation stays server-side; importing its API reference does not put the database function into the browser bundle.</p>
-<p>Redman describes a V8 execution environment close to the database and emphasizes speed and relief from application-managed caching. More precisely, TypeScript is compiled into JavaScript for execution in V8; this does not require assuming every function and database operation occupies one physical machine. The architectural benefit for Floyd is that the client consumes a subscribed result rather than building its own invalidation and refresh system.</p>
+<p>Convex 根据后端函数生成带类型的 API，文件一改就自动更新。查询的实现留在服务端；导入它的 API 引用，不会把数据库函数打进浏览器包。</p>
+<p>Redman 介绍说，Convex 的 V8 执行环境紧挨着数据库，并强调了它的速度，以及应用不必再自己管缓存。更准确地说，TypeScript 先编译成 JavaScript，再在 V8 里执行；这并不意味着每个函数和数据库操作都跑在同一台物理机上。对 Floyd 来说，架构上的好处是客户端直接用订阅结果，不用自己搭一套失效和刷新机制。</p>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="1641">▶ 27:21</button></div>
       <h3>后端函数、HTTP 操作与调试</h3>
-      <p>Why use Convex instead of MongoDB, DynamoDB, or Postgres? Redman’s answer centers on developer ergonomics: schema-driven type safety through to the frontend, editor completions, and less infrastructure code to maintain. His broader claim is that this can reduce the need for dedicated backend or infrastructure staffing. For Floyd, the request backend consists of a small set of operations: retrieve requests, retrieve one by ID, retrieve pending requests, and post a request.</p>
-<p>HTTP actions provide another entry point. They can define GET or POST endpoints with arbitrary responses, whether or not the endpoint accesses the database. In the walkthrough, a POST route runs an action that updates stored request data. The separate Express process remains because it handles the Twilio stream.</p>
-<p>The debugging tools discussed have different roles:</p>
-<p>| Tool | What Redman uses it for |
+      <p>为什么选 Convex，而不是 MongoDB、DynamoDB 或 Postgres？Redman 的回答围绕开发体验：schema 驱动的类型安全一路贯通到前端，编辑器能自动补全，要维护的基础设施代码也更少。他更进一步的说法是，这能减少对专职后端或基础设施人员的需求。Floyd 的请求后端只有几个操作：获取所有请求、按 ID 获取单个请求、获取待处理请求、提交请求。</p>
+<p>HTTP action 提供了另一个入口。它可以定义 GET 或 POST 端点，返回任意响应，访不访问数据库都行。演示中，一个 POST 路由运行 action，更新存储的请求数据。单独的 Express 进程仍然保留，因为 Twilio 的音频流要靠它处理。</p>
+<p>讨论到的几种调试工具各有分工：</p>
+<p>| 工具 | Redman 用它做什么 |
 |---|---|
-| Dashboard logs | Inspect requests and runtime output |
-| Dashboard function runner | Invoke functions and inspect responses |
-| Local compilation output | Catch errors while developing |
-| Server-side breakpoints | Support left unanswered in the workshop |</p>
-<p>The dashboard exposes function definitions as well as logs. When asked specifically about breakpoints in Convex server code, Redman says he does not know and offers to follow up; his own workflow relies on logs and local compilation errors.</p>
+| 控制台日志 | 查看请求和运行时输出 |
+| 控制台函数运行器 | 调用函数、查看返回结果 |
+| 本地编译输出 | 开发时发现错误 |
+| 服务端断点 | 是否支持，workshop 上没有给出答案 |</p>
+<p>控制台既能看日志，也能看函数定义。被专门问到 Convex 服务端代码能不能打断点时，Redman 说他不清楚，答应会后跟进。他自己调试靠的是日志和本地编译报错。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/23fafebf6f82ab23a1c86cafaed4f117f5d1e8160bf221616a7d1b410059d3b1" alt="Terminal split into panes displaying transcription messages, Convex functions-ready messages, an ngrok status view, and phone-call server output." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Terminal panes show transcription output, Convex function readiness, and server logs.</figcaption></figure>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="1926">▶ 32:06</button></div>
       <h3>从待处理请求到接通的电话</h3>
-      <p>The Express server contains its own Convex client. Its subscription watches pending requests, the default status assigned when the client creates one. The worker then follows this sequence:</p>
-<p>1. Check that the request exists.
-2. Change its status from <code>pending</code> to <code>in-flight</code>.
-3. Retrieve the full request and session name.
-4. Gather the user’s stored context.
-5. Filter that context to the information relevant to this task and save it on the request.
-6. Initiate the call.</p>
-<p>This is the concrete implementation behind the earlier reactive handoff. Redman notes that the design still needs work; the status transition is the demonstrated workflow, not a complete account of production job coordination.</p>
-<p>Calling Twilio starts an asynchronous interaction. The call configuration tells Twilio where to send status callbacks and streaming data. During development, ngrok exposes the Express server so Twilio can reach it. The server handles call lifecycle notifications and media arriving over its WebSocket connection.</p>
-<p>The key to reconnecting those events with the user’s task is the <strong>request ID</strong>. Redman passes it through the call configuration into the callback location. When Twilio connects back, the media stream handler extracts that ID and looks up the request. The call can then recover its instructions and context without relying on the original function invocation still being active.</p>
+      <p>Express 服务器里有自己的 Convex 客户端，订阅的是待处理（pending）的请求——客户端新建请求时，默认就是这个状态。worker 随后按下面的顺序干活：</p>
+<p>1. 确认请求存在。
+2. 把状态从 <code>pending</code> 改成 <code>in-flight</code>。
+3. 取出完整请求和会话名。
+4. 收集该用户存储的上下文。
+5. 从中筛出和本次任务相关的信息，存到请求上。
+6. 发起通话。</p>
+<p>前面说的响应式交接，具体就是这样实现的。Redman 也指出这个设计还要打磨。状态切换是演示过的流程，并不是生产环境任务协调的完整方案。</p>
+<p>调用 Twilio 会开启一段异步交互。通话配置告诉 Twilio 把状态回调和流数据发到哪里。开发阶段用 ngrok 把 Express 服务器暴露出去，Twilio 才能访问到它。服务器负责处理通话生命周期通知，以及从 WebSocket 连接传来的媒体数据。</p>
+<p>要把这些事件和用户的任务重新对上号，关键在于<strong>请求 ID</strong>。Redman 通过通话配置把它带进回调地址。Twilio 回连时，媒体流处理器取出这个 ID，查到对应的请求。这样，通话就能找回自己的指令和上下文，不必指望最初那次函数调用还在运行。</p>
     </section>
 <section class="section" id="sec-10">
       <div class="section-head"><span class="num">10</span>
       <button class="seek" data-t="2195">▶ 36:35</button></div>
       <h3>音频块变成对话话轮</h3>
-      <p>A repeatedly invoked message handler processes incoming media. Redman describes the application as receiving audio after utterances and discusses fixed chunks, pauses, and punctuation as possible boundaries. That description should not be confused with the transport contract: <a href="https://www.twilio.com/docs/voice/media-streams/websocket-messages" target="_blank" rel="noopener">Twilio Media Streams</a> carries raw audio chunks with sequence information and timestamps, not punctuation-delimited speech. The application’s turn handling sits above those media messages.</p>
-<p>Incoming audio is converted into a format suitable for Google Cloud recognition. The returned transcription feeds the conversation, and the generated reply goes through the speech function. Outgoing audio is converted to μ-law and Base64-encoded for Twilio. The documented Twilio wire format is mono 8 kHz μ-law; Base64 is the payload encoding, not another audio codec. This is distinct from the earlier discussion of Opus as a streaming optimization.</p>
-<p>The final serialization step can be expressed directly in TypeScript:</p>
+      <p>传入的媒体交给一个反复触发的消息处理函数。Redman 的说法是，应用在对方说完一句话后收到音频；他还讨论了用固定分块、停顿或标点来切分。别把这种说法和传输协议混为一谈：<a href="https://www.twilio.com/docs/voice/media-streams/websocket-messages" target="_blank" rel="noopener">Twilio Media Streams</a> 传的是带序号和时间戳的原始音频块，不是按标点切好的语音。应用自己的轮次处理逻辑建立在这些媒体消息之上。</p>
+<p>传入的音频先转换成适合 Google Cloud 识别的格式。返回的转写进入对话，生成的回复再交给语音合成函数。发出去的音频要转成 μ-law，再做 Base64 编码，然后发给 Twilio。Twilio 文档规定的传输格式是单声道 8 kHz μ-law；Base64 只是载荷编码，不是另一种音频编解码器。这和前面把 Opus 当作流式传输优化的讨论是两回事。</p>
+<p>最后的序列化步骤可以直接用 TypeScript 写出来：</p>
 <p>```typescript
 import { Buffer } from &quot;node:buffer&quot;;</p>
 <p>export function encodeTwilioMedia(
@@ -979,38 +979,38 @@ import { Buffer } from &quot;node:buffer&quot;;</p>
   });
 }
 ```</p>
-<p>Here, <code>mulawAudio</code> must already contain the correctly formatted audio bytes. Encoding them as Base64 does not resample or transcode them.</p>
-<p>Alongside media processing, a client mutation appends each new Google Cloud transcript entry to Convex. The frontend’s query subscription delivers those changes to the transcript view. Audio transport and transcript presentation therefore share a request identity but do not require the same connection.</p>
+<p>这里的 <code>mulawAudio</code> 必须已经是格式正确的音频字节。Base64 编码不会重采样，也不会转码。</p>
+<p>处理媒体的同时，一个客户端 mutation 会把 Google Cloud 返回的每条新转写追加到 Convex。前端的查询订阅再把这些变化推到转写视图上。音频传输和转写展示共用同一个请求 ID，但不必走同一条连接。</p>
     </section>
 <section class="section" id="sec-11">
       <div class="section-head"><span class="num">11</span>
       <button class="seek" data-t="2320">▶ 38:40</button></div>
       <h3>接通时争取时间，再建立信任</h3>
-      <p>The first turn has a special latency problem. The person answers the phone, then the recognition, conversation, and synthesis pipeline starts working. Redman adds a pregenerated introduction so Floyd can begin speaking immediately rather than waiting for that entire chain. He suspects this introduction was not working during the live demonstrations.</p>
-<p>While the recorded introduction plays, the first conversation loop runs concurrently. The introduction identifies Floyd as calling on behalf of a client, buying time for a task-specific continuation such as booking a car for an oil change at Brock Road Garage. This overlaps useful speech with startup work; it does not make the underlying services intrinsically faster. Redman describes it as one of several small changes that can improve the experience for the person answering.</p>
-<p>The intended introduction also discloses that the caller is AI. Redman does not want Floyd to misrepresent itself. Its intended role is to buy services or make ordinary changes such as canceling appointments, never to sell. His hypothesis is that businesses will accept legitimate purchasing calls and may learn to interact efficiently with an assistant.</p>
-<p>An audience suggestion that businesses could have their own agents exposes another boundary: the prototype has no guard against a person on the call telling it to forget its instructions. Redman explicitly identifies that prompt-injection risk as a reason not to deploy it. If both sides eventually use agents to negotiate an appointment, he observes, the exchange starts to resemble APIs talking to each other.</p>
+      <p>第一轮对话有个特殊的延迟问题：对方接起电话后，识别、对话、合成这条流水线才开始运转。Redman 加了一段预先生成的开场白，让 Floyd 能立刻开口，不用等整条链路跑完。他怀疑现场演示时这段开场白没生效。</p>
+<p>录好的开场白播放时，第一轮对话循环同时在跑。开场白说明 Floyd 是代表客户打来的，为后面针对具体任务的内容争取时间，比如在 Brock Road Garage 预约换机油。这个做法是让有用的话和启动工作同时进行，并没有让底层服务本身变快。Redman 说，能让接电话的人体验更好的小改动有好几处，这是其中之一。</p>
+<p>按设计，开场白还会表明来电的是 AI。Redman 不希望 Floyd 隐瞒自己的身份。它的定位是购买服务，或者处理取消预约这类日常变更，绝不推销。他的假设是：商家会接受正当的购买来电，也可能慢慢学会和助手高效打交道。</p>
+<p>有观众提出，商家也可以有自己的智能体。这又暴露出一处短板：如果通话另一方让它忘掉指令，原型毫无防备。Redman 明确说，这种提示词注入风险正是不能上线的原因之一。他还说，如果双方最后都派智能体去商定预约，这种交流就开始像 API 之间在对话了。</p>
     </section>
 <section class="section" id="sec-12">
       <div class="section-head"><span class="num">12</span>
       <button class="seek" data-t="2534">▶ 42:14</button></div>
       <h3>测量让人等待的各个阶段</h3>
-      <p>An audience member asks whether serverless warm-up explains the initial delay. Redman attributes no warm-up delay to Convex, describing an always-running deployment built around WebSockets. He also makes a broad scalability claim, but the latency diagnosis he offers comes from instrumentation around the speech pipeline: time to transcribe, time to obtain a conversational response, and time to synthesize that response. No stage-by-stage benchmark table is presented.</p>
-<p>One observed source of growing delay is conversation history. Each model request includes the preceding conversation, so the prompt grows as the call continues. Redman reports that delays tend to worsen with longer conversations. He proposes reducing prompt size and trying the OpenAI Threads API, which he had not used when building this functionality. Those are proposed experiments; the workshop does not demonstrate a latency benefit from Threads.</p>
-<p>Redman reports that synthesizing three sentences with OpenAI text-to-speech could take two to five seconds in this prototype. The observation has no specified model, sample count, or timing boundary, so it is useful as a description of the demonstrated system’s delay rather than a service benchmark. With limited tuning available in his implementation, he would consider paying for lower latency or switching synthesis providers.</p>
-<p>The optimization opportunities are distributed across the chain:</p>
-<p>- <strong>Conversation generation:</strong> reduce the amount of history sent with each turn.
-- <strong>Speech synthesis:</strong> investigate a lower-latency service or configuration.
-- <strong>End-to-end orchestration:</strong> reduce individual service delays, because their waits accumulate into the pause the caller hears.</p>
-<p>Redman says several material optimizations remain untried. His expectation that provider progress could make the system twice as fast in six months without application changes is explicitly a bet, not a measured outcome. The modular architecture leaves room to test that expectation as services improve.</p>
+      <p>有观众问，开头的延迟是不是 serverless 冷启动造成的。Redman 说 Convex 没有预热延迟，它的部署始终在运行，而且围绕 WebSocket 构建。他还顺带对可扩展性做了一个笼统的判断，但他对延迟的诊断来自语音流水线上的埋点：转写耗时、拿到对话回复的耗时、合成回复的耗时。他没有展示分阶段的基准测试表。</p>
+<p>延迟越拖越长，一个已观察到的原因是对话历史。每次请求模型都要带上之前的对话，通话越久，提示词越长。Redman 说，对话越长，延迟往往越严重。他打算缩减提示词，并试试 OpenAI Threads API——做这个功能时他还没用过。这些都只是计划中的实验，workshop 并没有演示 Threads 能降低延迟。</p>
+<p>Redman 说，在这个原型里，用 OpenAI 文本转语音合成三句话可能要 2 到 5 秒。这个观察没说明用的是哪个模型、测了多少次、从哪里开始计时，所以只能用来描述演示系统的延迟，不能当作服务的基准数据。他的实现里能调的东西不多，他会考虑花钱换更低的延迟，或者换一家语音合成服务商。</p>
+<p>整条链路上，处处都有优化空间：</p>
+<p>- <strong>对话生成</strong>：减少每轮发送的历史。
+- <strong>语音合成</strong>：找延迟更低的服务或配置。
+- <strong>端到端编排</strong>：降低每个服务的延迟，因为每一环的等待会累加成来电者听到的停顿。</p>
+<p>Redman 说，还有好几项重要的优化没试过。他预计，靠服务商自身的进步，系统六个月内不改应用代码也能快一倍——他明确说这是押注，不是实测结果。模块化架构留出了余地，等服务变好后，可以验证这个判断。</p>
     </section>
 <section class="section" id="sec-13">
       <div class="section-head"><span class="num">13</span>
       <button class="seek" data-t="2827">▶ 47:07</button></div>
       <h3>原型背后的基础设施押注</h3>
-      <p>The final technical question concerns Convex’s internals: how queries are distributed and what database infrastructure runs underneath. Redman describes a database built from scratch in Rust and points to its open-source implementation. He credits the leadership team, Jamie and James, as a reason he joined. James Cowling’s MIT doctoral work concerns large-scale distributed transaction processing and consensus protocols—the database expertise Redman invokes in explaining the system’s origins.</p>
-<p>In Redman’s account, an AWS cluster runs the Convex database and application, including the WebSocket connections and subscriptions. He does not attempt a detailed answer about physical distribution, which is outside his expertise, and offers to follow up. He reports large customers and no fundamental scaling problems so far, without quantitative results. For the implementation details, he points readers to the <a href="https://github.com/get-convex/convex-backend" target="_blank" rel="noopener">Convex backend repository</a> and chief scientist Sujay Jayakar’s <a href="https://stack.convex.dev/how-convex-works" target="_blank" rel="noopener">How Convex Works</a>.</p>
-<p>Choosing a custom database instead of a familiar option such as Postgres is a bet. Redman justifies it through developer ergonomics and speed of product development: let infrastructure engineers spend their time building what customers need instead of maintaining database backups. Floyd makes that trade-off tangible. Once request state and live updates have a shared home, the remaining engineering effort can focus on what makes a phone assistant useful—carrying out the task, handling missing information, and making the conversation work for the person answering.</p>
+      <p>最后一个技术问题关于 Convex 的内部实现：查询怎么分布，底层跑的是什么数据库基础设施。Redman 介绍说，这是一个用 Rust 从零写的数据库，代码已经开源。他说领导团队里的 Jamie 和 James 是他加入 Convex 的原因之一。James Cowling 在 MIT 读博时研究的是大规模分布式事务处理和共识协议——Redman 讲这套系统的由来时，看重的正是这份数据库功底。</p>
+<p>按 Redman 的说法，Convex 的数据库和应用都跑在一个 AWS 集群上，WebSocket 连接和订阅也在其中。物理上怎么分布超出了他的专业范围，他没有细答，表示会后跟进。他说已经有大客户在用，到目前为止没遇到根本性的扩展问题，但没给出量化数据。想了解实现细节，他推荐看 <a href="https://github.com/get-convex/convex-backend" target="_blank" rel="noopener">Convex 后端仓库</a>，以及首席科学家 Sujay Jayakar 写的 <a href="https://stack.convex.dev/how-convex-works" target="_blank" rel="noopener">How Convex Works</a>。</p>
+<p>放着 Postgres 这类熟悉的选项不用，自研数据库是一场押注。Redman 的理由是开发体验和产品迭代速度：让基础设施工程师把时间花在客户真正需要的东西上，而不是去维护数据库备份。Floyd 让这个取舍变得看得见、摸得着。请求状态和实时更新有了共同的落脚点，剩下的工程精力就能集中到让电话助手真正好用的地方：把事办成，处理好缺失的信息，让接电话的人觉得这通电话聊得顺。</p>
     </section>
     </div></div></section>
 

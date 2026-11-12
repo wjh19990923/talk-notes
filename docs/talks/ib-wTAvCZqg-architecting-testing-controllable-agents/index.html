@@ -1525,114 +1525,114 @@ AIE</pre></details>
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="89">▶ 1:29</button></div>
       <h3>谁来决定下一步？</h3>
-      <p>A RAG application starts with a question, retrieves documents from a vector store, passes them to an LLM, and returns an answer. The sequence is straightforward because the developer has already decided what happens next. This is a <strong>chain</strong>: its control flow is fixed, even though the generated answer is not.</p>
+      <p>一个 RAG 应用从问题开始：先从向量库检索文档，再把文档交给 LLM，最后返回答案。流程很直白，因为下一步做什么，开发者早就定好了。这就是<strong>链（chain）</strong>：生成的答案不固定，但控制流是固定的。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/2d666fc3c0bdba6abf23b0e446e0ff8379375710aba397c144872f374868ee67" alt="Slide titled “A RAG chain” with arrows connecting Question, Vectorstore, LLM, and Answer." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>A RAG chain passes a question through a vector store and an LLM to produce an answer.</figcaption></figure>
-<p>An <strong>agent</strong> gives the model some responsibility for that sequence. After inspecting the output of one step, the LLM can decide whether to continue, go back, or choose another operation. The distinction is about who controls execution, rather than whether the application uses an LLM at all.</p>
-<p>Tool calling supplies the interface for those decisions. A developer defines a function, exposes its description and argument schema, and binds that tool to the model. The model then emits a structured payload containing a function name and arguments. <strong>The application executes the function; the model proposes the call.</strong> For example, a payload naming <code>step_two</code> with an input of <code>3</code> still needs application code to dispatch it.</p>
-<p><a href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noopener">ReAct</a>, short for reasoning and acting, turns this into a loop: the model selects an action, application code executes the tool, and the resulting observation returns to the model. The model can then request another tool or finish with an ordinary response. That loop can express many sequences: one tool alone, two tools in order, a reversed order, or repeated calls.</p>
+<p><strong>智能体（agent）</strong>则把安排流程的一部分权力交给模型。看完某一步的输出后，LLM 可以决定继续、回退，或者换一个操作。两者的区别在于谁控制执行，而不在于应用有没有用 LLM。</p>
+<p>工具调用（tool calling）为这些决策提供了接口。开发者定义一个函数，公开它的描述和参数 schema，再把这个工具绑定到模型上。模型随后输出一个结构化 payload，里面有函数名和参数。<strong>模型只提出调用，真正执行函数的是应用。</strong> 比如，一个 payload 指定了 <code>step_two</code>、输入为 <code>3</code>，仍然要靠应用代码去分发执行。</p>
+<p><a href="https://arxiv.org/abs/2210.03629" target="_blank" rel="noopener">ReAct</a> 是 reasoning and acting（推理加行动）的缩写，它把这个过程变成一个循环：模型选择动作，应用代码执行工具，执行结果作为观察返回给模型。模型可以接着请求下一个工具，也可以给出普通回复结束。这个循环能表达很多种顺序：只调一个工具、按顺序调两个、顺序反过来，或者反复调用。</p>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="316">▶ 5:16</button></div>
       <h3>让灵活性成为图的明确组成部分</h3>
-      <p>That flexibility creates several ways to fail. An agent can get stuck repeatedly calling the same tool. It can name <code>step_three</code> when the available tool is <code>step_two</code>, or supply <code>4</code> when the request specified <code>3</code>. Selecting the operation and constructing its arguments are separate failure surfaces. Lance Martin reports that larger tool inventories and longer dialogues make these decisions harder.</p>
+      <p>灵活也意味着出错的方式更多。智能体可能卡住，反复调用同一个工具。可用的工具明明是 <code>step_two</code>，它却写成 <code>step_three</code>；请求里说的是 <code>3</code>，它却传了 <code>4</code>。选操作和构造参数，是两类不同的失败点。Lance Martin 提到，工具越多、对话越长，这些决策就越难做对。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/06a4d2316627580b54432ef44e1d8e0b8784fdf68a4f191351b0349c0cd7038f" alt="Diagram connecting natural language and a structured tool to an LLM, with red annotations marking wrong payload and wrong tool." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Tool calling can fail through a wrong payload or a wrong tool choice.</figcaption></figure>
-<p>Many applications do not need arbitrary sequences. A developer may know that step one must always run first and step two must always run last, while still needing a model to make a decision between them. LangGraph expresses that arrangement as a graph: <strong>state</strong> carries information through the run, <strong>nodes</strong> perform operations and update that state, and <strong>edges</strong> determine where execution goes next. An edge can follow a fixed route or use a model's decision.</p>
-<p>This maps familiar agent capabilities onto explicit application structure. Short-term memory becomes graph state. Tools live inside nodes. Planning becomes decision-making at selected routing points. The useful constraint is that a model need not rediscover the entire workflow every time it acts.</p>
+<p>很多应用并不需要任意顺序。开发者可能清楚第一步必须最先跑、第二步必须最后跑，只是中间还需要模型做一次决策。LangGraph 用图来表达这种安排：<strong>状态（state）</strong>在整个运行过程中携带信息，<strong>节点（node）</strong>执行操作并更新状态，<strong>边（edge）</strong>决定接下来去哪儿。边可以走固定路线，也可以按模型的决策走。</p>
+<p>这样一来，智能体的常见能力都能落到明确的应用结构上。短期记忆变成图的状态，工具放在节点里，规划变成在几个选定的路由点上做决策。这种约束的好处是：模型不必每次行动都把整个工作流重新摸索一遍。</p>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="531">▶ 8:51</button></div>
       <h3>在信任检索之前先检查它</h3>
-      <p><a href="https://arxiv.org/abs/2401.15884" target="_blank" rel="noopener">Corrective RAG</a> starts from a weakness in the opening chain: retrieved documents may not be relevant. Martin's workshop adaptation adds a document-grading step and a branch to web search when retrieval is inadequate. It is a simplified binary workflow inspired by the paper, whose full method also includes confidence-based actions and finer-grained filtering. Martin previously demonstrated the graph locally through Ollama with <strong>Mistral 7B</strong>.</p>
-<p>The next extension checks the generated answer. <a href="https://arxiv.org/abs/2310.11511" target="_blank" rel="noopener">Self-RAG</a> motivates reflection on whether an answer is supported by retrieved evidence; the original work trains reflection-token behavior, while this graph uses explicit checking steps. Martin combines ideas from Corrective RAG, Self-RAG, and Adaptive RAG in a local <strong>Llama 3</strong> workflow.</p>
-<p>The combined flow separates decisions that an open-ended agent would otherwise make implicitly:</p>
-<p>1. Route the question to the vector index or web search.
-2. Retrieve documents and grade their relevance.
-3. If any retrieved document is irrelevant, supplement the retained evidence with web search.
-4. Generate an answer from the available documents.
-5. Check whether the answer is grounded in those documents and whether it answers the question.
-6. Return the answer when both checks pass.</p>
-<p>Martin reports running this locally. His explanation for its reliability is architectural: the model makes decisions at discrete points, with the surrounding execution order already specified.</p>
+      <p><a href="https://arxiv.org/abs/2401.15884" target="_blank" rel="noopener">Corrective RAG</a> 针对的是开头那条链的一个弱点：检索回来的文档未必相关。Martin 在工作坊里改编了这个方法，加了一步文档打分；检索效果不够好时，就分支到网页搜索。这是受论文启发的简化版二元工作流，论文的完整方法还包括基于置信度的动作和更细粒度的过滤。Martin 此前曾通过 Ollama 用 <strong>Mistral 7B</strong> 在本地演示过这张图。</p>
+<p>下一步扩展是检查生成的答案。<a href="https://arxiv.org/abs/2310.11511" target="_blank" rel="noopener">Self-RAG</a> 的出发点是反思答案有没有检索证据支撑；原论文训练模型生成反思 token，这张图则用显式的检查步骤来实现。Martin 把 Corrective RAG、Self-RAG 和 Adaptive RAG 的思路结合起来，做成了一个本地运行 <strong>Llama 3</strong> 的工作流。</p>
+<p>组合后的流程把几个决策拆开了，换成开放式智能体，这些决策都是隐式做出的：</p>
+<p>1. 把问题路由到向量索引或网页搜索。
+2. 检索文档，并给相关性打分。
+3. 只要有一篇检索到的文档不相关，就用网页搜索补充保留下来的证据。
+4. 基于现有文档生成答案。
+5. 检查答案是否以这些文档为依据，以及是否回答了问题。
+6. 两项检查都通过，就返回答案。</p>
+<p>Martin 说这套流程可以在本地跑起来。他认为它可靠的原因在架构上：模型只在几个离散的点上做决策，前后的执行顺序都已经定好了。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="697">▶ 11:37</button></div>
       <h3>用可执行的反馈修复代码</h3>
-      <p>The same structure applies to generated code. <a href="https://arxiv.org/abs/2401.08500" target="_blank" rel="noopener">AlphaCodium</a>, discussed through Andrej Karpathy's flow-engineering framing, produces a candidate solution, checks it against tests, and feeds failures back to the model for another attempt. Tests can supply much sharper feedback than a general request to improve an answer.</p>
-<p>Martin's <a href="https://www.langchain.com/blog/code-execution-with-langgraph" target="_blank" rel="noopener">LangGraph code-generation implementation</a> targets a particularly frustrating RAG failure: an answer contains plausible Python code whose imports do not exist. He reports that adding import checks improved results in LangChain's internal RAG application, with production integration underway at the time. The workshop gives no numerical result isolating that check.</p>
-<p>| Structure | Who chooses the sequence? | Useful flexibility |
+      <p>同样的结构也适用于代码生成。讨论 <a href="https://arxiv.org/abs/2401.08500" target="_blank" rel="noopener">AlphaCodium</a> 时，Martin 借用了 Andrej Karpathy 提出的“流程工程”（flow engineering）框架：先生成候选解，再拿测试去检查，把失败信息反馈给模型重试。比起笼统地要求“改进一下答案”，测试给出的反馈要具体得多。</p>
+<p>Martin 的 <a href="https://www.langchain.com/blog/code-execution-with-langgraph" target="_blank" rel="noopener">LangGraph 代码生成实现</a> 瞄准的是 RAG 里一种特别恼人的失败：答案里的 Python 代码看起来像模像样，导入的模块却根本不存在。他说，加上导入检查后，LangChain 内部 RAG 应用的效果有所提升，当时正在接入生产环境。工作坊没有给出单独衡量这项检查的数字。</p>
+<p>| 结构 | 谁来决定顺序？ | 灵活之处 |
 | --- | --- | --- |
-| Chain | Developer | Fixed procedure |
-| Constrained graph | Developer, with selected model decisions | Routing and self-correction |
-| Open-ended ReAct | Model, through repeated tool selection | Arbitrary tool sequences |</p>
-<p>A constrained graph gives up some of ReAct's freedom. Martin acknowledges that a genuinely open-ended task may need that freedom; for many application workflows, however, routing and correction provide enough adaptability.</p>
-<p>The Corrective RAG exercises offer three execution paths: a local Ollama notebook for suitable hardware, a Colab using a Google account and the required API keys, and a notebook using hosted models. The search component is replaceable, so the exercise does not depend on one particular web-search provider.</p>
+| 链 | 开发者 | 固定流程 |
+| 受约束的图 | 开发者，外加几个选定的模型决策点 | 路由和自我纠错 |
+| 开放式 ReAct | 模型，通过反复选择工具 | 任意工具顺序 |</p>
+<p>受约束的图放弃了 ReAct 的一部分自由。Martin 承认，真正开放式的任务可能需要这种自由；但对很多应用工作流来说，路由加纠错已经够灵活了。</p>
+<p>Corrective RAG 的练习有三种运行方式：硬件够用的话，跑本地 Ollama notebook；用 Google 账号和所需的 API key 跑 Colab；或者用调用托管模型的 notebook。搜索组件可以替换，练习不依赖某一家网页搜索服务。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="929">▶ 15:29</button></div>
       <h3>分别评估答案和路由</h3>
-      <p>How do you know the constrained agent is actually more reliable? That question requires a different feedback loop from the one repairing an individual answer. Martin separates <strong>in-app correction</strong>, <strong>pre-production testing</strong>, and <strong>production monitoring</strong>. LangSmith supplies optional evaluation, tracing, and monitoring around the application; the notebooks include it, but building the agent does not require using it.</p>
-<p>An offline evaluation needs a dataset, an application to run against it, and evaluators that judge the resulting outputs. For RAG, a dataset can contain known question-answer pairs. An LLM judge compares the generated answer with the reference under an explicit grading prompt. A custom heuristic evaluator can instead calculate a property directly. The notebooks use both approaches.</p>
-<p><strong>A correct answer can conceal a bad execution path.</strong> An agent might eventually answer correctly after unnecessary calls or an unexpected detour. End-to-end answer grading will miss that behavior, so Martin also evaluates the sequence of tools used. His workshop experiment uses five RAG questions and three replicates per experiment, with aggregate answer and trajectory scores.</p>
-<p>Martin reports 60% answer correctness for the local 8B LangGraph agent on the five-question evaluation, alongside strong trajectory consistency. <strong>Firefunction-v2</strong>, which he describes as a Fireworks fine-tune of Llama 70B, reaches 80% answer correctness and a 100% tool-trajectory score with LangGraph. These are small workshop experiments; they separate a model's answer quality from its adherence to the intended process.</p>
-<p>With Firefunction-v2 in the ReAct arrangement, Martin observes worse answers and substantially worse trajectories. The <strong>GPT-4o</strong> ReAct examples retain strong answers but still take unexpected paths. He attributes the constrained graph's consistency to its fixed structure and the remaining answer-quality differences largely to model capacity. The trajectory score measures adherence to the evaluator's expected paths, rather than an unrestricted measure of reasoning ability.</p>
+      <p>怎么知道受约束的智能体真的更可靠？回答这个问题，需要另一个反馈循环，和修正单个答案的那个不同。Martin 区分了三种：<strong>应用内纠错</strong>、<strong>上线前测试</strong>和<strong>生产监控</strong>。LangSmith 在应用外围提供可选的评测、追踪和监控；notebook 里用到了它，但搭建智能体本身用不着它。</p>
+<p>离线评测需要三样东西：数据集、在数据集上运行的应用，以及给输出打分的评估器。对 RAG 来说，数据集可以是已知的问答对。LLM 评判者（LLM judge）按一份明确的打分提示词，把生成的答案和参考答案对比。也可以写一个自定义的启发式评估器，直接计算某个属性。notebook 里两种方法都用了。</p>
+<p><strong>答案对了，执行路径未必对。</strong> 智能体可能多调了几次没必要的工具，或者绕了意想不到的弯路，最后才答对。只看端到端答案的评分会漏掉这种行为，所以 Martin 还会评测智能体调用工具的顺序。他在工作坊的实验用了 5 个 RAG 问题，每个实验重复 3 次，汇总答案得分和轨迹得分。</p>
+<p>Martin 报告，在这 5 道题上，本地 8B 的 LangGraph 智能体答案正确率为 60%，轨迹一致性很高。<strong>Firefunction-v2</strong> 是 Fireworks 基于 Llama 70B 微调的模型，按他的说法，配合 LangGraph 时答案正确率达到 80%，工具轨迹得分 100%。这些只是工作坊里的小实验，但能把模型的答案质量和它是否遵循预期流程区分开。</p>
+<p>把 Firefunction-v2 放进 ReAct 架构后，Martin 发现答案变差，轨迹差得更多。<strong>GPT-4o</strong> 的 ReAct 示例答案依旧不错，但仍会走出意料之外的路径。他认为受约束的图之所以稳定，靠的是固定结构；剩下的答案质量差异，主要取决于模型能力。轨迹得分衡量的是智能体有没有按评估器预设的路径走，并不能全面衡量推理能力。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="1350">▶ 22:30</button></div>
       <h3>构建衡量改进的系统</h3>
-      <p>Deployment enters the discussion as forthcoming work: Martin previews a Thursday announcement from Harrison about running LangGraph applications, and points to LangSmith for monitoring deployed runs. The broader investment is the system around a changing model—an evaluation framework, guardrails, and a data flywheel that make improvements measurable. Those principles do not depend on adopting either product.</p>
-<p>The three feedback loops operate at different times. In-app checks repair the current attempt. Pre-production tests compare application versions before release. Online evaluators inspect production inputs and outputs, tag problematic runs, and make them available for later review. Together they connect application design to evidence from actual use.</p>
+      <p>部署是作为即将推出的工作提到的：Martin 预告 Harrison 会在周四发布运行 LangGraph 应用的消息，并推荐用 LangSmith 监控已部署的运行。更值得投入的，是围绕不断变化的模型搭起来的那套系统——评测框架、护栏和数据飞轮，让每次改进都能衡量。这些原则并不要求你用这两款产品。</p>
+<p>三个反馈循环在不同时间起作用。应用内检查修正当前这次尝试。上线前测试在发布前比较不同的应用版本。在线评估器检查生产环境的输入和输出，给有问题的运行打标签，留待之后复查。三者合在一起，把应用设计和真实使用中的证据连了起来。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/fcfe23640f64d4589bd16c6273f5ae142db1846b894522f3f2bac3d1cf0dddb2" alt="Three-column diagram showing design, pre-production, and production phases with return arrows linking monitoring and testing to app design." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Feedback loops connect application design, pre-production testing, and production monitoring.</figcaption></figure>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="1581">▶ 26:21</button></div>
       <h3>选择适合任务的检查</h3>
-      <p>Exact trajectory matching becomes less useful as a task becomes more open-ended. For a short workflow—Martin suggests roughly five to ten steps—you may be able to enumerate several legitimate routes. For a long-running task with many valid solutions, use more selective properties: whether a required tool was called, whether calls repeat excessively, or whether the overall tool count is unreasonable. A custom evaluator can enforce those boundaries without prescribing every action.</p>
-<p>Human intervention is another possible control point, but it is outside the supplied workshop notebooks. Martin points to separate LangGraph examples and previews additional support in the upcoming release.</p>
-<p>Production introduces a different constraint: most incoming questions have no reference answer. Three useful RAG checks still work with the information already present in a run:</p>
-<p>| Check | Compare | Question |
+      <p>任务越开放，精确匹配轨迹就越没用。短工作流——Martin 认为大约五到十步——也许还能把几条合理路径都列出来。长时间运行、有多种正确解法的任务，就该挑更有针对性的属性来查：必需的工具调了没有，调用是否重复过多，工具调用总数是否离谱。自定义评估器可以守住这些边界，又不必规定每一步动作。</p>
+<p>人工介入是另一个可能的控制点，但不在工作坊提供的 notebook 范围内。Martin 推荐了另外几个 LangGraph 示例，并预告即将发布的版本会增加更多支持。</p>
+<p>生产环境带来另一种限制：大多数用户提问都没有参考答案。不过有三项实用的 RAG 检查，只用一次运行里已有的信息就能做：</p>
+<p>| 检查项 | 比较对象 | 要回答的问题 |
 | --- | --- | --- |
-| Retrieval relevance | Documents and question | Is the retrieved material relevant? |
-| Answer relevance | Answer and question | Does the response address the request? |
-| Grounding | Answer and documents | Does the evidence support the response? |</p>
-<p>These checks assess different relationships. A grounded answer can still miss the question, and relevant documents can still yield an unsupported answer. Martin reports running these reference-free checks online in the internal application.</p>
+| 检索相关性 | 文档与问题 | 检索到的材料相关吗？ |
+| 答案相关性 | 答案与问题 | 回复有没有回应请求？ |
+| 有据性 | 答案与文档 | 证据能否支撑这个回复？ |</p>
+<p>这三项检查看的是不同的关系。答案有据可查，也可能答非所问；文档相关，生成的答案也可能缺乏依据。Martin 说，内部应用已经在线上运行这些无需参考答案的检查。</p>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="1953">▶ 32:33</button></div>
       <h3>让运行时检查廉价且有边界</h3>
-      <p>Conventional tests remain useful alongside model-based evaluation. Martin describes LangSmith's pytest support, then distinguishes tests run outside the application from checks embedded in its correction loop. Import validity, code execution, and structured-output schema validation can all generate actionable error feedback. The same checks can also run independently in CI; further LangSmith CI integration was still forthcoming in the workshop.</p>
-<p>An LLM judge on the request path adds latency. For a stable grading task, Martin suggests a small fine-tuned model, or even a conventional classifier. A binary yes/no decision is easier to specify than a loosely defined zero-to-five scale. Groq's inference hardware is another option he raises for fast model-based checks. In Corrective RAG, the important output of the grader is simply whether the document is relevant enough to retain.</p>
+      <p>有了基于模型的评测，传统测试依然有用。Martin 介绍了 LangSmith 对 pytest 的支持，接着区分了两类检查：在应用外部跑的测试，和嵌在应用纠错循环里的检查。导入是否有效、代码能否执行、结构化输出是否符合 schema，都能产生可以直接拿来改的错误反馈。这些检查也可以单独放进 CI 里跑；工作坊举办时，LangSmith 更深入的 CI 集成还在路上。</p>
+<p>在请求路径上放一个 LLM 评判者会增加延迟。如果打分任务比较稳定，Martin 建议用微调过的小模型，甚至传统分类器。二元的是/否判断，比定义松散的 0 到 5 分更容易说清楚。他还提到，Groq 的推理硬件也适合做快速的模型检查。在 Corrective RAG 里，评分器真正要输出的，只是这篇文档是否相关到值得保留。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/a621c2852c99d6920cea2a1c6b7d268eb728819ceaf6a3e58cbfc24eb8779781" alt="Corrective RAG flowchart showing vector-store retrieval, document grading, a yes-or-no relevance branch, web search, and an answer." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Corrective RAG grades retrieved documents before routing to generation or web search.</figcaption></figure>
-<p>LangGraph also supports multi-agent layouts and cycles. The custom Corrective RAG exercise uses a branch, while its ReAct counterpart loops. Set a <code>recursion_limit</code> to bound graph execution rather than allowing an agent to continue indefinitely. Martin's recollection of a default near twenty is tentative; it is not a version-independent setting, and graph steps should not be assumed to equal complete agent cycles.</p>
+<p>LangGraph 也支持多智能体布局和循环。自定义的 Corrective RAG 练习用的是分支，对应的 ReAct 版本则是循环。设置 <code>recursion_limit</code> 来限制图的执行，别让智能体无休止地跑下去。Martin 记得默认值大约是二十，但不太确定；这个值会随版本变化，也不能默认图的步数就等于智能体完整循环的次数。</p>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="2270">▶ 37:50</button></div>
       <h3>检查每一步的成本和它记住了什么</h3>
-      <p>Model choice is only one part of latency control; first locate the expensive step. LangSmith's trace view exposes both whole-graph duration and individual operations. In the displayed trace, retrieval takes less than one second and document grading takes about four seconds. Martin initially identifies the grader as GPT-4o, then corrects himself after inspecting the trace: it uses <code>ChatFireworks</code>. Because documents are graded independently, possible improvements include bulk grading, different prompts, or faster inference, with Groq, a self-hosted fine-tune, and <strong>GPT-3.5</strong> among the options discussed.</p>
-<p>A GPT-4o ReAct trace makes the memory mechanism visible. The initial request contains a system prompt, a user question, and tool definitions. The assistant requests document retrieval; the tool runs and returns documents. On the next model call, the history contains that entire exchange, so the assistant can select document grading as its next operation. The enlarged tool panel marks <code>grade_document_retrieval</code> as the selected call.</p>
+      <p>控制延迟，选模型只是其中一环；先要找出最耗时的那一步。LangSmith 的 trace 视图既能看整张图的耗时，也能看每个操作的耗时。在展示的 trace 里，检索不到 1 秒，文档打分大约 4 秒。Martin 起初说评分器用的是 GPT-4o，查看 trace 后又更正：用的是 <code>ChatFireworks</code>。每篇文档是单独打分的，所以可以考虑批量打分、换提示词或用更快的推理，讨论到的选项有 Groq、自托管的微调模型和 <strong>GPT-3.5</strong>。</p>
+<p>一条 GPT-4o ReAct 的 trace 把记忆机制展示得很清楚。初始请求包含系统提示词、用户问题和工具定义。助手请求检索文档，工具运行后返回文档。下一次调用模型时，历史记录里已经有这整轮交互，于是助手可以选择文档打分作为下一步。放大的工具面板显示，选中的调用是 <code>grade_document_retrieval</code>。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/9cde75311752005a87e27f456a2aee458a83e63127123e70de4183bd3f1965fe" alt="Enlarged Functions &amp; Tools panel listing retrieve_documents, grade_document_retrieval, web_search, and generate_answer, with CALLED beside grade_document_retrieval." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The tool panel marks document grading as the selected call.</figcaption></figure>
-<p>Accumulated history is useful but also creates another opportunity for tool-selection errors. On a follow-up question, the same history may contain enough evidence to answer directly without retrieving again. That is a plausible multi-turn behavior, but the workshop evaluation covers single-turn tasks; Martin has not supplied a multi-turn evaluation tutorial here.</p>
+<p>累积的历史很有用，但也给工具选择出错多开了一个口子。遇到追问时，已有的历史可能已经提供了足够的证据，不用再检索就能直接回答。这是合理的多轮行为，但工作坊的评测只覆盖单轮任务；Martin 在这里没有提供多轮评测的教程。</p>
     </section>
 <section class="section" id="sec-10">
       <div class="section-head"><span class="num">10</span>
       <button class="seek" data-t="2717">▶ 45:17</button></div>
       <h3>在加另一个智能体之前，先追求清晰的反馈</h3>
-      <p>Automatically generating tests during a request adds a second source of uncertainty: the model's solution may be wrong, but so may the tests judging it. AlphaCodium explores generated tests alongside existing ones. Martin has not tested that online approach himself and is cautious about putting it into production. His concrete ChatLangChain example is narrower: use a function call to extract imports from an answer's code block, test those imports in isolation, and return any error to the model for repair. Relevant documentation can be supplied during the retry.</p>
-<p>An audience suggestion offers a middle ground: prepare known-good tests before generating the implementation. Martin extends that idea to a bank of curated tests selected dynamically by question type or documentation area. This can supply task-specific feedback while preserving a trustworthy test definition, and the same test bank can support regression checking on larger projects.</p>
-<p>Replacing a single grading prompt with a sophisticated checker agent raises a similar trade-off. Martin has not tried the audience's cited frameworks. He sees room for offline experiments, but favors lightweight checks for latency-sensitive production use: the extra planning, tool use, and coordination would need to justify their cost.</p>
+      <p>在请求过程中自动生成测试，会多出第二个不确定性来源：模型的解法可能是错的，用来评判它的测试也可能是错的。AlphaCodium 尝试在已有测试之外再生成测试。Martin 自己没试过这种在线方法，对放进生产环境也比较谨慎。他在 ChatLangChain 里的具体做法要窄得多：用函数调用从答案的代码块里提取导入语句，单独测试这些导入，再把报错返回给模型修复。重试时还可以附上相关文档。</p>
+<p>一位听众提出了折中方案：生成实现之前，先准备好已知正确的测试。Martin 把这个思路进一步扩展：建一个精心整理的测试库，按问题类型或文档领域动态挑选测试。这样既能提供针对具体任务的反馈，又能保证测试本身可信；在更大的项目里，同一个测试库还能用来做回归检查。</p>
+<p>把单个打分提示词换成复杂的检查智能体，也面临类似的取舍。听众提到的那些框架，Martin 都没试过。他觉得可以做离线实验，但在对延迟敏感的生产场景里，他更倾向于轻量检查：额外的规划、工具调用和协调，得证明物有所值才行。</p>
     </section>
 <section class="section" id="sec-11">
       <div class="section-head"><span class="num">11</span>
       <button class="seek" data-t="3107">▶ 51:47</button></div>
       <h3>把路径记录为应用数据</h3>
-      <p>The evaluation section of <code>rag-agent-testing.ipynb</code>, also provided in Colab, uses two acceptable paths: retrieve, grade, generate; or retrieve, grade, web search, generate. A bounded cyclic application could enumerate additional steps, but the custom exercise itself does not cycle. The evaluator compares the observed sequence with those accepted sequences.</p>
-<p>Each custom graph node appends its step name to <code>state[&quot;steps&quot;]</code>. Evaluation then reads that list. The following Python expresses the same exact-path check using the tool names from the exercise:</p>
+      <p><code>rag-agent-testing.ipynb</code> 的评测部分（Colab 上也有）认可两条路径：检索、打分、生成；或者检索、打分、网页搜索、生成。有循环的应用只要设了上限，也可以把更多步骤列出来，但这个自定义练习本身没有循环。评估器把实际走过的顺序和这两条认可的路径对比。</p>
+<p>自定义图的每个节点都会把自己的步骤名追加到 <code>state[&quot;steps&quot;]</code> 里，评测时读这个列表即可。下面这段 Python 用练习里的工具名，实现了同样的精确路径检查：</p>
 <p>```python
 ACCEPTED_PATHS = {
     (
@@ -1653,24 +1653,24 @@ ACCEPTED_PATHS = {
         &quot;score&quot;: int(tuple(steps) in ACCEPTED_PATHS),
     }
 ```</p>
-<p>For a ReAct agent, the record already exists in message history. The notebook's helper extracts tool calls from those messages instead of requiring every operation to maintain a separate step list.</p>
+<p>ReAct 智能体的消息历史里本来就有这份记录。notebook 里的辅助函数直接从消息中提取工具调用，不需要每个操作另外维护一个步骤列表。</p>
     </section>
 <section class="section" id="sec-12">
       <div class="section-head"><span class="num">12</span>
       <button class="seek" data-t="3362">▶ 56:02</button></div>
       <h3>给路由一个独立的决策点</h3>
-      <p>With two vector stores, A and B, a ReAct agent needs enough information to distinguish them. That information comes from the overall agent prompt and the descriptions of the retrieval tools: one store contains subject X, the other subject Y. The model uses those descriptions, the question, and the current context to choose a call.</p>
-<p>The local RAG graph makes that decision explicit at entry. Its router chooses between web search and a vector store; the same pattern can extend to more destinations. Requiring routing to run first removes the separate problem of persuading an open-ended agent to choose the routing operation.</p>
-<p>History-aware routing needs one more input. Pass conversation history through state and include it in the routing prompt beside the new question. The router can then decide whether to retrieve, search elsewhere, or answer from retained evidence. Martin corrects a detail while inspecting the example: its routing function is implemented as an edge rather than a node. The essential boundary is still the same—a specific decision reads the state before execution proceeds.</p>
+      <p>如果有 A、B 两个向量库，ReAct 智能体得有足够的信息才能区分它们。这些信息来自智能体的整体提示词和检索工具的描述：一个库存的是主题 X，另一个是主题 Y。模型根据这些描述、问题和当前上下文，决定调用哪一个。</p>
+<p>本地 RAG 图在入口处就把这个决策显式化了。它的路由器在网页搜索和向量库之间二选一，同样的模式可以扩展到更多目的地。规定路由必须最先执行，就省掉了另一个难题：怎么让开放式智能体主动去选路由这一步。</p>
+<p>要让路由参考历史，还得多给一样输入：通过状态传递对话历史，把它和新问题一起放进路由提示词。这样路由器就能判断该检索、去别处搜索，还是用已保留的证据直接回答。Martin 在查看示例时纠正了一个细节：路由函数实现成了边，而不是节点。但关键的边界不变——继续执行之前，先由一个特定的决策读取状态。</p>
     </section>
 <section class="section" id="sec-13">
       <div class="section-head"><span class="num">13</span>
       <button class="seek" data-t="3766">▶ 1:02:46</button></div>
       <h3>跟随一次文档评分的状态更新</h3>
-      <p>The custom RAG graph uses dictionary-like state with five fields: <code>question</code>, <code>generation</code>, <code>search</code>, <code>documents</code>, and <code>steps</code>. Each node receives that state, reads the values it needs, and returns updates. This keeps the question, retrieved material, generated answer, routing flag, and execution record available across the run.</p>
+      <p>自定义 RAG 图的状态类似字典，有五个字段：<code>question</code>、<code>generation</code>、<code>search</code>、<code>documents</code> 和 <code>steps</code>。每个节点接收状态，读取需要的值，再返回更新。这样问题、检索到的材料、生成的答案、路由标志和执行记录，在整个运行过程中随时都能拿到。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/832de8ea53a627f69c6310ada90a700617677cb896dad780fcdf51c175699f96" alt="Jupyter notebook showing a highlighted GraphState class with five typed fields beneath its explanatory docstring." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>GraphState defines the question, generation, search, documents, and steps fields.</figcaption></figure>
-<p>The grading node reads the question and documents, records its step, and grades each document yes/no. It retains relevant documents. If any document is irrelevant, it sets <code>search</code> to <code>&quot;yes&quot;</code> so the next routing decision can request supplemental web search. The update changes the evidence and the next-step flag; it does not itself execute a search.</p>
-<p>For a concrete example, suppose the question is “What does graph state store?” The retrieved set contains <code>doc-a</code>, “Graph state stores the question and retrieved documents,” and <code>doc-b</code>, “The stadium opens at noon.” With grades <code>yes</code> and <code>no</code>, the node retains <code>doc-a</code>, removes <code>doc-b</code>, and marks search as pending. This Python keeps the grading decision injectable while expressing the state operation:</p>
+<p>打分节点读取问题和文档，记录自己的步骤，然后给每篇文档打“是/否”。相关的文档留下。只要有一篇不相关，就把 <code>search</code> 设为 <code>&quot;yes&quot;</code>，让下一次路由决策去请求补充网页搜索。这次更新只改证据和下一步标志，节点本身并不执行搜索。</p>
+<p>举个具体例子：假设问题是“What does graph state store?”（图状态存了什么？）。检索结果里有 <code>doc-a</code>“Graph state stores the question and retrieved documents”（图状态存储问题和检索到的文档），以及 <code>doc-b</code>“The stadium opens at noon”（体育场中午开门）。打分分别为 <code>yes</code> 和 <code>no</code>，于是节点保留 <code>doc-a</code>，去掉 <code>doc-b</code>，并把搜索标记为待执行。下面这段 Python 表达了这个状态操作，打分决策则以参数形式注入：</p>
 <p>```python
 from typing import Callable, Literal, TypedDict</p>
 <p>class Document(TypedDict):
@@ -1715,136 +1715,136 @@ from typing import Callable, Literal, TypedDict</p>
 }
 updated = grade_documents(state, lambda question, text: grades[text])
 ```</p>
-<p>Named keys also make access straightforward: a node reads <code>state[&quot;question&quot;]</code> instead of locating the appropriate message in a conversation stack.</p>
-<p>Grading filters evidence and schedules search
-The grading node preserves relevant evidence and the question while preparing a later web-search branch.
-Constructed example: The question, document IDs and texts, and assigned yes/no grades are teaching values. The operation and state fields follow the demonstrated grading mechanism.
-Question — unchanged: What does graph state store?
-Operation: Apply grades yes to doc-a and no to doc-b, retain relevant evidence, and mark supplemental search as pending.
+<p>用命名键访问也更直接：节点读 <code>state[&quot;question&quot;]</code> 就行，不必去对话栈里翻找对应的消息。</p>
+<p>打分节点过滤证据，并安排搜索
+打分节点保留问题和相关证据，同时为之后的网页搜索分支做好准备。
+构造示例：问题、文档 ID 和文本，以及给出的是/否打分，都是教学用的值；操作和状态字段遵循演示中的打分机制。
+问题——不变：What does graph state store?
+操作：给 doc-a 打 yes、给 doc-b 打 no，保留相关证据，并把补充搜索标记为待执行。
 - question
-  - Before: Before document grading: What does graph state store?
-  - After: After grading, before web search: What does graph state store?
+  - 之前：文档打分前：What does graph state store?
+  - 之后：打分后、网页搜索前：What does graph state store?
 - documents: doc-a
-  - Before: Before document grading: Graph state stores the question and retrieved documents.
-  - After: After grading, before web search: Graph state stores the question and retrieved documents.
+  - 之前：文档打分前：Graph state stores the question and retrieved documents.
+  - 之后：打分后、网页搜索前：Graph state stores the question and retrieved documents.
 - documents: doc-b
-  - Before: Before document grading: The stadium opens at noon.
-  - After: After grading, before web search: Not present
+  - 之前：文档打分前：The stadium opens at noon.
+  - 之后：打分后、网页搜索前：不存在
 - search
-  - Before: Before document grading: no
-  - After: After grading, before web search: yes
+  - 之前：文档打分前：no
+  - 之后：打分后、网页搜索前：yes
 - steps
-  - Before: Before document grading: [&quot;retrieve_documents&quot;]
-  - After: After grading, before web search: [&quot;retrieve_documents&quot;, &quot;grade_document_retrieval&quot;]
+  - 之前：文档打分前：[&quot;retrieve_documents&quot;]
+  - 之后：打分后、网页搜索前：[&quot;retrieve_documents&quot;, &quot;grade_document_retrieval&quot;]
 - generation
-  - Before: Before document grading: &quot;&quot;
-  - After: After grading, before web search: &quot;&quot;
-The grading node preserves relevant evidence and the question while preparing a later web-search branch.</p>
+  - 之前：文档打分前：&quot;&quot;
+  - 之后：打分后、网页搜索前：&quot;&quot;
+打分节点保留问题和相关证据，同时为之后的网页搜索分支做好准备。</p>
     </section>
 <section class="section" id="sec-14">
       <div class="section-head"><span class="num">14</span>
       <button class="seek" data-t="3982">▶ 1:06:22</button></div>
       <h3>减轻模型的负担，再扩充它的证据</h3>
-      <p>The local notebook defaults to Llama 3 through Ollama. Martin reports that the 8B model runs adequately on his M2 with 32 GB of memory, while an attendee cautions against their experience running 70B on an M1. For Martin's setup, 8B tool calling is near the reliability boundary. The custom graph asks for constrained structured outputs rather than repeated selection among tools, which helps explain why he finds it more dependable locally than ReAct.</p>
-<p>Document chunking presents a different burden. Small, semantically coherent chunks help a retriever match a question, but passing only those chunks to the generator can omit necessary context. Martin's preferred technique is to <strong>decouple the retrieval unit from the generation context</strong>: index small chunks, retain a link to their parent document in a document store, and fetch the fuller document after a chunk matches.</p>
-<p>| Context strategy | Advantage | Cost or risk |
+      <p>本地 notebook 默认通过 Ollama 使用 Llama 3。Martin 说 8B 模型在他 32 GB 内存的 M2 上跑得还行；一位参会者则根据自己在 M1 上跑 70B 的经历，劝大家别这么做。在 Martin 的配置下，8B 的工具调用已经接近可靠性的边界。自定义图要求模型输出受约束的结构化结果，而不是反复在工具之间做选择，这也部分解释了为什么他觉得在本地它比 ReAct 更可靠。</p>
+<p>文档分块是另一个难题。语义连贯的小块方便检索器匹配问题，但只把这些小块交给生成器，可能会漏掉必要的上下文。Martin 偏好的做法是<strong>把检索单元和生成上下文解耦</strong>：索引小块，在文档存储里保留指向父文档的链接，小块匹配上之后，再取回更完整的文档。</p>
+<p>| 上下文策略 | 优点 | 代价或风险 |
 | --- | --- | --- |
-| Only narrow matching chunks | Compact input | Missing surrounding evidence |
-| Parent documents selected through chunks | Broader context around a match | Extra tokens |
-| Entire corpus in context | Minimal retrieval machinery | Latency, cost, access control, and auditability |</p>
-<p>Full documents can still be wasteful when they are huge. Martin argues for a middle ground: use retrieval to identify a useful scope, then avoid making generation depend on an excessively narrow chunk or a fragile choice of <code>k</code>.</p>
+| 只用匹配上的小块 | 输入紧凑 | 缺少周边证据 |
+| 通过小块找到父文档 | 匹配处周围的上下文更完整 | 多耗 token |
+| 整个语料放进上下文 | 几乎不需要检索机制 | 延迟、成本、访问控制和可审计性 |</p>
+<p>文档太大时，整篇放进去依然浪费。Martin 主张折中：用检索圈定有用的范围，同时别让生成依赖过窄的小块，或者受制于 <code>k</code> 取多少这种脆弱的选择。</p>
     </section>
 <section class="section" id="sec-15">
       <div class="section-head"><span class="num">15</span>
       <button class="seek" data-t="4347">▶ 1:12:27</button></div>
       <h3>区分可用的证据与模型实际使用的证据</h3>
-      <p>An audience question asks whether the model actually uses information throughout its context window. Martin first approaches the issue from retrieval: does the supplied document contain the answer, and how much irrelevant material accompanies it? In his example, a 100-page document contains the answer on page 55. He calls its answer-presence recall one, while its precision is low because most of the document is unrelated. That describes the evidence supplied to the model; it does not establish that the model successfully used it.</p>
-<p>When extra context is affordable, Martin favors retaining enough material to avoid missing the answer. A system that prioritizes minimizing irrelevant context may make a different trade-off. The parent-document approach gives developers a way to widen the evidence available for generation without abandoning retrieval entirely.</p>
-<p>Context placement depends on whether the evidence changes. If every question concerns one fixed document, Martin suggests placing that document in the system prompt and dispensing with retrieval. He also anticipates context caching as a way to reduce repeated processing of fixed material. His ten-million-token caching and billing example is a hypothetical expectation in the recording, not an established capacity or pricing contract.</p>
-<p>Dynamic evidence needs an index, potentially with routing across several stores. On later turns, retain retrieved documents in state or message history and let the router inspect them alongside the new question. If they already support the answer, generation can proceed without another retrieval. The useful distinction is between needing new evidence and needing a new response from evidence already available.</p>
+      <p>一位听众问：模型真的会用到整个上下文窗口里的信息吗？Martin 先从检索角度切入：提供的文档里有没有答案？夹带了多少无关材料？他举例说，一份 100 页的文档，答案在第 55 页。按“答案在不在里面”算，召回率是 1；但大部分内容无关，所以精确率很低。这描述的是喂给模型的证据，并不能说明模型真的用上了它。</p>
+<p>如果负担得起更多上下文，Martin 倾向于多留一些材料，免得漏掉答案。如果系统优先要压缩无关上下文，取舍就可能不同。父文档方法让开发者既能扩大生成可用的证据，又不必彻底放弃检索。</p>
+<p>上下文放在哪里，取决于证据会不会变。如果所有问题都围绕同一份固定文档，Martin 建议直接把它放进系统提示词，省掉检索。他还预期上下文缓存能减少对固定材料的重复处理。录音里他举的千万 token 缓存与计费的例子只是假设性的预期，并不是既定的容量或定价承诺。</p>
+<p>动态变化的证据需要索引，可能还要在多个存储之间路由。在后续轮次里，把检索到的文档留在状态或消息历史中，让路由器连同新问题一起查看。如果这些文档已经足以支撑答案，就可以不再检索直接生成。要分清的是：到底需要新证据，还是只需要基于已有证据给出新回复。</p>
     </section>
 <section class="section" id="sec-16">
       <div class="section-head"><span class="num">16</span>
       <button class="seek" data-t="4812">▶ 1:20:12</button></div>
       <h3>什么属于模型，什么属于图，什么属于 API？</h3>
-      <p>The discussion then moves from supplying context to training a model to use it. Martin initially distinguishes RAG's in-context learning from fine-tuning weights to encode knowledge. The audience clarifies a different goal: fine-tune behavior so the model uses supplied evidence appropriately, regardless of whether it appears in a system prompt or a user message. This avoids conflating learning facts with learning how to handle context.</p>
-<p>Martin is wary of repeatedly fine-tuning changing facts, but sees behavioral tuning as promising. <a href="https://arxiv.org/abs/2403.10131" target="_blank" rel="noopener">RAFT</a> provides a relevant example: learning to answer from retrieved material while ignoring distractor documents. He has not tried it himself. That learned filtering behavior overlaps with the workshop's relevance checks, without replacing the entire routing and correction graph. His practical concern is maintenance: adopting a new base model may require repeating the specialized tuning, whereas explicit orchestration can retain the same application structure.</p>
-<p>The audience pushes the argument further: providers could learn these behaviors from the long tail of tool and context usage, much as a data engine improves a deployed model. Martin cites OpenAI's Rockset acquisition as a possible signal toward managed retrieval, then considers what might disappear behind an API. That is a forecast in this discussion. Managed functionality can reduce implementation work, but developers may still need transparency and control over application-specific relevance criteria. Multimodality is his example of functionality many teams already accept behind an API; retrieval policy is harder to generalize.</p>
+      <p>讨论接着从“提供上下文”转向“训练模型用好上下文”。Martin 起初区分的是 RAG 的上下文学习和通过微调把知识写进权重。听众澄清了另一个目标：微调模型的行为，让它恰当地使用提供的证据，不管证据出现在系统提示词还是用户消息里。这样就不会把“学事实”和“学怎么处理上下文”混为一谈。</p>
+<p>Martin 对反复用微调去追不断变化的事实持谨慎态度，但认为行为层面的微调很有前景。<a href="https://arxiv.org/abs/2403.10131" target="_blank" rel="noopener">RAFT</a> 就是一个相关例子：模型学会根据检索到的材料作答，同时忽略干扰文档。他自己没试过。这种学来的过滤行为，和工作坊里的相关性检查有重叠，但取代不了整套路由和纠错图。他实际担心的是维护成本：换一个新的基础模型，可能就得把专门的微调重做一遍；显式编排则能沿用同一套应用结构。</p>
+<p>听众把论点又推进了一步：模型提供商可以从工具和上下文使用的长尾数据中学到这些行为，就像数据引擎不断改进已部署的模型一样。Martin 提到 OpenAI 收购 Rockset，认为这可能是托管检索的一个信号，并琢磨哪些功能可能会被藏到 API 后面。这只是讨论中的预测。托管功能能省掉实现工作，但开发者可能仍然需要看得清、管得住应用特有的相关性标准。他举的例子是多模态：很多团队已经接受它藏在 API 后面；检索策略则更难通用化。</p>
     </section>
 <section class="section" id="sec-17">
       <div class="section-head"><span class="num">17</span>
       <button class="seek" data-t="5294">▶ 1:28:14</button></div>
       <h3>大窗口并不能保证多事实检索</h3>
-      <p>The long-context concern becomes concrete in Martin's <a href="https://www.langchain.com/blog/multi-needle-in-a-haystack" target="_blank" rel="noopener">Multi Needle in a Haystack study</a> with Greg Kamradt. Using <strong>GPT-4 Turbo</strong> in a single turn, they insert one, three, or ten secret pizza ingredients into Paul Graham essays, with contexts extending to 120,000 tokens. The model must recover the ingredients; another condition adds reasoning to retrieval. Martin reports roughly 60% retrieval with ten needles in this GPT-4 Turbo study.</p>
-<p>The heatmap explores context lengths from about 1,000 to 120,000 tokens and the positions of the inserted facts. Martin observes failures toward the beginning of longer contexts. He proposes recency bias as an explanation: recent tokens are often informative for next-token prediction, potentially encouraging attention to recent material. The observed positional failures are evidence; that causal explanation remains a hypothesis.</p>
+      <p>长上下文的担忧，在 Martin 和 Greg Kamradt 合作的 <a href="https://www.langchain.com/blog/multi-needle-in-a-haystack" target="_blank" rel="noopener">Multi Needle in a Haystack 研究</a>里有了具体的数据。他们用 <strong>GPT-4 Turbo</strong> 做单轮测试，往 Paul Graham 的文章里插入 1 种、3 种或 10 种秘密披萨配料，上下文最长达 120,000 token。模型要把这些配料找出来；另一组条件在检索之外还要求推理。Martin 报告，这项 GPT-4 Turbo 研究中，插入 10 根“针”时检索率约为 60%。</p>
+<p>热力图考察了约 1,000 到 120,000 token 的上下文长度，以及插入事实的位置。Martin 观察到，上下文较长时，靠前的事实更容易漏掉。他提出用近因偏差（recency bias）来解释：预测下一个 token 时，最近的 token 往往信息量更大，这可能让模型更关注靠后的内容。位置相关的失败是观察到的事实，这个因果解释仍只是假设。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/eb8c753d37bb64d6453b10984954ac58047a8935f517c47f875cc1512f9e97fc" alt="Slide titled “Retrieval is not guaranteed, reasoning harder than retrieval,” with grouped green and red bars and a retrieval heatmap." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Multi-fact retrieval results compare retrieval with retrieval plus reasoning.</figcaption></figure>
-<p>The study changes how to read a clean single-needle chart. Difficulty depends on how many facts must be recovered, whether the task also requires reasoning, and how distinguishable the facts are from their surroundings. Pizza ingredients embedded in essays are conspicuous; closely related facts can be harder to separate. Martin therefore cautions against treating a large advertised context window as assurance that an entire corpus can be supplied and reliably used.</p>
+<p>这项研究改变了我们看单针测试那张漂亮图表的方式。难度取决于要找回多少个事实、任务是否还需要推理，以及这些事实和周边内容有多好区分。夹在文章里的披萨配料很显眼；彼此相近的事实就更难分开。所以 Martin 提醒，别因为宣传的上下文窗口很大，就以为把整个语料塞进去，模型就能可靠地用上。</p>
     </section>
 <section class="section" id="sec-18">
       <div class="section-head"><span class="num">18</span>
       <button class="seek" data-t="5569">▶ 1:32:49</button></div>
       <h3>在扩展之前先缩小工具选择问题</h3>
-      <p>A large tool inventory creates another selection problem. Martin reports difficulty even with small sets and does not establish a numerical cutoff. He outlines three ways to reduce the burden:</p>
-<p>- <strong>Explicit graph routing:</strong> Put tools inside known nodes and route to them through application logic.
-- <strong>Specialist agents:</strong> Give each sub-agent a narrower task and a smaller tool set.
-- <strong>Semantic tool retrieval:</strong> Embed detailed natural-language tool descriptions and retrieve a relevant subset for the current request.</p>
-<p>The third option applies the retrieval pattern to tools rather than documents.</p>
-<p>For semantic tool retrieval, Martin proposes verbose, high-quality summaries of what each tool does, indexed for similarity search against the query. He has not tested that approach yet. Likewise, his advice on specialist agents points to LangGraph's multi-agent notebooks and their cited papers; his own experimentation is limited. He mentions Devin and OpenDevin tentatively as further software-agent examples, rather than presenting a verified architecture comparison.</p>
-<p>Before adding any of this, ask whether the application needs variable control flow. A static RAG chain remains a reasonable starting point. Routing among vector stores, bypassing an irrelevant index for an out-of-domain question, and correcting poor retrieval are concrete reasons to add agentic decisions. Martin's preference for constrained graphs reflects these needs and his experience at LangChain, rather than a requirement that every RAG application become an agent.</p>
+      <p>工具一多，又会冒出另一个选择问题。Martin 说即使工具不多也会遇到困难，他也没有给出具体的数量上限。他列了三种减轻负担的办法：</p>
+<p>- <strong>显式图路由：</strong> 把工具放进已知的节点，通过应用逻辑路由过去。
+- <strong>专家智能体：</strong> 给每个子智能体分配更窄的任务和更少的工具。
+- <strong>语义工具检索：</strong> 对详细的自然语言工具描述做 embedding，针对当前请求检索出相关的子集。</p>
+<p>第三种办法是把检索模式用在工具上，而不是文档上。</p>
+<p>对于语义工具检索，Martin 提议给每个工具写一份详尽、高质量的功能摘要，建好索引，按查询做相似度搜索。这个方法他还没测过。同样，他关于专家智能体的建议，指向的是 LangGraph 的多智能体 notebook 及其引用的论文，他自己的实验有限。他提到 Devin 和 OpenDevin 也是软件智能体的例子，但只是随口一提，并不是经过验证的架构对比。</p>
+<p>加这些东西之前，先问问应用到底需不需要可变的控制流。静态的 RAG 链仍然是合理的起点。在多个向量库之间路由、遇到领域外问题时绕开不相关的索引、纠正糟糕的检索结果——这些才是引入智能体决策的具体理由。Martin 偏爱受约束的图，是出于这些需求和他在 LangChain 的经验，并不是说每个 RAG 应用都得变成智能体。</p>
     </section>
 <section class="section" id="sec-19">
       <div class="section-head"><span class="num">19</span>
       <button class="seek" data-t="6118">▶ 1:41:58</button></div>
       <h3>从真实的失败中扩充评估集</h3>
-      <p>A domain-specific evaluation set rarely appears fully formed. Start with canonical questions the application should answer. To bootstrap additional examples, Martin suggests giving one document at a time to a capable model such as <strong>Sonnet</strong> or GPT-4o and requesting three high-quality question-answer pairs, then auditing them. Restricting generation to one document makes the proposed examples easier to inspect. A small useful set can reveal failures before a comprehensive one exists.</p>
-<p>Once the application is serving users, connect online monitoring to offline testing:</p>
-<p>1. Run reference-free retrieval, relevance, and grounding checks on production runs.
-2. Flag cases where the application appears to perform poorly.
-3. Audit the failure and establish a corrected reference answer.
-4. Add the resulting question-answer pair to the offline evaluation set.
-5. Use that expanded set when assessing the next application change.</p>
-<p>The failure becomes durable test data only after curation; an online judge's flag is the start of that work.</p>
-<p>Martin connects this loop to Karpathy's Tesla data-engine framing and Operation Vacation. In model training, labeled failures become training examples. In this application workflow, they expand the test set used to guide improvements. Both systems turn production experience into a more demanding definition of success.</p>
+      <p>领域专属的评测集很少一开始就是完整的。先从应用必须答得上的典型问题入手。要扩充样例，Martin 建议每次给 <strong>Sonnet</strong> 或 GPT-4o 这类强模型一篇文档，让它生成三组高质量问答对，再人工审核。一次只给一篇文档，生成的样例更容易核查。在完整的评测集建立之前，一个小而有用的集合就能暴露问题。</p>
+<p>应用开始服务用户后，把在线监控和离线测试接起来：</p>
+<p>1. 对生产环境的运行执行无需参考答案的检索、相关性和有据性检查。
+2. 标记出应用看起来表现不佳的案例。
+3. 审核失败案例，确定修正后的参考答案。
+4. 把得到的问答对加入离线评测集。
+5. 评估下一次应用改动时，使用这个扩充后的评测集。</p>
+<p>失败案例只有经过整理，才能变成长期可用的测试数据；在线评判者打的标记，只是这项工作的起点。</p>
+<p>Martin 把这个循环和 Karpathy 讲的特斯拉数据引擎以及 Operation Vacation 联系起来。在模型训练里，标注过的失败案例变成训练样本；在这个应用工作流里，它们扩充的是指导改进的测试集。两套系统都把生产中的经验，变成了更严格的成功标准。</p>
     </section>
 <section class="section" id="sec-20">
       <div class="section-head"><span class="num">20</span>
       <button class="seek" data-t="6387">▶ 1:46:27</button></div>
       <h3>对 SQL 和报告应用同样的边界</h3>
-      <p>A text-to-SQL application can produce more rows than a model can use in a final explanation. In the SQL-agent tutorial Martin opens, attributed to teammate Ankush, the prompt instructs the model to limit results—the shown example uses <code>LIMIT 5</code>—and a query-check node reviews the proposed SQL before execution. This places a check between query generation and a potentially oversized result.</p>
-<p>The follow-up question concerns a different issue: how a <code>WHERE</code> clause identifies the intended value in a high-cardinality column. Martin does not offer a specific value-resolution technique. He limits his advice to prompting and query review and acknowledges that detailed text-to-SQL behavior is outside his expertise. A row limit bounds output size; it does not resolve which value a user meant.</p>
-<p>For long-form generation, Martin opens the STORM example for wiki articles. The workflow develops related topics and uses editor and expert roles, with experts conducting web research before article production. The notebook includes the graph and a generated wiki. He also offers a simpler starting point: retrieve evidence, then use a distillation prompt with explicit instructions for the final report's structure and format. The elaborate multi-agent workflow is one option, not a prerequisite for producing a useful document.</p>
+      <p>text-to-SQL 应用查出来的行数，可能多到模型在最终解释里根本用不上。Martin 打开的 SQL 智能体教程出自同事 Ankush 之手：提示词要求模型限制结果数量——示例里用的是 <code>LIMIT 5</code>——还有一个查询检查节点在执行前审查生成的 SQL。这样就在生成查询和可能过大的结果之间加了一道检查。</p>
+<p>后续提问关心的是另一件事：在高基数列里，<code>WHERE</code> 子句怎么定位到用户想要的那个值。Martin 没有给出具体的取值解析技术，只建议在提示词和查询审查上下功夫，并承认 text-to-SQL 的细节不是他的专长。行数限制只能控制输出规模，解决不了用户到底指的是哪个值。</p>
+<p>长文生成方面，Martin 打开了生成 wiki 文章的 STORM 示例。这个工作流会展开相关主题，设置编辑和专家两种角色，专家先做网页调研，再产出文章。notebook 里有这张图，也有生成好的 wiki。他还给了一个更简单的起点：先检索证据，再用一个提炼提示词，明确规定最终报告的结构和格式。复杂的多智能体工作流只是选项之一，并不是写出有用文档的前提。</p>
     </section>
 <section class="section" id="sec-21">
       <div class="section-head"><span class="num">21</span>
       <button class="seek" data-t="6790">▶ 1:53:10</button></div>
       <h3>区分澄清、模型能力和持久化</h3>
-      <p>A report or chat workflow may discover partway through that essential domain information is missing. Passing control back to a user or reviewer requires both a mechanism for human intervention and a decision that intervention is needed. Martin locates LangGraph's human-in-the-loop documentation and recommends the team's customer-support example for multi-turn interaction. He has not implemented this himself and does not demonstrate a detector for missing information.</p>
-<p>Asked about models trained specifically for agentic reasoning, Martin describes the pattern he has encountered: high-capacity generalist models, accurate tool calling, and task-specific prompts. ReAct is an orchestration and prompting approach with an interchangeable underlying model. He is less familiar with fine-tuning for a particular agent architecture.</p>
-<p>Checkpointing addresses another part of the system: preserving state and returning to a saved point. Martin describes state that can persist across sessions and checkpoints from which an agent can be revisited. Broader deployment support is still previewed as forthcoming in the recording; this exchange explains the purpose of persistence without walking through a deployed implementation.</p>
+      <p>报告或聊天工作流可能做到一半才发现，缺了关键的领域信息。要把控制权交还给用户或审核者，既需要人工介入的机制，也需要判断出“该介入了”。Martin 找到了 LangGraph 关于人机协同（human-in-the-loop）的文档，并推荐参考团队的客服示例来做多轮交互。他自己没实现过这一点，也没有演示怎么检测信息缺失。</p>
+<p>有人问起有没有专门为智能体推理训练的模型，Martin 描述了他见到的模式：高能力的通用模型、准确的工具调用，加上针对任务的提示词。ReAct 是一种编排和提示词方法，底层模型可以随意替换。针对特定智能体架构做微调，他不太熟悉。</p>
+<p>检查点（checkpointing）解决的是系统的另一部分：保存状态，并能回到某个保存点。Martin 介绍了可以跨会话持久化的状态，以及能让智能体回到某个时刻重新查看的检查点。录音里，更全面的部署支持仍是预告中的功能；这段问答解释了持久化的用途，但没有演示已部署的实现。</p>
     </section>
 <section class="section" id="sec-22">
       <div class="section-head"><span class="num">22</span>
       <button class="seek" data-t="7271">▶ 2:01:11</button></div>
       <h3>区分执行错误与错误的决策</h3>
-      <p>An audience example asks what happens if an agent chooses YouTube upload when download was intended. Martin explains the ReAct error path: a tool node with fallbacks returns an execution error into message history, and the assistant can use that feedback to correct its next call. He inspects the notebook but does not find a failing trace to demonstrate live. This mechanism handles errors that a tool actually reports; it does not establish detection of a valid upload call that was simply the wrong action.</p>
-<p>Structured-output validation is a narrower, more directly detectable case. An attendee describes Python, Pydantic, and Jason Liu's Instructor for validating outputs and retrying after schema errors. Martin agrees that malformed structured data is well suited to this feedback loop, while the general tool fallback also handles other execution failures. Schema validity and choosing the right operation remain separate properties.</p>
-<p>The integration boundary is the node, not the model wrapper. LangGraph and LangSmith do not require LangChain. Martin proposes replacing the retrieval grader's <code>with_structured_output</code> call and grade schema with Instructor, then keeping the surrounding graph unchanged. It is offered as a workshop experiment rather than shown as a completed integration.</p>
+      <p>一位听众举例问：本该下载 YouTube 视频，智能体却选了上传，会怎样？Martin 解释了 ReAct 的出错路径：带回退（fallback）的工具节点会把执行错误写回消息历史，助手可以借这条反馈修正下一次调用。他翻看了 notebook，但没找到能现场演示的失败 trace。这个机制处理的是工具实际报出的错误；如果上传调用本身合法、只是选错了动作，它发现不了。</p>
+<p>结构化输出校验是一种更窄、也更容易直接发现的情况。一位参会者介绍了自己的做法：用 Python、Pydantic 和 Jason Liu 的 Instructor 校验输出，遇到 schema 错误就重试。Martin 同意，格式错误的结构化数据很适合这种反馈循环；通用的工具回退机制则还能处理其他执行失败。schema 合法和选对操作，仍然是两回事。</p>
+<p>集成的边界在节点，而不在模型封装层。LangGraph 和 LangSmith 都不要求使用 LangChain。Martin 提议把检索评分器里的 <code>with_structured_output</code> 调用和打分 schema 换成 Instructor，周围的图保持不变。这只是作为工作坊实验提出来的，并没有展示完成的集成。</p>
     </section>
 <section class="section" id="sec-23">
       <div class="section-head"><span class="num">23</span>
       <button class="seek" data-t="7608">▶ 2:06:48</button></div>
       <h3>相关性还取决于文档的权威性和范围</h3>
-      <p>The remaining bottleneck in ChatLangChain is often retrieval itself. Its documentation includes canonical guides and a long tail of integration pages with uneven depth. Raw semantic similarity may return a strong how-to guide alongside several incidental passages. All can match the question's wording while differing substantially in how useful they are for answering it.</p>
-<p>Martin describes a design under consideration: retrieve a larger initial candidate set, then rerank for document importance. A general question about agents should favor a well-developed overview over an integration page that happens to mention building an agent. Larger context windows ease the problem of supplying enough text, but they do not decide which sources deserve priority.</p>
-<p>The proposed ranking uses the documentation's structure. Tutorials, how-to guides, and conceptual guides receive higher importance for general questions. An integration-specific request—such as one about the Zep Cloud retriever—should still promote the corresponding integration page. A router could classify the question as general or specific, while heuristic quality or importance scores travel in indexed chunk metadata. Martin presents these as planned choices, not deployed results.</p>
-<p>Follow-up questions can expose a scope problem even when the original retrieval was reasonable. An attendee rewrites a question to request a deeper explanation but gets the same chunks and nearly the same answer. Martin reframes the task: if the first request retrieved a page and the next needs a chapter, change the retrieval operation. Use chapter or section metadata to fetch the larger unit, retrieve the entire section, or increase <code>k</code>. Rewriting the query alone does not ensure broader evidence.</p>
+      <p>ChatLangChain 剩下的瓶颈，往往就是检索本身。它的文档既有权威指南，也有一长串深浅不一的集成页面。单纯按语义相似度检索，可能返回一篇很好的 how-to 指南，外加几段只是顺带提到相关内容的段落。这些结果都能和问题的措辞对上，但对回答问题的帮助差别很大。</p>
+<p>Martin 介绍了一个正在考虑的设计：先检索出更大的初始候选集，再按文档重要性重排。一个关于智能体的笼统问题，应该优先返回内容充实的概览，而不是某个恰好提到“构建智能体”的集成页面。更大的上下文窗口能缓解文本不够的问题，但决定不了哪些来源应该优先。</p>
+<p>设想中的排序会利用文档本身的结构。遇到笼统问题，教程、how-to 指南和概念指南的权重更高。针对具体集成的请求——比如关于 Zep Cloud 检索器的问题——仍应把对应的集成页面排到前面。路由器可以判断问题是笼统还是具体，启发式的质量分或重要性分则作为元数据，随索引的文本块一起存储。Martin 说这些都是计划中的方案，还没有上线的结果。</p>
+<p>即使最初的检索没问题，追问也可能暴露出范围问题。一位参会者改写问题，想要更深入的解释，结果拿到的还是同样的文本块，答案也几乎一样。Martin 换了个角度看这个任务：如果第一次请求检索的是一页，下一次需要的是一章，那就该改的是检索操作本身。可以用章节元数据取回更大的单元、检索整个小节，或者调大 <code>k</code>。光改写查询，并不能保证拿到更广的证据。</p>
     </section>
 <section class="section" id="sec-24">
       <div class="section-head"><span class="num">24</span>
       <button class="seek" data-t="8204">▶ 2:16:44</button></div>
       <h3>测试分支——并识别出缺失的交互</h3>
-      <p>The local exercise's sports questions serve a deliberate purpose. The vector store contains three blog posts about agents, prompting, and adversarial examples, so the two sports questions fall outside its domain and are intended to force the web-search branch. They test whether the application adapts when its local evidence cannot answer the request. A late participant exchange also describes much faster local execution after switching from 70B to 8B, reinforcing the practical importance of matching the exercise to available hardware.</p>
-<p>The final question sharpens a distinction that ordinary chat history does not resolve. ReAct can retain follow-up messages, and the custom graph is primarily a single-turn question-answering example. But the attendee wants the agent to initiate a clarification question when details are missing. Neither supplied example implements that behavior. Martin points again to the more complex customer-support agent and commits to adding a simpler tutorial. The next capability is therefore specific: deciding that the available information is insufficient, asking for what is missing, and continuing the task after the user responds.</p>
+      <p>本地练习里的体育类问题是有意为之的。向量库里有三篇博客，分别讲智能体、提示词和对抗样本，所以那两道体育题超出了它的领域，目的就是逼应用走网页搜索分支。它们检验的是：本地证据回答不了时，应用能不能随之调整。快结束时，一位参会者还提到，从 70B 换成 8B 后，本地运行快了很多——这也再次说明，练习要和手头的硬件匹配。</p>
+<p>最后一个问题点出了一个普通聊天历史解决不了的区别。ReAct 能保留后续消息，自定义图则主要是单轮问答示例。但这位参会者希望，细节缺失时智能体能主动发起澄清提问。提供的两个示例都没实现这一点。Martin 再次推荐了更复杂的客服智能体示例，并承诺补一个更简单的教程。所以下一步要补的能力很明确：判断现有信息不够，问清缺了什么，等用户回复后接着完成任务。</p>
     </section>
     </div></div></section>
 

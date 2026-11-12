@@ -576,122 +576,122 @@ AI Engineer EUROPE</pre></details>
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="16">▶ 0:16</button></div>
       <h3>既然智能体能 grep，为什么还要给代码建索引？</h3>
-      <p>Should a coding agent discover a repository by repeatedly searching and reading files, or should it start with a searchable index of the code’s meaning? That is the practical difference behind this experiment. Kuba Rogut, a deployed engineer at turbopuffer—a serverless full-text and vector search database built on object storage—starts with Claude Code’s choice. At the time of the recording, it relied on agentic filesystem search by default. Rogut cites Boris Cherny’s account that early versions used a local vector database, but iterative search proved simpler and worked better for Claude Code.</p>
+      <p>编码智能体了解一个代码仓库，应该靠一遍遍搜索、读文件，还是先建一个能按代码含义检索的索引？这个实验要比较的就是这两种做法的实际差别。Kuba Rogut 是 turbopuffer 的部署工程师。turbopuffer 是一个构建在对象存储上的 serverless 全文与向量检索数据库。他从 Claude Code 的选择说起：录制这场演讲时，Claude Code 默认靠智能体式的文件系统搜索。Rogut 引用 Boris Cherny 的说法：早期版本用过本地向量数据库，但对 Claude Code 来说，迭代式搜索更简单，效果也更好。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/3634518b720c0b3ffa8f2c4d896aaa1aa9ef0623b95c7748a79d087f239c99b3" alt="Slide titled “claude doesn’t use semantic code search” showing Ethan Lipnik’s question and Boris Cherny’s reply about agentic search." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Boris Cherny describes Claude Code’s move from RAG and a local vector database to agentic search.</figcaption></figure>
-<p>Cursor made a different investment: it indexed codebases into turbopuffer to support semantic retrieval. In <a href="https://cursor.com/blog/semsearch" target="_blank" rel="noopener">Cursor’s semantic-search evaluation</a>, Rogut highlights roughly 24% relative answer-accuracy improvement for <strong>Composer</strong>, with about 12.5% averaged across models. These results predate <strong>Composer 2</strong>; they do not establish its performance. He also recommends Cursor’s account of <a href="https://cursor.com/blog/secure-codebase-indexing" target="_blank" rel="noopener">indexing large codebases</a>.</p>
-<p>Cursor’s separate online A/B test measured user outcomes rather than benchmark answer accuracy. Its report gives 2.6% higher code retention with semantic search for codebases containing at least 1,000 files. It also reports 2.2% more dissatisfied follow-ups when semantic search was disabled. The direction of that second comparison matters: it is not exactly the same percentage as a reduction measured from the disabled condition. Aggregate effects also include requests that have little use for semantic search, so a modest overall change can conceal larger gains on the requests that need it.</p>
+<p>Cursor 走了另一条路：它把代码库索引进 turbopuffer，用来支持语义检索。Rogut 特别提到 <a href="https://cursor.com/blog/semsearch" target="_blank" rel="noopener">Cursor 的语义搜索评测</a>中的两个数字：<strong>Composer</strong> 的回答准确率相对提升约 24%，各模型平均提升约 12.5%。这些结果出现在 <strong>Composer 2</strong> 之前，不能说明 Composer 2 的表现。他还推荐了 Cursor 介绍<a href="https://cursor.com/blog/secure-codebase-indexing" target="_blank" rel="noopener">索引大型代码库</a>的文章。</p>
+<p>Cursor 另做了一次线上 A/B 测试，衡量的是用户层面的结果，而不是基准上的回答准确率。报告显示，在至少有 1,000 个文件的代码库里，启用语义搜索后，代码留存率高出 2.6%。报告还提到，关闭语义搜索时，用户表达不满的追问多出 2.2%。第二组对比要注意方向：它和“以关闭状态为基准算出的降幅”不是同一个百分比。另外，总体数据里也包含不太需要语义搜索的请求，所以整体变化不大，可能掩盖了真正需要它的请求上更大的收益。</p>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="164">▶ 2:44</button></div>
       <h3>嵌入摊薄了重复发现的成本</h3>
-      <p>Consider the question: how does metadata filtering work in this codebase? An agent using filesystem search starts with candidate terms, reads matching files, and searches again when those files do not answer the question. A shell search can begin broadly and then request nearby context:</p>
+      <p>拿一个问题来说：这个代码库里的元数据过滤是怎么实现的？用文件系统搜索的智能体会先想几个候选词，读命中的文件；如果这些文件回答不了问题，就再搜一轮。用 shell 搜索时，可以先大范围搜，再取匹配处附近的上下文：</p>
 <p>``<code>bash
 rg -n -i 'metadata|filter' .
 rg -n -i -C 12 'metadata.<em>filter|filter.</em>metadata' .
 </code>``</p>
-<p>The agent still has to interpret the matches and decide where to look next. Rogut’s illustrative trace spends about 6,000 tokens on this discovery process. That is one example, not a benchmark-wide average. The same work can recur in another session or in another agent working on the same repository.</p>
-<p>The indexed route moves some of that work earlier:</p>
-<p>1. Split the codebase into chunks.
-2. Embed those chunks and store them in a searchable index.
-3. At runtime, use the metadata-filtering question to retrieve relevant chunks.</p>
-<p><strong>Embeddings are cached compute</strong> in this sense: they preserve a reusable representation of meaning that can shorten later discovery. They do not cache a complete answer. The agent still needs to read and reason about the returned code. Nor does indexing eliminate upkeep; changed code requires the index to be maintained. The complete slide compares repeated grep-and-read discovery with the upfront indexing work and subsequent retrieval.</p>
+<p>拿到匹配结果后，智能体还得自己解读，再决定下一步看哪里。在 Rogut 举的示例 trace 里，这个探索过程花了大约 6,000 个 token。这只是一个例子，不是整个基准上的平均值。而且同样的活，换一个会话，或者换一个在同一仓库上干活的智能体，还得再干一遍。</p>
+<p>走索引这条路，就是把其中一部分工作提前做掉：</p>
+<p>1. 把代码库切成块（chunk）。
+2. 对这些块做 embedding，存进可检索的索引。
+3. 运行时，用“元数据过滤”这个问题去检索相关的块。</p>
+<p>从这个意义上说，<strong>embedding 是缓存下来的计算</strong>：它保存了一份可复用的语义表示，能缩短后续的探索。但它缓存的不是完整答案，智能体仍然要读返回的代码、自己推理。建了索引也不等于不用维护：代码一改，索引就得跟着更新。完整的幻灯片把两条路线放在一起比较：一边是反复 grep、读文件的探索，一边是前期建索引、之后直接检索。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/de911419c46008f73cc10044215f4b29784de300ad2feaf844476fba33e4351d" alt="Two panels compare per-session grep and file reads totaling 6,314 tokens with indexed retrieval returning ranked chunks totaling 424 tokens." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>“Embeddings are cached compute”: repeated discovery versus indexing once and retrieving at runtime.</figcaption></figure>
-<p>The economic argument becomes stronger across repeated sessions and concurrent agents. A small saving on one question may be unremarkable, but paying to rediscover the same area of a repository repeatedly can accumulate. Whether indexing pays off depends on how often the representation is reused relative to the cost of building and maintaining it.</p>
+<p>会话越多、并发的智能体越多，这笔经济账就越有说服力。单个问题上省下的一点开销也许不起眼，但为同一块代码反复付费、重新摸索，成本会越积越多。索引划不划算，要看这份表示被复用得有多频繁，再和构建、维护它的成本比一比。</p>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="252">▶ 4:12</button></div>
       <h3>给 Claude Code 一个语义检索工具</h3>
-      <p><a href="https://github.com/turbopuffer/turbogrep" target="_blank" rel="noopener">TurboGrep</a> implements a small version of that pipeline. It walks the filesystem, uses <code>tree-sitter</code> to parse and chunk code, generates embeddings with a Voyage code model, and uploads them to turbopuffer. Claude Code then gets a search tool backed by that index. At recording time, Rogut described V1 as open source and V2 as awaiting release; the public repository should not be assumed to reproduce the exact demonstrated integration.</p>
-<p>The demonstration uses the Django repository. Claude Code invokes the <code>TPuff</code> search tool with a query for a password reset token generator, receives the relevant content, and uses it to explain the implementation to the user. The useful handoff is from a description of the desired behavior to code the agent can inspect. A successful trace shows that the integration works in that example, but does not yet establish whether it improves retrieval across tasks.</p>
+      <p><a href="https://github.com/turbopuffer/turbogrep" target="_blank" rel="noopener">TurboGrep</a> 实现了这条流水线的简化版。它遍历文件系统，用 <code>tree-sitter</code> 解析代码并切块，用 Voyage 的代码模型生成 embedding，再上传到 turbopuffer。这样 Claude Code 就多了一个基于该索引的搜索工具。录制时，Rogut 说 V1 已经开源，V2 还在等待发布；所以不要默认公开仓库能原样复现演示里的集成。</p>
+<p>演示用的是 Django 仓库。Claude Code 调用 <code>TPuff</code> 搜索工具，查询密码重置 token 生成器，拿到相关内容后，向用户讲解它的实现。真正有价值的是这一步衔接：从一段“想要什么行为”的描述，直接落到智能体能查看的代码上。一条成功的 trace 说明集成在这个例子里能跑通，但还不能说明它在各类任务上都能改善检索。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="302">▶ 5:02</button></div>
       <h3>衡量一路上找到的上下文</h3>
-      <p>To move beyond a convincing demonstration, the evaluation asks what context the agent discovers while attempting a task. Rogut distinguishes Cursor’s internal context benchmark from the public <a href="https://arxiv.org/abs/2602.05892" target="_blank" rel="noopener">ContextBench</a> work. The latter uses human annotations identifying files, lines, and symbols that an agent should inspect to complete a task well. This evaluates the retrieval trajectory, rather than simply whether the final code solves the issue. <strong>Retrieval precision and recall are not answer accuracy or task completion.</strong></p>
-<p>The experiment compares three conditions:</p>
-<p>| Condition | Available retrieval behavior |
+      <p>光有一个漂亮的演示还不够。评测要问的是：智能体在做任务的过程中，到底找到了哪些上下文。Rogut 把 Cursor 的内部上下文基准和公开的 <a href="https://arxiv.org/abs/2602.05892" target="_blank" rel="noopener">ContextBench</a> 区分开来。ContextBench 用人工标注，标出智能体要做好一个任务应该查看哪些文件、行和符号。它评估的是检索轨迹，而不只是最终代码有没有解决问题。<strong>检索的精确率和召回率，不等于回答准确率，也不等于任务完成率。</strong></p>
+<p>实验比较了三种条件：</p>
+<p>| 条件 | 可用的检索方式 |
 | --- | --- |
-| Stock Claude Code | Default search and file reads |
-| Windowed reads | Reads limited to 50 lines at a time |
-| Windowed reads + semantic search | Same read limit, plus <code>TPuff</code> Search |</p>
-<p>The read limit matters because reading an entire thousand-line file can sweep in annotated context without showing whether the agent located it precisely. Large reads made the measurements noisy and obscured differences between retrieval strategies. The windowed condition provides a more informative baseline for assessing the added semantic tool.</p>
+| 原版 Claude Code | 默认搜索和文件读取 |
+| 窗口化读取 | 每次最多读 50 行 |
+| 窗口化读取 + 语义搜索 | 同样的读取限制，外加 <code>TPuff</code> Search |</p>
+<p>之所以限制读取行数，是因为一次读完一个上千行的文件，可能顺带把标注的上下文全扫进来，却看不出智能体有没有精准定位到它。大段读取让测量噪声很大，也掩盖了不同检索策略之间的差别。窗口化条件是一个信息量更大的基线，用它才好判断新增的语义工具到底起了多大作用。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="384">▶ 6:24</button></div>
       <h3>检索越有选择性，精确率越高</h3>
-      <p><strong>Precision</strong> asks how much of the retrieved context belongs to the annotated target set:</p>
+      <p><strong>精确率</strong>衡量的是：检索到的上下文里，有多少属于标注的目标集合：</p>
 <p>``<code>math
 precision = relevant retrieved items / all retrieved items
 </code>``</p>
-<p>If the agent reads ten files and eight are required, file precision is 80%. The same idea applies to lines and symbols. Rogut reports these approximate results:</p>
-<p>| Condition | File precision | Line precision | Symbol precision |
+<p>如果智能体读了十个文件，其中八个是必需的，文件精确率就是 80%。行和符号也按同样的思路算。Rogut 报告的近似结果如下：</p>
+<p>| 条件 | 文件精确率 | 行精确率 | 符号精确率 |
 | --- | --- | --- | --- |
-| Stock Claude Code | 65% | 33% | 43% |
-| Windowed reads + semantic search | 87% | — | — |</p>
-<p>The intermediate windowed condition also improves precision. Consequently, the entire increase from stock Claude Code to the combined condition cannot be attributed to semantic search alone; restricting reads contributes too. These are Rogut’s reported experimental results, not a general guarantee for other models or repositories.</p>
-<p>Rogut describes default Claude Code as highly exploratory: it tries to read broadly before settling on the relevant implementation. His rounded interpretation is that files outside the labeled target set account for about one in three baseline reads, one in five windowed reads, and one in eight reads with semantic search added. That makes the selectivity improvement tangible. Calling those reads wasted is shorthand for being outside the benchmark’s annotations, not proof that every exploratory read was useless.</p>
+| 原版 Claude Code | 65% | 33% | 43% |
+| 窗口化读取 + 语义搜索 | 87% | — | — |</p>
+<p>中间的窗口化条件同样提高了精确率。所以，从原版 Claude Code 到组合条件的全部提升，不能都算在语义搜索头上，限制读取本身也有贡献。这些是 Rogut 报告的实验结果，换了模型或仓库未必成立。</p>
+<p>Rogut 形容默认的 Claude Code 探索欲很强：锁定相关实现之前，它会先大范围地读。按他的粗略估算，基线条件下大约每三次读取就有一次落在标注的目标集合之外；窗口化读取时约为五分之一，加上语义搜索后约为八分之一。这样一比，“更有选择性”就很直观了。说这些读取是“浪费”只是一种简称，意思是它们不在基准的标注范围内，并不能证明每一次探索性读取都没用。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="450">▶ 7:30</button></div>
       <h3>召回率揭示了选择性搜索可能遗漏的东西</h3>
-      <p><strong>Recall</strong> changes the denominator: how much of the required context did the agent find?</p>
+      <p><strong>召回率</strong>换了分母：必需的上下文里，智能体找到了多少？</p>
 <p>``<code>math
 recall = relevant retrieved items / all required relevant items
 </code>``</p>
-<p>Suppose a task requires ten files. The agent reads five files, but only three belong to the required set. Its file recall is 30%. Reading fewer irrelevant files can improve precision without improving this coverage measure.</p>
-<p>Stock Claude Code has the highest file recall in the reported comparison. Broad exploration helps it encounter more target files. Its line recall is weaker, however: reaching the right file does not necessarily mean inspecting the right parts of it. Windowed reads and windowed reads plus semantic search have roughly similar aggregate recall, with some decreases when semantic search is added. The aggregate covers 50 tasks in Rogut’s experiment, not the full public benchmark. Higher precision therefore coexists with a mixed coverage result.</p>
+<p>假设一个任务需要十个文件。智能体读了五个，但只有三个在必需集合里，那么文件召回率就是 30%。少读无关文件能提高精确率，却未必能提高这项覆盖指标。</p>
+<p>在 Rogut 报告的对比中，原版 Claude Code 的文件召回率最高：大范围探索让它碰到了更多目标文件。不过它的行召回率偏弱，找到了对的文件，不代表看了文件里对的部分。窗口化读取和“窗口化读取 + 语义搜索”的总体召回率大致相当，加上语义搜索后有些指标还有所下降。这里的总体数据来自 Rogut 实验中的 50 个任务，不是完整的公开基准。所以，精确率上去了，覆盖面的结果却有升有降。</p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="518">▶ 8:38</button></div>
       <h3>行为相似性和导入追踪找到的是不同的代码</h3>
-      <p>Splitting the tasks by which condition performs better reveals differences that the aggregate hides:</p>
-<p>- <strong>Semantic search:</strong> Useful when relevant files implement related behavior but use different keywords. Rogut recalls an example involving related handling across several ORMs or libraries: lexical search missed some implementations, while semantic search found their behavioral relationship.
-- <strong>Windowed grep:</strong> Useful when an early search finds a good identifier and the remaining work follows explicit connections such as imports. Once the agent has the right names, keyword search can trace the relevant files directly.</p>
-<p>These are different ways to navigate a repository. One follows similarity of behavior; the other follows names and explicit code relationships. The task breakdown supports choosing tools according to that structure, rather than declaring one search method universally better.</p>
+      <p>按哪种条件表现更好把任务拆开来看，就能看到总体数据掩盖的差异：</p>
+<p>- <strong>语义搜索：</strong>适合相关文件实现的行为相近、却用了不同关键词的情况。Rogut 回忆了一个例子，涉及多个 ORM 或库里的相关处理逻辑：词法搜索漏掉了其中一些实现，语义搜索则凭行为上的关联把它们找了出来。
+- <strong>窗口化 grep：</strong>适合前期搜索就找到一个好用的标识符、剩下的工作可以顺着 import 这类显式关系往下走的情况。智能体一旦拿到正确的名字，关键词搜索就能直接追到相关文件。</p>
+<p>这是两种不同的仓库导航方式：一种顺着行为的相似性走，另一种顺着名字和代码里的显式关系走。按任务拆开的结果说明，应该根据任务的这种结构来挑工具，而不是宣布某一种搜索方法放之四海皆准。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/040e391403ce4a8d1bea586db34d983daaf77dce7801833f95a72c92052ab360" alt="Recall deep-dive slide with two grouped bar charts and boxes describing when semantic search won and when grep won." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Semantic search finds behavior-adjacent files; grep excels at tracing imports and finding function names near bugs.</figcaption></figure>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="583">▶ 9:43</button></div>
       <h3>一个有用的工具仍然需要工具选择策略</h3>
-      <p>The experiment improves precision, but the agent also has to decide when and how to use the new tool. Rogut’s interpretation is that Claude Code is oriented toward grep: attaching a semantic-search tool does not automatically give it a reliable policy for choosing that tool, phrasing a query, or deciding when to return to lexical search. He contrasts this with Composer’s integrated retrieval behavior.</p>
-<p>That is a plausible explanation for why an added tool might fall short of an integrated system, rather than a causal result isolated by this experiment. Cursor’s answer-accuracy evaluation and Rogut’s context-retrieval evaluation also measure different outcomes, so their gains cannot be compared directly. His closing design principle is to provide lightweight, complementary ways of finding context. Even very large context windows still benefit from selecting the relevant information before asking a model to reason over it.</p>
+      <p>实验提高了精确率，但智能体还得自己决定什么时候用新工具、怎么用。Rogut 的解读是，Claude Code 天生偏向 grep：挂上一个语义搜索工具，并不会让它自动学会一套可靠的用法——什么时候选这个工具、查询怎么写、什么时候退回词法搜索。他拿 Composer 做对比，Composer 的检索行为是内建在系统里的。</p>
+<p>为什么外挂一个工具可能比不上一体化的系统？这是一个说得通的解释，但不是这个实验分离出来的因果结论。Cursor 的回答准确率评测和 Rogut 的上下文检索评测衡量的也不是同一种结果，两边的提升不能直接比较。他最后给出的设计原则是：提供多种轻量、互补的上下文查找方式。上下文窗口再大，也最好先挑出相关信息，再交给模型去推理。</p>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="667">▶ 11:07</button></div>
       <h3>这里的语义搜索是什么意思</h3>
-      <p>The audience first asks for an exact definition of semantic search. In this implementation it means vector similarity search: embed the code, embed the query text, and search the stored vectors in turbopuffer to retrieve code chunks. The embedding model is <strong><a href="https://blog.voyageai.com/2024/12/04/voyage-code-3/" target="_blank" rel="noopener">voyage-code-3</a></strong>. This is a concrete, relatively simple retrieval setup, not a claim that every system described as semantic search uses the same architecture.</p>
-<p>Rogut names Cursor, Anthropic, and Notion as turbopuffer customers. A company’s use of the database does not identify the retrieval architecture of each of its products; in particular, that customer relationship does not establish semantic code search inside Claude Code.</p>
+      <p>观众的第一个问题是：语义搜索到底怎么定义？在这个实现里，它指的是向量相似度搜索：对代码做 embedding，对查询文本做 embedding，再在 turbopuffer 存储的向量里搜索，取回代码块。用的 embedding 模型是 <strong><a href="https://blog.voyageai.com/2024/12/04/voyage-code-3/" target="_blank" rel="noopener">voyage-code-3</a></strong>。这是一套具体、相对简单的检索方案，并不是说所有号称语义搜索的系统都用同样的架构。</p>
+<p>Rogut 提到，Cursor、Anthropic 和 Notion 都是 turbopuffer 的客户。但一家公司用了这个数据库，并不能说明它每个产品的检索架构是什么样；尤其不能凭这层客户关系就断定 Claude Code 内部用了语义代码搜索。</p>
     </section>
 <section class="section" id="sec-10">
       <div class="section-head"><span class="num">10</span>
       <button class="seek" data-t="718">▶ 11:58</button></div>
       <h3>注释帮助一个代码块自我解释</h3>
-      <p>What happens on poorly written code? Rogut does not give a controlled benchmark answer. Instead, he describes a pattern from reviewing trajectories, including using Claude to help examine them: examples with useful function comments and inline documentation tended to retrieve better. Those comments supply context about behavior that both the embedding model and the coding agent can use.</p>
-<p>The difficult part is not merely producing a vector. It is making the chunk’s meaning available to the representation. A function’s syntax may show what operations it performs without clearly expressing why it exists or which user-facing behavior it supports. Good documentation can help connect those levels. This remains a qualitative observation from the trajectories, not a measured rule that comments always improve retrieval.</p>
+      <p>代码写得很糟的时候会怎样？Rogut 没有给出对照实验的结论，而是讲了他翻看轨迹时发现的规律（翻看时也借助了 Claude）：函数注释和内联文档写得好的例子，检索效果往往更好。这些注释补充了代码行为方面的上下文，embedding 模型和编码智能体都用得上。</p>
+<p>难点不只是生成一个向量，而是让向量真正表达出代码块的含义。看函数的语法，也许能知道它执行了哪些操作，却说不清它为什么存在、支撑的是哪个面向用户的功能。好的文档能把这两个层面连起来。不过，这仍然只是从轨迹中得来的定性观察，不是测量出来的规律，不能说加了注释就一定能改善检索。</p>
     </section>
 <section class="section" id="sec-11">
       <div class="section-head"><span class="num">11</span>
       <button class="seek" data-t="778">▶ 12:58</button></div>
       <h3>弥合问题与原始代码之间的差距</h3>
-      <p>A follow-up question points to a representation mismatch: a natural-language query and raw code may express the same behavior in very different forms. The audience proposes a parent–child arrangement in which a query-like description points to a child containing the actual code. Rogut clarifies that this experiment did not apply that preprocessing; it embedded the raw code chunks.</p>
-<p>Authentication flow is the audience’s example of a human-level concept that may not appear directly in implementation text. A description at that level could provide a useful retrieval target, while the linked code remains the evidence the agent needs to inspect. Rogut mentions Cursor’s own embedding model as another way to address the translation between code and human queries, but says he cannot explain its internal implementation.</p>
-<p>Another audience member suggests that Cursor generates comments and embeds them with code. That explanation is unverified in the discussion. Rogut agrees that comment enrichment could work; he does not establish that it is Cursor’s actual method. The concrete distinction is between the raw-code experiment presented here and possible enrichment methods that would need their own evaluation.</p>
+      <p>接下来有人指出了表示上的错位：自然语言查询和原始代码描述的可能是同一种行为，形式却差得很远。这位观众提出一种父子结构：用一段类似查询的描述作父节点，指向包含实际代码的子节点。Rogut 澄清说，这次实验没有做这种预处理，直接对原始代码块做了 embedding。</p>
+<p>观众举的例子是“认证流程”：这是人脑子里的概念，却未必会直接出现在实现代码的字面上。在这个层面写一段描述，可以当作好用的检索目标，而链接到的代码仍然是智能体需要查看的证据。Rogut 提到，Cursor 自研的 embedding 模型是解决代码与人类查询之间“翻译”问题的另一种思路，但他讲不清它的内部实现。</p>
+<p>另一位观众猜测，Cursor 会先生成注释，再和代码一起做 embedding。这个说法在讨论中没有得到证实。Rogut 认同用注释来增强可能行得通，但没有证实这就是 Cursor 的实际做法。能明确区分的是：这里展示的是基于原始代码的实验，而各种可能的增强方法都需要单独评测。</p>
     </section>
 <section class="section" id="sec-12">
       <div class="section-head"><span class="num">12</span>
       <button class="seek" data-t="862">▶ 14:22</button></div>
       <h3>共享向量检索在哪里值得一用</h3>
-      <p>The final question raises long-term memory and reducing database size. Rogut answers in terms of workload placement, without specifying when to encode memories or how to compact them. If all relevant information can be downloaded to a local filesystem, grep is convenient and requires little setup. That simplicity is valuable, even though the agent’s repeated searching and reading still consumes compute.</p>
-<p>Shared workloads change the calculation. A Notion-like knowledge base contains relationships across information that may be awkward to gather and search as local files. A shared vector index can make those semantic relationships available to multiple agents. Multimodal data extends the case further: grep does not directly recover the semantic content of raw video, audio, or images. Matching a filename is different from finding what the media contains.</p>
-<p>The choice therefore depends on the data, the workload, and the amount of repeated discovery. Local lexical search remains useful when the relevant material and identifiers are readily available. As agents share larger or more varied information spaces, storing reusable semantic representations can offload work they would otherwise repeat. That is where the cached-compute argument reaches beyond code search.</p>
+      <p>最后一个问题涉及长期记忆，以及怎么缩减数据库规模。Rogut 从“工作负载放在哪里”的角度作答，没有具体说什么时候该把记忆编码进去、又该怎么压缩。如果所有相关信息都能下载到本地文件系统，grep 用起来方便，几乎不用配置。这种简单很有价值，尽管智能体反复搜索、读取仍然要消耗算力。</p>
+<p>工作负载一旦共享，这笔账就变了。像 Notion 这样的知识库里，信息之间有各种关联，要把它们当成本地文件收集起来再搜索，可能很别扭。共享的向量索引能让多个智能体都用上这些语义关联。多模态数据让这个理由更充分：grep 没法直接读出原始视频、音频或图片的语义内容。匹配上文件名，和找到媒体里装的是什么，是两回事。</p>
+<p>所以，怎么选取决于数据、工作负载，以及要重复探索多少次。当相关材料和标识符唾手可得时，本地词法搜索依然好用。当智能体共享的信息空间更大、更多样时，把可复用的语义表示存下来，就能替它们省掉原本要反复做的工作。到了这一步，“缓存计算”的论点就不只适用于代码搜索了。</p>
     </section>
     </div></div></section>
 

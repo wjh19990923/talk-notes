@@ -749,107 +749,107 @@ lyft</pre></details>
       <div class="section-head"><span class="num">01</span>
       <button class="seek" data-t="5">▶ 0:05</button></div>
       <h3>怎么知道一个客服智能体已经准备好面对用户？</h3>
-      <p>A customer-support agent can have a carefully written prompt, useful tools, and a retrieval pipeline—and still be unready to handle a real conversation. How do you establish that it can help customers before those customers become its test data? Nick Ung and Akshay Sharma approach that question through their work on Lyft’s multi-agent support system, connecting offline evaluation, production monitoring, and the harness that makes evaluation repeatable.</p>
-<p>Development starts with context management, retrieval-augmented generation, tool definitions, the agent graph, and the system prompt. Before deployment, those pieces need to work together through complete interactions. For a multi-turn support agent, that means a representative scenario dataset and a user LLM that carries conversations through to completion. A grader evaluates the resulting trajectories, and explicit performance criteria determine whether the agent passes a <strong>launch gate</strong>. The purpose is to find failures before exposing live users to them.</p>
-<p>After launch, evaluation continues with production traces recording the agent’s executions and the context behind its responses. Online graders assess those interactions, while people inspect errors, identify failure modes, and feed findings back to development. Offline and online evaluation therefore serve different parts of the same loop: establish readiness, then learn from what actually happens.</p>
+      <p>一个客服智能体，提示词写得用心，工具也好用，检索管线也搭好了，却仍可能应付不了真实对话。怎样才能在客户沦为它的测试数据之前，确认它真能帮上忙？Nick Ung 和 Akshay Sharma 结合自己在 Lyft 多智能体客服系统上的工作回答这个问题。他们把离线评测、线上监控，以及让评测可重复的框架串到了一起。</p>
+<p>开发从上下文管理、检索增强生成（RAG）、工具定义、智能体图和系统提示词入手。部署前，这些部件要在完整的交互中配合起来。对多轮客服智能体来说，这意味着要有一套有代表性的场景数据集，再加一个用户 LLM，把每段对话一路推进到结束。评分器给生成的轨迹打分，明确的性能标准决定智能体能否通过<strong>上线关卡</strong>。目的是赶在真实用户碰上之前，先把问题找出来。</p>
+<p>上线之后，评测并不停止。生产环境的 trace 记录智能体的每次执行，以及它作答时依据的上下文。线上评分器给这些交互打分，人则负责检查错误、归纳失败模式，再把发现反馈给开发。离线评测和线上评测是同一个闭环的两段：先确认能上线，再从真实发生的情况里学习。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/d04be74a5a1df318e0358697d5b3f1b74479e4818e8b91f8e9920bc0cf89eed9" alt="Diagram showing agent engineering leading to offline evaluation and a launch decision, then a production AI agent and online evaluation, with feedback loops to development." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The AI agent evaluation flywheel connects development, launch decisions, and production feedback.</figcaption></figure>
     </section>
 <section class="section" id="sec-2">
       <div class="section-head"><span class="num">02</span>
       <button class="seek" data-t="339">▶ 5:39</button></div>
       <h3>让分数产生后果</h3>
-      <p><strong>An evaluation score needs to change a decision.</strong> Three failure modes prevent that:</p>
-<p>- <strong>No gate:</strong> A judge produces numbers, but those numbers do not affect development or deployment.
-- <strong>No trust:</strong> Noisy, generic scores provide little actionable information. Lyft encountered this with its early judges: people did not believe the scores or know how to use them.
-- <strong>No owner:</strong> A production regression has no clear detection mechanism or person responsible for correcting it.</p>
-<p>A useful evaluation system needs all three connections: a decision that the score informs, a grader people can trust, and an owner who acts on the result.</p>
+      <p><strong>评测分数得能改变某个决策。</strong> 有三种情况会让它做不到：</p>
+<p>- <strong>没有关卡：</strong> 评审模型给出了数字，但这些数字既不影响开发，也不影响部署。
+- <strong>没人信：</strong> 分数嘈杂又笼统，几乎给不出可操作的信息。Lyft 早期的评审模型就碰到过这个问题：大家既不相信这些分数，也不知道怎么用。
+- <strong>没人管：</strong> 线上出现退化时，既没有明确的检测机制，也没有人负责修。</p>
+<p>一个有用的评测系统，三条连接缺一不可：分数要服务于某个决策，评分器要让人信得过，结果要有人负责落实。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/d5c71f0afe5c3b8c581b51fc21b35cef38ca2ba374b0115633b76755049911ec" alt="Slide titled “Why do Eval Fail?” with three numbered cards: “Numbers don't gate anything,” “Judges are too noisy to trust,” and “No owner of the consequence.”" loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Three evaluation failure modes: scores without gates, noisy judges, and unowned consequences.</figcaption></figure>
     </section>
 <section class="section" id="sec-3">
       <div class="section-head"><span class="num">03</span>
       <button class="seek" data-t="440">▶ 7:20</button></div>
       <h3>模拟完整的客服交互</h3>
-      <p>Lyft took inspiration from Sierra AI’s <a href="https://arxiv.org/abs/2406.12045" target="_blank" rel="noopener">τ-bench</a>: let an agent and a simulated user interact under the policies of a particular domain, producing a multi-turn trace. Customer-support policies supply the instructions for handling each issue; the simulation tests how the agent applies them as a conversation unfolds.</p>
-<p>In Lyft’s simulator, a <a href="https://docs.langchain.com/oss/python/langgraph/overview" target="_blank" rel="noopener">LangGraph</a> agent interacts with a user LLM whose instructions define several distinct parts of the scenario:</p>
-<p>- <strong>Intent:</strong> What the user wants to accomplish and what the support issue represents.
-- <strong>World state:</strong> Relevant user data, such as an experienced driver operating in a luxury category.
-- <strong>Behavior and persona:</strong> How the user approaches the interaction—for example, a loyal longtime customer frustrated with Lyft’s earnings system.</p>
-<p>These fields determine both the problem the agent must solve and how much cooperation it receives while solving it.</p>
-<p>The resulting trajectories go through complementary evaluators. An <strong>LLM judge</strong> assesses behavior that requires interpretation; deterministic assertions check outcomes that can be specified directly. If a scenario requires the agent to grant a concession, the evaluator compares the agent’s tool calls with that expected action. This tests instruction following at the tool-call level rather than relying only on whether the final response sounds helpful.</p>
+      <p>Lyft 借鉴了 Sierra AI 的 <a href="https://arxiv.org/abs/2406.12045" target="_blank" rel="noopener">τ-bench</a>：让智能体和模拟用户在某个领域的策略约束下交互，产出一条多轮 trace。客服策略规定了每类问题该怎么处理；模拟则检验智能体在对话推进过程中怎样执行这些策略。</p>
+<p>在 Lyft 的模拟器里，一个 <a href="https://docs.langchain.com/oss/python/langgraph/overview" target="_blank" rel="noopener">LangGraph</a> 智能体和用户 LLM 对话。用户 LLM 的指令分别定义了场景的几个部分：</p>
+<p>- <strong>意图：</strong> 用户想办成什么事，这个客服问题本质上是什么。
+- <strong>世界状态：</strong> 相关的用户数据，比如一位跑豪华车型的资深司机。
+- <strong>行为与人设：</strong> 用户以什么姿态参与对话，比如一位对 Lyft 收入体系不满的忠实老用户。</p>
+<p>这些字段既决定智能体要解决什么问题，也决定它解决问题时能从对方那里得到多少配合。</p>
+<p>生成的轨迹交给几类互补的评估器。<strong>LLM 评审</strong>负责需要解读的行为；确定性断言负责检查能直接写明的结果。比如某个场景要求智能体给出补偿，评估器就拿智能体的工具调用和这个预期动作对比。这样能在工具调用层面检验指令遵循，而不是只看最终回复听起来有没有帮助。</p>
     </section>
 <section class="section" id="sec-4">
       <div class="section-head"><span class="num">04</span>
       <button class="seek" data-t="676">▶ 11:16</button></div>
       <h3>一个乐于助人的助手会模拟出一个不切实际地配合的用户</h3>
-      <p>Simulation quality starts with the dataset. Asking an LLM to generate 50 test queries is an easy shortcut, but it does not establish that the scenarios resemble production. Lyft supplements its offline dataset with samples of historical support interactions, then mutates scenario criteria to cover both expected paths and edge cases. The accompanying slide extends that workflow with an output schema and an over-generate-then-filter step.</p>
+      <p>模拟质量从数据集开始。让 LLM 生成 50 条测试查询是条省事的捷径，但没法证明这些场景贴近生产环境。Lyft 用历史客服交互的样本补充离线数据集，再变换场景条件，把预期路径和边界情况都覆盖到。配套的幻灯片在这个流程上又加了两步：定义输出 schema，以及“先多生成、再筛选”。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/313d7e6648ba62b316fe7eb136e6021c5cc14c677c6e5c20415a99e59b22e892" alt="Slide with a meme on the left and four numbered steps on the right: seed from production, inject a perturbation, enforce an output schema, and over-generate then filter." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Synthetic-data methodology: seed from production, perturb, enforce a schema, then over-generate and filter.</figcaption></figure>
-<p>Even a plausible scenario can become too easy when the simulated user behaves unlike a customer. Frontier models are trained to be helpful assistants. When asked to play Lyft users, they patiently described their problems in complete, polite messages. Nick reports a pass or accuracy rate above 90% in Lyft’s first offline evaluation with this overly accommodating user simulator. The talk does not specify the dataset size or a more precise metric definition.</p>
-<p>Production interactions looked different. Users were already frustrated, impatient, and less willing to explain their issues. Lyft fine-tuned its user LLM on actual Lyft user language so that the simulated conversations more closely resembled those interactions. Evaluation scores fell after that change; Nick gives no post-tuning rate. The harder simulation created room to improve the agent’s handling of difficult interactions, instead of rewarding its performance with unusually cooperative users.</p>
-<p>Personas add another dimension of realism. A bypasser wants immediate escalation to a human without giving the AI a chance; other personas include refund seekers and AI skeptics. These instructions ground the user model in recognizable behaviors. Nick also credits Microsoft research on user LLMs as inspiration, describing a similar decrease in evaluation scores when a fine-tuned user model made conversations more realistic.</p>
+<p>场景再合理，模拟用户要是不像真实客户，测试也会变得太容易。前沿模型的训练目标是做一个乐于助人的助手。让它们扮演 Lyft 用户时，它们会耐心地用完整、礼貌的消息把问题讲清楚。Nick 提到，Lyft 第一次离线评测用的就是这种过分配合的用户模拟器，通过率（或准确率）超过 90%。演讲没有给出数据集规模，也没有给出更精确的指标定义。</p>
+<p>生产环境里的交互完全是另一番样子。用户本来就窝着火，没耐心，也不太愿意把问题讲清楚。Lyft 用真实 Lyft 用户的语言微调了用户 LLM，让模拟对话更接近这些交互。改完之后，评测分数下降了；Nick 没有给出微调后的具体数字。更难的模拟给智能体留出了改进空间，让它学着应付棘手的对话，而不是靠一群格外配合的用户刷出好成绩。</p>
+<p>人设又增加了一层真实感。“绕行者”（bypasser）不给 AI 任何机会，只想立刻转人工；其他人设还有想要退款的用户和不信任 AI 的用户。这些指令让用户模型的行为落到一个个可辨认的类型上。Nick 还提到，Microsoft 关于用户 LLM 的研究给了他们启发：那项研究也发现，微调后的用户模型让对话更真实，评测分数随之下降。</p>
     </section>
 <section class="section" id="sec-5">
       <div class="section-head"><span class="num">05</span>
       <button class="seek" data-t="1057">▶ 17:37</button></div>
       <h3>用任务结果取代泛泛的质量分数</h3>
-      <p>Different applications emphasize safety, leaks, cost, latency, or response quality. Some checks can be implemented in code; others require an LLM’s judgment. The problem is not having multiple dimensions—it is defining dimensions that do not tell anyone what to fix.</p>
-<p>Lyft initially used prebuilt metrics from <a href="https://deepeval.com/docs/metrics-llm-evals" target="_blank" rel="noopener">DeepEval</a>, including tool-usage appropriateness, response helpfulness, conversation naturalness, and completeness. Akshay’s practical question is what an engineer should do with a helpfulness score of <code>0.5</code>. Toxicity, bias, fairness, and conciseness scores can present the same problem when detached from a concrete requirement. Prebuilt metrics can supply a baseline, but the core evaluation should connect to product outcomes. This criticism concerns Lyft’s use of generic metrics; current DeepEval also supports custom criteria, rubrics, and binary scoring.</p>
-<p>The alternative is to work with domain experts and data scientists to define <strong>task success or failure</strong>. Binary outcomes make judge calibration more tractable and give error analysis a specific target. Lyft’s education rubric illustrates the difference:</p>
-<p>| Agent behavior | Rubric outcome |
+      <p>不同应用的侧重点不同：安全、泄露、成本、延迟，或者回复质量。有些检查能用代码实现，有些得靠 LLM 来判断。问题不在于维度多，而在于定义出来的维度没法告诉任何人该修什么。</p>
+<p>Lyft 起初用的是 <a href="https://deepeval.com/docs/metrics-llm-evals" target="_blank" rel="noopener">DeepEval</a> 的预置指标，包括工具使用是否恰当、回复是否有帮助、对话是否自然、内容是否完整。Akshay 提了个很实际的问题：有帮助程度得了 <code>0.5</code> 分，工程师该拿它怎么办？毒性、偏见、公平性、简洁度这些分数，一旦脱离具体需求，也是同样的问题。预置指标可以当基线，但核心评测应该和产品结果挂钩。这番批评针对的是 Lyft 当初对通用指标的用法；现在的 DeepEval 也支持自定义标准、评分细则和二元打分。</p>
+<p>更好的做法是和领域专家、数据科学家一起定义<strong>任务成功还是失败</strong>。二元结果让评审模型更容易校准，也让错误分析有了明确的靶子。Lyft 针对“讲解”的评分细则能说明两者的差别：</p>
+<p>| 智能体行为 | 细则判定 |
 |---|---|
-| Keeps educating when it should escalate | Fail |
-| Escalates before attempting appropriate education | Fail |
-| Handles education and escalation as expected | Pass |</p>
-<p>Both excessive persistence and premature escalation can fail. A generic helpfulness score obscures that distinction; the rubric identifies which behavior needs to change.</p>
+| 该升级时还在继续讲解 | 不通过 |
+| 还没做应有的讲解就升级 | 不通过 |
+| 按预期处理讲解与升级 | 通过 |</p>
+<p>过度坚持和过早升级，都可能判为不通过。笼统的有帮助程度得分会掩盖这种区别；评分细则则能指出具体该改哪种行为。</p>
     </section>
 <section class="section" id="sec-6">
       <div class="section-head"><span class="num">06</span>
       <button class="seek" data-t="1269">▶ 21:09</button></div>
       <h3>把评判者当作分类器</h3>
-      <p>A judge is itself a model whose decisions need evaluation. Akshay suggests starting with around 100 examples hand-labeled as pass or fail for the relevant task or metric. Split those examples into training, development, and held-out validation data, then measure the judge’s precision and recall against human labels. Agreement with an unvalidated judge cannot establish that an agent is working correctly.</p>
-<p>Here, training means developing the judge’s prompt rather than updating its weights. Each partition has a separate job:</p>
-<p>1. Use training examples to choose few-shot demonstrations for the prompt.
-2. Iterate on the prompt or harness against the development set.
-3. Evaluate on the held-out test set to check whether those changes overfit the development examples.</p>
-<p>The slide illustrates approximate train/dev/test proportions of 20%/40%/40%. This allocation reflects prompt development: the training portion supplies examples, while the larger development and test portions assess the judge’s behavior.</p>
+      <p>评审模型本身也是模型，它的判断同样需要评测。Akshay 建议先针对相关任务或指标，人工标注 100 条左右的通过/不通过样本。把这些样本分成训练集、开发集和留出验证集，再以人工标注为准，衡量评审模型的精确率和召回率。一个没验证过的评审模型说智能体没问题，并不能证明智能体真的没问题。</p>
+<p>这里的“训练”指的是打磨评审模型的提示词，而不是更新权重。每份数据各有分工：</p>
+<p>1. 从训练样本里挑出放进提示词的 few-shot 示例。
+2. 在开发集上迭代提示词或框架。
+3. 在留出的测试集上评估，看这些改动有没有对开发集过拟合。</p>
+<p>幻灯片给出的训练/开发/测试比例大约是 20%/40%/40%。这样分配，是因为目的在于打磨提示词：训练部分只用来提供示例，占比更大的开发集和测试集才用来检验评审模型的表现。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/b653f35a1048b7b17d8fbf96f8dd2272c8dec54ff70e5533aaf85d3063f704df" alt="Three colored boxes labeled Train, Dev, and Test show approximately 20%, 40%, and 40% of examples, with annotations for few-shot examples, prompt iteration, and a final check." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>Labeled examples are split into train, dev, and test sets for developing the judge prompt.</figcaption></figure>
-<p>Validation also has to account for <strong>criteria drift</strong>. Reviewing more outputs changes a team’s understanding of quality: a previously ambiguous interaction reveals a missing rule, or a new failure shows that an existing rule is incomplete. Evaluation criteria should therefore develop alongside observations of the agent. As the criteria change, refine the judge and reevaluate it against the revised expectations.</p>
+<p>验证还得考虑<strong>标准漂移</strong>。看的输出越多，团队对“好”的理解就会跟着变：一次原本模棱两可的交互，暴露出少了一条规则；或者一种新的失败，说明现有规则不完整。所以评测标准应该随着对智能体的观察一起演进。标准变了，就要相应改进评审模型，再按新的预期重新评测它。</p>
     </section>
 <section class="section" id="sec-7">
       <div class="section-head"><span class="num">07</span>
       <button class="seek" data-t="1496">▶ 24:56</button></div>
       <h3>为重要的数字加上不确定性范围</h3>
-      <p>A bare alignment rate hides uncertainty. Confidence intervals, calibration, and appropriate sampling make reported scores more useful, especially when those scores determine whether to ship or appear in leadership reporting. Akshay recommends concentrating expensive statistical work at those consequential decision points.</p>
-<p>In Akshay’s hypothetical example, two evaluators score 84% and 88% on 50 traces; the four-percentage-point difference alone does not establish a real improvement. The slide shows overlapping confidence intervals to make that uncertainty visible. Determining whether the difference is meaningful requires more information than the two headline rates, including the comparison design. Larger effects and paired designs can require fewer examples; the talk does not supply paired outcomes or an exact sample-size calculation.</p>
+      <p>只报一个一致率，会把不确定性藏起来。置信区间、校准和合理的抽样能让报出来的分数更有用，尤其是这些分数要决定是否发布，或者要写进给管理层的汇报时。Akshay 建议把代价高的统计工作集中用在这些分量重的决策点上。</p>
+<p>Akshay 举了个假设的例子：两个评估器在 50 条 trace 上分别得到 84% 和 88%，光凭这 4 个百分点的差距，并不能说明真有提升。幻灯片画出了相互重叠的置信区间，让这种不确定性一目了然。要判断差距有没有意义，光看这两个总比率不够，还需要更多信息，包括对比是怎么设计的。效应越大，或者采用配对设计，所需样本就可能越少；演讲没有给出配对结果，也没有算出确切的样本量。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/af8f5dde54069c3b7f3d489df85dc7343198d2323016eea9a6f1d04a452cffc2" alt="Slide titled “Is 88% really better than 84%?” showing two horizontal confidence intervals, points labeled 84% and 88%, and a pink shaded overlap region." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>The 84% and 88% scores have overlapping confidence intervals.</figcaption></figure>
     </section>
 <section class="section" id="sec-8">
       <div class="section-head"><span class="num">08</span>
       <button class="seek" data-t="1606">▶ 26:46</button></div>
       <h3>让错误分析成为一个反复进行的工程循环</h3>
-      <p>The foundation is direct inspection of data. Without looking at examples, a team cannot create meaningful criteria or labels. Without labels, it cannot validate its judges. Without validated judges, it cannot confidently interpret the agent’s scores. LLMs can assist this work, but they do not remove the need to examine what happened.</p>
-<p>Run error analysis as a recurring procedure:</p>
-<p>1. Inspect raw traces from agent interactions.
-2. Identify the specific failure modes.
-3. Keep metrics tied to business or functional requirements that actually change a decision; remove the noise.
-4. Form a revised hypothesis about what needs improvement, reevaluate, and repeat.</p>
-<p>Akshay suggests a weekly or biweekly cadence. The important distinction is that this is continuous work, not a one-time audit.</p>
-<p>That procedure depends on useful traces. Tools such as <a href="https://docs.langchain.com/langsmith/annotation-queues" target="_blank" rel="noopener">LangSmith</a> and <a href="https://langfuse.com/docs/observability/data-model" target="_blank" rel="noopener">Langfuse</a> let teams log and inspect graph execution: which nodes ran, what the model saw, which tools it called, token usage, and latency for each call. Additional metadata can enrich the record. These details make it possible to move from a failed outcome to the execution that produced it.</p>
-<p><strong>Annotation queues</strong> make those records accessible to domain experts. Reviewers can label examples and give feedback through a focused interface instead of navigating raw trace JSON. Reviewed traces then serve two purposes: they can become offline evaluation cases, and their human labels can support precision and recall measurements for the judges. Production evidence becomes material for the next round of testing.</p>
+      <p>一切的基础是亲眼看数据。不看样例，团队就定不出有意义的标准和标签。没有标签，就没法验证评审模型。评审模型没验证过，就没法放心解读智能体的分数。LLM 可以帮忙，但省不掉“看看到底发生了什么”这一步。</p>
+<p>把错误分析当成例行流程来做：</p>
+<p>1. 查看智能体交互的原始 trace。
+2. 找出具体的失败模式。
+3. 只保留和业务或功能需求挂钩、真能改变决策的指标，砍掉噪声。
+4. 对需要改进的地方提出新的假设，重新评测，然后重复。</p>
+<p>Akshay 建议每周或每两周做一次。关键在于这是持续的工作，不是一次性审计。</p>
+<p>这套流程离不开有用的 trace。借助 <a href="https://docs.langchain.com/langsmith/annotation-queues" target="_blank" rel="noopener">LangSmith</a> 和 <a href="https://langfuse.com/docs/observability/data-model" target="_blank" rel="noopener">Langfuse</a> 这类工具，团队可以记录并检查图的执行：跑了哪些节点、模型看到了什么、调用了哪些工具，以及每次调用的 token 用量和延迟。还可以附加元数据，让记录更完整。有了这些细节，就能从一个失败的结果顺藤摸瓜，找到导致它的那次执行。</p>
+<p><strong>标注队列</strong>让领域专家也能用上这些记录。审阅者在专门的界面里给样例打标签、写反馈，不用在原始的 trace JSON 里翻找。审阅过的 trace 有两个用处：可以变成离线评测用例，人工标签也可以用来衡量评审模型的精确率和召回率。生产环境里的证据，就成了下一轮测试的素材。</p>
     </section>
 <section class="section" id="sec-9">
       <div class="section-head"><span class="num">09</span>
       <button class="seek" data-t="1851">▶ 30:51</button></div>
       <h3>把发现变成改动——再重新运行评测</h3>
-      <p>Evaluation closes the loop when its findings improve the agent. Nick distinguishes three places to make those improvements:</p>
-<p>| Learning path | What changes |
+      <p>评测发现的问题真正让智能体变好了，闭环才算闭合。Nick 区分了三个可以下手改进的地方：</p>
+<p>| 学习路径 | 改什么 |
 |---|---|
-| Model | Weights through post-training or a custom model |
-| Context | Documents, stored user memories, tool outputs |
-| Harness | System prompt, tool schemas, routing, retries, control flow |</p>
-<p>Lyft’s error analysis has informed agent prompts, knowledge-base updates, and context-management strategies. Identifying the failure mode helps determine which part of the system needs attention.</p>
-<p>At the time of the talk, the offline simulator still depended on scripts scattered across notebooks and analysis repositories; Nick described it as insufficiently repeatable. The team was investing in a systematic evaluation harness with predefined primitives and configuration-based contributions. It was also considering how accumulated real-user signals could support task-specific model fine-tuning and reward modeling for reinforcement learning. Those were further directions, distinct from the user-simulator fine-tuning already described.</p>
-<p>The harness design standardizes evaluation across agents and sub-agents. Editable YAML configuration lets analysts and data scientists contribute alongside engineers. Nick describes thousands, potentially tens of thousands, of evaluation examples as the motivation for parallelism and throughput. The reusable primitives are <strong>task, datasets, personas, LLM adapter, and evaluator</strong>.</p>
-<p>An illustrative configuration brings those primitives together for the concession scenario. Dataset records supply the world state and expected action; the persona controls user behavior; separate evaluators assess the tool outcome and the education rubric.</p>
+| 模型 | 通过后训练或定制模型改变权重 |
+| 上下文 | 文档、存储的用户记忆、工具输出 |
+| 框架 | 系统提示词、工具 schema、路由、重试、控制流 |</p>
+<p>Lyft 的错误分析已经推动了智能体提示词、知识库更新和上下文管理策略的改进。找准失败模式，才知道该动系统的哪一部分。</p>
+<p>做这场演讲时，离线模拟器还依赖散落在各个 notebook 和分析仓库里的脚本；Nick 说它可重复性不够。团队正在建设一个系统化的评测框架，提供预定义的基础组件，大家通过写配置来贡献内容。团队也在考虑，怎样用积累下来的真实用户信号做针对具体任务的模型微调，以及强化学习的奖励建模。这些是更往后的方向，和前面讲的用户模拟器微调是两回事。</p>
+<p>这个框架的设计让各个智能体和子智能体的评测有了统一标准。YAML 配置可以直接编辑，分析师和数据科学家也能和工程师一起贡献。Nick 说评测样例有数千条，将来可能到数万条，所以需要并行和高吞吐。可复用的基础组件有<strong>任务、数据集、人设、LLM 适配器和评估器</strong>。</p>
+<p>下面这个示意配置把这些组件组合起来，用在补偿场景上。数据集记录提供世界状态和预期动作；人设控制用户行为；两个独立的评估器分别检查工具调用结果和讲解细则。</p>
 <p>``<code>yaml
 task: customer_support_concession
 datasets:
@@ -864,8 +864,8 @@ evaluators:
     type: llm_judge
     outcomes: [pass, fail]
 </code>``</p>
-<p>This is the configuration shape the design calls for: reusable scenario and evaluator definitions that contributors can assemble without rewriting the simulation runner.</p>
-<p>Once defined, the same configuration can be rerun at different development gates. A local run after a prompt change compares the agent with its previous version. A pre-commit check could catch degradation before a change is pushed to the agent service. Nick also identifies CI/CD regression and acceptance suites as integration points the team is exploring. The intended endpoint is a repeatable engineering workflow in which evaluation accompanies changes closely enough to influence whether they move forward.</p>
+<p>这正是这套设计想要的配置形态：场景和评估器的定义都能复用，贡献者自己拼装就行，不必重写模拟运行器。</p>
+<p>定义好之后，同一份配置可以在开发的不同关口反复运行。改完提示词，在本地跑一遍，就能和智能体的上一版对比。提交前检查可以在改动推送到智能体服务之前发现退化。Nick 还提到，团队正在探索把它接入 CI/CD 的回归测试和验收测试套件。最终目标是一套可重复的工程流程：评测紧跟每次改动，紧到足以决定改动能不能往下走。</p>
 <figure><img src="https://ai.engineer/api/talk-essay-media/dfff8006d27ba2b86f8df47690e496f511aa530fd2c4c2bf86bdc2d44be049cd" alt="Slide titled “So what exactly is an eval harness?” listing offline scaffolding, configuration, parallelism, task, datasets, personas, LLM adapters, evaluator, and execution during agent development, pre-commit, and CI/CD." loading="lazy" class="zoom" referrerpolicy="no-referrer" /><figcaption>An eval harness combines configuration, parallelism, reusable primitives, and repeated execution.</figcaption></figure>
     </section>
     </div></div></section>
